@@ -38,6 +38,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
@@ -69,6 +70,8 @@ import org.wfanet.measurement.api.v2alpha.BatchUpdateEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.CreateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.DeleteEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.entityKey as cmmsEntityKey
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.AdMetadataKt.campaignMetadata as cmmsCampaignMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupMetadataKt.adMetadata as cmmsAdMetadata
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
@@ -105,6 +108,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
@@ -172,15 +176,87 @@ class EventGroupSyncFunctionTest() {
   private var firstBatchCreateStarted: CountDownLatch? = null
   private var firstBatchCreateMayComplete: CountDownLatch? = null
 
+  private val kingdomEventGroups =
+    ConcurrentHashMap<String, CmmsEventGroup>(
+      listOf(
+          cmmsEventGroup {
+            name = "dataProviders/data-provider-1/eventGroups/reference-id-1"
+            measurementConsumer = "measurementConsumers/measurement-consumer-1"
+            eventGroupReferenceId = "reference-id-1"
+            mediaTypes += listOf(CmmsMediaType.VIDEO, CmmsMediaType.DISPLAY)
+            eventGroupMetadata = cmmsEventGroupMetadata {
+              this.adMetadata = cmmsAdMetadata {
+                this.campaignMetadata = cmmsCampaignMetadata {
+                  brandName = "brand-1"
+                  campaignName = "campaign-1"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+          },
+          cmmsEventGroup {
+            name = "dataProviders/data-provider-2/eventGroups/reference-id-2"
+            measurementConsumer = "measurementConsumers/measurement-consumer-2"
+            eventGroupReferenceId = "reference-id-2"
+            mediaTypes += listOf(CmmsMediaType.OTHER)
+            eventGroupMetadata = cmmsEventGroupMetadata {
+              this.adMetadata = cmmsAdMetadata {
+                this.campaignMetadata = cmmsCampaignMetadata {
+                  brandName = "brand-2"
+                  campaignName = "campaign-2"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+          },
+          cmmsEventGroup {
+            name = "dataProviders/data-provider-3/eventGroups/reference-id-3"
+            measurementConsumer = "measurementConsumers/measurement-consumer-2"
+            eventGroupReferenceId = "reference-id-3"
+            mediaTypes += listOf(CmmsMediaType.OTHER)
+            eventGroupMetadata = cmmsEventGroupMetadata {
+              this.adMetadata = cmmsAdMetadata {
+                this.campaignMetadata = cmmsCampaignMetadata {
+                  brandName = "new-brand-name"
+                  campaignName = "campaign-3"
+                }
+              }
+            }
+            dataAvailabilityInterval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+          },
+        )
+        .associateBy { it.name }
+    )
+
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
-      .thenAnswer { invocation -> invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup }
+      .thenAnswer { invocation ->
+        val eventGroup = invocation.getArgument<UpdateEventGroupRequest>(0).eventGroup
+        kingdomEventGroups[eventGroup.name] = eventGroup
+        eventGroup
+      }
     onBlocking { deleteEventGroup(any<DeleteEventGroupRequest>()) }
-      .thenAnswer { invocation -> invocation.getArgument<DeleteEventGroupRequest>(0) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<DeleteEventGroupRequest>(0)
+        checkNotNull(kingdomEventGroups.remove(request.name)).copy {
+          state = CmmsEventGroup.State.DELETED
+        }
+      }
     onBlocking { createEventGroup(any<CreateEventGroupRequest>()) }
       .thenAnswer { invocation ->
         val eventGroup = invocation.getArgument<CreateEventGroupRequest>(0).eventGroup
-        eventGroup.copy { name = "resource-name-for-${eventGroup.eventGroupReferenceId}" }
+        eventGroup
+          .copy { name = "resource-name-for-${eventGroup.eventGroupReferenceId}" }
+          .also { kingdomEventGroups[it.name] = it }
       }
     onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
       .thenAnswer { invocation ->
@@ -193,9 +269,9 @@ class EventGroupSyncFunctionTest() {
           eventGroups +=
             invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map { subRequest
               ->
-              subRequest.eventGroup.copy {
-                name = "resource-name-for-${subRequest.eventGroup.eventGroupReferenceId}"
-              }
+              subRequest.eventGroup
+                .copy { name = "resource-name-for-${subRequest.eventGroup.eventGroupReferenceId}" }
+                .also { kingdomEventGroups[it.name] = it }
             }
         }
       }
@@ -204,70 +280,20 @@ class EventGroupSyncFunctionTest() {
         batchUpdateEventGroupsResponse {
           eventGroups +=
             invocation.getArgument<BatchUpdateEventGroupsRequest>(0).requestsList.map {
-              it.eventGroup
+              it.eventGroup.also { eventGroup -> kingdomEventGroups[eventGroup.name] = eventGroup }
             }
         }
       }
     onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
-      .thenAnswer {
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListEventGroupsRequest>(0)
+        val entityTypes = request.filter.entityTypeInList.ifEmpty { listOf("campaign") }
         listEventGroupsResponse {
           eventGroups +=
-            listOf(
-              cmmsEventGroup {
-                name = "dataProviders/data-provider-1/eventGroups/reference-id-1"
-                measurementConsumer = "measurementConsumers/measurement-consumer-1"
-                eventGroupReferenceId = "reference-id-1"
-                mediaTypes += listOf(CmmsMediaType.VIDEO, CmmsMediaType.DISPLAY)
-                eventGroupMetadata = cmmsEventGroupMetadata {
-                  this.adMetadata = cmmsAdMetadata {
-                    this.campaignMetadata = cmmsCampaignMetadata {
-                      brandName = "brand-1"
-                      campaignName = "campaign-1"
-                    }
-                  }
-                }
-                dataAvailabilityInterval = interval {
-                  startTime = timestamp { seconds = 200 }
-                  endTime = timestamp { seconds = 300 }
-                }
-              },
-              cmmsEventGroup {
-                name = "dataProviders/data-provider-2/eventGroups/reference-id-2"
-                measurementConsumer = "measurementConsumers/measurement-consumer-2"
-                eventGroupReferenceId = "reference-id-2"
-                mediaTypes += listOf(CmmsMediaType.OTHER)
-                eventGroupMetadata = cmmsEventGroupMetadata {
-                  this.adMetadata = cmmsAdMetadata {
-                    this.campaignMetadata = cmmsCampaignMetadata {
-                      brandName = "brand-2"
-                      campaignName = "campaign-2"
-                    }
-                  }
-                }
-                dataAvailabilityInterval = interval {
-                  startTime = timestamp { seconds = 200 }
-                  endTime = timestamp { seconds = 300 }
-                }
-              },
-              cmmsEventGroup {
-                name = "dataProviders/data-provider-3/eventGroups/reference-id-3"
-                measurementConsumer = "measurementConsumers/measurement-consumer-2"
-                eventGroupReferenceId = "reference-id-3"
-                mediaTypes += listOf(CmmsMediaType.OTHER)
-                eventGroupMetadata = cmmsEventGroupMetadata {
-                  this.adMetadata = cmmsAdMetadata {
-                    this.campaignMetadata = cmmsCampaignMetadata {
-                      brandName = "new-brand-name"
-                      campaignName = "campaign-3"
-                    }
-                  }
-                }
-                dataAvailabilityInterval = interval {
-                  startTime = timestamp { seconds = 200 }
-                  endTime = timestamp { seconds = 300 }
-                }
-              },
-            )
+            kingdomEventGroups.values.filter {
+              val entityType = if (it.hasEntityKey()) it.entityKey.entityType else "campaign"
+              entityType in entityTypes
+            }
         }
       }
   }
@@ -363,7 +389,7 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `binary push WorkItem publishes mapping and records completion`() = runBlocking {
+  fun `binary push WorkItem publishes mapping and records completion`(): Unit = runBlocking {
     val response = invokeBinaryWorkItem(listOf(buildConcurrentEventGroup("work-item-reference")))
     assertThat(response.statusCode()).isEqualTo(200)
     assertThat(workItemCompleted).isTrue()
@@ -375,7 +401,69 @@ class EventGroupSyncFunctionTest() {
         .read()
         .map { MappedEventGroup.parseFrom(it) }
         .toList()
-    assertThat(mapping.single().eventGroupReferenceId).isEqualTo("work-item-reference")
+    assertThat(mapping.map { it.eventGroupReferenceId })
+      .containsExactly("reference-id-1", "reference-id-2", "reference-id-3", "work-item-reference")
+    verifyBlocking(eventGroupsServiceMock, times(1)) { listEventGroups(any()) }
+  }
+
+  @Test
+  fun `binary push WorkItem mapping reflects updates and deletes`() = runBlocking {
+    val updatedResource = "dataProviders/data-provider-1/eventGroups/updated"
+    val deletedResource = "dataProviders/data-provider-1/eventGroups/deleted"
+    val updatedEventGroup =
+      buildConcurrentEventGroup("updated-reference").copy {
+        entityKey = entityKey {
+          entityType = "campaign"
+          entityId = "updated-entity"
+        }
+      }
+    val deletedEventGroup = eventGroup {
+      eventGroupReferenceId = "deleted-reference"
+      measurementConsumer = updatedEventGroup.measurementConsumer
+      state = EventGroup.State.DELETED
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "deleted-entity"
+      }
+    }
+    kingdomEventGroups[updatedResource] = cmmsEventGroup {
+      name = updatedResource
+      measurementConsumer = updatedEventGroup.measurementConsumer
+      eventGroupReferenceId = updatedEventGroup.eventGroupReferenceId
+    }
+    kingdomEventGroups[deletedResource] = cmmsEventGroup {
+      name = deletedResource
+      measurementConsumer = deletedEventGroup.measurementConsumer
+      eventGroupReferenceId = deletedEventGroup.eventGroupReferenceId
+      entityKey = cmmsEntityKey {
+        entityType = "campaign"
+        entityId = "deleted-entity"
+      }
+    }
+
+    assertThat(invokeBinaryWorkItem(listOf(updatedEventGroup, deletedEventGroup)).statusCode())
+      .isEqualTo(200)
+    val mapping =
+      checkNotNull(
+          MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
+            .getBlob("mapped/event-groups.binpb")
+        )
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+
+    assertThat(mapping)
+      .contains(
+        mappedEventGroup {
+          eventGroupReferenceId = updatedEventGroup.eventGroupReferenceId
+          eventGroupResource = updatedResource
+          entityKey = updatedEventGroup.entityKey
+        }
+      )
+    assertThat(mapping.map { it.eventGroupResource }).doesNotContain(deletedResource)
+    assertThat(mapping).hasSize(4)
+    verifyBlocking(eventGroupsServiceMock) { batchUpdateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock) { deleteEventGroup(any()) }
   }
 
   @Test
@@ -497,13 +585,28 @@ class EventGroupSyncFunctionTest() {
 
   private data class FailedInvocation(val statusCode: Int, val failureMetricLog: String?)
 
-  private fun invokeFunctionWithBatchCreateFailure(
+  private fun invokeFunctionWithKingdomFailure(
     status: Status,
-    previousMappedEventGroup: MappedEventGroup? = null,
+    previousMappedEventGroup: MappedEventGroup?,
+    failListing: Boolean,
   ): FailedInvocation {
     eventGroupsServiceMock.stub {
-      onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) } doThrow
-        status.asRuntimeException()
+      if (failListing) {
+        onBlocking { listEventGroups(any<ListEventGroupsRequest>()) }
+          .thenReturn(
+            listEventGroupsResponse {
+              eventGroups += cmmsEventGroup {
+                name = "dataProviders/data-provider-1/eventGroups/partial-map"
+                eventGroupReferenceId = "partial-map-reference"
+              }
+              nextPageToken = "next-page"
+            }
+          )
+          .thenThrow(status.asRuntimeException())
+      } else {
+        onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) } doThrow
+          status.asRuntimeException()
+      }
     }
     val config = eventGroupSyncConfig {
       dataProvider = "some-data-provider"
@@ -584,7 +687,11 @@ class EventGroupSyncFunctionTest() {
     }
 
     val result =
-      invokeFunctionWithBatchCreateFailure(Status.DEADLINE_EXCEEDED, previousMappedEventGroup)
+      invokeFunctionWithKingdomFailure(
+        Status.DEADLINE_EXCEEDED,
+        previousMappedEventGroup,
+        failListing = false,
+      )
 
     assertThat(result.statusCode).isEqualTo(503)
     assertThat(checkNotNull(result.failureMetricLog)).contains("value=1")
@@ -599,8 +706,43 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
+  fun `sync preserves map when Kingdom listing fails after a partial page`() {
+    val previousMappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = "previous-reference-id"
+      eventGroupResource = "dataProviders/data-provider-1/eventGroups/previous-event-group"
+    }
+
+    val result =
+      invokeFunctionWithKingdomFailure(
+        Status.DEADLINE_EXCEEDED,
+        previousMappedEventGroup,
+        failListing = true,
+      )
+
+    assertThat(result.statusCode).isEqualTo(503)
+    verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    val mappedData = runBlocking {
+      checkNotNull(
+          MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
+            .getBlob("some/other/path/event-groups-map-uri")
+        )
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    }
+    assertThat(mappedData).containsExactly(previousMappedEventGroup)
+  }
+
+  @Test
   fun `sync returns internal server error for permanent Kingdom failure`() {
-    assertThat(invokeFunctionWithBatchCreateFailure(Status.PERMISSION_DENIED).statusCode)
+    assertThat(
+        invokeFunctionWithKingdomFailure(
+            Status.PERMISSION_DENIED,
+            previousMappedEventGroup = null,
+            failListing = false,
+          )
+          .statusCode
+      )
       .isEqualTo(500)
   }
 
@@ -705,7 +847,9 @@ class EventGroupSyncFunctionTest() {
         .map { MappedEventGroup.parseFrom(it) }
         .toList()
     }
-    assertThat(mappedData).containsExactly(winningMappedEventGroup)
+    assertThat(mappedData.map { it.eventGroupReferenceId })
+      .containsExactly("reference-id-1", "reference-id-2", "reference-id-3", "winning-reference-id")
+    assertThat(mappedData).contains(winningMappedEventGroup)
     assertThat(
         runBlocking { storageClient.getFreshnessToken("some/other/path/event-groups-map-uri") }
       )
@@ -1021,6 +1165,9 @@ class EventGroupSyncFunctionTest() {
     assertThat(mappedData)
       .containsExactlyElementsIn(
         listOf(
+          "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
+          "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
+          "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
           "reference-id-4" to "resource-name-for-reference-id-4",
           "reference-id-5" to "resource-name-for-reference-id-5",
         )
@@ -1262,6 +1409,9 @@ class EventGroupSyncFunctionTest() {
     assertThat(mappedData)
       .containsExactlyElementsIn(
         listOf(
+          "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
+          "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
+          "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
           "reference-id-4" to "resource-name-for-reference-id-4",
           "reference-id-5" to "resource-name-for-reference-id-5",
         )
@@ -1416,7 +1566,13 @@ class EventGroupSyncFunctionTest() {
         .toList()
         .map { it.eventGroupReferenceId to it.eventGroupResource }
     }
-    assertThat(mappedData).isEqualTo(listOf("reference-id-4" to "resource-name-for-reference-id-4"))
+    assertThat(mappedData)
+      .containsExactly(
+        "reference-id-1" to "dataProviders/data-provider-1/eventGroups/reference-id-1",
+        "reference-id-2" to "dataProviders/data-provider-2/eventGroups/reference-id-2",
+        "reference-id-3" to "dataProviders/data-provider-3/eventGroups/reference-id-3",
+        "reference-id-4" to "resource-name-for-reference-id-4",
+      )
   }
 
   @Test
