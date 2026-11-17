@@ -588,6 +588,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         },
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
+      hiddenModelLines = dataAvailabilitySyncConfig.hiddenModelLinesList.toSet(),
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
       availabilityImpressionPaths =
         (availabilityImpressionPaths + triggerDataSource.edpImpressionPath).distinct(),

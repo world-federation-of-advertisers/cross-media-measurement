@@ -64,6 +64,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -168,6 +169,8 @@ class DataAvailabilitySyncFunctionTest {
     }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any<GetDataProviderRequest>()) }
+      .thenAnswer { DataProvider.getDefaultInstance() }
     onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
       .thenAnswer { DataProvider.getDefaultInstance() }
   }
@@ -1727,7 +1730,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchCreateImpressionMetadata(metadataRequest.capture())
@@ -1867,7 +1870,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
 
@@ -1981,7 +1984,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
@@ -2121,7 +2124,9 @@ class DataAvailabilitySyncFunctionTest {
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
       vidLabeledImpressionPath = "edp/edp_name/vid-labeler"
-      modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
+      modelLineMap[modelLineResourceName] = modelLineList {
+        modelLines += "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped"
+      }
       errorIfGapsExist = true
     }
 
@@ -2290,7 +2295,7 @@ class DataAvailabilitySyncFunctionTest {
       vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
       modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] =
         modelLineList {
-          modelLines += "some-model-line-mapped"
+          modelLines += "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped"
         }
     }
 

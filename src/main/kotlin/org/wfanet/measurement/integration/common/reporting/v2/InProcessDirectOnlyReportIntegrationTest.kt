@@ -25,24 +25,38 @@ import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
+import io.grpc.Status
+import io.grpc.StatusException
 import java.time.LocalDate
 import kotlin.math.max
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotNull
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
+import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.eventGroup as cmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.dataprovider.MeasurementResults
@@ -1954,6 +1968,161 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
       }
 
       assertExpectedProtocolUsed(getMeasurementsForBasicReport(retrievedCompletedBasicReport.name))
+    }
+
+  @Test
+  fun `single EDP reporting excludes hidden replacement and accepts authorized DEV alias`() =
+    runBlocking {
+      val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
+      val eventGroup = listEventGroups().first()
+      val dataProvider =
+        publicDataProvidersClient
+          .withCallCredentials(credentials)
+          .getDataProvider(getDataProviderRequest { name = eventGroup.cmmsDataProvider })
+      val modelLines =
+        ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+          .withPrincipalName(inProcessCmmsComponents.modelProviderResourceName)
+      val legacy =
+        modelLines.getModelLine(
+          getModelLineRequest { name = inProcessCmmsComponents.modelLineResourceName }
+        )
+      val modelSuiteName = checkNotNull(ModelLineKey.fromName(legacy.name)).parentKey.toName()
+      val replacement =
+        modelLines.createModelLine(
+          createModelLineRequest {
+            parent = modelSuiteName
+            modelLine = modelLine {
+              type = ModelLine.Type.PROD
+              activeStartTime = timestamp {
+                seconds = legacy.activeStartTime.seconds + 1
+                nanos = legacy.activeStartTime.nanos
+              }
+            }
+          }
+        )
+      val dev =
+        modelLines.createModelLine(
+          createModelLineRequest {
+            parent = modelSuiteName
+            modelLine = modelLine {
+              type = ModelLine.Type.DEV
+              activeStartTime = legacy.activeStartTime
+            }
+          }
+        )
+      val availability = interval {
+        startTime = timestamp { seconds = 1615680000 }
+        endTime = timestamp { seconds = 1615939200 }
+      }
+      DataProvidersCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel)
+        .withPrincipalName(dataProvider.name)
+        .replaceDataAvailabilityIntervals(
+          replaceDataAvailabilityIntervalsRequest {
+            name = dataProvider.name
+            for (line in listOf(legacy.name, dev.name)) {
+              dataAvailabilityIntervals += dataAvailabilityMapEntry {
+                key = line
+                value = availability
+              }
+            }
+          }
+        )
+
+      val mcKey = checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerData.name))
+      val campaignKey = ReportingSetKey(mcKey, "selection-campaign")
+      val campaign =
+        publicReportingSetsClient
+          .withCallCredentials(credentials)
+          .createReportingSet(
+            createReportingSetRequest {
+              parent = measurementConsumerData.name
+              reportingSetId = campaignKey.reportingSetId
+              reportingSet = reportingSet {
+                displayName = "single EDP campaign"
+                campaignGroup = campaignKey.toName()
+                primitive =
+                  ReportingSetKt.primitive { cmmsEventGroups += eventGroup.cmmsEventGroup }
+              }
+            }
+          )
+      val report = basicReport {
+        title = "model-line selection"
+        campaignGroup = campaign.name
+        campaignGroupDisplayName = campaign.displayName
+        reportingInterval = reportingInterval {
+          reportStart = dateTime {
+            year = 2021
+            month = 3
+            day = 14
+            hours = 17
+            timeZone = timeZone { id = "America/Los_Angeles" }
+          }
+          reportEnd = date {
+            year = 2021
+            month = 3
+            day = 15
+          }
+        }
+        impressionQualificationFilters += reportingImpressionQualificationFilter {
+          custom =
+            ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+              filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
+            }
+        }
+        resultGroupSpecs += resultGroupSpec {
+          title = "single EDP"
+          reportingUnit = reportingUnit { components += dataProvider.name }
+          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += "common.gender" }
+          }
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
+        }
+      }
+      fun request(id: String, line: String) = createBasicReportRequest {
+        parent = measurementConsumerData.name
+        basicReportId = id
+        basicReport = report.copy { modelLine = line }
+      }
+
+      val automatic =
+        publicBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(request("automatic-selection", ""))
+      assertThat(automatic.effectiveModelLine).isEqualTo(legacy.name)
+
+      val hiddenError =
+        assertFailsWith<StatusException> {
+          publicBasicReportsClient
+            .withCallCredentials(credentials)
+            .createBasicReport(request("hidden-selection", replacement.name))
+        }
+      assertThat(hiddenError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+      val restricted =
+        TrustedPrincipalAuthInterceptor.Credentials(
+          credentials.principal,
+          setOf("reporting.basicReports.create"),
+        )
+      val permissionError =
+        assertFailsWith<StatusException> {
+          publicBasicReportsClient
+            .withCallCredentials(restricted)
+            .createBasicReport(request("unauthorized-dev-selection", dev.name))
+        }
+      assertThat(permissionError.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+
+      val selectedDev =
+        publicBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(request("authorized-dev-selection", dev.name))
+      assertThat(selectedDev.modelLine).isEqualTo(dev.name)
+      assertThat(selectedDev.effectiveModelLine).isEqualTo(dev.name)
     }
 
   @Test

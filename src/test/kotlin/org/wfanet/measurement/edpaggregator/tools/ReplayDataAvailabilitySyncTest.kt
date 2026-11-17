@@ -84,6 +84,45 @@ class ReplayDataAvailabilitySyncTest {
   @get:Rule val tempDir = TemporaryFolder()
 
   @Test
+  fun `main rejects malformed ModelLine references before synchronization`() {
+    val invalid = "modelLines/bad"
+    val valid = "modelProviders/mp/modelSuites/ms/modelLines/valid"
+    val fragments =
+      listOf(
+        "model_line_map { key: \"" + invalid + "\" value { model_lines: \"" + valid + "\" } }",
+        "model_line_map { key: \"" + valid + "\" value { model_lines: \"" + invalid + "\" } }",
+        "model_line_data_sources { key: \"" +
+          invalid +
+          "\" value { storage { gcs { bucket_name: \"" +
+          BUCKET_NAME +
+          "\" } } edp_impression_path: \"" +
+          EDP_IMPRESSION_PATH +
+          "\" } }",
+      )
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      for (fragment in fragments) {
+        val configFile =
+          writeConfigFile(validConfig(includeActivityPublishing = false) + "\n" + fragment)
+        val output =
+          CommandLineTesting.capturingOutput(
+            requiredArgs(
+              configFile,
+              ReplayDataAvailabilitySync.Mode.DATA_AVAILABILITY_ONLY,
+              UNREACHABLE_API_TARGET,
+            ) + storageArgs,
+            ::main,
+          )
+        CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+        CommandLineTesting.assertThat(output).err().contains("Invalid ModelLine resource name")
+        CommandLineTesting.assertThat(output).err().contains(invalid)
+      }
+    } finally {
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
   fun `main rejects equal or nested impression paths`() {
     for (internalPath in listOf(EDP_IMPRESSION_PATH, "$EDP_IMPRESSION_PATH/internal", "edp")) {
       val configFile =
@@ -849,6 +888,16 @@ class ReplayDataAvailabilitySyncTest {
     )
   }
 
+  @Test
+  fun `main replays hidden replacement hash prefix after cutover removal`() {
+    runContributorReplay(cutoverEnabled = false, hiddenReplacement = true)
+  }
+
+  @Test
+  fun `main replays hidden replacement exact hash URI after cutover removal`() {
+    runContributorReplay(cutoverEnabled = false, hiddenReplacement = true, exactUri = true)
+  }
+
   private fun runContributorReplay(
     replacementBucket: String = CONTRIBUTOR_BUCKET_NAME,
     replacementPath: String = CONTRIBUTOR_IMPRESSION_PATH,
@@ -864,6 +913,7 @@ class ReplayDataAvailabilitySyncTest {
     extraMarkerNames: List<String> = emptyList(),
     duplicateExactUri: Boolean = false,
     cutoverEnabled: Boolean = true,
+    hiddenReplacement: Boolean = false,
     configuredReplacementLine: String = MODEL_LINE,
     configuredHistoricalLine: String = MODEL_LINE.substringBeforeLast("/") + "/historical",
     expectedConfigurationError: String? = null,
@@ -1072,6 +1122,7 @@ class ReplayDataAvailabilitySyncTest {
             includeActivityPublishing =
               mode == ReplayDataAvailabilitySync.Mode.EVENT_GROUP_ACTIVITY_ONLY
           ) +
+            (if (hiddenReplacement) "\nhidden_model_lines: \"$MODEL_LINE\"\n" else "") +
             """
 
         vid_labeled_impression_path: "$INTERNAL_IMPRESSION_PATH"
@@ -1201,7 +1252,7 @@ class ReplayDataAvailabilitySyncTest {
       assertThat(metadata.modelLine).isEqualTo(selectedLine)
       assertThat(metadata.outputDoneBlobGeneration).isEqualTo(done.generation)
       if (!mutateExternalDuringBounds) {
-        if (historical || !cutoverEnabled) {
+        if (historical || (!cutoverEnabled && !hiddenReplacement)) {
           assertThat(metadata.metadataBlobGeneration)
             .isEqualTo(storageEmulator.storage.get(selectedBucket, metadataKey).generation)
           assertThat(metadata.impressionsBlobGeneration)

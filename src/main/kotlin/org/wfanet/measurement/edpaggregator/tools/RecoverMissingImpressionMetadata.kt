@@ -60,6 +60,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilit
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.ModelLineAliasValidator
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -228,6 +229,15 @@ class RecoverMissingImpressionMetadata : Runnable {
     }
     require(config.edpImpressionPath.isNotEmpty()) { "edp_impression_path must be set" }
     require(config.dataProvider.isNotEmpty()) { "data_provider must be set" }
+    val cutovers = config.modelLineCutoversList.map(ModelLineCutover::from)
+    ModelLineAliasValidator.validate(
+      cutovers,
+      config.modelLineMapMap.mapValues { it.value.modelLinesList },
+      config.hiddenModelLinesList.toSet(),
+      config.modelLineDataSourcesMap.keys,
+    )
+    val internalModelLines =
+      cutovers.mapTo(mutableSetOf()) { it.replacementModelLine } + config.hiddenModelLinesList
     val externalPath = config.externalImpressionPath.ifEmpty { config.edpImpressionPath }
     val internalPath = config.vidLabeledImpressionPath
     require(
@@ -420,17 +430,16 @@ class RecoverMissingImpressionMetadata : Runnable {
                         SelectedStorageClient.parseBlobUri(doneBlobUri).key.substringBeforeLast("/"),
                       )
                     val doneKey = SelectedStorageClient.parseBlobUri(doneBlobUri).key
-                    val replacementOutput =
-                      config.modelLineCutoversList.any { cutover ->
-                        val contributor =
-                          config.modelLineDataSourcesMap[cutover.replacementModelLine]
+                    val internalOutput =
+                      internalModelLines.any { modelLine ->
+                        val contributor = config.modelLineDataSourcesMap[modelLine]
                         if (
                           contributor == null ||
                             contributor.storage.gcs.bucketName != source.bucketName
                         ) {
                           false
                         } else {
-                          val modelLineId = cutover.replacementModelLine.substringAfterLast('/')
+                          val modelLineId = modelLine.substringAfterLast('/')
                           val prefix =
                             if (contributor.edpImpressionPath.isEmpty()) {
                               "model-line/$modelLineId/"
@@ -441,7 +450,7 @@ class RecoverMissingImpressionMetadata : Runnable {
                         }
                       }
                     val external =
-                      !replacementOutput &&
+                      !internalOutput &&
                         source.bucketName == storageConfig.bucketName &&
                         doneKey.startsWith("$externalPath/")
                     val doneBlob =
@@ -488,6 +497,7 @@ class RecoverMissingImpressionMetadata : Runnable {
                         modelLineCutovers =
                           config.modelLineCutoversList.map(ModelLineCutover::from),
                         modelLineDataSources = modelLineDataSources,
+                        hiddenModelLines = config.hiddenModelLinesList.toSet(),
                         publishEventGroupActivities =
                           eventGroupActivityPublisher?.let { it::publish },
                         generationMatchedMetadataUpdater =
