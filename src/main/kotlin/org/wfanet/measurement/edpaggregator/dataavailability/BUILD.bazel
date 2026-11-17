@@ -87,6 +87,7 @@ kt_jvm_library(
         "DataAvailabilitySync.kt",
         "DataAvailabilitySyncMetrics.kt",
         "EventGroupActivityPublisherMetrics.kt",
+        "ModelLineAliasValidator.kt",
     ],
     deps = [
         ":data_availability_blobs",
@@ -115,6 +116,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",

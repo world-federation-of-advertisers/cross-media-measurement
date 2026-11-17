@@ -849,6 +849,16 @@ class ReplayDataAvailabilitySyncTest {
     )
   }
 
+  @Test
+  fun `main replays hidden replacement hash prefix after cutover removal`() {
+    runContributorReplay(cutoverEnabled = false, hiddenReplacement = true)
+  }
+
+  @Test
+  fun `main replays hidden replacement exact hash URI after cutover removal`() {
+    runContributorReplay(cutoverEnabled = false, hiddenReplacement = true, exactUri = true)
+  }
+
   private fun runContributorReplay(
     replacementBucket: String = CONTRIBUTOR_BUCKET_NAME,
     replacementPath: String = CONTRIBUTOR_IMPRESSION_PATH,
@@ -864,6 +874,7 @@ class ReplayDataAvailabilitySyncTest {
     extraMarkerNames: List<String> = emptyList(),
     duplicateExactUri: Boolean = false,
     cutoverEnabled: Boolean = true,
+    hiddenReplacement: Boolean = false,
     configuredReplacementLine: String = MODEL_LINE,
     configuredHistoricalLine: String = MODEL_LINE.substringBeforeLast("/") + "/historical",
     expectedConfigurationError: String? = null,
@@ -1072,6 +1083,7 @@ class ReplayDataAvailabilitySyncTest {
             includeActivityPublishing =
               mode == ReplayDataAvailabilitySync.Mode.EVENT_GROUP_ACTIVITY_ONLY
           ) +
+            (if (hiddenReplacement) "\nhidden_model_lines: \"$MODEL_LINE\"\n" else "") +
             """
 
         vid_labeled_impression_path: "$INTERNAL_IMPRESSION_PATH"
@@ -1201,7 +1213,7 @@ class ReplayDataAvailabilitySyncTest {
       assertThat(metadata.modelLine).isEqualTo(selectedLine)
       assertThat(metadata.outputDoneBlobGeneration).isEqualTo(done.generation)
       if (!mutateExternalDuringBounds) {
-        if (historical || !cutoverEnabled) {
+        if (historical || (!cutoverEnabled && !hiddenReplacement)) {
           assertThat(metadata.metadataBlobGeneration)
             .isEqualTo(storageEmulator.storage.get(selectedBucket, metadataKey).generation)
           assertThat(metadata.impressionsBlobGeneration)

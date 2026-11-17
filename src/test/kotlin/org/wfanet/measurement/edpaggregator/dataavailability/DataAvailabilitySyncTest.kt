@@ -4596,6 +4596,77 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `sync keeps replacement hidden after cutover configuration is removed`() = runBlocking {
+    val scenario =
+      CutoverAvailabilityScenario(
+        mapReplacementLine = true,
+        cutoverEnabled = false,
+        hiddenReplacement = true,
+      )
+    val date = scenario.cutoverDate.minusDays(30)
+    scenario.writeDate(scenario.historicalLine, date, alreadySynced = true)
+    val done = scenario.writeDate(scenario.replacementLine, date)
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    scenario.assertLastPublication(
+      mapOf(
+        scenario.historicalLine to (date to date.plusDays(1)),
+        scenario.replacementAlias to (date to date.plusDays(1)),
+        scenario.secondReplacementAlias to (date to date.plusDays(1)),
+      )
+    )
+  }
+
+  @Test
+  fun `sync removes retired aliases and hidden native identity without a cutover`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario(cutoverEnabled = false, hiddenReplacement = true)
+    val date = scenario.cutoverDate.minusDays(30)
+    scenario.seedAvailability(scenario.replacementLine, date to date.plusDays(1))
+    scenario.seedAvailability(scenario.replacementAlias, date to date.plusDays(1))
+    scenario.writeDate(scenario.historicalLine, date, alreadySynced = true)
+    val done = scenario.writeDate(scenario.replacementLine, date)
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    scenario.assertLastPublication(mapOf(scenario.historicalLine to (date to date.plusDays(1))))
+  }
+
+  @Test
+  fun `sync completes hidden source with no public destinations`() = runBlocking {
+    val scenario = CutoverAvailabilityScenario(cutoverEnabled = false, hiddenReplacement = true)
+    val date = scenario.cutoverDate.minusDays(30)
+    val done = scenario.writeDate(scenario.replacementLine, date)
+    assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.NO_WORK)
+    scenario.assertPublications()
+    scenario.assertCompleted(done)
+  }
+
+  @Test
+  fun `sync zero output hidden source retracts illegal native availability after alias retirement`() =
+    runBlocking {
+      val scenario = CutoverAvailabilityScenario(cutoverEnabled = false, hiddenReplacement = true)
+      val date = scenario.cutoverDate.minusDays(30)
+      scenario.seedAvailability(scenario.replacementLine, date to date.plusDays(1))
+      val done = scenario.writeDate(scenario.replacementLine, date, withMetadata = false)
+      assertThat(scenario.sync(done)).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      scenario.assertLastPublication(emptyMap())
+      scenario.assertCompleted(done)
+    }
+
+  @Test
+  fun `sync rejects contributor alias ownership collision at construction`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        CutoverAvailabilityScenario(mapReplacementLine = true, collideAliases = true)
+      }
+    assertThat(error).hasMessageThat().contains("Duplicate external")
+  }
+
+  @Test
+  fun `sync rejects replacement self alias at construction`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> { CutoverAvailabilityScenario(selfAlias = true) }
+    assertThat(error).hasMessageThat().contains("must not expose")
+  }
+
+  @Test
   fun `sync rejects replacement aliases containing the cutover visible line`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
@@ -4820,6 +4891,10 @@ class DataAvailabilitySyncTest {
     mapHistoricalLine: Boolean = false,
     visibleIsHistorical: Boolean = false,
     mapReplacementToVisible: Boolean = false,
+    cutoverEnabled: Boolean = true,
+    hiddenReplacement: Boolean = false,
+    collideAliases: Boolean = false,
+    selfAlias: Boolean = false,
   ) {
     val historicalLine = "modelProviders/provider1/modelSuites/suite1/modelLines/historical"
     val replacementLine = "modelProviders/provider1/modelSuites/suite1/modelLines/replacement"
@@ -4902,22 +4977,27 @@ class DataAvailabilitySyncTest {
                 put(replacementLine, listOf(replacementAlias, secondReplacementAlias))
               }
               if (mapHistoricalLine) put(historicalLine, listOf(historicalAlias))
+              if (collideAliases) put(historicalLine, listOf(replacementAlias))
+              if (selfAlias) put(replacementLine, listOf(replacementLine))
               if (mapReplacementToVisible) {
                 put(replacementLine, listOf(replacementAlias, secondReplacementAlias, visibleLine))
               }
             },
           errorIfGapsExist = errorIfGapsExist,
+          hiddenModelLines = if (hiddenReplacement) setOf(replacementLine) else emptySet(),
           modelLineCutovers =
-            listOf(
-              ModelLineCutover(
-                visibleLine,
-                historicalLine,
-                replacementLine,
-                cutoverDate,
-                cutoverDate.plusDays(2),
-                Duration.ofDays(2),
-              )
-            ),
+            if (!cutoverEnabled) emptyList()
+            else
+              listOf(
+                ModelLineCutover(
+                  visibleLine,
+                  historicalLine,
+                  replacementLine,
+                  cutoverDate,
+                  cutoverDate.plusDays(2),
+                  Duration.ofDays(2),
+                )
+              ),
           modelLineDataSources =
             mapOf(
               historicalLine to DataAvailabilitySync.ModelLineDataSource(storage, path),
