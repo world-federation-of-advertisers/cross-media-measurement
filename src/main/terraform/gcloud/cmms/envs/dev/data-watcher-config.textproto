@@ -55,12 +55,11 @@ watched_paths {
 watched_paths {
   identifier: "vid-labeling-dispatch"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/raw-impressions/edp/edp7/.+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/vid-labeling-dispatcher"
+  control_plane_queue_sink {
+    queue: "vid-labeling-dispatch-queue"
     app_params {
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/T5RryPMNong" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams] {
+        data_provider: "dataProviders/T5RryPMNong"
       }
     }
   }
@@ -68,12 +67,11 @@ watched_paths {
 watched_paths {
   identifier: "vid-labeling-dispatch"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/raw-impressions/edp/edpa_meta/.+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/vid-labeling-dispatcher"
+  control_plane_queue_sink {
+    queue: "vid-labeling-dispatch-queue"
     app_params {
-      fields {
-        key: "dataProvider"
-        value { string_value: "dataProviders/J3-pzhqS9Lo" }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams] {
+        data_provider: "dataProviders/J3-pzhqS9Lo"
       }
     }
   }
