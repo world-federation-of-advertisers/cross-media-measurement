@@ -60,6 +60,56 @@ class ImpressionMetadataAwaiterTest {
   }
 
   @Test
+  fun `empty or partial fixture coverage prevents marker creation`() {
+    val doneUris = listOf("gs://fixtures/edp7/day/done", "gs://fixtures/meta/day/done")
+    val edp7 =
+      mapOf(
+        "gs://fixtures/edp7/day/metadata.binpb" to 20L,
+        "gs://fixtures/edp7/day/impressions" to 30L,
+      )
+    val meta =
+      mapOf(
+        "gs://fixtures/meta/day/metadata.binpb" to 40L,
+        "gs://fixtures/meta/day/impressions" to 50L,
+      )
+    for (snapshot in listOf(emptyMap(), edp7, meta)) {
+      var markersCreated = false
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          ImpressionMetadataAwaiter.requireCompleteFixtureCoverage(snapshot, doneUris)
+          markersCreated = true
+        }
+      assertThat(markersCreated).isFalse()
+      assertThat(failure).hasMessageThat().contains("No rewritten labeled fixtures")
+    }
+    ImpressionMetadataAwaiter.requireCompleteFixtureCoverage(edp7 + meta, doneUris)
+  }
+
+  @Test
+  fun `missing impression or zero generation prevents marker creation`() {
+    val directory = "gs://fixtures/edp7/day"
+    for (snapshot in
+      listOf(
+        mapOf("$directory/metadata-creative.binpb" to 20L),
+        mapOf("$directory/metadata-creative.binpb" to 0L, "$directory/impressions-creative" to 30L),
+        mapOf("$directory/metadata-creative.binpb" to 20L, "$directory/impressions-creative" to 0L),
+      )) {
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          ImpressionMetadataAwaiter.requireCompleteFixtureCoverage(
+            snapshot,
+            listOf("$directory/done"),
+          )
+        }
+      assertThat(failure).hasMessageThat().contains("Incomplete rewritten labeled fixture")
+    }
+    ImpressionMetadataAwaiter.requireCompleteFixtureCoverage(
+      mapOf("$directory/metadata-creative.binpb" to 20L, "$directory/impressions-creative" to 30L),
+      listOf("$directory/done"),
+    )
+  }
+
+  @Test
   fun `waits for a rewritten fixture before allowing measurements`() = runTest {
     var measurementsStarted = false
     read = {

@@ -379,8 +379,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             "non-memoized model line must be a full ModelLine resource name: $modelLine"
           }
           .modelLineId
+      val paths = buildPaths(modelLineId)
+      val expectedBlobs = writeReusedLabeledImpressions.expectedBlobGenerations
+      ImpressionMetadataAwaiter.requireCompleteFixtureCoverage(expectedBlobs, paths)
       val doneBlobGenerations = mutableMapOf<String, Long>()
-      buildPaths(modelLineId).forEach { path ->
+      paths.forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient =
           SelectedStorageClient(
@@ -400,15 +403,14 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         doneBlobGenerations[path] =
           (written as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
       }
-      awaitFixtureAvailability(modelLine, doneBlobGenerations)
+      awaitFixtureAvailability(modelLine, doneBlobGenerations, expectedBlobs)
     }
 
-    private suspend fun awaitFixtureAvailability(modelLine: String, doneBlobs: Map<String, Long>) {
-      val expectedBlobs = writeReusedLabeledImpressions.expectedBlobGenerations
-      if (expectedBlobs.isEmpty()) {
-        logger.warning("No rewritten labeled fixtures; skipping synchronization await.")
-        return
-      }
+    private suspend fun awaitFixtureAvailability(
+      modelLine: String,
+      doneBlobs: Map<String, Long>,
+      expectedBlobs: Map<String, Long>,
+    ) {
       val pipelinedDataProvider =
         System.getenv("PIPELINED_DATA_PROVIDER") ?: EDPA_DATA_PROVIDERS.first()
       val parentsByPath =

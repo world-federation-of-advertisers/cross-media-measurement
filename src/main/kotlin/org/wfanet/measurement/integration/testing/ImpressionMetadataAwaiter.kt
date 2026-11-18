@@ -134,6 +134,33 @@ class ImpressionMetadataAwaiter(
       "done=${metadata.outputDoneBlobGeneration}"
 
   companion object {
+    /** Rejects incomplete rewritten fixtures before their completion markers are created. */
+    fun requireCompleteFixtureCoverage(
+      expectedBlobs: Map<String, Long>,
+      doneBlobUris: Collection<String>,
+    ) {
+      check(doneBlobUris.isNotEmpty()) { "No fixture folders to validate" }
+      for (doneBlobUri in doneBlobUris) {
+        val directory = doneBlobUri.substringBeforeLast('/')
+        val metadataBlobs =
+          expectedBlobs.filterKeys {
+            it.substringBeforeLast('/') == directory &&
+              it.substringAfterLast('/').startsWith("metadata") &&
+              it.endsWith(".binpb")
+          }
+        check(metadataBlobs.isNotEmpty()) {
+          "No rewritten labeled fixtures recorded for $directory"
+        }
+        for ((uri, generation) in metadataBlobs) {
+          val suffix = uri.substringAfterLast('/').removePrefix("metadata").removeSuffix(".binpb")
+          val impressionsUri = "$directory/impressions$suffix"
+          check(generation > 0 && (expectedBlobs[impressionsUri] ?: 0L) > 0) {
+            "Incomplete rewritten labeled fixture: $uri and $impressionsUri"
+          }
+        }
+      }
+    }
+
     private val logger = Logger.getLogger(ImpressionMetadataAwaiter::class.java.name)
     private const val LIST_PAGE_SIZE = 100
     private val RETRYABLE_READ_CODES =
