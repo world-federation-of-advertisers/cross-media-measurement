@@ -189,6 +189,6 @@ build/test exit code and emits a workflow warning. Missing or invalid completion
 evidence remains a failure; other Bazel errors are preserved. The temporary event
 file is deleted after the command.
 
-The build/test, Kubernetes, EDPA, and EDPA reporting workflows upload testlogs as
-GitHub artifacts after both successful and failed test commands. Use those logs when the BuildBuddy invocation is incomplete.
+CI test workflows upload testlogs as GitHub artifacts after both successful and
+failed test commands. Use those logs when the BuildBuddy invocation is incomplete.
 Artifact upload is best effort; the build/test verdict remains the correctness gate.
