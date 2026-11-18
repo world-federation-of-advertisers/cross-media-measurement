@@ -40,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -113,6 +114,7 @@ class SubpoolAssignerAppTest {
           workItemsClient = mock<WorkItemsCoroutineStub>(),
           workItemAttemptsClient = mock<WorkItemAttemptsCoroutineStub>(),
           vidRankBuilderQueue = "queues/vid-rank-builder",
+          vidLabelerQueue = "queues/vid-labeler",
           kmsClients = mapOf(DATA_PROVIDER to mock<KmsClient>()),
           getSubpoolMapStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
           getRawImpressionsStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
@@ -121,6 +123,7 @@ class SubpoolAssignerAppTest {
           rawImpressionUploadModelLinesStub =
             mock<RawImpressionUploadModelLineServiceCoroutineStub>(),
           rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
+          vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
           poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
           rawImpressionUploadFilesStub = filesStub,
           buildParquetStorageClient = { _, _ -> parquetStorageClient },
@@ -136,6 +139,40 @@ class SubpoolAssignerAppTest {
       assertThat(exception).isSameInstanceAs(modelFailure)
       verifyNoInteractions(filesStub, parquetStorageClient)
     }
+
+  @Test
+  fun `rejects an empty labeling queue before starting work`() {
+    val filesStub = mock<RawImpressionUploadFileServiceCoroutineStub>()
+    val parquetStorageClient = mock<ParquetStorageClient>()
+    assertFailsWith<IllegalArgumentException> {
+      SubpoolAssignerApp(
+        subscriptionId = "subpool-assigner-subscription",
+        queueSubscriber = mock<QueueSubscriber>(),
+        parser = WorkItem.parser(),
+        workItemsClient = mock<WorkItemsCoroutineStub>(),
+        workItemAttemptsClient = mock<WorkItemAttemptsCoroutineStub>(),
+        vidRankBuilderQueue = "queues/vid-rank-builder",
+        vidLabelerQueue = "",
+        kmsClients = mapOf(DATA_PROVIDER to mock<KmsClient>()),
+        getSubpoolMapStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+        getRawImpressionsStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+        getModelStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+        rawImpressionUploadsStub = mock<RawImpressionUploadServiceCoroutineStub>(),
+        rawImpressionUploadModelLinesStub =
+          mock<RawImpressionUploadModelLineServiceCoroutineStub>(),
+        rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
+        vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
+        poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
+        rawImpressionUploadFilesStub = filesStub,
+        buildParquetStorageClient = { _, _ -> parquetStorageClient },
+        buildSubpoolMapStorageClient = { mock<ConditionalOperationStorageClient>() },
+        loadPoolEmitLabeler = { _, _ -> error("Model loader must not run") },
+        getSubpoolMapKekUri = { "kms://test-key" },
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+      )
+    }
+    verifyNoInteractions(filesStub, parquetStorageClient)
+  }
 
   @Test
   fun `forwards max_file_batch_size_bytes verbatim into the template`() {

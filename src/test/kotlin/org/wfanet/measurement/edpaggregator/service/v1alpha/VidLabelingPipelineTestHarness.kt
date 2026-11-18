@@ -1477,6 +1477,7 @@ abstract class VidLabelingPipelineTestHarness(
           workItemsClient = workItemsStub,
           workItemAttemptsClient = workItemAttemptsStub,
           vidRankBuilderQueue = RANK_BUILDER_QUEUE,
+          vidLabelerQueue = VID_LABELER_QUEUE,
           kmsClients = mapOf(providerName to kmsClient),
           getSubpoolMapStorageConfig = {
             StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
@@ -1491,6 +1492,10 @@ abstract class VidLabelingPipelineTestHarness(
           rawImpressionUploadModelLinesStub = modelLineRowsStub,
           rankerJobsStub =
             RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
+          vidLabelingJobsStub =
+            VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
+              edpaPublicServer.channel
+            ),
           poolAssignmentJobsStub =
             PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
               edpaPublicServer.channel
@@ -1644,6 +1649,10 @@ abstract class VidLabelingPipelineTestHarness(
 
   protected fun withholdNextPoolAssignmentPublications(count: Int = 1) {
     workItemTransport.dropNextPublications(POOL_ASSIGNER_QUEUE, count)
+  }
+
+  protected fun loseNextVidLabelerPublicationResponse() {
+    workItemTransport.loseNextPublicationResponse(VID_LABELER_QUEUE)
   }
 
   protected fun withholdNextVidLabelerPublications(count: Int = 1) {
@@ -3276,6 +3285,18 @@ abstract class VidLabelingPipelineTestHarness(
 
     private fun signalChange() {
       changes.update { it + 1L }
+    }
+
+    suspend fun awaitSucceeded(workItemName: String) {
+      withTimeout(30_000L) {
+        while (true) {
+          val observed = changes.value
+          val item = checkNotNull(workItems[workItemName])
+          check(item.state != WorkItem.State.FAILED) { "WorkItem failed: $workItemName" }
+          if (item.state == WorkItem.State.SUCCEEDED) break
+          changes.first { it != observed }
+        }
+      }
     }
 
     suspend fun awaitIdle(allowFailures: Boolean = false) {
