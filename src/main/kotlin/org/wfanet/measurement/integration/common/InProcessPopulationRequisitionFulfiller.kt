@@ -105,7 +105,7 @@ class InProcessPopulationRequisitionFulfiller(
               object : Throttler {
                 override suspend fun <T> onReady(block: suspend () -> T): T = block()
               },
-            logMeasurementValues = false,
+            logMeasurementValues = true,
           )
         populationRequisitionFulfiller.run()
       }

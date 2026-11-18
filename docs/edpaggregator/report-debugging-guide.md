@@ -29,17 +29,22 @@ Duchy stages are common to both; only stage 4 branches.
 
 ## Measurement value diagnostics
 
-Fulfillment logs omit full measurement results and dynamically chosen impression
-clips by default. Requisition identifiers, measurement types, and fulfillment
+Application flags default to disabled. Halo's committed Terraform and Kubernetes
+examples and cloud-test fixtures explicitly enable value logging by default to
+support diagnosis. Markets may want to disable it according to their data-access
+and log-retention policies. See [Measurement value logging](/docs/edpaggregator/deployment-guide.md#measurement-value-logging)
+for the deployment settings.
+
+When value logging is disabled, fulfillment logs omit full measurement results
+and dynamically chosen impression clips. Requisition identifiers, measurement types, and fulfillment
 outcomes remain available for tracing progress.
 
 To include values while debugging, start ResultsFulfiller, the EDP simulator
 (including its legacy metadata runner), or the population requisition fulfiller
 with `--log-measurement-values=true`. On standalone data providers, this also
-enables full measurement and requisition specification logs. Leave the flag
-disabled for routine operation. Enable it only where the underlying data is
-appropriate for value logging; collected logs and report-trace artifacts may
-contain these values.
+enables full measurement and requisition specification logs. Choose the setting
+for your market; collected logs and report-trace artifacts may contain these
+values when logging is enabled.
 
 The impression verification tool also accepts `--log-measurement-values=true`
 for aggregate impression counts. Its default logs retain verification outcomes
@@ -50,8 +55,8 @@ verification stage, and exception type. Publisher validation requires an explici
 and skip reasons while omitting counts, deviations, and free-form publisher details.
 
 The Reporting API server and report jobs accept the same flag for detailed
-variance-calculation exceptions, which can contain measurement values. Default
-logs retain the metric identifier and failure type.
+variance-calculation exceptions, which can contain measurement values. When the
+flag is disabled, logs retain the metric identifier and failure type.
 
 Post-processing has a separate opt-in flag, `--log-noise-correction-values`,
 which also controls exception details during processing and result writeback.

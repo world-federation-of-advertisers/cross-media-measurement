@@ -26,8 +26,9 @@ let MountRoot = "/etc/\(#AppName)/pdp"
 }
 
 #PopulationRequisitionFulfiller: {
-	_config:      #PopulationRequisitionFulfillerConfig
-	_imageConfig: #ImageConfig & {
+	_logMeasurementValues: bool | *false
+	_config:               #PopulationRequisitionFulfillerConfig
+	_imageConfig:          #ImageConfig & {
 		repoSuffix: "data-provider/population-requisition-fulfiller"
 	}
 
@@ -45,6 +46,7 @@ let MountRoot = "/etc/\(#AppName)/pdp"
 			}
 			image: _imageConfig.image
 			args: [
+				"--log-measurement-values=\(_logMeasurementValues)",
 				"--kingdom-public-api-target=\(KingdomPublicApiTarget)",
 				"--kingdom-public-api-cert-host=localhost",
 				"--data-provider-resource-name=\(_config.dataProviderResourceName)",

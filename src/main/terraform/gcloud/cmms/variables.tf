@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "log_measurement_values" {
+  description = "Enable measurement-value diagnostics in the Halo ResultsFulfiller example. Markets may set this to false."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "cluster_location" {
   description = "Location of Kubernetes clusters. Defaults to provider zone."
   type        = string

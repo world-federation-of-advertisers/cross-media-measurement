@@ -136,7 +136,7 @@ class InProcessEdpSimulator(
         vidIndexMap = vidIndexMap,
         trusTeeSupported = trusTeeSupported,
         random = random,
-        logMeasurementValues = false,
+        logMeasurementValues = true,
       )
   }
 
