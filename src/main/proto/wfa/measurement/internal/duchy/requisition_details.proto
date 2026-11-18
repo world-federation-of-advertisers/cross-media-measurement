@@ -148,7 +148,8 @@ message RequisitionDetails {
   // which is what [VectorSet.base_vectors][] references.
   //
   // Copied from the System API `Requisition` by the Herald, so it is in place
-  // before any fulfillment arrives. Set only for a TrusTEE multimeasurement
+  // before any fulfillment arrives. It is not part of [protocol][], which is
+  // written from the fulfillment. Set only for a TrusTEE multimeasurement
   // computation.
   int32 vector_index = 6;
 }
