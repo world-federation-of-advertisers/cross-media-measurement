@@ -30,12 +30,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.R
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.edpaggregator.vidlabeling.MemoizedVidLabelingJobDispatcher
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -200,7 +198,7 @@ class VidRankBuilderApp(
         rankerJob = params.rankerJob,
         subpoolMapBlobUris = params.subpoolMapBlobUrisMap,
         subpoolRankedSizes = params.subpoolRankedSizesMap,
-        vidLabelerParamsTemplate = buildVidLabelerParamsTemplate(params),
+        vidLabelerParamsTemplate = MemoizedVidLabelingJobDispatcher.buildParamsTemplate(params),
         vidLabelerQueue = vidLabelerQueue,
         // Forwarded verbatim from Phase-0 via VidRankBuilderParams (REQUIRED); VidRankBuilder's
         // `require(maxFileBatchSizeBytes > 0)` rejects an unset/zero value at the boundary.
@@ -208,82 +206,5 @@ class VidRankBuilderApp(
         rpcThrottlers = rpcThrottlers,
       )
       .run()
-  }
-
-  /**
-   * Builds the memoized [VidLabelerParams] template for the Phase-2 fan-out from the pass-through
-   * fields the SubpoolAssigner stamped on [params]. The last-`RankerJob`-out copies it per
-   * `VidLabelingJob`, filling the job's name and its files; the Phase-2 TEE resolves the rank-index
-   * blobs from the `RankIndexBlobService` rather than receiving their URIs here.
-   */
-  private fun buildVidLabelerParamsTemplate(params: VidRankBuilderParams): VidLabelerParams {
-    require(params.modelBlobPath.isNotEmpty()) { "model_blob_path must be set" }
-    require(params.hasRawImpressionStorageParams()) { "raw_impression_storage_params must be set" }
-    require(params.hasVidLabeledImpressionsStorageParams()) {
-      "vid_labeled_impressions_storage_params must be set"
-    }
-    require(params.hasModelStorageParams()) { "model_storage_params must be set" }
-    // Fail here rather than in the Phase-2 TEE: an unset value means a producer in the Phase-0 ->
-    // Phase-1 chain dropped the pass-through, which would otherwise surface only as a
-    // crash-looping VidLabeler nacking every fan-out WorkItem.
-    require(params.populationSpecBlobUri.isNotEmpty()) { "population_spec_blob_uri must be set" }
-    require(params.eventTemplateVersion > 0) { "event_template_version must be set" }
-    return vidLabelerParams {
-      dataProvider = params.dataProvider
-      rawImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
-          gcsProjectId = params.rawImpressionStorageParams.gcsProjectId
-          impressionsBlobPrefix = params.rawImpressionStorageParams.blobPrefix
-        }
-      vidLabeledImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
-          gcsProjectId = params.vidLabeledImpressionsStorageParams.gcsProjectId
-          impressionsBlobPrefix = params.vidLabeledImpressionsStorageParams.blobPrefix
-        }
-      modelLineConfigs.put(
-        params.modelLine,
-        VidLabelerParamsKt.modelLineConfig {
-          labelerInputFieldMapping.addAll(params.labelerInputFieldMappingList)
-          eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
-          // Phase-2 requires the event-template descriptor to build the labeled output; stamp it
-          // (and its type) onto the memoized VidLabeler ModelLineConfig.
-          eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
-          eventTemplateType = params.eventTemplateType
-          // Phase-2 resolves each assigned VID's population attributes from this spec and rejects
-          // a WorkItem without it; stamp it alongside the descriptor.
-          populationSpecBlobUri = params.populationSpecBlobUri
-          eventTemplateVersion = params.eventTemplateVersion
-          // Per-impression entity-key columns for Phase-2 (read per row from these columns).
-          requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
-          optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)
-          // Active-window pass-through (OPTIONAL): Phase-2 drops impressions outside this window.
-          if (params.hasActiveStartTime()) {
-            activeStartTime = params.activeStartTime
-          }
-          if (params.hasActiveEndTime()) {
-            activeEndTime = params.activeEndTime
-          }
-        },
-      )
-      // Shared payload at the top level (both Phase-2 paths); the memoized WorkItem covers exactly
-      // one model line. `vid_labeling_job` is stamped per fan-out WorkItem by the ranker.
-      modelLines += params.modelLine
-      modelBlobPaths.put(params.modelLine, params.modelBlobPath)
-      modelStorageParams =
-        VidLabelerParamsKt.storageParams {
-          gcsProjectId = params.modelStorageParams.gcsProjectId
-          impressionsBlobPrefix = params.modelStorageParams.blobPrefix
-        }
-      // MemoizedParams carries only the memoized-specific rank-index storage; its presence selects
-      // the memoized path.
-      memoizedParams =
-        VidLabelerParamsKt.memoizedParams {
-          vidRankMapStorageParams =
-            VidLabelerParamsKt.storageParams {
-              gcsProjectId = params.vidRankMapStorageParams.gcsProjectId
-              impressionsBlobPrefix = params.vidRankMapStorageParams.blobPrefix
-            }
-        }
-    }
   }
 }
