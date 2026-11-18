@@ -82,9 +82,6 @@ message WorkItem {
         (google.api.field_behavior) = IMMUTABLE
       ];
 
-      reserved 4;
-      reserved "metageneration";
-
       // Storage event type.
       StorageEventType event_type = 5 [
         (google.api.field_behavior) = OPTIONAL,
