@@ -61,3 +61,49 @@ principal_rate_limit_override {
     }
   }
 }
+
+# Exempt EDPA clients only from ListRequisitions; other RPCs use the regular shared buckets.
+principal_rate_limit_override {
+  key: "4D:B3:F8:49:40:46:55:07:5C:34:F7:2B:3D:51:7E:70:0F:7F:DE:48"  # edp7_tls.pem
+  value {
+    per_method_rate_limit {
+      key: "wfa.measurement.api.v2alpha.Requisitions/ListRequisitions"
+      value {
+        maximum_request_count: -1  # Unlimited.
+      }
+    }
+  }
+}
+principal_rate_limit_override {
+  key: "1D:41:38:58:CB:91:33:85:7B:A3:3F:4E:49:D7:02:8F:AC:D0:D5:D6"  # edpa_meta_tls.pem
+  value {
+    per_method_rate_limit {
+      key: "wfa.measurement.api.v2alpha.Requisitions/ListRequisitions"
+      value {
+        maximum_request_count: -1  # Unlimited.
+      }
+    }
+  }
+}
+principal_rate_limit_override {
+  key: "3D:4A:3A:8A:5E:0B:98:AA:05:F1:83:A4:48:EC:A0:AD:2D:AE:B9:BA"  # edpa_retail_pub_tls.pem
+  value {
+    per_method_rate_limit {
+      key: "wfa.measurement.api.v2alpha.Requisitions/ListRequisitions"
+      value {
+        maximum_request_count: -1  # Unlimited.
+      }
+    }
+  }
+}
+principal_rate_limit_override {
+  key: "A0:4F:50:0C:D6:C2:02:D1:E6:06:87:37:52:C5:D7:88:CC:B1:09:65"  # edpa_video_pub_tls.pem
+  value {
+    per_method_rate_limit {
+      key: "wfa.measurement.api.v2alpha.Requisitions/ListRequisitions"
+      value {
+        maximum_request_count: -1  # Unlimited.
+      }
+    }
+  }
+}
