@@ -39,13 +39,14 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.161.0",
+    version = "0.162.0",
     repo_name = "wfa_common_jvm",
 )
-# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#415): Remove after validation.
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/bazel-registry#233): Remove after registry merge.
 git_override(
     module_name = "common-jvm",
-    commit = "0d2701b4fe3411a0bc9197a242bfe9e2fb069336",
+    commit = "68c1ac159aed79040b2d378832d6eff9c20cd632",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 
