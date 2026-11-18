@@ -86,7 +86,6 @@ import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataReque
 import org.wfanet.measurement.internal.edpaggregator.MarkImpressionMetadataDeletedRequest as InternalMarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.internal.edpaggregator.UpdateImpressionMetadataRequest as InternalUpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.acquireDataAvailabilitySyncLeaseRequest
-import org.wfanet.measurement.internal.edpaggregator.copy as internalCopy
 import org.wfanet.measurement.internal.edpaggregator.markImpressionMetadataDeletedRequest as internalMarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -144,7 +143,7 @@ class DataAvailabilityCleanupRaceTest {
           service.deleteImpressionMetadata(
             if (legacyInternalApi) {
               legacyDeleteCalls++
-              request.internalCopy { clearEtag() }
+              request
             } else {
               request
             }
@@ -224,7 +223,7 @@ class DataAvailabilityCleanupRaceTest {
           service.deleteImpressionMetadata(
             if (legacyPublicApi) {
               legacyPublicDeleteCalls++
-              request.copy { clearEtag() }
+              request
             } else {
               request
             }
