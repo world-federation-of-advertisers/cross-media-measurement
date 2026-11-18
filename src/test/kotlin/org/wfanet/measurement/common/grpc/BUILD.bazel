@@ -24,9 +24,11 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.common.grpc.RateLimiterProviderTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiter_provider",
+        "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/ratelimit:rate_limiter",
     ],
 )
 
