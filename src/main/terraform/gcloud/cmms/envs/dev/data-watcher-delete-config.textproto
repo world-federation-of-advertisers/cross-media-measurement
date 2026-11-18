@@ -2,7 +2,7 @@
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 watched_paths {
   identifier: "data-availability-cleanup"
-  source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edp7/.*"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/(?:vid-labeled-impressions/)?edp/edp7/.*"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-cleanup"
     app_params {
@@ -75,7 +75,7 @@ watched_paths {
 }
 watched_paths {
   identifier: "data-availability-cleanup"
-  source_path_regex: "^gs://secure-computation-storage-dev-bucket/edp/edpa_meta/.*"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/(?:vid-labeled-impressions/)?edp/edpa_meta/.*"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-cleanup"
     app_params {
@@ -142,6 +142,44 @@ watched_paths {
             }
           }
         }
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/(?:vid-labeled-impressions/)?edp/edpa_video_pub/.*"
+  http_endpoint_sink {
+    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-cleanup"
+    app_params {
+      fields {
+        key: "@type"
+        value {
+          string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams"
+        }
+      }
+      fields {
+        key: "dataProvider"
+        value { string_value: "dataProviders/KYq_ciWaP94" }
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-dev-bucket/(?:vid-labeled-impressions/)?edp/edpa_retail_pub/.*"
+  http_endpoint_sink {
+    endpoint_uri: "https://us-central1-halo-cmm-dev.cloudfunctions.net/data-availability-cleanup"
+    app_params {
+      fields {
+        key: "@type"
+        value {
+          string_value: "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams"
+        }
+      }
+      fields {
+        key: "dataProvider"
+        value { string_value: "dataProviders/bvIQ5SrPwhk" }
       }
     }
   }

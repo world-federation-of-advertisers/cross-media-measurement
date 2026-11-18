@@ -112,8 +112,24 @@ class DataAvailabilityBlobsTest {
 
       val result = DataAvailabilityBlobs.enumerateDateInfo(client, prefix)
 
-      val doneBlob = result.datesWithDoneBlob.getValue(LocalDate.of(2026, 3, 15))
+      val doneBlob = result.datesWithDoneBlob.getValue(LocalDate.of(2026, 3, 15)).single()
       assertThat(doneBlob.blobKey).isEqualTo("${prefix}2026-03-15/done")
+    }
+
+  @Test
+  fun `enumerateDateInfo retains every upload-specific marker for one date`() =
+    runBlocking<Unit> {
+      val client = InMemoryStorageClient()
+      val prefix = "edp/test/model-line/m1/"
+      val first = "${prefix}2026-03-15/done-${"a".repeat(64)}"
+      val second = "${prefix}2026-03-15/done-${"b".repeat(64)}"
+      client.writeBlob(first, ByteString.EMPTY)
+      client.writeBlob(second, ByteString.EMPTY)
+
+      val result = DataAvailabilityBlobs.enumerateDateInfo(client, prefix)
+
+      assertThat(result.datesWithDoneBlob.getValue(LocalDate.of(2026, 3, 15)).map { it.blobKey })
+        .containsExactly(first, second)
     }
 
   // -------------------- findGaps --------------------
@@ -192,6 +208,17 @@ class DataAvailabilityBlobsTest {
       val client = InMemoryStorageClient()
       client.writeBlob("edp/m1/2026-03-15/done", ByteString.copyFromUtf8("done"))
       val blob = client.getBlob("edp/m1/2026-03-15/done")!!
+
+      assertThat(DataAvailabilityBlobs.isMetadataBlob(blob)).isFalse()
+    }
+
+  @Test
+  fun `isMetadataBlob returns false for upload-specific done blob`() =
+    runBlocking<Unit> {
+      val client = InMemoryStorageClient()
+      val key = "edp/m1/2026-03-15/done-${"a".repeat(64)}"
+      client.writeBlob(key, ByteString.copyFromUtf8("done"))
+      val blob = client.getBlob(key)!!
 
       assertThat(DataAvailabilityBlobs.isMetadataBlob(blob)).isFalse()
     }

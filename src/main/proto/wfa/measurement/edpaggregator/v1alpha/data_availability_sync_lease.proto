@@ -1,0 +1,71 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "DataAvailabilitySyncLeaseProto";
+
+// Lease held by one data-availability synchronization attempt.
+message DataAvailabilitySyncLease {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    pattern: "dataProviders/{data_provider}/dataAvailabilitySyncLeases/{data_availability_sync_lease}"
+    singular: "dataAvailabilitySyncLease"
+    plural: "dataAvailabilitySyncLeases"
+  };
+
+  // Synchronization lease lifecycle state.
+  enum State {
+    // The state is unknown.
+    STATE_UNSPECIFIED = 0;
+
+    // The synchronization attempt owns an unexpired lease.
+    ACTIVE = 1;
+
+    // The synchronization attempt released the lease.
+    RELEASED = 2;
+
+    // The synchronization attempt did not renew the lease before expiration.
+    EXPIRED = 3;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Current lease state.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when the lease expires unless renewed.
+  google.protobuf.Timestamp expire_time = 3
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Creation time.
+  google.protobuf.Timestamp create_time = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Last update time.
+  google.protobuf.Timestamp update_time = 5
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Opaque concurrency token.
+  string etag = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+}

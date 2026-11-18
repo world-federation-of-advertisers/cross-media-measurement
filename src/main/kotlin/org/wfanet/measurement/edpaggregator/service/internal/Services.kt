@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.service.internal
 
 import io.grpc.BindableService
+import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
@@ -31,6 +32,8 @@ import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
 data class Services(
+  val dataAvailabilitySyncLease:
+    DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase,
   val requisitionMetadata:
     RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata:
@@ -52,6 +55,7 @@ data class Services(
 ) {
   fun toList(): List<BindableService> =
     listOf(
+      dataAvailabilitySyncLease,
       requisitionMetadata,
       impressionMetadata,
       rawImpressionUpload,

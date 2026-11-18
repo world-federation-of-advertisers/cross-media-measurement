@@ -213,7 +213,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
-      eventGroupReferenceIdEntityKeyMapping = null,
+      eventGroupReferenceIdEntityKeyMappingsByEdp = emptyMap(),
       wholeBlobEntityTypes = emptySet(),
     )
 

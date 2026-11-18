@@ -91,6 +91,8 @@ package k8s
 				"--dead-letter-subscription-id=subpool-assigner-queue-dlq-sub",
 				"--dead-letter-subscription-id=vid-rank-builder-queue-dlq-sub",
 				"--dead-letter-subscription-id=vid-labeler-queue-dlq-sub",
+				"--dead-letter-subscription-id=data-availability-sync-queue-dlq-sub",
+				"--dead-letter-subscription-id=event-group-sync-queue-dlq-sub",
 				"--dead-letter-subscription-id=results-fulfiller-queue-dlq-sub",
 			] + _spannerConfig.flags
 

@@ -172,6 +172,18 @@ variable "pubsub_iam_service_account_member" {
   nullable    = false
 }
 
+variable "data_availability_sync_work_item_queue" {
+  description = "Pub/Sub queue for DataAvailabilitySync WorkItems."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
+}
+
 variable "edp_aggregator_bucket_name" {
   description = "Name of the Google Cloud Storage bucket used by the Edp Aggregator."
   type        = string
@@ -534,6 +546,26 @@ variable "vid_labeling_monitor_service_account_name" {
   nullable    = false
 }
 
+variable "vid_labeling_healing_controller_service_account_name" {
+  description = "Name of the VidLabelingHealingController service account."
+  type        = string
+  nullable    = false
+}
+
+variable "vid_labeling_healing_labeled_output_object_prefixes" {
+  description = "Object prefixes under which the healing controller may delete labeled output."
+  type        = list(string)
+  nullable    = false
+
+  validation {
+    condition = length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0 && alltrue([
+      for prefix in var.vid_labeling_healing_labeled_output_object_prefixes :
+      prefix != "" && !startswith(prefix, "/") && endswith(prefix, "/")
+    ])
+    error_message = "At least one bucket-relative labeled-output directory prefix ending in '/' is required."
+  }
+}
+
 variable "vid_labeling_dispatcher_config" {
   description = "An object containing the local path of the VidLabelingDispatcher config file and its destination path in Cloud Storage."
   type = object({
@@ -578,4 +610,81 @@ variable "vid_labeling_dispatch_scheduler_config" {
     scheduler_job_name        = optional(string)
   })
   nullable = false
+}
+
+variable "vid_labeling_healing_controller_scheduler_config" {
+  description = "Configuration for the five-minute VID-labeling healing controller schedule."
+  type = object({
+    paused                    = optional(bool, false)
+    schedule                  = string
+    time_zone                 = string
+    name                      = string
+    function_url              = string
+    scheduler_sa_display_name = string
+    scheduler_sa_description  = string
+    scheduler_job_description = string
+    scheduler_job_name        = optional(string)
+    attempt_deadline          = optional(string, "660s")
+  })
+  nullable = false
+}
+
+variable "vid_labeling_healing_alert_notification_channels" {
+  description = "Monitoring notification channels for VID-labeling healing alerts."
+  type        = list(string)
+  default     = []
+}
+
+variable "event_group_sync_work_item_queue" {
+  description = "Pub/Sub queue for EventGroupSync WorkItems."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
+}
+
+variable "event_group_sync_memory" {
+  description = "EventGroupSync function memory; retain the allocation required by the input size."
+  type        = string
+  nullable    = true
+  default     = null
+}
+
+variable "vid_labeling_availability_alert_thresholds" {
+  description = "VID-labeling availability alert thresholds; ages are in seconds."
+  type = object({
+    pending_age_seconds     = optional(number, 86400)
+    failed_executions       = optional(number, 3)
+    publication_age_seconds = optional(number, 3600)
+  })
+  default = {}
+
+  validation {
+    condition = (
+      var.vid_labeling_availability_alert_thresholds.pending_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.publication_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.failed_executions >= 1 &&
+      floor(var.vid_labeling_availability_alert_thresholds.failed_executions) == var.vid_labeling_availability_alert_thresholds.failed_executions
+    )
+    error_message = "Ages must be positive and failed_executions must be a positive integer."
+  }
+}
+
+variable "data_availability_publication_status_storage_roots" {
+  description = "Additional GCS buckets mapped to source output-root prefixes for publication status access."
+  type        = map(set(string))
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for bucket, prefixes in var.data_availability_publication_status_storage_roots :
+      bucket != "" && length(prefixes) > 0 &&
+      alltrue([for prefix in prefixes : !startswith(prefix, "/")])
+    ])
+    error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
+  }
 }

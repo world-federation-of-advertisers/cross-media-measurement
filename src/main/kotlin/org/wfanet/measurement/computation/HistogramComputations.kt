@@ -28,9 +28,21 @@ object HistogramComputations {
    * @return A [LongArray] representing the histogram, where index `k-1` is the count with frequency
    *   `k`.
    */
-  fun buildHistogram(frequencyVector: IntArray, maxFrequency: Int): LongArray {
+  fun buildHistogram(frequencyVector: IntArray, maxFrequency: Int): LongArray =
+    buildHistogram(frequencyVector.size, maxFrequency) { frequencyVector[it] }
+
+  /** Builds a histogram from per-VID frequencies encoded as unsigned bytes. */
+  fun buildHistogram(frequencyVector: ByteArray, maxFrequency: Int): LongArray =
+    buildHistogram(frequencyVector.size, maxFrequency) { frequencyVector[it].toInt() and 0xFF }
+
+  private inline fun buildHistogram(
+    size: Int,
+    maxFrequency: Int,
+    frequencyAt: (Int) -> Int,
+  ): LongArray {
     val histogram = LongArray(maxFrequency)
-    for (frequency in frequencyVector) {
+    for (index in 0 until size) {
+      val frequency = frequencyAt(index)
       if (frequency > 0) {
         // Cap the frequency at maxFrequency.
         val cappedFrequency = min(frequency, maxFrequency)

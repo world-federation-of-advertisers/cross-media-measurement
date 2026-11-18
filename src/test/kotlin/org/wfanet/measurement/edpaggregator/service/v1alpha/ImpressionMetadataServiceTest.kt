@@ -41,6 +41,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerDataAvailabilitySyncLeaseService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerImpressionMetadataService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.Errors
@@ -57,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -74,6 +76,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase as InternalImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt as InternalListImpressionMetadataPageTokenKt
+import org.wfanet.measurement.internal.edpaggregator.acquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken as internalListImpressionMetadataPageToken
 
 @RunWith(JUnit4::class)
@@ -95,9 +98,205 @@ class ImpressionMetadataServiceTest {
 
   @Before
   fun initService() {
+    runBlocking {
+      SpannerDataAvailabilitySyncLeaseService(spannerDatabase.databaseClient)
+        .acquireDataAvailabilitySyncLease(
+          acquireDataAvailabilitySyncLeaseRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            requestId = LEASE_REQUEST_ID
+          }
+        )
+    }
     service =
       ImpressionMetadataService(
         InternalImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+      )
+  }
+
+  @Test
+  fun `create and update preserve captured blob generations`() = runBlocking {
+    val created =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              metadataBlobGeneration = 41L
+              impressionsBlobGeneration = 42L
+            }
+        }
+      )
+    val fetched =
+      service.getImpressionMetadata(getImpressionMetadataRequest { name = created.name })
+    assertThat(fetched.metadataBlobGeneration).isEqualTo(41L)
+    assertThat(fetched.impressionsBlobGeneration).isEqualTo(42L)
+
+    val updated =
+      service.updateImpressionMetadata(
+        updateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+          impressionMetadata =
+            created.copy {
+              metadataBlobGeneration = 43L
+              impressionsBlobGeneration = 44L
+            }
+        }
+      )
+    val refetched =
+      service.getImpressionMetadata(getImpressionMetadataRequest { name = updated.name })
+    assertThat(refetched.metadataBlobGeneration).isEqualTo(43L)
+    assertThat(refetched.impressionsBlobGeneration).isEqualTo(44L)
+  }
+
+  @Test
+  fun `create rejects a negative metadata blob generation`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+            impressionMetadata = IMPRESSION_METADATA.copy { metadataBlobGeneration = -1L }
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `update rejects a negative impressions blob generation`() = runBlocking {
+    val created =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+          impressionMetadata = IMPRESSION_METADATA
+        }
+      )
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.updateImpressionMetadata(
+          updateImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+            impressionMetadata = created.copy { impressionsBlobGeneration = -1L }
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createImpressionMetadata requires synchronization lease`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            impressionMetadata = IMPRESSION_METADATA
+          }
+        )
+      }
+
+    assertMissingLease(exception)
+  }
+
+  @Test
+  fun `batchCreateImpressionMetadata requires synchronization lease`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            requests += createImpressionMetadataRequest {
+              dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+              this.parent = DATA_PROVIDER_KEY.toName()
+              impressionMetadata = IMPRESSION_METADATA
+            }
+          }
+        )
+      }
+
+    assertMissingLease(exception)
+  }
+
+  @Test
+  fun `updateImpressionMetadata requires synchronization lease`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.updateImpressionMetadata(
+          updateImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA.copy {
+                name = "${DATA_PROVIDER_KEY.toName()}/impressionMetadata/test"
+              }
+          }
+        )
+      }
+
+    assertMissingLease(exception)
+  }
+
+  @Test
+  fun `batchUpdateImpressionMetadata requires synchronization lease`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchUpdateImpressionMetadata(
+          batchUpdateImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            requests += updateImpressionMetadataRequest {
+              dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+              impressionMetadata =
+                IMPRESSION_METADATA.copy {
+                  name = "${DATA_PROVIDER_KEY.toName()}/impressionMetadata/test"
+                }
+            }
+          }
+        )
+      }
+
+    assertMissingLease(exception)
+  }
+
+  @Test
+  fun `undeleteImpressionMetadata requires synchronization lease`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.undeleteImpressionMetadata(
+          undeleteImpressionMetadataRequest {
+            name = "${DATA_PROVIDER_KEY.toName()}/impressionMetadata/test"
+          }
+        )
+      }
+
+    assertMissingLease(exception)
+  }
+
+  @Test
+  fun `batchUndeleteImpressionMetadata requires synchronization lease`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchUndeleteImpressionMetadata(
+          batchUndeleteImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            names += "${DATA_PROVIDER_KEY.toName()}/impressionMetadata/test"
+          }
+        )
+      }
+
+    assertMissingLease(exception)
+  }
+
+  private fun assertMissingLease(exception: StatusRuntimeException) {
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "data_availability_sync_lease"
+        }
       )
   }
 
@@ -106,6 +305,8 @@ class ImpressionMetadataServiceTest {
     runBlocking {
       val startTime = Instant.now()
       val request = createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA
         requestId = REQUEST_ID
@@ -128,6 +329,8 @@ class ImpressionMetadataServiceTest {
     runBlocking {
       val startTime = Instant.now()
       val request = createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA
         // no request_id
@@ -150,6 +353,8 @@ class ImpressionMetadataServiceTest {
     val impressionMetadata =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           this.impressionMetadata = expected
           requestId = "33333333-3333-4333-8333-333333333333"
@@ -166,6 +371,8 @@ class ImpressionMetadataServiceTest {
     val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
         }
@@ -173,6 +380,8 @@ class ImpressionMetadataServiceTest {
     val updated =
       service.updateImpressionMetadata(
         updateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           impressionMetadata = created.copy { outputDoneBlobGeneration = 88L }
           requestId = "44444444-4444-4444-8444-444444444444"
         }
@@ -189,6 +398,8 @@ class ImpressionMetadataServiceTest {
     val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata =
             IMPRESSION_METADATA.copy {
@@ -200,6 +411,8 @@ class ImpressionMetadataServiceTest {
     val corrected =
       service.updateImpressionMetadata(
         updateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           impressionMetadata =
             created.copy {
               rawImpressionUpload = sourceUploadB
@@ -235,6 +448,8 @@ class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata with existing requestId returns the existing ImpressionMetadata`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA
         requestId = REQUEST_ID
@@ -249,6 +464,8 @@ class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT when parent is missing`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       // missing parent
       impressionMetadata = IMPRESSION_METADATA
       requestId = REQUEST_ID
@@ -270,6 +487,8 @@ class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT for invalid parent`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = "invalid-parent-name"
       impressionMetadata = IMPRESSION_METADATA
       requestId = REQUEST_ID
@@ -291,6 +510,8 @@ class ImpressionMetadataServiceTest {
   @Test
   fun `createRequisitionMetadata throws INVALID_ARGUMENT for invalid request id`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA
       requestId = "invalid-request-id"
@@ -313,6 +534,8 @@ class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata throws INVALID_ARGUMENT when impressionMetadata is missing`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         // missing impressionMetadata
         requestId = REQUEST_ID
@@ -334,6 +557,8 @@ class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT for invalid model_line`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA.copy { modelLine = "invalid-model-line" }
       requestId = REQUEST_ID
@@ -356,6 +581,8 @@ class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata throws IMPRESSION_METADATA_ALREADY_EXISTS from backend`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA
         requestId = REQUEST_ID
@@ -384,11 +611,15 @@ class ImpressionMetadataServiceTest {
   @Test
   fun `batchCreateImpressionMetadata returns created ImpressionMetadata`() = runBlocking {
     val request1 = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA
       requestId = UUID.randomUUID().toString()
     }
     val request2 = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA_2
       requestId = UUID.randomUUID().toString()
@@ -399,6 +630,8 @@ class ImpressionMetadataServiceTest {
     val response =
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           requests += request1
           requests += request2
@@ -430,6 +663,8 @@ class ImpressionMetadataServiceTest {
   @Test
   fun `batchCreateImpressionMetadata is idempotent`() = runBlocking {
     val idempotentRequest = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA
       requestId = UUID.randomUUID().toString()
@@ -437,6 +672,8 @@ class ImpressionMetadataServiceTest {
     val initialResponse =
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           requests += idempotentRequest
         }
@@ -444,6 +681,8 @@ class ImpressionMetadataServiceTest {
     val existingImpressionMetadata = initialResponse.impressionMetadataList.single()
 
     val newRequest = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA_2
       requestId = UUID.randomUUID().toString()
@@ -451,6 +690,8 @@ class ImpressionMetadataServiceTest {
     val secondResponse =
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           requests += idempotentRequest
           requests += newRequest
@@ -474,7 +715,11 @@ class ImpressionMetadataServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             requests += createImpressionMetadataRequest {
+              dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
               impressionMetadata = IMPRESSION_METADATA
               requestId = REQUEST_ID
             }
@@ -499,8 +744,12 @@ class ImpressionMetadataServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = "invalid-parent"
             requests += createImpressionMetadataRequest {
+              dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
               impressionMetadata = IMPRESSION_METADATA
               requestId = REQUEST_ID
             }
@@ -526,8 +775,12 @@ class ImpressionMetadataServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
               parent = DATA_PROVIDER_KEY.toName()
               requests += createImpressionMetadataRequest {
+                dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
                 parent = DATA_PROVIDER_KEY.toName()
                 impressionMetadata = IMPRESSION_METADATA
                 requestId = "invalid-request-id"
@@ -554,13 +807,19 @@ class ImpressionMetadataServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
               parent = DATA_PROVIDER_KEY.toName()
               requests += createImpressionMetadataRequest {
+                dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
                 parent = DATA_PROVIDER_KEY.toName()
                 impressionMetadata = IMPRESSION_METADATA
                 requestId = REQUEST_ID
               }
               requests += createImpressionMetadataRequest {
+                dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
                 parent = DATA_PROVIDER_KEY.toName()
                 impressionMetadata = IMPRESSION_METADATA_2
                 requestId = REQUEST_ID
@@ -584,11 +843,15 @@ class ImpressionMetadataServiceTest {
   fun `batchCreateImpressionMetadata throws ALREADY_EXISTS for duplicate blobUri`() = runBlocking {
     val duplicateBlobUri = "duplicate-blob-uri"
     val request1 = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA.copy { blobUri = duplicateBlobUri }
       requestId = UUID.randomUUID().toString()
     }
     val request2 = createImpressionMetadataRequest {
+      dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
       parent = DATA_PROVIDER_KEY.toName()
       impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = duplicateBlobUri }
       requestId = UUID.randomUUID().toString()
@@ -598,6 +861,8 @@ class ImpressionMetadataServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = DATA_PROVIDER_KEY.toName()
             requests += request1
             requests += request2
@@ -621,6 +886,8 @@ class ImpressionMetadataServiceTest {
     val createdImpressionMetadata =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -638,6 +905,8 @@ class ImpressionMetadataServiceTest {
     val createdImpressionMetadata =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -722,6 +991,8 @@ class ImpressionMetadataServiceTest {
     val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -783,6 +1054,8 @@ class ImpressionMetadataServiceTest {
       val created =
         service.createImpressionMetadata(
           createImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = DATA_PROVIDER_KEY.toName()
             impressionMetadata = IMPRESSION_METADATA
             requestId = REQUEST_ID
@@ -830,6 +1103,8 @@ class ImpressionMetadataServiceTest {
     val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -839,7 +1114,12 @@ class ImpressionMetadataServiceTest {
       service.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = created.name })
 
     val response =
-      service.undeleteImpressionMetadata(undeleteImpressionMetadataRequest { name = created.name })
+      service.undeleteImpressionMetadata(
+        undeleteImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+          name = created.name
+        }
+      )
 
     assertThat(response)
       .comparingExpectedFieldsOnly()
@@ -876,7 +1156,10 @@ class ImpressionMetadataServiceTest {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           service.undeleteImpressionMetadata(
-            undeleteImpressionMetadataRequest { name = "invalid-name" }
+            undeleteImpressionMetadataRequest {
+              dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+              name = "invalid-name"
+            }
           )
         }
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -894,7 +1177,9 @@ class ImpressionMetadataServiceTest {
   fun `undeleteImpressionMetadata throws IMPRESSION_METADATA_NOT_FOUND when resource does not exist`() =
     runBlocking {
       val request = undeleteImpressionMetadataRequest {
-        name = "dataProviders/data-provider-1/impressionMetadata/not-found"
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
+        name = "${DATA_PROVIDER_KEY.toName()}/impressionMetadata/not-found"
       }
 
       val exception =
@@ -916,6 +1201,8 @@ class ImpressionMetadataServiceTest {
     val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -925,7 +1212,10 @@ class ImpressionMetadataServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.undeleteImpressionMetadata(
-          undeleteImpressionMetadataRequest { name = created.name }
+          undeleteImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+            name = created.name
+          }
         )
       }
 
@@ -945,6 +1235,8 @@ class ImpressionMetadataServiceTest {
     val created1 =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -953,6 +1245,8 @@ class ImpressionMetadataServiceTest {
     val created2 =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA_2
           requestId = UUID.randomUUID().toString()
@@ -996,6 +1290,8 @@ class ImpressionMetadataServiceTest {
     val created1 =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -1028,6 +1324,8 @@ class ImpressionMetadataServiceTest {
     val created1 =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -1130,6 +1428,8 @@ class ImpressionMetadataServiceTest {
       val created1 =
         service.createImpressionMetadata(
           createImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = DATA_PROVIDER_KEY.toName()
             impressionMetadata = IMPRESSION_METADATA
             requestId = REQUEST_ID
@@ -1162,6 +1462,8 @@ class ImpressionMetadataServiceTest {
     val created1 =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA
           requestId = REQUEST_ID
@@ -1221,6 +1523,8 @@ class ImpressionMetadataServiceTest {
       val created =
         service.createImpressionMetadata(
           createImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = DATA_PROVIDER_KEY.toName()
             impressionMetadata = IMPRESSION_METADATA
           }
@@ -1497,6 +1801,8 @@ class ImpressionMetadataServiceTest {
     val response =
       service.batchUndeleteImpressionMetadata(
         batchUndeleteImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           names += created.map { it.name }
         }
@@ -1513,6 +1819,8 @@ class ImpressionMetadataServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.batchUndeleteImpressionMetadata(
           batchUndeleteImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = DATA_PROVIDER_KEY.toName()
             names += "dataProviders/another/impressionMetadata/impression-1"
           }
@@ -1609,8 +1917,12 @@ class ImpressionMetadataServiceTest {
   fun `computeModelLineBounds returns bounds`() = runBlocking {
     service.batchCreateImpressionMetadata(
       batchCreateImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         requests += createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata =
             IMPRESSION_METADATA.copy {
@@ -1623,6 +1935,8 @@ class ImpressionMetadataServiceTest {
         }
 
         requests += createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata =
             IMPRESSION_METADATA.copy {
@@ -1636,6 +1950,8 @@ class ImpressionMetadataServiceTest {
         }
 
         requests += createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata =
             IMPRESSION_METADATA.copy {
@@ -1714,8 +2030,12 @@ class ImpressionMetadataServiceTest {
   fun `computeModelLineBounds returns all model lines when modelLines is missing`() = runBlocking {
     service.batchCreateImpressionMetadata(
       batchCreateImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         requests += createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata =
             IMPRESSION_METADATA.copy {
@@ -1727,6 +2047,8 @@ class ImpressionMetadataServiceTest {
             }
         }
         requests += createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata =
             IMPRESSION_METADATA.copy {
@@ -1774,6 +2096,8 @@ class ImpressionMetadataServiceTest {
     return impressionMetadata.map { metadata ->
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           this.impressionMetadata = metadata
           requestId = UUID.randomUUID().toString()
@@ -1787,6 +2111,8 @@ class ImpressionMetadataServiceTest {
     val response =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
         }
@@ -1801,6 +2127,8 @@ class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata throws INVALID_ARGUMENT when neither eventGroupReferenceId nor entity_keys set`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA.copy { clearEventGroupReferenceId() }
       }
@@ -1825,6 +2153,8 @@ class ImpressionMetadataServiceTest {
       val response =
         service.createImpressionMetadata(
           createImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = DATA_PROVIDER_KEY.toName()
             impressionMetadata =
               IMPRESSION_METADATA_WITH_ENTITY_KEYS.copy { clearEventGroupReferenceId() }
@@ -1842,6 +2172,8 @@ class ImpressionMetadataServiceTest {
     val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
         }
@@ -1860,12 +2192,18 @@ class ImpressionMetadataServiceTest {
     val response =
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           requests += createImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = DATA_PROVIDER_KEY.toName()
             impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
           }
           requests += createImpressionMetadataRequest {
+            dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
             parent = DATA_PROVIDER_KEY.toName()
             impressionMetadata = IMPRESSION_METADATA_2.copy { entityKeys += ENTITY_KEY_AD_2 }
           }
@@ -1885,6 +2223,8 @@ class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata throws INVALID_ARGUMENT when entity_key entity_type is empty`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA.copy { entityKeys += entityKey { entityId = "x" } }
       }
@@ -1907,6 +2247,8 @@ class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata throws INVALID_ARGUMENT when entity_key id is empty`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata =
           IMPRESSION_METADATA.copy { entityKeys += entityKey { entityType = "ad" } }
@@ -1929,12 +2271,16 @@ class ImpressionMetadataServiceTest {
   fun `listImpressionMetadata filters by single meta entity_key`() = runBlocking {
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
       }
     )
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA_2
       }
@@ -1959,6 +2305,8 @@ class ImpressionMetadataServiceTest {
     runBlocking {
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
         }
@@ -1966,6 +2314,8 @@ class ImpressionMetadataServiceTest {
       val secondImpression = IMPRESSION_METADATA_2.copy { entityKeys += ENTITY_KEY_AD_2 }
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
           parent = DATA_PROVIDER_KEY.toName()
           impressionMetadata = secondImpression
         }
@@ -1990,6 +2340,8 @@ class ImpressionMetadataServiceTest {
   fun `listImpressionMetadata returns empty when no entity_key matches`() = runBlocking {
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
+        dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+
         parent = DATA_PROVIDER_KEY.toName()
         impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
       }
@@ -2041,6 +2393,10 @@ class ImpressionMetadataServiceTest {
 
     private val DATA_PROVIDER_ID = externalIdToApiId(111L)
     private val DATA_PROVIDER_KEY = DataProviderKey(DATA_PROVIDER_ID)
+    private const val SYNCHRONIZATION_ATTEMPT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private const val LEASE_REQUEST_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    private val DATA_AVAILABILITY_SYNC_LEASE_NAME =
+      "${DATA_PROVIDER_KEY.toName()}/dataAvailabilitySyncLeases/$SYNCHRONIZATION_ATTEMPT_ID"
     private const val BLOB_URI = "path/to/blob"
     private const val BLOB_TYPE = "blob.type"
     private const val EVENT_GROUP_REFERENCE_ID_1 = "event-group-1"

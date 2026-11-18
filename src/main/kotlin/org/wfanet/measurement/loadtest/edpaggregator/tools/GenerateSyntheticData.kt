@@ -51,6 +51,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateS
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
+import org.wfanet.measurement.loadtest.edpaggregator.testing.FixtureStorageClient
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.ArgGroup
@@ -325,7 +326,7 @@ class GenerateSyntheticData : Runnable {
         for (datePath in writtenDatePaths) {
           val doneKey = "$datePath/done"
           val doneUri = "$scheme$outputBucket/$doneKey"
-          val storageClient = SelectedStorageClient(doneUri, storagePath)
+          val storageClient = FixtureStorageClient(SelectedStorageClient(doneUri, storagePath))
           logger.info("Writing done blob: $doneKey")
           storageClient.writeBlob(doneKey, emptyFlow())
         }

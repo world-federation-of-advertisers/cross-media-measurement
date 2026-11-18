@@ -17,8 +17,10 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.DescriptorProtos.FileDescriptorProto
+import com.google.protobuf.DescriptorProtos.FileOptions
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
-import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -47,10 +49,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -60,9 +60,9 @@ import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -132,6 +132,54 @@ class ResultsFulfiller(
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val metrics: ResultsFulfillerMetrics,
 ) {
+
+  init {
+    if (groupedRequisitions.requireModelLineFinalization) {
+      val selectedModelLine =
+        checkNotNull(groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)) {
+          "Missing selected model line for cutover fulfillment"
+        }
+      val visibleModelInfo = modelLineInfoMap.getValue(groupedRequisitions.modelLine)
+      val selectedModelInfo = modelLineInfoMap.getValue(selectedModelLine)
+      require(selectedModelInfo.populationSpec == visibleModelInfo.populationSpec) {
+        "Selected model line $selectedModelLine has an incompatible PopulationSpec"
+      }
+      require(
+        selectedModelInfo.eventDescriptor.fullName == visibleModelInfo.eventDescriptor.fullName &&
+          eventSchema(selectedModelInfo.eventDescriptor) ==
+            eventSchema(visibleModelInfo.eventDescriptor)
+      ) {
+        "Selected model line $selectedModelLine has an incompatible EventTemplate descriptor"
+      }
+    }
+  }
+
+  private fun eventSchema(descriptor: Descriptors.Descriptor): Map<String, Message> = buildMap {
+    fun addFileContext(typeName: String, file: Descriptors.FileDescriptor) {
+      val proto = file.toProto()
+      put(
+        "$typeName#file-context",
+        FileDescriptorProto.newBuilder()
+          .setSyntax(proto.syntax.ifEmpty { "proto2" })
+          .setEdition(proto.edition)
+          .setOptions(FileOptions.newBuilder().setFeatures(proto.options.features))
+          .build(),
+      )
+    }
+    fun addMessage(message: Descriptors.Descriptor) {
+      if (put(message.fullName, message.toProto()) != null) return
+      addFileContext(message.fullName, message.file)
+      for (field in message.fields + message.extensions) {
+        if (field.javaType == Descriptors.FieldDescriptor.JavaType.MESSAGE) {
+          addMessage(field.messageType)
+        } else if (field.javaType == Descriptors.FieldDescriptor.JavaType.ENUM) {
+          put(field.enumType.fullName, field.enumType.toProto())
+          addFileContext(field.enumType.fullName, field.enumType.file)
+        }
+      }
+    }
+    addMessage(descriptor)
+  }
 
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
     EventProcessingOrchestrator<Message>(privateEncryptionKey = privateEncryptionKey)
@@ -245,21 +293,10 @@ class ResultsFulfiller(
     // fulfilled or refused already
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    // Empty metadata is almost always transient, not a permanent orphan. The direct Requisition
-    // Fetcher dispatch path creates and queues metadata before creating the WorkItem, preventing
-    // this race. The legacy DataWatcher path dispatches on the blob write, however, and can still
-    // land moments later. Throwing fails the attempt so the control plane durably schedules another
-    // execution once the metadata exists — do NOT skip the work, which would abandon requisitions
-    // that are about to become fulfillable and leave the report permanently unfulfilled.
-    //
-    // The genuinely-orphaned case (fetcher crashed between blob and metadata, so metadata never
-    // arrives) is indistinguishable from the race at read time; it retries up to the queue's
-    // max_delivery_attempts and then dead-letters. Migrating the watched path to direct dispatch
-    // makes empty metadata a true orphan; until all deployments migrate, this stays a
-    // throw-and-retry. See #4119 (blocked by #4213).
-    //
-    // emptyMetadataRetries is the observability hook: a low steady rate is the normal race, a
-    // sustained climb on the same groupId is a stuck orphan worth investigating.
+    // RequisitionFetcher queues metadata before creating the WorkItem, so empty metadata indicates
+    // orphaned work. Throwing retries the attempt up to the queue's max delivery count and then
+    // dead-letters it instead of silently abandoning the requisitions. emptyMetadataRetries is the
+    // observability hook for finding these orphans.
     if (requisitionsMetadata.isEmpty()) {
       metrics.emptyMetadataRetries.add(
         1,
@@ -315,7 +352,8 @@ class ResultsFulfiller(
       }
     val modelLineKey = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLineKey)
-    val modelLine = modelInfo.localAlias ?: modelLineKey
+    val selectedModelLine = groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
+    val modelLine = selectedModelLine ?: modelInfo.localAlias ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
@@ -330,6 +368,9 @@ class ResultsFulfiller(
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        reportInterval =
+          groupedRequisitions.reportInterval.takeIf { groupedRequisitions.hasReportInterval() },
+        requireModelLineFinalization = groupedRequisitions.requireModelLineFinalization,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 
@@ -531,18 +572,16 @@ class ResultsFulfiller(
           "Requisition metadata not found for requisition: ${requisition.name}"
         )
 
-    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-    val signedRequisitionSpec: SignedMessage =
+    val measurementSpec: MeasurementSpec = RequisitionSpecs.readMeasurementSpec(requisition)
+    // TODO: Issue #2914
+    val requisitionSpec: RequisitionSpec =
       try {
         withContext(Dispatchers.IO) {
-          val result =
-            decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-          result
+          RequisitionSpecs.readRequisitionSpec(requisition, privateEncryptionKey)
         }
       } catch (e: GeneralSecurityException) {
-        throw Exception("RequisitionSpec decryption failed", e)
+        throw Exception("RequisitionSpec could not be read", e)
       }
-    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack() // TODO: Issue #2914
     val reportId =
       requireNotNull(requisitionMetadata.report) {
         "Report ID is missing from requisition metadata: ${requisitionMetadata.name}"
@@ -960,10 +999,7 @@ class ResultsFulfiller(
      */
     private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
 
-    // Memory-based parallelism limit to prevent OOM with large frequency vectors
-    // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for
-    // the intermediate integer list in FrequencyVectorBuilder, ~0.5GB per requisition.
-    // For 15 parallel fulfillments we end up at ~8GB in total.
+    // Bound concurrent payloads and encryption buffers.
     private const val MAX_FULFILLMENT_PARALLELISM: Int = 15
 
     /** Utilize all cpu cores but keep one free for GC and system work, capped by memory limit. */

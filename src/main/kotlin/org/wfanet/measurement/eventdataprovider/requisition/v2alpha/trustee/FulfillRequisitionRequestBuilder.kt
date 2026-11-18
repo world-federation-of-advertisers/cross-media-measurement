@@ -21,6 +21,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import com.google.protobuf.UnsafeByteOperations
 import com.google.protobuf.kotlin.toByteString
 import java.io.ByteArrayOutputStream
 import org.wfanet.frequencycount.FrequencyVector
@@ -54,7 +55,7 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
  *
  * The caller is responsible for the [frequencyVector] matching the `MeasurementSpec`. A `TrusTeeV2`
  * `Requisition` carries a `MultiMeasurementSpec`, whose vector is built uncapped; this class does
- * not check the pairing.
+ * not check the pairing. Keep the array unchanged until the requests are consumed.
  *
  * @throws IllegalArgumentException if the requisition is malformed or the frequency vector is empty
  * @throws GeneralSecurityException if a cryptographic error happens
@@ -62,12 +63,25 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 class FulfillRequisitionRequestBuilder(
   private val requisition: Requisition,
   private val requisitionNonce: Long,
-  // TODO(world-federation-of-advertisers/cross-media-measurement#2705): make it ByteArray
-  private val frequencyVector: FrequencyVector,
+  private val frequencyVector: ByteArray,
   private val encryptionParams: EncryptionParams?,
   private val fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? =
     null,
 ) {
+  constructor(
+    requisition: Requisition,
+    requisitionNonce: Long,
+    frequencyVector: FrequencyVector,
+    encryptionParams: EncryptionParams?,
+    fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
+  ) : this(
+    requisition,
+    requisitionNonce,
+    frequencyVectorBytes(frequencyVector),
+    encryptionParams,
+    fulfillmentDetails,
+  )
+
   /**
    * Parameters for optional encryption
    *
@@ -87,8 +101,6 @@ class FulfillRequisitionRequestBuilder(
     val awsKmsParams: FulfillRequisitionRequest.Header.TrusTee.EnvelopeEncryption.AwsKmsParams?,
   )
 
-  private val frequencyVectorBytes: ByteArray
-
   /** Whether this fulfills a `TrusTeeV2` [Requisition] rather than a `TrusTee` one. */
   private val isTrusTeeV2: Boolean
 
@@ -107,15 +119,7 @@ class FulfillRequisitionRequestBuilder(
       "fulfillmentDetails may only be set for a TrusTeeV2 Requisition"
     }
 
-    require(frequencyVector.dataCount > 0) { "FrequencyVector must have size > 0" }
-
-    frequencyVectorBytes =
-      ByteArray(frequencyVector.dataList.size) { index ->
-        require(frequencyVector.dataList[index] in 0..255) {
-          "FrequencyVector value must be between 0 and 255"
-        }
-        frequencyVector.dataList[index].toByte()
-      }
+    require(frequencyVector.isNotEmpty()) { "FrequencyVector must have size > 0" }
   }
 
   /** Builds the Sequence of requests with payload. */
@@ -123,13 +127,12 @@ class FulfillRequisitionRequestBuilder(
     if (encryptionParams == null) {
       val headerRequest = buildUnencryptedHeader()
       yield(headerRequest)
-      val payload = frequencyVectorBytes.toByteString()
-      for (begin in 0 until payload.size() step RPC_CHUNK_SIZE_BYTES) {
+      for (begin in frequencyVector.indices step RPC_CHUNK_SIZE_BYTES) {
         yield(
           fulfillRequisitionRequest {
             bodyChunk = bodyChunk {
-              val end = minOf(payload.size(), begin + RPC_CHUNK_SIZE_BYTES)
-              data = payload.substring(begin, end)
+              val size = minOf(RPC_CHUNK_SIZE_BYTES, frequencyVector.size - begin)
+              data = ByteString.copyFrom(frequencyVector, begin, size)
             }
           }
         )
@@ -145,7 +148,7 @@ class FulfillRequisitionRequestBuilder(
       val bodyChunkRequests: Sequence<FulfillRequisitionRequest> =
         StreamingEncryption.encryptChunked(
             dekHandle,
-            frequencyVectorBytes.toByteString(),
+            UnsafeByteOperations.unsafeWrap(frequencyVector),
             null,
             RPC_CHUNK_SIZE_BYTES,
           )
@@ -256,6 +259,13 @@ class FulfillRequisitionRequestBuilder(
   }
 
   companion object {
+    private fun frequencyVectorBytes(frequencyVector: FrequencyVector): ByteArray =
+      ByteArray(frequencyVector.dataCount) { index ->
+        val frequency = frequencyVector.getData(index)
+        require(frequency in 0..255) { "FrequencyVector value must be between 0 and 255" }
+        frequency.toByte()
+      }
+
     private const val KEY_TEMPLATE = "AES256_GCM_HKDF_1MB"
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
     // The details are held in a single field rather than streamed, so the chunk size only bounds
@@ -274,6 +284,21 @@ class FulfillRequisitionRequestBuilder(
       frequencyVector: FrequencyVector,
       encryptionParams: EncryptionParams,
       fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
+    ): Sequence<FulfillRequisitionRequest> =
+      buildEncrypted(
+        requisition,
+        requisitionNonce,
+        frequencyVectorBytes(frequencyVector),
+        encryptionParams,
+        fulfillmentDetails,
+      )
+
+    fun buildEncrypted(
+      requisition: Requisition,
+      requisitionNonce: Long,
+      frequencyVector: ByteArray,
+      encryptionParams: EncryptionParams,
+      fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
     ): Sequence<FulfillRequisitionRequest> {
       return FulfillRequisitionRequestBuilder(
           requisition,
@@ -290,6 +315,19 @@ class FulfillRequisitionRequestBuilder(
       requisition: Requisition,
       requisitionNonce: Long,
       frequencyVector: FrequencyVector,
+      fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
+    ): Sequence<FulfillRequisitionRequest> =
+      buildUnencrypted(
+        requisition,
+        requisitionNonce,
+        frequencyVectorBytes(frequencyVector),
+        fulfillmentDetails,
+      )
+
+    fun buildUnencrypted(
+      requisition: Requisition,
+      requisitionNonce: Long,
+      frequencyVector: ByteArray,
       fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
     ): Sequence<FulfillRequisitionRequest> =
       FulfillRequisitionRequestBuilder(

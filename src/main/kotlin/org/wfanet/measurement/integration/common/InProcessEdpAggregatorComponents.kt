@@ -87,6 +87,8 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.client.LabeledImpressionWriter
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.eventgroups.EventGroupSync
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
@@ -107,17 +109,20 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMet
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -148,8 +153,8 @@ class InProcessEdpAggregatorComponents(
   private val eventGroupConfigsByEdp: Map<String, Map<String, EventGroupConfig>>,
   private val modelLineInfoMap: Map<String, ModelLineInfo>,
   private val externalKmsClient: FakeKmsClient,
-  private val eventGroupReferenceIdEntityKeyMapping:
-    ResultsFulfillerParams.EventGroupReferenceIdEntityKeyMapping?,
+  private val eventGroupReferenceIdEntityKeyMappingsByEdp:
+    Map<String, ResultsFulfillerParams.EventGroupReferenceIdEntityKeyMapping>,
   private val wholeBlobEntityTypes: Set<String>,
 ) : TestRule {
   private val modelLineName: String by lazy { requireSingleModelLineName(modelLineInfoMap.keys) }
@@ -193,6 +198,11 @@ class InProcessEdpAggregatorComponents(
 
   private val impressionMetadataClient: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
+  }
+
+  private val dataAvailabilitySyncLeaseClient:
+    DataAvailabilitySyncLeaseServiceCoroutineStub by lazy {
+    DataAvailabilitySyncLeaseServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
   }
 
   private lateinit var eventGroupSync: EventGroupSync
@@ -283,6 +293,9 @@ class InProcessEdpAggregatorComponents(
     require(edpNoise.keys == edpCapabilities.keys) {
       "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
     }
+    require(eventGroupReferenceIdEntityKeyMappingsByEdp.keys.all { it in edpCapabilities }) {
+      "Identifier mapping keys must identify configured EDPs"
+    }
     require(resultMinimumThresholdsByEdp.keys.all { it in edpCapabilities }) {
       "resultMinimumThresholdsByEdp keys must identify configured EDPs"
     }
@@ -319,7 +332,8 @@ class InProcessEdpAggregatorComponents(
             supportedMultiPartyNoiseTypes =
               edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
             resultMinimumThresholds = resultMinimumThresholdsByEdp[edpAggregatorShortName],
-            eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
+            eventGroupReferenceIdEntityKeyMapping =
+              eventGroupReferenceIdEntityKeyMappingsByEdp[edpAggregatorShortName],
             wholeBlobEntityTypes = wholeBlobEntityTypes,
           )
       }
@@ -339,7 +353,14 @@ class InProcessEdpAggregatorComponents(
         UnlinkedClientAccountsCoroutineStub(publicApiChannel).withPrincipalName(edpResourceName)
       val edpPrivateKey = getDataProviderPrivateEncryptionKey(edpAggregatorShortName)
 
-      val requisitionsValidator = RequisitionsValidator(edpPrivateKey)
+      val requisitionsValidator =
+        RequisitionsValidator(
+          privateEncryptionKey = edpPrivateKey,
+          allowMixedEventGroupSelectors =
+            resultsFulfillerParamsMap
+              .getValue(edpAggregatorShortName)
+              .hasEventGroupReferenceIdEntityKeyMapping(),
+        )
 
       val requisitionGrouper =
         RequisitionGrouperByReportId(
@@ -356,7 +377,6 @@ class InProcessEdpAggregatorComponents(
           requisitionMetadataStub = requisitionMetadataClient,
           storageClient = storageClient,
           dataProviderName = edpResourceName,
-          storagePathPrefix = "$REQUISITION_STORAGE_PREFIX-$edpAggregatorShortName",
           directStoragePathPrefix = "$REQUISITION_STORAGE_PREFIX-v2-$edpAggregatorShortName",
           blobUriPrefix = "file://",
           requisitionValidator = requisitionsValidator,
@@ -596,12 +616,20 @@ class InProcessEdpAggregatorComponents(
     impressionMetadataList: List<ImpressionMetadata>,
     dataProviderName: String,
   ) {
+    val lease =
+      dataAvailabilitySyncLeaseClient.acquireDataAvailabilitySyncLease(
+        acquireDataAvailabilitySyncLeaseRequest {
+          name = "$dataProviderName/dataAvailabilitySyncLeases/${UUID.randomUUID()}"
+          requestId = UUID.randomUUID().toString()
+        }
+      )
     val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
       mutableListOf()
     impressionMetadataList.forEach {
       createImpressionMetadataRequests.add(
         createImpressionMetadataRequest {
           parent = dataProviderName
+          dataAvailabilitySyncLease = lease.name
           this.impressionMetadata = it
           requestId = UUID.randomUUID().toString()
         }
@@ -615,6 +643,14 @@ class InProcessEdpAggregatorComponents(
       }
     } catch (e: StatusException) {
       throw Exception("Error creating Impressions Metadata", e)
+    } finally {
+      dataAvailabilitySyncLeaseClient.releaseDataAvailabilitySyncLease(
+        releaseDataAvailabilitySyncLeaseRequest {
+          name = lease.name
+          etag = lease.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
     }
   }
 
@@ -980,16 +1016,26 @@ class InProcessEdpAggregatorComponents(
         modelLineMap = emptyMap(),
         errorIfGapsExist = true,
         publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf(ONBOARDING_PREFIX),
+      )
+    val leaseRunner =
+      DataAvailabilitySyncLeaseRunner(
+        GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient),
+        renewalDelay = { delay(it) },
       )
     val outcomes =
       doneKeys.associate { doneKey ->
         val doneUri = "file:///$bucket/$doneKey"
         val outcome =
-          sync.sync(
-            doneBlobPath = doneUri,
-            // Filesystem fixtures have no GCS generation. Each marker is written once above.
-            doneBlobGeneration = 1L,
-          )
+          leaseRunner.run(dataProviderName) { lease ->
+            sync.sync(
+              doneBlobPath = doneUri,
+              dataAvailabilitySyncLease = lease.name,
+              // Filesystem fixtures have no GCS generation. Each marker is written once above.
+              doneBlobGeneration = 1L,
+              ensureLeaseActive = lease::invoke,
+            )
+          }
         if (outcome == DataAvailabilitySync.Outcome.PUBLISHED) {
           check(
             DataAvailabilityBlobs.isDataAvailabilityPublished(
@@ -1123,7 +1169,7 @@ class InProcessEdpAggregatorComponents(
         entityKeyTypes = entityKeyTypes,
         listEventGroupPageSize = 500,
         eventGroupReferenceIdEntityKeyMapping =
-          eventGroupReferenceIdEntityKeyMapping?.let {
+          eventGroupReferenceIdEntityKeyMappingsByEdp[edpAggregatorShortName]?.let {
             EventGroupReferenceIdEntityKeyMapping(
               entityType = it.entityType,
               eventGroupReferenceIdPrefix = it.eventGroupReferenceIdPrefix,

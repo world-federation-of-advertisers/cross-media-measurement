@@ -20,3 +20,10 @@ py_test(
     srcs = ["bazel_with_results_test.py"],
     data = ["//tools:bazel-with-results"],
 )
+
+py_test(
+    name = "aws_web_identity_test",
+    size = "small",
+    srcs = ["aws_web_identity_test.py"],
+    deps = ["//src/main/python/wfa/measurement/tools:aws_web_identity"],
+)

@@ -642,6 +642,10 @@ class ReportsServiceTest {
           metric {
             reportingSet = targetReportingSet.name
             this.timeInterval = timeInterval
+            reportInterval = interval {
+              startTime = timeIntervalsList.first().startTime
+              endTime = timeIntervalsList.last().endTime
+            }
             metricSpec = REACH_METRIC_SPEC
             containingReport = internalPendingReport.resourceName
           }
@@ -1477,6 +1481,7 @@ class ReportsServiceTest {
         metric {
           reportingSet = targetReportingSet.name
           this.timeInterval = timeInterval
+          reportInterval = timeInterval
           metricSpec = REACH_METRIC_SPEC
           this.filters += groupingPredicates
           this.filters += filter
@@ -1630,6 +1635,7 @@ class ReportsServiceTest {
           metric {
             reportingSet = targetReportingSet.name
             this.timeInterval = timeInterval
+            reportInterval = timeInterval
             this.metricSpec = metricSpec
             containingReport = internalPendingReport.resourceName
           }
@@ -1850,6 +1856,10 @@ class ReportsServiceTest {
           metric {
             reportingSet = metricConfig.reportingSet
             timeInterval = metricConfig.timeInterval
+            reportInterval = interval {
+              startTime = timeIntervalsList.first().startTime
+              endTime = timeIntervalsList.last().endTime
+            }
             metricSpec = metricConfig.metricSpec
             filters += metricConfig.filters
             filters += filter
@@ -2057,6 +2067,7 @@ class ReportsServiceTest {
           metric {
             this.reportingSet = reportingSet.name
             this.timeInterval = timeInterval
+            reportInterval = timeInterval
             metricSpec = REACH_METRIC_SPEC
             containingReport = internalPendingReport.resourceName
           }
@@ -2280,6 +2291,7 @@ class ReportsServiceTest {
           metric {
             reportingSet = targetReportingSet.name
             this.timeInterval = timeInterval
+            reportInterval = timeInterval
             metricSpec = REACH_METRIC_SPEC
             containingReport = internalPendingReport.resourceName
           }
@@ -4540,6 +4552,10 @@ class ReportsServiceTest {
               this.filters += predicate
               this.filters += filter
               containingReport = internalPendingReport.resourceName
+              reportInterval = interval {
+                startTime = timeIntervals.minBy { it.startTime.seconds }.startTime
+                endTime = timeIntervals.maxBy { it.endTime.seconds }.endTime
+              }
             }
           }
         }
@@ -5102,6 +5118,7 @@ class ReportsServiceTest {
         startTime = START_TIME
         endTime = END_TIME
       }
+      reportInterval = timeInterval
       metricSpec = REACH_METRIC_SPEC
     }
 

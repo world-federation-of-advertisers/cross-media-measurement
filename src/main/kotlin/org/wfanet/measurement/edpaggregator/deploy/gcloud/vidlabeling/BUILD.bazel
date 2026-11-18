@@ -10,9 +10,38 @@ kt_jvm_library(
     name = "vid_labeling_config_validation",
     srcs = ["VidLabelingConfigValidation.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:config_loader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_monitor_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:storage_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
+)
+
+kt_jvm_library(
+    name = "validate_vid_labeling_storage_config",
+    srcs = ["ValidateVidLabelingStorageConfig.kt"],
+    deps = [
+        ":vid_labeling_config_validation",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:data_watcher_config_types",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_monitor_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "ValidateVidLabelingStorageConfig",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.ValidateVidLabelingStorageConfig",
+    runtime_deps = [":validate_vid_labeling_storage_config"],
 )
 
 kt_jvm_library(
@@ -66,9 +95,11 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_dispatcher_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
@@ -118,10 +149,13 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:model_shards_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
@@ -133,6 +167,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
 
@@ -140,4 +175,52 @@ java_binary(
     name = "VidLabelingMonitorFunction",
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingMonitorFunction",
     runtime_deps = [":vid_labeling_monitor_function"],
+)
+
+kt_jvm_library(
+    name = "vid_labeling_healing_controller_function",
+    srcs = ["VidLabelingHealingControllerFunction.kt"],
+    deps = [
+        ":vid_labeling_function_helpers",
+        ":vid_labeling_rpc_throttler_environment",
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:data_watcher_config_types",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:raw_impression_upload_manifest_classifier",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:raw_impression_upload_correction_planner",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:vid_labeling_healing_controller",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
+
+java_binary(
+    name = "VidLabelingHealingControllerFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingHealingControllerFunction",
+    runtime_deps = [":vid_labeling_healing_controller_function"],
 )

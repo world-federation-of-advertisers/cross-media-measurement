@@ -12,13 +12,14 @@ kt_jvm_library(
     deps = [
         "//imports/java/com/google/cloud/functions/invoker:java_function_invoker",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:data_watcher_config_types",
         "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher_config_validator",
         "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage",
@@ -34,4 +35,22 @@ java_binary(
     name = "DataWatcherFunction",
     main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction",
     runtime_deps = [":data_watcher_function"],
+)
+
+kt_jvm_library(
+    name = "validate_data_watcher_config",
+    srcs = ["ValidateDataWatcherConfig.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:data_watcher_config_types",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher_config_validator",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "ValidateDataWatcherConfig",
+    main_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.ValidateDataWatcherConfig",
+    runtime_deps = [":validate_data_watcher_config"],
 )
