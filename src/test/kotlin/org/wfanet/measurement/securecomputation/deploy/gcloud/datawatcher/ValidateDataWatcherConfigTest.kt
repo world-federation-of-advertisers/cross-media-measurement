@@ -60,6 +60,16 @@ class ValidateDataWatcherConfigTest {
   }
 
   @Test
+  fun `main rejects a dispatch route targeting another queue`() {
+    val result =
+      execute(
+        route("VidLabelingDispatcherParams").replace("vid-labeling-dispatch-queue", "wrong-queue")
+      )
+    assertThat(result.exitCode).isEqualTo(1)
+    assertThat(result.output).contains("Invalid VID dispatch queue")
+  }
+
+  @Test
   fun `main accepts mixed route parameter types`() {
     assertSuccess(
       execute(
@@ -100,6 +110,22 @@ class ValidateDataWatcherConfigTest {
     assertThat(result.exitCode).isEqualTo(1)
     assertThat(result.output).contains("Unable to parse Any of type")
     assertThat(result.output).contains("UnsupportedParams")
+  }
+
+  @Test
+  fun `main rejects a malformed dispatch provider`() {
+    val result =
+      execute(route("VidLabelingDispatcherParams").replace("dataProviders/provider", "provider"))
+    assertThat(result.exitCode).isEqualTo(1)
+    assertThat(result.output).contains("data_provider must identify a DataProvider")
+  }
+
+  @Test
+  fun `main rejects persisted dispatch params as a watcher template`() {
+    val result = execute(route("VidLabelingDispatchWorkItemParams"))
+    assertThat(result.exitCode).isEqualTo(1)
+    assertThat(result.output)
+      .contains("Dispatch configuration must use VidLabelingDispatcherParams")
   }
 
   private fun assertSuccess(result: ValidationResult) {
@@ -143,21 +169,28 @@ class ValidateDataWatcherConfigTest {
     }
   }
 
-  private fun route(typeName: String): String =
-    """
+  private fun route(typeName: String): String {
+    val queue =
+      if (typeName == "VidLabelingDispatcherParams") "vid-labeling-dispatch-queue" else "test-queue"
+    val key = if (typeName == "VidLabelingDispatcherParams") "" else "test-provider"
+    val fields =
+      if (typeName == "VidLabelingDispatcherParams") "data_provider: \"dataProviders/provider\""
+      else ""
+    return """
     watched_paths {
       identifier: "test"
       control_plane_queue_sink {
-        queue: "test-queue"
-        serialization_key: "test-provider"
+        queue: "$queue"
+        serialization_key: "$key"
         app_params {
-          [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.$typeName] {}
+          [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.$typeName] { $fields }
         }
       }
     }
 
     """
       .trimIndent()
+  }
 
   private data class ValidationResult(val exitCode: Int, val output: String)
 
