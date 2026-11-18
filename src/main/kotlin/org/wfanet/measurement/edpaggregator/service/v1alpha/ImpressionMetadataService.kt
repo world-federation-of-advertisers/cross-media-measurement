@@ -583,15 +583,20 @@ class ImpressionMetadataService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     return deleteImpressionMetadata(
-      deleteImpressionMetadataRequest {
-        name = request.name
-        etag = request.etag
-      }
+      deleteImpressionMetadataRequest { name = request.name },
+      expectedEtag = request.etag,
     )
   }
 
   override suspend fun deleteImpressionMetadata(
     request: DeleteImpressionMetadataRequest
+  ): ImpressionMetadata {
+    return deleteImpressionMetadata(request, expectedEtag = "")
+  }
+
+  private suspend fun deleteImpressionMetadata(
+    request: DeleteImpressionMetadataRequest,
+    expectedEtag: String,
   ): ImpressionMetadata {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
@@ -603,13 +608,13 @@ class ImpressionMetadataService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     return try {
       val internalResponse =
-        if (request.etag.isNotEmpty()) {
+        if (expectedEtag.isNotEmpty()) {
           // A separate RPC prevents older internal servers from ignoring the etag.
           internalImpressionMetadataStub.markImpressionMetadataDeleted(
             internalMarkImpressionMetadataDeletedRequest {
               dataProviderResourceId = key.dataProviderId
               impressionMetadataResourceId = key.impressionMetadataId
-              etag = request.etag
+              etag = expectedEtag
             }
           )
         } else {
@@ -622,7 +627,7 @@ class ImpressionMetadataService(
         }
       internalResponse.toImpressionMetadata()
     } catch (e: StatusException) {
-      if (request.etag.isNotEmpty() && e.status.code == Status.Code.UNIMPLEMENTED) {
+      if (expectedEtag.isNotEmpty() && e.status.code == Status.Code.UNIMPLEMENTED) {
         throw Status.UNAVAILABLE.withDescription(
             "Upgrade the EDPA internal metadata API server before retrying cleanup."
           )

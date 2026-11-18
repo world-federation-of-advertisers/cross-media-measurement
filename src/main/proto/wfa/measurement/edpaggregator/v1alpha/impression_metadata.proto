@@ -152,5 +152,5 @@ message ImpressionMetadata {
       [(google.api.field_behavior) = OPTIONAL];
 
   // Etag identifying the metadata version for conditional deletion.
-  string etag = 15 [(google.api.field_behavior) = OUTPUT_ONLY];
+  string etag = 15;
 }

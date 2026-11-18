@@ -168,10 +168,10 @@ message ListImpressionMetadataPageToken {
 }
 
 message DeleteImpressionMetadataRequest {
+  reserved 3;
+
   string data_provider_resource_id = 1;
   string impression_metadata_resource_id = 2;
-  // Expected metadata etag. If set, a mismatch returns ABORTED.
-  string etag = 3;
 }
 
 message MarkImpressionMetadataDeletedRequest {

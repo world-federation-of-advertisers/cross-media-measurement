@@ -69,6 +69,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.markImpressionMetadataDeletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.undeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.updateImpressionMetadataRequest
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -990,7 +991,7 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `deleteImpressionMetadata deletes when the etag matches`() = runBlocking {
+  fun `markImpressionMetadataDeleted deletes when the etag matches`() = runBlocking {
     val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
@@ -1001,8 +1002,8 @@ class ImpressionMetadataServiceTest {
       )
 
     val deleted =
-      service.deleteImpressionMetadata(
-        deleteImpressionMetadataRequest {
+      service.markImpressionMetadataDeleted(
+        markImpressionMetadataDeletedRequest {
           name = created.name
           etag = created.etag
         }
@@ -1014,7 +1015,7 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `deleteImpressionMetadata rejects an etag from before synchronization`() = runBlocking {
+  fun `markImpressionMetadataDeleted rejects an etag from before synchronization`() = runBlocking {
     val created =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
@@ -1033,8 +1034,8 @@ class ImpressionMetadataServiceTest {
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.deleteImpressionMetadata(
-          deleteImpressionMetadataRequest {
+        service.markImpressionMetadataDeleted(
+          markImpressionMetadataDeletedRequest {
             name = created.name
             etag = created.etag
           }
@@ -1048,53 +1049,50 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
-  fun `batchDeleteImpressionMetadata rejects a stale etag without deleting other records`() =
-    runBlocking {
-      val created =
-        listOf(IMPRESSION_METADATA, IMPRESSION_METADATA_2).map { metadata ->
-          service.createImpressionMetadata(
-            createImpressionMetadataRequest {
-              parent = DATA_PROVIDER_KEY.toName()
-              dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
-              impressionMetadata = metadata
-            }
-          )
-        }
-      val updated =
-        service.updateImpressionMetadata(
-          updateImpressionMetadataRequest {
+  fun `batchDeleteImpressionMetadata remains unconditional after synchronization`() = runBlocking {
+    val created =
+      listOf(IMPRESSION_METADATA, IMPRESSION_METADATA_2).map { metadata ->
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
             dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
-            impressionMetadata = created[1].copy { metadataBlobGeneration = 42L }
+            impressionMetadata = metadata
           }
         )
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          internalService.batchDeleteImpressionMetadata(
-            internalBatchDeleteImpressionMetadataRequest {
-              requests +=
-                created.map { metadata ->
-                  val key = checkNotNull(ImpressionMetadataKey.fromName(metadata.name))
-                  internalDeleteImpressionMetadataRequest {
-                    dataProviderResourceId = key.dataProviderId
-                    impressionMetadataResourceId = key.impressionMetadataId
-                    etag = metadata.etag
-                  }
-                }
-            }
-          )
+      }
+    val updated =
+      service.updateImpressionMetadata(
+        updateImpressionMetadataRequest {
+          dataAvailabilitySyncLease = DATA_AVAILABILITY_SYNC_LEASE_NAME
+          impressionMetadata = created[1].copy { metadataBlobGeneration = 42L }
         }
+      )
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
-      assertThat(
-          service.getImpressionMetadata(getImpressionMetadataRequest { name = created[0].name })
-        )
-        .isEqualTo(created[0])
-      assertThat(
-          service.getImpressionMetadata(getImpressionMetadataRequest { name = created[1].name })
-        )
-        .isEqualTo(updated)
-    }
+    assertThat(updated.etag).isNotEqualTo(created[1].etag)
+    val deleted =
+      internalService.batchDeleteImpressionMetadata(
+        internalBatchDeleteImpressionMetadataRequest {
+          requests +=
+            created.map { metadata ->
+              val key = checkNotNull(ImpressionMetadataKey.fromName(metadata.name))
+              internalDeleteImpressionMetadataRequest {
+                dataProviderResourceId = key.dataProviderId
+                impressionMetadataResourceId = key.impressionMetadataId
+              }
+            }
+        }
+      )
+
+    assertThat(deleted.impressionMetadataList).hasSize(2)
+    assertThat(
+        service.getImpressionMetadata(getImpressionMetadataRequest { name = created[0].name }).state
+      )
+      .isEqualTo(ImpressionMetadata.State.DELETED)
+    assertThat(
+        service.getImpressionMetadata(getImpressionMetadataRequest { name = created[1].name }).state
+      )
+      .isEqualTo(ImpressionMetadata.State.DELETED)
+  }
 
   @Test
   fun `internal deleteImpressionMetadata accepts a legacy request without an etag`() = runBlocking {
