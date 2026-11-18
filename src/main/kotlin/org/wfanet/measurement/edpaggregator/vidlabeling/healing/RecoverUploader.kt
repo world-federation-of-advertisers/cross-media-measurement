@@ -186,6 +186,7 @@ class RecoverUploader(
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to cmmsModelLines.joinToString(separator = ","),
         WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to source.name,
         WatchedBlobs.EVICTION_OPERATION_ID_KEY to evictionOperationIds.single(),
+        WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to operationName,
       )
     val generation =
       if (laterDeferredSource) source.doneBlobGeneration
