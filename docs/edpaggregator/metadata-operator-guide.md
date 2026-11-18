@@ -398,6 +398,16 @@ number of instances and other callers when sizing it against a shared Kingdom
 quota. Transport retries follow the existing common-jvm gRPC channel policy and
 are not paced separately by this throttle.
 
+Kingdom's [RateLimitConfig](../../src/main/proto/wfa/measurement/config/rate_limit_config.proto)
+can exempt an authenticated client from `ListRequisitions` while retaining its
+other limits. Add a principal override containing only that method with
+`maximum_request_count: -1`, and omit `default_rate_limit`. Other methods use the
+regular shared buckets. The Kingdom public API identifies the client by its TLS
+certificate's authority key identifier. The checked-in cloud-test configuration
+applies this policy to EDPA clients; the fetcher's throttle still applies.
+Deploy the updated Kingdom server together with this configuration: older
+servers interpret the omitted default as a blocked limit for other methods.
+
 Page sizes are reduced only for `RESOURCE_EXHAUSTED` errors with gRPC's explicit
 inbound message-size diagnostics, including decompressed response limits. Quota,
 overload, and unspecified resource errors remain invocation errors and do not
