@@ -329,6 +329,8 @@ message ListImpressionMetadataResponse {
 
 // Request message for the `DeleteImpressionMetadata` method.
 message DeleteImpressionMetadataRequest {
+  reserved 2;
+
   // The resource name of the ImpressionMetadata to delete.
   // Format:
   // `dataProviders/{data_provider}/impressionMetadata/{impression_metadata}`
@@ -338,10 +340,6 @@ message DeleteImpressionMetadataRequest {
       type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
     }
   ];
-
-  // Etag of the metadata to delete. When specified, a mismatch returns ABORTED.
-  // If omitted, deletion is unconditional.
-  string etag = 2 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for the `MarkImpressionMetadataDeleted` method.

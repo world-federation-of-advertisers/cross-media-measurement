@@ -465,13 +465,20 @@ class SpannerImpressionMetadataService(
       deleteImpressionMetadataRequest {
         dataProviderResourceId = request.dataProviderResourceId
         impressionMetadataResourceId = request.impressionMetadataResourceId
-        etag = request.etag
-      }
+      },
+      expectedEtag = request.etag,
     )
   }
 
   override suspend fun deleteImpressionMetadata(
     request: DeleteImpressionMetadataRequest
+  ): ImpressionMetadata {
+    return deleteImpressionMetadata(request, expectedEtag = "")
+  }
+
+  private suspend fun deleteImpressionMetadata(
+    request: DeleteImpressionMetadataRequest,
+    expectedEtag: String,
   ): ImpressionMetadata {
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
@@ -502,8 +509,8 @@ class SpannerImpressionMetadataService(
             )
           }
 
-          if (request.etag.isNotEmpty()) {
-            EtagMismatchException.check(request.etag, result.impressionMetadata.etag)
+          if (expectedEtag.isNotEmpty()) {
+            EtagMismatchException.check(expectedEtag, result.impressionMetadata.etag)
           }
 
           txn.updateImpressionMetadataState(
@@ -656,14 +663,6 @@ class SpannerImpressionMetadataService(
                 it.impressionMetadataResourceId,
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
-          }
-
-          if (it.etag.isNotEmpty()) {
-            try {
-              EtagMismatchException.check(it.etag, result.impressionMetadata.etag)
-            } catch (e: EtagMismatchException) {
-              throw e.asStatusRuntimeException(Status.Code.ABORTED)
-            }
           }
 
           txn.updateImpressionMetadataState(
