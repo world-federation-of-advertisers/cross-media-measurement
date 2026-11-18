@@ -24,6 +24,7 @@ import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
@@ -36,6 +37,9 @@ import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
@@ -53,13 +57,17 @@ import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
-import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GenerationMatchedBlobMetadataUpdater
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
+import org.wfanet.measurement.edpaggregator.dataavailability.ObsoleteDataAvailabilityWorkItemException
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingRpcThrottlersEnvironment
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
@@ -68,6 +76,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
@@ -77,6 +87,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -92,6 +103,56 @@ data class GrpcChannels(
   val cmmsChannel: ManagedChannel,
   val impressionMetadataChannel: ManagedChannel,
 )
+
+private data class StorageAccess(
+  val client: BlobMetadataStorageClient,
+  val generationMatchedMetadataUpdater: GenerationMatchedBlobMetadataUpdater?,
+)
+
+internal data class TriggerDataSource(
+  val storage: org.wfanet.measurement.config.edpaggregator.StorageParams,
+  val edpImpressionPath: String,
+)
+
+internal fun selectTriggerDataSource(
+  config: DataAvailabilitySyncConfig,
+  doneBlobPath: String,
+  fileSystemEnabled: Boolean = false,
+): TriggerDataSource {
+  val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+  val candidates = buildList {
+    add(TriggerDataSource(config.dataAvailabilityStorage, config.edpImpressionPath))
+    config.externalImpressionPath.takeIf(String::isNotEmpty)?.let {
+      add(TriggerDataSource(config.dataAvailabilityStorage, it))
+    }
+    config.vidLabeledImpressionPath.takeIf(String::isNotEmpty)?.let {
+      add(TriggerDataSource(config.dataAvailabilityStorage, it))
+    }
+    config.modelLineDataSourcesMap.values.forEach { source ->
+      add(TriggerDataSource(source.storage, source.edpImpressionPath))
+    }
+  }
+  return requireNotNull(
+    candidates
+      .distinct()
+      .filter { candidate ->
+        val pathMatches =
+          candidate.edpImpressionPath.isEmpty() ||
+            doneBlobUri.key.startsWith("${candidate.edpImpressionPath}/")
+        if (fileSystemEnabled) {
+          pathMatches
+        } else {
+          candidate.storage.hasGcs() &&
+            doneBlobUri.scheme == "gs" &&
+            doneBlobUri.bucket == candidate.storage.gcs.bucketName &&
+            pathMatches
+        }
+      }
+      .maxByOrNull { it.edpImpressionPath.length }
+  ) {
+    "Done object $doneBlobPath is outside every configured impression data source"
+  }
+}
 
 private fun Throwable.grpcStatusCodeFromCauseChain(): Status.Code? {
   var current: Throwable? = this
@@ -134,6 +195,13 @@ private fun Throwable.grpcStatusCodeFromCauseChain(): Status.Code? {
  * - gRPC channels are created with mutual TLS using the provided certificate files.
  */
 class DataAvailabilitySyncFunction() : HttpFunction {
+  private val fileSystemMetadata = ConcurrentHashMap<Pair<String, String>, FileSystemBlobMetadata>()
+
+  private data class FileSystemBlobMetadata(
+    val createTime: java.time.Instant?,
+    val metadata: Map<String, String>,
+  )
+
   init {
     EdpaTelemetry.ensureInitialized()
   }
@@ -150,7 +218,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val dataAvailabilitySyncConfig =
         ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
-      val dataAvailabilitySync = buildDataAvailabilitySync(dataAvailabilitySyncConfig)
+      val dataAvailabilitySync =
+        buildDataAvailabilitySync(
+          externalSyncConfig(dataAvailabilitySyncConfig),
+          doneBlobPath = doneBlobPath,
+          availabilityImpressionPaths = availabilityImpressionPaths(dataAvailabilitySyncConfig),
+        )
 
       Tracing.withW3CTraceContext(request) {
         val generation =
@@ -221,18 +294,13 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     val providerConfig =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
     val internalPath = providerConfig.vidLabeledImpressionPath
-    require(internalPath.isNotBlank()) {
-      "vid_labeled_impression_path is required for VID labeling WorkItems on " +
-        providerConfig.dataProvider
-    }
-    val doneBlobKey = SelectedStorageClient.parseBlobUri(input.doneBlobUri).key
-    val config =
-      if (doneBlobKey.startsWith("$internalPath/")) {
-        providerConfig.copy { edpImpressionPath = internalPath }
-      } else {
-        // Queued WorkItems retain the output path encoded before a prefix cutover.
-        providerConfig
+    if (!input.isExternal) {
+      require(internalPath.isNotBlank()) {
+        "vid_labeled_impression_path is required for VID labeling WorkItems on " +
+          providerConfig.dataProvider
       }
+    }
+    val config = providerConfig
     val grpcChannels = getOrCreateSharedChannels(config)
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedMetadataChannel =
@@ -256,33 +324,41 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         DataAvailabilitySyncLeaseRunner(
           GrpcDataAvailabilitySyncLeaseClient(
             DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
-          )
+          ),
+          renewalDelay = { delay(it) },
         ),
         synchronize = { workItem, lease, onStage ->
-          val rawImpressionBlobUris =
-            listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem, globalThrottler)
-          check(rawImpressionBlobUris.isNotEmpty()) {
-            "No RawImpressionUploadFile rows matched the WorkItem event date"
-          }
+          val discoveryMode =
+            if (workItem.isExternal) {
+              DataAvailabilitySync.DiscoveryMode.FolderScan
+            } else {
+              val rawImpressionBlobUris =
+                listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem, globalThrottler)
+              check(rawImpressionBlobUris.isNotEmpty()) {
+                "No RawImpressionUploadFile rows matched the WorkItem event date"
+              }
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
+                rawImpressionBlobUris = rawImpressionBlobUris,
+                modelLine = workItem.appParams.modelLine,
+                eventDate = workItem.eventDate,
+              )
+            }
           buildDataAvailabilitySync(
-              config,
+              if (workItem.isExternal) externalSyncConfig(config) else config,
+              doneBlobPath = workItem.doneBlobUri,
               availabilityImpressionPaths =
-                listOfNotNull(
-                  providerConfig.edpImpressionPath,
-                  internalPath.takeIf(String::isNotEmpty),
-                ),
+                (availabilityImpressionPaths(providerConfig) + config.edpImpressionPath).distinct(),
             )
             .sync(
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
               doneBlobGeneration = workItem.doneBlobGeneration,
-              discoveryMode =
-                DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
-                  rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
-                  rawImpressionBlobUris = rawImpressionBlobUris,
-                  modelLine = workItem.appParams.modelLine,
-                  eventDate = workItem.eventDate,
-                ),
+              externalDoneBlobCreateTime =
+                workItem.doneBlobCreateTime.takeIf {
+                  workItem.isExternal && fileSystemPath.isNullOrEmpty()
+                },
+              discoveryMode = discoveryMode,
               onStage = onStage,
               ensureLeaseActive = lease::invoke,
             )
@@ -290,12 +366,19 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         verifyDoneObject = { workItem ->
           if (workItem.appParams.triggeringRawImpressionUpload.isNotEmpty()) {
             val parent =
-              globalThrottler.onReady {
-                rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
-                  getRawImpressionUploadModelLineRequest {
-                    name = workItem.rawImpressionUploadModelLineName
-                  }
-                )
+              try {
+                globalThrottler.onReady {
+                  rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+                    getRawImpressionUploadModelLineRequest {
+                      name = workItem.rawImpressionUploadModelLineName
+                    }
+                  )
+                }
+              } catch (e: StatusException) {
+                if (e.status.code == Status.Code.NOT_FOUND) {
+                  throw IllegalArgumentException("WorkItem source model line does not exist", e)
+                }
+                throw IllegalStateException("Unable to read WorkItem source model line", e)
               }
             require(
               parent.name == workItem.rawImpressionUploadModelLineName &&
@@ -306,6 +389,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             }
             require(parent.cmmsModelLine == workItem.appParams.modelLine) {
               "WorkItem model line does not match its parent"
+            }
+            if (
+              parent.state == RawImpressionUploadModelLine.State.FAILED &&
+                parent.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            ) {
+              throw ObsoleteDataAvailabilityWorkItemException()
             }
             check(
               parent.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ||
@@ -338,35 +427,101 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     workItem: DataAvailabilitySyncWorkItem,
     config: DataAvailabilitySyncConfig,
   ) {
-    if (!fileSystemPath.isNullOrEmpty()) return
-    val doneBlobUri =
-      org.wfanet.measurement.storage.SelectedStorageClient.parseBlobUri(workItem.doneBlobUri)
-    require(doneBlobUri.scheme == "gs") { "WorkItem done object must use gs://" }
-    require(doneBlobUri.bucket == config.dataAvailabilityStorage.gcs.bucketName) {
-      "WorkItem done object is outside the configured bucket"
+    val doneBlobUri = SelectedStorageClient.parseBlobUri(workItem.doneBlobUri)
+    val sourceConfig = if (workItem.isExternal) externalSyncConfig(config) else config
+    val triggerDataSource =
+      selectTriggerDataSource(
+        sourceConfig,
+        workItem.doneBlobUri,
+        fileSystemEnabled = !fileSystemPath.isNullOrEmpty(),
+      )
+    if (!workItem.isExternal) {
+      val modelSource = config.modelLineDataSourcesMap[workItem.appParams.modelLine]
+      if (modelSource != null) {
+        require(
+          triggerDataSource.edpImpressionPath == modelSource.edpImpressionPath &&
+            triggerDataSource.storage.storageCase == modelSource.storage.storageCase &&
+            (!modelSource.storage.hasGcs() ||
+              triggerDataSource.storage.gcs.bucketName == modelSource.storage.gcs.bucketName)
+        ) {
+          "WorkItem source does not match its configured model-line data source"
+        }
+      }
     }
+    if (workItem.isExternal) {
+      require(doneBlobUri.scheme == "gs") { "External done object must use gs://" }
+      require(doneBlobUri.bucket == triggerDataSource.storage.gcs.bucketName) {
+        "External done object is outside the configured bucket"
+      }
+      val internalPath = config.vidLabeledImpressionPath
+      require(
+        internalPath.isEmpty() ||
+          triggerDataSource.storage.gcs.bucketName !=
+            config.dataAvailabilityStorage.gcs.bucketName ||
+          (triggerDataSource.edpImpressionPath != internalPath &&
+            !triggerDataSource.edpImpressionPath.startsWith("$internalPath/"))
+      ) {
+        "External done object is inside the VID Labeler output prefix"
+      }
+      val sourcePrefix = triggerDataSource.edpImpressionPath.trimEnd('/')
+      val prefix = if (sourcePrefix.isEmpty()) "model-line/" else "$sourcePrefix/model-line/"
+      require(doneBlobUri.key.startsWith(prefix)) {
+        "External done object is outside the configured labeled-output prefix"
+      }
+      val parts = doneBlobUri.key.removePrefix(prefix).split('/')
+      require(
+        parts.size == 3 &&
+          parts[0].isNotEmpty() &&
+          parts[2] == "done" &&
+          runCatching { java.time.LocalDate.parse(parts[1]) }.isSuccess
+      ) {
+        "External done object must identify a model line and event date"
+      }
+    }
+    if (!fileSystemPath.isNullOrEmpty()) return
+    require(doneBlobUri.scheme == "gs") { "WorkItem done object must use gs://" }
+    val gcsConfig = triggerDataSource.storage.gcs
     val storage =
       StorageOptions.newBuilder()
         .also { builder ->
-          config.dataAvailabilityStorage.gcs.projectId.takeIf(String::isNotEmpty)?.let {
-            builder.setProjectId(it)
-          }
+          gcsConfig.projectId.takeIf(String::isNotEmpty)?.let { builder.setProjectId(it) }
         }
         .build()
         .service
-    val blob = storage.get(BlobId.of(doneBlobUri.bucket, doneBlobUri.key))
+    val blob = storage.get(BlobId.of(gcsConfig.bucketName, doneBlobUri.key))
     validateWorkItemDoneObjectGeneration(blob?.generation, workItem.doneBlobGeneration)
   }
 
+  private fun externalSyncConfig(config: DataAvailabilitySyncConfig): DataAvailabilitySyncConfig =
+    if (config.externalImpressionPath.isEmpty()) config
+    else config.toBuilder().setEdpImpressionPath(config.externalImpressionPath).build()
+
+  private fun availabilityImpressionPaths(config: DataAvailabilitySyncConfig): List<String> =
+    listOfNotNull(
+        config.externalImpressionPath.ifEmpty { config.edpImpressionPath },
+        config.vidLabeledImpressionPath.takeIf(String::isNotEmpty),
+      )
+      .distinct()
+
   private fun buildDataAvailabilitySync(
     dataAvailabilitySyncConfig: DataAvailabilitySyncConfig,
+    doneBlobPath: String? = null,
     availabilityImpressionPaths: List<String> =
-      listOfNotNull(
-        dataAvailabilitySyncConfig.edpImpressionPath,
-        dataAvailabilitySyncConfig.vidLabeledImpressionPath.takeIf(String::isNotEmpty),
-      ),
+      availabilityImpressionPaths(dataAvailabilitySyncConfig),
   ): DataAvailabilitySync {
-    val storageClient = createStorageClient(dataAvailabilitySyncConfig)
+    val triggerDataSource =
+      doneBlobPath?.let {
+        selectTriggerDataSource(
+          dataAvailabilitySyncConfig,
+          it,
+          fileSystemEnabled = !fileSystemPath.isNullOrEmpty(),
+        )
+      }
+        ?: TriggerDataSource(
+          dataAvailabilitySyncConfig.dataAvailabilityStorage,
+          dataAvailabilitySyncConfig.edpImpressionPath,
+        )
+    val storageAccess = createStorageAccess(triggerDataSource.storage)
     val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedCmmsChannel =
@@ -411,9 +566,14 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             throttler = globalThrottler,
           )
         }
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(
+        grpcChannels.impressionMetadataChannel,
+        grpcTelemetry.newClientInterceptor(),
+      )
     return DataAvailabilitySync(
-      dataAvailabilitySyncConfig.edpImpressionPath,
-      storageClient,
+      triggerDataSource.edpImpressionPath,
+      storageAccess.client,
       DataProvidersCoroutineStub(instrumentedCmmsChannel),
       ImpressionMetadataServiceCoroutineStub(
         ClientInterceptors.intercept(
@@ -425,10 +585,32 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       globalThrottler,
       impressionMetadataBatchSize = impressionMetadataBatchSize,
       errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
+      modelLineCutovers =
+        dataAvailabilitySyncConfig.modelLineCutoversList.map(ModelLineCutover::from),
+      modelLineDataSources =
+        dataAvailabilitySyncConfig.modelLineDataSourcesMap.mapValues { (_, source) ->
+          DataAvailabilitySync.ModelLineDataSource(
+            storageClient = createStorageAccess(source.storage).client,
+            edpImpressionPath = source.edpImpressionPath,
+          )
+        },
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
+      hiddenModelLines = dataAvailabilitySyncConfig.hiddenModelLinesList.toSet(),
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
-      availabilityImpressionPaths = availabilityImpressionPaths,
+      availabilityImpressionPaths =
+        (availabilityImpressionPaths + triggerDataSource.edpImpressionPath).distinct(),
+      generationMatchedMetadataUpdater = storageAccess.generationMatchedMetadataUpdater,
+      managedDoneObjectResolver = {
+        GrpcManagedDoneObjectResolver(
+          dataAvailabilitySyncConfig.dataProvider,
+          RawImpressionUploadServiceCoroutineStub(instrumentedMetadataChannel),
+          RawImpressionUploadModelLineServiceCoroutineStub(instrumentedMetadataChannel),
+          RawImpressionUploadFileServiceCoroutineStub(instrumentedMetadataChannel),
+          VidLabelingJobServiceCoroutineStub(instrumentedMetadataChannel),
+          ownerReadThrottler,
+        )
+      },
     )
   }
 
@@ -444,29 +626,22 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     return DataAvailabilitySyncLeaseRunner(
       GrpcDataAvailabilitySyncLeaseClient(
         DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
-      )
+      ),
+      renewalDelay = { delay(it) },
     )
   }
 
-  /**
-   * Creates a [BlobMetadataStorageClient] based on the current environment and the provided data
-   * provider configuration.
-   *
-   * @param dataProviderConfig The configuration object for a `DataProvider`.
-   * @return A [BlobMetadataStorageClient] instance, either for local file system access or GCS
-   *   access.
-   */
-  // @TODO(@marcopremier): This function should be reused across Cloud Functions.
-  private fun createStorageClient(
-    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
-  ): BlobMetadataStorageClient {
+  /** Creates a storage client and matching metadata updater for the configured backend. */
+  private fun createStorageAccess(
+    storageParams: org.wfanet.measurement.config.edpaggregator.StorageParams
+  ): StorageAccess {
     return if (!fileSystemPath.isNullOrEmpty()) {
-      NoOpBlobMetadataStorageClient(
+      val delegate =
         FileSystemStorageClient(File(EnvVars.checkIsPath("DATA_AVAILABILITY_FILE_SYSTEM_PATH")))
-      )
+      StorageAccess(FileSystemBlobMetadataStorageClient(delegate, fileSystemMetadata), null)
     } else {
-      val gcsConfig = dataAvailabilitySyncConfig.dataAvailabilityStorage.gcs
-      GcsStorageClient(
+      val gcsConfig = storageParams.gcs
+      val storage =
         StorageOptions.newBuilder()
           .also {
             if (gcsConfig.projectId.isNotEmpty()) {
@@ -474,26 +649,47 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             }
           }
           .build()
-          .service,
-        gcsConfig.bucketName,
+          .service
+      StorageAccess(
+        GcsStorageClient(storage, gcsConfig.bucketName),
+        GcsGenerationMatchedBlobMetadataUpdater(storage, gcsConfig.bucketName),
       )
     }
   }
 
-  /**
-   * A [BlobMetadataStorageClient] wrapper for [FileSystemStorageClient] used only in testing.
-   *
-   * Since [FileSystemStorageClient] doesn't support blob metadata, this provides a no-op
-   * implementation of [updateBlobMetadata].
-   */
-  private class NoOpBlobMetadataStorageClient(private val delegate: StorageClient) :
-    BlobMetadataStorageClient, StorageClient by delegate {
+  /** Provides custom metadata for the filesystem backend used by function tests. */
+  private class FileSystemBlobMetadataStorageClient(
+    private val delegate: ConditionalOperationStorageClient,
+    private val storedMetadata: ConcurrentHashMap<Pair<String, String>, FileSystemBlobMetadata>,
+  ) : BlobMetadataStorageClient, ConditionalOperationStorageClient by delegate {
+    override suspend fun getBlob(blobKey: String): StorageClient.Blob? =
+      delegate.getBlob(blobKey)?.let(::wrap)
+
+    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> =
+      delegate.listBlobs(prefix).map(::wrap)
+
     override suspend fun updateBlobMetadata(
       blobKey: String,
       customCreateTime: java.time.Instant?,
       metadata: Map<String, String>,
     ) {
-      // No-op for FileSystemStorageClient testing
+      val blob = checkNotNull(delegate.getBlob(blobKey)) { "Metadata target does not exist" }
+      val version = blob as ConditionalOperationStorageClient.Blob
+      storedMetadata.compute(blobKey to version.freshnessToken) { _, previous ->
+        FileSystemBlobMetadata(
+          customCreateTime ?: previous?.createTime,
+          previous?.metadata.orEmpty() + metadata,
+        )
+      }
+    }
+
+    private fun wrap(blob: StorageClient.Blob): StorageClient.Blob {
+      val version = blob as ConditionalOperationStorageClient.Blob
+      val saved = storedMetadata[blob.blobKey to version.freshnessToken]
+      return object : ConditionalOperationStorageClient.Blob by version {
+        override val metadata = version.metadata + saved?.metadata.orEmpty()
+        override val createTime = saved?.createTime ?: version.createTime
+      }
     }
   }
 
@@ -531,6 +727,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
 
     private val globalThrottler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration)
+    private val ownerReadThrottler by lazy {
+      VidLabelingRpcThrottlersEnvironment.load().metadataRead
+    }
     private const val DEFAULT_IMPRESSION_METADATA_BATCH_SIZE = 100
     private val impressionMetadataBatchSize =
       System.getenv("IMPRESSION_METADATA_BATCH_SIZE")?.toIntOrNull()?.takeIf { it > 0 }

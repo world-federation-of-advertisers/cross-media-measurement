@@ -380,6 +380,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration/common:event_group_config",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
         "//src/main/kotlin/org/wfanet/measurement/integration/testing",
+        "//src/main/kotlin/org/wfanet/measurement/integration/testing:managed_done_blob_cleanup",
+        "//src/main/kotlin/org/wfanet/measurement/integration/testing:vid_labeling_awaiter",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:impression_writer",

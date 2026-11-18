@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
 import com.google.protobuf.util.Timestamps
+import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -26,7 +27,9 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
@@ -46,6 +49,7 @@ import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -54,6 +58,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -77,8 +83,25 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKey
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
+
+/** Updates an existing blob only while it remains at [generation]. */
+fun interface GenerationMatchedBlobMetadataUpdater {
+  suspend fun update(
+    blobKey: String,
+    generation: Long,
+    customCreateTime: Instant?,
+    metadata: Map<String, String>,
+  )
+}
+
+/** Indicates that an external labeled-output revision changed while it was being synchronized. */
+class ExternalDataAvailabilitySnapshotChangedException(
+  message: String = "External labeled-output snapshot changed during synchronization",
+  cause: Throwable? = null,
+) : Exception(message, cause)
 
 /**
  * Synchronizes impression data availability between Cloud Storage and the Kingdom.
@@ -126,6 +149,9 @@ import org.wfanet.measurement.storage.StorageClient
  *   activity derived from finalized impression metadata.
  * @property kingdomPublicationTimeout Deadline for publishing availability to the Kingdom.
  * @property availabilityImpressionPaths All impression roots checked for provider-wide date gaps.
+ * @property managedDoneObjectResolver factory for an invocation-scoped managed-output owner view.
+ * @property hiddenModelLines Internal sources whose native identity must never be published. Keep
+ *   these sources configured when changing cutovers or retiring their comparison aliases.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -138,15 +164,39 @@ class DataAvailabilitySync(
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
+  private val modelLineCutovers: List<ModelLineCutover> = emptyList(),
+  private val modelLineDataSources: Map<String, ModelLineDataSource> = emptyMap(),
   private val publishEventGroupActivities: (suspend (Collection<ImpressionMetadata>) -> Int)?,
   private val kingdomPublicationTimeout: Duration = DEFAULT_KINGDOM_PUBLICATION_TIMEOUT,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
   private val availabilityImpressionPaths: List<String> = listOf(edpImpressionPath),
+  private val generationMatchedMetadataUpdater: GenerationMatchedBlobMetadataUpdater? = null,
+  private val managedDoneObjectResolver: (() -> ManagedDoneObjectResolver)? = null,
+  private val clock: Clock = Clock.systemUTC(),
+  private val hiddenModelLines: Set<String> = emptySet(),
 ) {
+  data class ModelLineDataSource(
+    val storageClient: BlobMetadataStorageClient,
+    val edpImpressionPath: String,
+  )
+
   enum class Outcome {
     NO_WORK,
     BLOCKED_GAPS,
     PUBLISHED,
+    PARTIALLY_PUBLISHED,
+    PUBLISHED_OTHER_IDENTITIES;
+
+    /** Whether the triggering source can finish its availability WorkItem. */
+    val canCompleteTrigger: Boolean
+      get() =
+        when (this) {
+          NO_WORK,
+          PUBLISHED,
+          PARTIALLY_PUBLISHED -> true
+          BLOCKED_GAPS,
+          PUBLISHED_OTHER_IDENTITIES -> false
+        }
   }
 
   enum class Stage {
@@ -160,6 +210,9 @@ class DataAvailabilitySync(
   sealed interface DiscoveryMode {
     /** Lists the done object's folder. Used for externally uploaded labeled impressions. */
     object FolderScan : DiscoveryMode
+
+    /** Selects metadata sidecars from the done object's folder. */
+    data class SelectedMetadataBlobs(val blobKeys: Set<String>) : DiscoveryMode
 
     /**
      * Derives the exact VID Labeler output pair for each registered raw-impression input.
@@ -186,16 +239,82 @@ class DataAvailabilitySync(
   private data class ImpressionMetadataWithBlobKey(
     val impressionMetadata: ImpressionMetadata,
     val impressionsBlobKey: String,
+    val metadataBlob: CapturedBlob? = null,
+    val impressionsBlob: CapturedBlob? = null,
   )
 
   private data class MetadataBlobCandidate(
     val blob: StorageClient.Blob,
     val expectedImpressionBlobUri: String? = null,
+    val capturedBlob: CapturedBlob? = null,
+    val content: ByteString? = null,
   )
+
+  private data class CapturedBlob(val blob: StorageClient.Blob, val generation: Long)
+
+  private inner class ExternalFolderSnapshot(
+    private val folderPrefix: String,
+    private val folderBlobs: Map<String, CapturedBlob>,
+    private val finalizedAt: Instant,
+    private val conditionalStorageClient: ConditionalOperationStorageClient,
+  ) {
+    private val referencedBlobs = mutableMapOf<String, CapturedBlob>()
+
+    val metadataBlobs: List<CapturedBlob>
+      get() = folderBlobs.values.filter { DataAvailabilityBlobs.isMetadataBlob(it.blob) }
+
+    suspend fun getReferencedBlob(blobKey: String): CapturedBlob? {
+      referencedBlobs[blobKey]?.let {
+        return it
+      }
+      val captured =
+        folderBlobs[blobKey]
+          ?: storageClient.getBlob(blobKey)?.let { captureBlob(it) }
+          ?: return null
+      validateCreationTime(captured)
+      referencedBlobs[blobKey] = captured
+      return captured
+    }
+
+    suspend fun validate() {
+      val currentFolderVersions =
+        storageClient.listBlobs(folderPrefix).toList().associate { blob ->
+          blob.blobKey to captureBlob(blob).generation
+        }
+      val capturedFolderVersions = folderBlobs.mapValues { it.value.generation }
+      if (currentFolderVersions != capturedFolderVersions) {
+        throw ExternalDataAvailabilitySnapshotChangedException()
+      }
+      for ((blobKey, captured) in referencedBlobs) {
+        if (blobKey in folderBlobs) continue
+        val currentGeneration = conditionalStorageClient.getFreshnessToken(blobKey)?.toLongOrNull()
+        if (currentGeneration != captured.generation) {
+          throw ExternalDataAvailabilitySnapshotChangedException()
+        }
+      }
+    }
+
+    private fun validateCreationTime(captured: CapturedBlob) {
+      if (captured.blob.createTime.isAfter(finalizedAt)) {
+        throw ExternalDataAvailabilitySnapshotChangedException(
+          "External labeled-output object was created after its completion marker"
+        )
+      }
+    }
+  }
 
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
+    require(availabilityImpressionPaths.isNotEmpty()) {
+      "availabilityImpressionPaths must not be empty"
+    }
+    require(edpImpressionPath in availabilityImpressionPaths) {
+      "availabilityImpressionPaths must include the discovery root"
+    }
+    require(availabilityImpressionPaths.all { !it.startsWith("/") && !it.endsWith("/") }) {
+      "availabilityImpressionPaths must not start or end with a slash"
+    }
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
@@ -204,6 +323,22 @@ class DataAvailabilitySync(
     }
     require(modelLineMap.values.all { it.isNotEmpty() }) {
       "modelLineMap entries must contain at least one model line"
+    }
+    ModelLineAliasValidator.validate(
+      modelLineCutovers,
+      modelLineMap,
+      hiddenModelLines,
+      modelLineDataSources.keys,
+    )
+    val cutoverContributors =
+      modelLineCutovers.flatMapTo(mutableSetOf()) {
+        listOf(it.historicalModelLine, it.replacementModelLine)
+      }
+    require(modelLineDataSources.keys.containsAll(cutoverContributors)) {
+      "modelLineDataSources must contain every cutover contributor"
+    }
+    require(modelLineDataSources.keys.containsAll(hiddenModelLines.intersect(modelLineMap.keys))) {
+      "modelLineDataSources must contain every mapped hidden model line"
     }
     require(!kingdomPublicationTimeout.isZero && !kingdomPublicationTimeout.isNegative) {
       "kingdomPublicationTimeout must be positive"
@@ -221,6 +356,8 @@ class DataAvailabilitySync(
    * @param dataAvailabilitySyncLease synchronization lease resource name.
    * @param ensureLeaseActive validates the synchronization lease before each mutation.
    * @param doneBlobGeneration the immutable positive generation of that object.
+   * @param externalDoneBlobCreateTime creation time of an externally produced completion marker.
+   *   When set for folder discovery, the whole folder is bound to that finalized revision.
    * @param discoveryMode folder scanning for external writes or exact deterministic output
    *   discovery for a VID Labeler WorkItem.
    * @param onStage called before synchronization enters a new stage.
@@ -229,6 +366,7 @@ class DataAvailabilitySync(
     doneBlobPath: String,
     dataAvailabilitySyncLease: String,
     doneBlobGeneration: Long,
+    externalDoneBlobCreateTime: Instant? = null,
     discoveryMode: DiscoveryMode = DiscoveryMode.FolderScan,
     onStage: (Stage) -> Unit = {},
     ensureLeaseActive: suspend () -> Unit,
@@ -237,6 +375,7 @@ class DataAvailabilitySync(
       "dataAvailabilitySyncLease must not be empty"
     }
     require(doneBlobGeneration > 0L) { "doneBlobGeneration must be positive" }
+    val managedOwners = managedDoneObjectResolver?.invoke()
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
@@ -246,6 +385,19 @@ class DataAvailabilitySync(
       // 1. Crawl for metadata files
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
+      if (discoveryMode is DiscoveryMode.VidLabelerOutputs) {
+        val disposition =
+          checkNotNull(managedOwners) {
+              "Managed availability requires an authoritative owner resolver"
+            }
+            .resolve(discoveryMode.modelLine, discoveryMode.eventDate, doneBlobUri.key)
+        when (disposition) {
+          ManagedDoneObjectDisposition.CURRENT -> {}
+          ManagedDoneObjectDisposition.FINALIZING ->
+            error("Managed availability owner has not finalized labeling")
+          ManagedDoneObjectDisposition.OBSOLETE -> throw ObsoleteDataAvailabilityWorkItemException()
+        }
+      }
 
       if (edpImpressionPath.isNotBlank()) {
         require(validImpressionPathRegex.matches(folderPrefix)) {
@@ -254,6 +406,20 @@ class DataAvailabilitySync(
       }
 
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
+      val doneBlobFolderPrefix = "$doneBlobFolderPath/"
+      val externalSnapshot =
+        if (
+          discoveryMode !is DiscoveryMode.VidLabelerOutputs && externalDoneBlobCreateTime != null
+        ) {
+          captureExternalFolderSnapshot(
+            doneBlobUri,
+            doneBlobGeneration,
+            externalDoneBlobCreateTime,
+            doneBlobFolderPrefix,
+          )
+        } else {
+          null
+        }
       val vidLabelerOutputs = discoveryMode as? DiscoveryMode.VidLabelerOutputs
       if (vidLabelerOutputs != null) {
         require(
@@ -272,10 +438,26 @@ class DataAvailabilitySync(
           "doneBlobGeneration must be positive for VID Labeler output discovery"
         }
       }
+      val selectedMetadataKeys = (discoveryMode as? DiscoveryMode.SelectedMetadataBlobs)?.blobKeys
       val impressionMetadataBlobs: Flow<MetadataBlobCandidate> =
         when (discoveryMode) {
-          DiscoveryMode.FolderScan ->
-            storageClient.listBlobs(doneBlobFolderPath).map { MetadataBlobCandidate(it) }
+          DiscoveryMode.FolderScan,
+          is DiscoveryMode.SelectedMetadataBlobs ->
+            externalSnapshot
+              ?.metadataBlobs
+              ?.asFlow()
+              ?.filter { selectedMetadataKeys == null || it.blob.blobKey in selectedMetadataKeys }
+              ?.map { captured ->
+                MetadataBlobCandidate(
+                  blob = captured.blob,
+                  capturedBlob = captured,
+                  content = readCapturedBlob(captured),
+                )
+              }
+              ?: storageClient
+                .listBlobs(doneBlobFolderPrefix)
+                .filter { selectedMetadataKeys == null || it.blobKey in selectedMetadataKeys }
+                .map { MetadataBlobCandidate(it) }
           is DiscoveryMode.VidLabelerOutputs ->
             discoverVidLabelerMetadataBlobs(discoveryMode, doneBlobUri)
         }
@@ -289,9 +471,43 @@ class DataAvailabilitySync(
           vidLabelerOutputs?.modelLine,
           vidLabelerOutputs?.eventDate,
           vidLabelerOutputs?.rawImpressionUpload,
+          externalSnapshot,
         )
 
-      if (impressionMetadataMap.isEmpty()) {
+      if (
+        vidLabelerOutputs == null &&
+          DataAvailabilityBlobs.isDoneBlob(doneBlobUri.key) &&
+          doneBlobUri.key.substringAfterLast('/') != "done"
+      ) {
+        // Operator replays may scan a managed date folder. Validate the trigger before the first
+        // metadata mutation, using the full model name read from sidecars or configured sources.
+        val eventDate = LocalDate.parse(folderPrefix.substringAfterLast('/'))
+        val modelLineId = folderPrefix.substringBeforeLast('/').substringAfterLast('/')
+        val candidateNames =
+          (impressionMetadataMap.keys.map(ModelLineKey::toName) +
+              modelLineMap.keys +
+              modelLineDataSources.keys +
+              modelLineCutovers.flatMap { listOf(it.historicalModelLine, it.replacementModelLine) })
+            .filter { ModelLineKey.fromName(it)?.modelLineId == modelLineId }
+            .distinct()
+        val resolver =
+          checkNotNull(managedOwners) {
+            "Managed availability requires an authoritative owner resolver"
+          }
+        val triggerModelLine =
+          candidateNames.singleOrNull() ?: resolver.modelLineFor(eventDate, doneBlobUri.key)
+        val disposition = resolver.resolve(triggerModelLine, eventDate, doneBlobUri.key)
+        when (disposition) {
+          ManagedDoneObjectDisposition.CURRENT -> {}
+          ManagedDoneObjectDisposition.FINALIZING ->
+            error("Managed availability owner has not finalized labeling")
+          ManagedDoneObjectDisposition.OBSOLETE -> throw ObsoleteDataAvailabilityWorkItemException()
+        }
+      }
+
+      if (
+        impressionMetadataMap.isEmpty() && modelLineCutovers.isEmpty() && hiddenModelLines.isEmpty()
+      ) {
         logger.info("There were no valid impressions metadata.")
         if (vidLabelerOutputs != null) {
           // The registered raw inputs were checked and every output/sidecar pair was absent, so
@@ -300,8 +516,9 @@ class DataAvailabilitySync(
           // stuck.
           val syncId = UUID.randomUUID().toString()
           ensureLeaseActive()
-          storageClient.updateBlobMetadata(
+          updateBlobMetadata(
             blobKey = doneBlobUri.key,
+            expectedGeneration = doneBlobGeneration,
             metadata =
               mapOf(
                 DataAvailabilityBlobs.SYNC_ID_KEY to syncId,
@@ -315,6 +532,13 @@ class DataAvailabilitySync(
         return Outcome.NO_WORK
       }
 
+      if (impressionMetadataMap.isEmpty()) {
+        logger.info(
+          "There were no valid impressions metadata; continuing to publish finalized cutover " +
+            "dates."
+        )
+      }
+
       // Count total records
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
       val syncId = UUID.randomUUID().toString()
@@ -322,14 +546,16 @@ class DataAvailabilitySync(
       // 2. Announce this attempt before mutating ImpressionMetadata. This invalidates any
       // publication marker left by an earlier attempt, so a failure during persistence remains
       // visible and retryable.
+      onStage(Stage.METADATA_PERSISTENCE)
+      externalSnapshot?.validate()
       ensureLeaseActive()
-      storageClient.updateBlobMetadata(
+      updateBlobMetadata(
         blobKey = doneBlobUri.key,
+        expectedGeneration = doneBlobGeneration,
         metadata = mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to syncId),
       )
 
       // 3. Persist ImpressionMetadata (create new, update changed)
-      onStage(Stage.METADATA_PERSISTENCE)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys, dataAvailabilitySyncLease, ensureLeaseActive)
       }
@@ -345,8 +571,9 @@ class DataAvailabilitySync(
       // Record metadata-store completion separately. Disjoint marker writes prevent an older
       // overlapping attempt from overwriting a newer attempt's ID and falsely completing it.
       ensureLeaseActive()
-      storageClient.updateBlobMetadata(
+      updateBlobMetadata(
         blobKey = doneBlobUri.key,
+        expectedGeneration = doneBlobGeneration,
         metadata =
           mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
       )
@@ -357,33 +584,6 @@ class DataAvailabilitySync(
         impressionMetadataServiceStub.computeModelLineBounds(
           computeModelLineBoundsRequest { parent = dataProviderName }
         )
-
-      // Build availability entries from the response
-      val availabilityEntries =
-        modelLineBounds.modelLineBoundsList.flatMap { bound ->
-          val availabilityInterval = interval {
-            startTime = bound.value.startTime
-            endTime = bound.value.endTime
-          }
-          val mappedModelLines = modelLineMap[bound.key]
-          if (mappedModelLines != null) {
-            logger.info(
-              "Model line mapping found: ${bound.key} -> ${mappedModelLines.joinToString(", ")}"
-            )
-          } else {
-            logger.info("No model line mapping found for: ${bound.key}")
-          }
-          val modelLines = mappedModelLines ?: listOf(bound.key)
-          modelLines.map { modelLine ->
-            dataAvailabilityMapEntry {
-              key = modelLine
-              value = availabilityInterval
-            }
-          }
-        }
-      check(availabilityEntries.isNotEmpty()) {
-        "No data availability intervals were computed for $dataProviderName"
-      }
 
       // Check, per model line present in this batch, for date gaps or in-range unfinalized
       // dates before updating availability intervals. Done locally via
@@ -396,82 +596,260 @@ class DataAvailabilitySync(
       // trail after latestFinalized or lead before earliestFinalized are ignored — they extend
       // the window rather than punching a hole in it.
       onStage(Stage.GAP_POLICY)
-      val blockedDetails = mutableListOf<String>()
-      for (modelLineKey in impressionMetadataMap.keys) {
+      val cutoverContributorLines =
+        modelLineCutovers.flatMapTo(mutableSetOf()) {
+          listOf(it.historicalModelLine, it.replacementModelLine)
+        }
+      val modelLinesToValidate =
+        (impressionMetadataMap.keys.map(ModelLineKey::toName) +
+            cutoverContributorLines +
+            if (hiddenModelLines.isNotEmpty()) {
+              hiddenModelLines +
+                modelLineBounds.modelLineBoundsList.map { it.key } +
+                modelLineMap.keys
+            } else emptySet())
+          .map { checkNotNull(ModelLineKey.fromName(it)) }
+          .toSet()
+      val dateInfoByModelLine = mutableMapOf<String, PublicationDateInfo>()
+      for (modelLineKey in modelLinesToValidate) {
+        val dataSource = modelLineDataSources[modelLineKey.toName()]
         val enumerated =
-          availabilityImpressionPaths.distinct().map { impressionPath ->
+          if (dataSource != null) {
             val modelLinePrefix =
-              if (impressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
-              else "$impressionPath/model-line/${modelLineKey.modelLineId}/"
-            DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
+              if (dataSource.edpImpressionPath.isEmpty()) {
+                "model-line/${modelLineKey.modelLineId}/"
+              } else {
+                "${dataSource.edpImpressionPath}/model-line/${modelLineKey.modelLineId}/"
+              }
+            listOf(
+              enumerateApplicableDates(
+                dataSource.storageClient,
+                modelLinePrefix,
+                modelLineKey.toName(),
+                managedOwners,
+              )
+            )
+          } else {
+            availabilityImpressionPaths.distinct().map { impressionPath ->
+              val modelLinePrefix =
+                if (impressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
+                else "$impressionPath/model-line/${modelLineKey.modelLineId}/"
+              enumerateApplicableDates(
+                storageClient,
+                modelLinePrefix,
+                modelLineKey.toName(),
+                managedOwners,
+              )
+            }
           }
-        val finalized = enumerated.flatMap { it.datesWithDoneBlob.keys }.toSet()
-        val unfinalized = enumerated.flatMap { it.datesWithoutDoneBlob }.toSet()
-        val gaps = DataAvailabilityBlobs.findGaps(finalized + unfinalized)
-        val earliest = finalized.minOrNull()
-        val latest = finalized.maxOrNull()
-        val inRangeUnfinalized =
-          earliest != null && latest != null && unfinalized.any { it in earliest..latest }
-        if (gaps.isNotEmpty() || inRangeUnfinalized) {
-          blockedDetails.add(
-            "Model line ${modelLineKey.toName()} gap dates: $gaps, " +
-              "unfinalized dates: $unfinalized"
+        dateInfoByModelLine[modelLineKey.toName()] =
+          PublicationDateInfo(
+            datesWithDoneBlob =
+              enumerated
+                .flatMap { it.datesWithDoneBlob.entries }
+                .groupBy({ it.key }, { it.value })
+                .mapValues { (_, blobs) -> blobs.flatten() },
+            datesWithoutDoneBlob = enumerated.flatMap { it.datesWithoutDoneBlob }.distinct(),
+            finalizingDates = enumerated.flatMapTo(mutableSetOf()) { it.finalizingDates },
+            unreadyManagedDates = enumerated.flatMapTo(mutableSetOf()) { it.unreadyManagedDates },
           )
+      }
+      val cutoverAvailabilityPlans =
+        modelLineCutovers.associateWith { cutover ->
+          buildCutoverAvailabilityPlan(cutover, modelLineBounds, dateInfoByModelLine)
         }
+      var triggerPublicationReady = true
+      var partiallyPublished = false
+      var publicationNeeded = true
+      var publicationNoWork = false
+      var retainedIdentities: Set<String> = emptySet()
+      var publishedSourceModelLines = modelLinesToValidate.map(ModelLineKey::toName).toSet()
+      val availabilityEntries =
+        if (modelLineCutovers.isNotEmpty() || hiddenModelLines.isNotEmpty()) {
+          val publication =
+            planAvailabilityPublication(
+              modelLineBounds,
+              cutoverAvailabilityPlans,
+              dateInfoByModelLine,
+              impressionMetadataMap.keys.map(ModelLineKey::toName).toSet(),
+              vidLabelerOutputs?.modelLine,
+              vidLabelerOutputs?.eventDate,
+              doneBlobUri.key,
+              ensureLeaseActive,
+            )
+          triggerPublicationReady = publication.triggerReady || publication.noWork
+          partiallyPublished = publication.partial
+          publicationNeeded = publication.publish
+          publicationNoWork = publication.noWork
+          retainedIdentities = publication.retained
+          publishedSourceModelLines = publication.publishedSources
+          publication.intervals.map { (modelLine, availabilityInterval) ->
+            dataAvailabilityMapEntry {
+              key = modelLine
+              value = availabilityInterval
+            }
+          }
+        } else {
+          val blockedDetails = mutableListOf<String>()
+          var cutoverGapDetected = false
+          var managedMetadataBlocked = false
+          for (modelLineKey in modelLinesToValidate) {
+            val modelLineName = modelLineKey.toName()
+            val enumerated = dateInfoByModelLine.getValue(modelLineName)
+            val finalized = enumerated.datesWithDoneBlob.keys
+            val unfinalized =
+              (enumerated.datesWithoutDoneBlob +
+                  enumerated.finalizingDates +
+                  enumerated.unreadyManagedDates +
+                  if (modelLineName in cutoverContributorLines) {
+                    enumerated.datesWithDoneBlob
+                      .filterValues { blobs -> blobs.any { !DataAvailabilityBlobs.isSynced(it) } }
+                      .keys
+                  } else {
+                    emptySet()
+                  })
+                .distinct()
+            val presentDates = (finalized + unfinalized).toSet()
+            val requiredRange = requiredDateRange(modelLineName, cutoverAvailabilityPlans)
+            if (modelLineName in cutoverContributorLines && requiredRange == null) continue
+            val gaps =
+              if (requiredRange == null) DataAvailabilityBlobs.findGaps(presentDates)
+              else findMissingDates(requiredRange, presentDates)
+            val earliest = finalized.minOrNull()
+            val latest = finalized.maxOrNull()
+            val inRangeUnfinalized =
+              if (requiredRange == null) {
+                earliest != null && latest != null && unfinalized.any { it in earliest..latest }
+              } else {
+                unfinalized.any { it in requiredRange }
+              }
+            val missingContributor =
+              modelLineName in cutoverContributorLines &&
+                requiredRange != null &&
+                finalized.none { it in requiredRange }
+            val metadataBounds =
+              modelLineBounds.modelLineBoundsList.firstOrNull { it.key == modelLineName }?.value
+            val managedRequiredRange =
+              requiredRange
+                ?: metadataBounds?.let { bounds ->
+                  val start = bounds.startTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate()
+                  val end =
+                    bounds.endTime.toInstant().minusNanos(1).atZone(ZoneOffset.UTC).toLocalDate()
+                  start..end
+                }
+            val unreadyManagedInRange =
+              enumerated.unreadyManagedDates.any { date ->
+                managedRequiredRange != null && date in managedRequiredRange
+              }
+            if (unreadyManagedInRange) managedMetadataBlocked = true
+            val blocksThisGap =
+              errorIfGapsExist || modelLineName in cutoverContributorLines || unreadyManagedInRange
+            if (
+              gaps.isNotEmpty() || inRangeUnfinalized || missingContributor || unreadyManagedInRange
+            ) {
+              if (modelLineName in cutoverContributorLines) cutoverGapDetected = true
+              blockedDetails.add(
+                "Model line ${modelLineKey.toName()} gap dates: $gaps, " +
+                  "unfinalized dates: $unfinalized, " +
+                  "missing contributor: $missingContributor"
+              )
+            }
 
-        // Emit per-batch date-status metrics for the dates Sync just classified, mirroring
-        // what DataAvailabilityMonitor emits when invoked on the same paths. The healthy count
-        // here is "finalized minus in-range unfinalized blockers" — Sync's per-batch view, not
-        // Monitor's full late-arrival/unprocessed-done check.
-        val healthyCount = if (gaps.isEmpty() && !inRangeUnfinalized) finalized.size else 0
-        emitDateStatusMetric(modelLineKey, DataAvailabilityMonitorMetrics.STATUS_GAP, gaps.size)
-        emitDateStatusMetric(
-          modelLineKey,
-          DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB,
-          unfinalized.size,
-        )
-        emitDateStatusMetric(
-          modelLineKey,
-          DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
-          healthyCount,
-        )
-        if (gaps.isNotEmpty() || inRangeUnfinalized) {
-          VidLabelingTraceLogging.log(
-            logger,
-            Level.WARNING,
-            "edpa.data_availability.gap_decision",
-            VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
-            VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLineKey.toName(),
-            XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_publish",
-            XmmTraceAttributes.OUTCOME_STRING to if (errorIfGapsExist) "blocked" else "allowed",
-          )
+            // Emit per-batch date-status metrics for the dates Sync just classified, mirroring
+            // what DataAvailabilityMonitor emits when invoked on the same paths. The healthy count
+            // here is "finalized minus in-range unfinalized blockers" — Sync's per-batch view, not
+            // Monitor's full late-arrival/unprocessed-done check.
+            val healthyCount =
+              if (
+                gaps.isEmpty() &&
+                  !inRangeUnfinalized &&
+                  !missingContributor &&
+                  !unreadyManagedInRange
+              )
+                finalized.size
+              else 0
+            emitDateStatusMetric(modelLineKey, DataAvailabilityMonitorMetrics.STATUS_GAP, gaps.size)
+            emitDateStatusMetric(
+              modelLineKey,
+              DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB,
+              unfinalized.size,
+            )
+            emitDateStatusMetric(
+              modelLineKey,
+              DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
+              healthyCount,
+            )
+            if (
+              gaps.isNotEmpty() || inRangeUnfinalized || missingContributor || unreadyManagedInRange
+            ) {
+              VidLabelingTraceLogging.log(
+                logger,
+                Level.WARNING,
+                "edpa.data_availability.gap_decision",
+                VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+                VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLineKey.toName(),
+                XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_publish",
+                XmmTraceAttributes.OUTCOME_STRING to if (blocksThisGap) "blocked" else "allowed",
+              )
+            }
+          }
+          if (blockedDetails.isNotEmpty()) {
+            Span.current()
+              .addEvent(
+                "edpa.data_availability.gap_decision",
+                Attributes.of(
+                  XmmTraceAttributes.OUTCOME,
+                  if (errorIfGapsExist || cutoverGapDetected || managedMetadataBlocked) "blocked"
+                  else "allowed",
+                ),
+              )
+            logger.warning(
+              "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. " +
+                blockedDetails.joinToString("; ")
+            )
+            if (errorIfGapsExist || cutoverGapDetected || managedMetadataBlocked) {
+              logger.warning(
+                "Skipping replaceDataAvailabilityIntervals due to date gaps or in-range unfinalized " +
+                  "dates in $edpImpressionPath."
+              )
+              recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
+              return Outcome.BLOCKED_GAPS
+            }
+          }
+          buildAvailabilityIntervals(modelLineBounds, cutoverAvailabilityPlans).map {
+            (modelLine, availabilityInterval) ->
+            dataAvailabilityMapEntry {
+              key = modelLine
+              value = availabilityInterval
+            }
+          }
         }
+      if (!publicationNeeded && !triggerPublicationReady) {
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
+        return Outcome.BLOCKED_GAPS
       }
-      if (blockedDetails.isNotEmpty()) {
-        Span.current()
-          .addEvent(
-            "edpa.data_availability.gap_decision",
-            Attributes.of(
-              XmmTraceAttributes.OUTCOME,
-              if (errorIfGapsExist) "blocked" else "allowed",
-            ),
-          )
-        logger.warning(
-          "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. " +
-            blockedDetails.joinToString("; ")
+      if (!publicationNeeded && publicationNoWork && availabilityEntries.isEmpty()) {
+        externalSnapshot?.validate()
+        ensureLeaseActive()
+        updateBlobMetadata(
+          blobKey = doneBlobUri.key,
+          expectedGeneration = doneBlobGeneration,
+          metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
         )
-        if (errorIfGapsExist) {
-          logger.warning(
-            "Skipping replaceDataAvailabilityIntervals due to date gaps or in-range unfinalized " +
-              "dates in $edpImpressionPath."
-          )
-          recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
-          return Outcome.BLOCKED_GAPS
-        }
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
+        return Outcome.NO_WORK
       }
-      ensureLeaseActive()
+      check(
+        availabilityEntries.isNotEmpty() ||
+          modelLineCutovers.isNotEmpty() ||
+          hiddenModelLines.isNotEmpty()
+      ) {
+        "No data availability intervals were computed for $dataProviderName"
+      }
       onStage(Stage.KINGDOM_PUBLICATION)
       throttler.onReady {
+        ensureLeaseActive()
+        externalSnapshot?.validate()
         try {
           dataProvidersStub
             .withDeadlineAfter(kingdomPublicationTimeout.toNanos(), TimeUnit.NANOSECONDS)
@@ -506,7 +884,29 @@ class DataAvailabilitySync(
           Attributes.of(XmmTraceAttributes.OUTCOME, "succeeded"),
         )
       for (entry in availabilityEntries) {
-        logAvailabilityInterval(entry.key, entry.value, "published")
+        logAvailabilityInterval(
+          entry.key,
+          entry.value,
+          if (entry.key in retainedIdentities) "retained" else "published",
+        )
+      }
+
+      val publishedAt = clock.instant()
+      for (modelLineName in publishedSourceModelLines) {
+        ensureLeaseActive()
+        val source = modelLineDataSources[modelLineName]
+        DataAvailabilityPublicationStatus.record(
+          source?.storageClient ?: storageClient,
+          source?.edpImpressionPath ?: edpImpressionPath,
+          dataProviderName,
+          modelLineName,
+          publishedAt,
+        )
+      }
+
+      if (!triggerPublicationReady) {
+        recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
+        return Outcome.PUBLISHED_OTHER_IDENTITIES
       }
 
       if (publishEventGroupActivities != null) {
@@ -525,8 +925,9 @@ class DataAvailabilitySync(
       // update the publication ID here. If another attempt has written a newer sync ID while this
       // attempt was publishing, the resulting mismatch must remain visible and retryable.
       ensureLeaseActive()
-      storageClient.updateBlobMetadata(
+      updateBlobMetadata(
         blobKey = doneBlobUri.key,
+        expectedGeneration = doneBlobGeneration,
         metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
       )
       Span.current()
@@ -548,8 +949,18 @@ class DataAvailabilitySync(
           SYNC_STATUS_SUCCESS,
         ),
       )
-      return Outcome.PUBLISHED
+      return when {
+        publicationNoWork -> Outcome.NO_WORK
+        partiallyPublished -> Outcome.PARTIALLY_PUBLISHED
+        else -> Outcome.PUBLISHED
+      }
     } catch (e: Exception) {
+      if (e is ExternalDataAvailabilitySnapshotChangedException) {
+        metrics.snapshotValidationFailuresCounter.add(
+          1,
+          Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName),
+        )
+      }
       // Record sync duration even on failure
       recordSyncDuration(syncStartTime, SYNC_STATUS_FAILED)
       throw e
@@ -566,6 +977,586 @@ class DataAvailabilitySync(
       Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName, SYNC_STATUS_ATTR, syncStatus),
     )
   }
+
+  private suspend fun captureExternalFolderSnapshot(
+    doneBlobUri: BlobUri,
+    doneBlobGeneration: Long,
+    doneBlobCreateTime: Instant,
+    folderPrefix: String,
+  ): ExternalFolderSnapshot {
+    val conditionalStorageClient =
+      storageClient as? ConditionalOperationStorageClient
+        ?: throw IllegalStateException(
+          "External folder synchronization requires version-aware storage"
+        )
+    checkNotNull(generationMatchedMetadataUpdater) {
+      "External folder synchronization requires generation-matched metadata updates"
+    }
+    val doneBlob =
+      storageClient.getBlob(doneBlobUri.key)?.let { captureBlob(it) }
+        ?: throw ExternalDataAvailabilitySnapshotChangedException(
+          "External labeled-output completion marker is missing"
+        )
+    if (
+      doneBlob.generation != doneBlobGeneration || doneBlob.blob.createTime != doneBlobCreateTime
+    ) {
+      throw ExternalDataAvailabilitySnapshotChangedException(
+        "External labeled-output completion marker changed before discovery"
+      )
+    }
+    val folderBlobs =
+      storageClient.listBlobs(folderPrefix).toList().associate { blob ->
+        blob.blobKey to captureBlob(blob)
+      }
+    if (folderBlobs[doneBlobUri.key]?.generation != doneBlobGeneration) {
+      throw ExternalDataAvailabilitySnapshotChangedException(
+        "External labeled-output completion marker changed during discovery"
+      )
+    }
+    if (
+      folderBlobs.values.any { captured ->
+        captured.blob.blobKey != doneBlobUri.key &&
+          captured.blob.createTime.isAfter(doneBlobCreateTime)
+      }
+    ) {
+      throw ExternalDataAvailabilitySnapshotChangedException(
+        "External labeled-output object was created after its completion marker"
+      )
+    }
+    return ExternalFolderSnapshot(
+      folderPrefix,
+      folderBlobs,
+      doneBlobCreateTime,
+      conditionalStorageClient,
+    )
+  }
+
+  private fun captureBlob(blob: StorageClient.Blob): CapturedBlob {
+    val generation =
+      (blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken?.toLongOrNull()
+        ?: throw IllegalStateException("Storage blob does not expose a numeric generation")
+    return CapturedBlob(blob, generation)
+  }
+
+  private suspend fun readCapturedBlob(captured: CapturedBlob): ByteString {
+    return try {
+      captured.blob.read().flatten()
+    } catch (e: Exception) {
+      throw ExternalDataAvailabilitySnapshotChangedException(
+        "Captured external labeled-output object version is unavailable",
+        e,
+      )
+    }
+  }
+
+  private suspend fun updateBlobMetadata(
+    blobKey: String,
+    expectedGeneration: Long?,
+    customCreateTime: Instant? = null,
+    metadata: Map<String, String> = emptyMap(),
+  ) {
+    if (expectedGeneration == null || generationMatchedMetadataUpdater == null) {
+      storageClient.updateBlobMetadata(blobKey, customCreateTime, metadata)
+      return
+    }
+    generationMatchedMetadataUpdater.update(blobKey, expectedGeneration, customCreateTime, metadata)
+  }
+
+  private data class CoverageCheck(
+    val modelLine: String,
+    val gaps: List<LocalDate>,
+    val unfinished: List<LocalDate>,
+    val blocks: Boolean,
+  )
+
+  private data class PublicationPlan(
+    val interval: Interval?,
+    val source: String?,
+    val cutover: ModelLineCutover?,
+    val checks: List<CoverageCheck>,
+    val strict: Boolean,
+  ) {
+    val ready: Boolean
+      get() = interval != null && checks.none { it.blocks }
+  }
+
+  private data class AvailabilityPublication(
+    val intervals: Map<String, Interval>,
+    val triggerReady: Boolean,
+    val partial: Boolean,
+    val publish: Boolean,
+    val retained: Set<String>,
+    val publishedSources: Set<String>,
+    val noWork: Boolean,
+  )
+
+  private fun Interval.dateRange(): ClosedRange<LocalDate> {
+    val start = startTime.toInstant()
+    val end = endTime.toInstant()
+    require(start < end) { "Invalid availability interval" }
+    return start.atZone(ZoneOffset.UTC).toLocalDate()..end
+        .minusNanos(1)
+        .atZone(ZoneOffset.UTC)
+        .toLocalDate()
+  }
+
+  private fun PublicationDateInfo.completeDates(): Set<LocalDate> =
+    datesWithDoneBlob
+      .filter { (date, blobs) ->
+        date !in finalizingDates &&
+          date !in unreadyManagedDates &&
+          blobs.all(DataAvailabilityBlobs::isSynced)
+      }
+      .keys
+
+  private fun nativeInterval(bounds: Interval?, dates: PublicationDateInfo): Interval? {
+    val completed = dates.completeDates()
+    val start =
+      listOfNotNull(
+          bounds?.startTime?.toInstant(),
+          completed.minOrNull()?.atStartOfDay(ZoneOffset.UTC)?.toInstant(),
+        )
+        .minOrNull() ?: return null
+    val end =
+      listOfNotNull(
+          bounds?.endTime?.toInstant(),
+          completed.maxOrNull()?.plusDays(1)?.atStartOfDay(ZoneOffset.UTC)?.toInstant(),
+        )
+        .maxOrNull() ?: return null
+    return interval {
+      startTime = start.toProtoTime()
+      endTime = end.toProtoTime()
+    }
+  }
+
+  private fun coverageCheck(
+    source: String,
+    range: ClosedRange<LocalDate>,
+    strict: Boolean,
+    dateInfo: Map<String, PublicationDateInfo>,
+  ): CoverageCheck {
+    val dates = dateInfo[source] ?: PublicationDateInfo(emptyMap(), emptyList())
+    val present =
+      dates.datesWithDoneBlob.keys +
+        dates.datesWithoutDoneBlob +
+        dates.finalizingDates +
+        dates.unreadyManagedDates
+    val unfinished =
+      dates.datesWithoutDoneBlob +
+        dates.finalizingDates +
+        dates.unreadyManagedDates +
+        if (strict) {
+          dates.datesWithDoneBlob
+            .filterValues { blobs -> blobs.any { !DataAvailabilityBlobs.isSynced(it) } }
+            .keys
+        } else {
+          emptySet()
+        }
+    val gaps =
+      if (strict) findMissingDates(range, present)
+      else DataAvailabilityBlobs.findGaps(present).filter { it in range }
+    val inRangeUnfinished = unfinished.filter { it in range }.distinct()
+    val managed = dates.unreadyManagedDates.any { it in range }
+    val blocks =
+      (strict || errorIfGapsExist || managed) &&
+        (gaps.isNotEmpty() || inRangeUnfinished.isNotEmpty())
+    return CoverageCheck(source, gaps, inRangeUnfinished, blocks)
+  }
+
+  private fun cutoverChecks(
+    cutover: ModelLineCutover,
+    interval: Interval,
+    dates: Map<String, PublicationDateInfo>,
+  ): List<CoverageCheck> {
+    val range = interval.dateRange()
+    val historicalStart = minOf(range.start, cutover.cutoverDate)
+    val historicalEnd = minOf(range.endInclusive, cutover.legacyRequiredThroughDate)
+    return buildList {
+      if (historicalStart <= historicalEnd) {
+        add(coverageCheck(cutover.historicalModelLine, historicalStart..historicalEnd, true, dates))
+      }
+      if (range.endInclusive >= cutover.cutoverDate) {
+        add(
+          coverageCheck(
+            cutover.replacementModelLine,
+            cutover.cutoverDate..range.endInclusive,
+            true,
+            dates,
+          )
+        )
+      }
+    }
+  }
+
+  private suspend fun planAvailabilityPublication(
+    boundsResponse: ComputeModelLineBoundsResponse,
+    cutoverPlans: Map<ModelLineCutover, CutoverAvailabilityPlan>,
+    dates: Map<String, PublicationDateInfo>,
+    metadataSources: Set<String>,
+    outputModelLine: String?,
+    outputEventDate: LocalDate?,
+    doneKey: String,
+    ensureLeaseActive: suspend () -> Unit,
+  ): AvailabilityPublication {
+    val bounds = boundsResponse.modelLineBoundsList.associate { it.key to it.value }
+    val missingBounds = metadataSources - bounds.keys
+    check(missingBounds.isEmpty()) {
+      "No data availability intervals were computed for model lines: $missingBounds"
+    }
+    val triggeringSources = metadataSources + listOfNotNull(outputModelLine)
+    val contributors =
+      modelLineCutovers.flatMapTo(mutableSetOf()) {
+        listOf(it.historicalModelLine, it.replacementModelLine)
+      } + hiddenModelLines
+    val visible = modelLineCutovers.mapTo(mutableSetOf()) { it.externalModelLine }
+    val plans = linkedMapOf<String, PublicationPlan>()
+    for (source in bounds.keys + contributors) {
+      val strict = source in contributors
+      if (strict && source !in modelLineMap) continue
+      val sourceDates = dates[source] ?: PublicationDateInfo(emptyMap(), emptyList())
+      val native = if (strict) nativeInterval(bounds[source], sourceDates) else bounds[source]
+      val check = native?.let { coverageCheck(source, it.dateRange(), strict, dates) }
+      for (target in modelLineMap[source] ?: listOf(source)) {
+        if (target !in visible) {
+          plans[target] = PublicationPlan(native, source, null, listOfNotNull(check), strict)
+        }
+      }
+    }
+    for ((cutover, plan) in cutoverPlans) {
+      val checks = buildList {
+        plan.historicalRequiredDates?.let {
+          add(coverageCheck(cutover.historicalModelLine, it, true, dates))
+        }
+        plan.replacementRequiredDates?.let {
+          add(coverageCheck(cutover.replacementModelLine, it, true, dates))
+        }
+      }
+      plans[cutover.externalModelLine] =
+        PublicationPlan(plan.availabilityInterval, null, cutover, checks, true)
+    }
+
+    val knownSources = bounds.keys + contributors + modelLineMap.keys
+    val sourceId = doneKey.substringAfterLast("model-line/", "").substringBefore('/')
+    val inferred =
+      knownSources.filter { ModelLineKey.fromName(it)?.modelLineId == sourceId }.toSet()
+    val sources = triggeringSources.ifEmpty { inferred }
+    val comparisonSources = sources.filter { it in contributors && it in modelLineMap }
+    val datePart =
+      doneKey.substringAfterLast("model-line/", "").substringAfter('/', "").substringBefore('/')
+    val triggerDate = outputEventDate ?: runCatching { LocalDate.parse(datePart) }.getOrNull()
+    require(comparisonSources.isEmpty() || triggerDate != null) {
+      "Cannot determine triggering event date for native contributor availability"
+    }
+    val triggerChecks =
+      comparisonSources.map {
+        val date = checkNotNull(triggerDate)
+        coverageCheck(it, date..date, true, dates)
+      }
+    for (check in triggerChecks.filter { it.blocks }) {
+      logger.warning {
+        "Triggering native availability for " +
+          check.modelLine +
+          " on " +
+          triggerDate +
+          " is blocked: gap dates " +
+          check.gaps +
+          ", unfinalized dates " +
+          check.unfinished
+      }
+    }
+    val sourceChecks = (plans.values.flatMap { it.checks } + triggerChecks).groupBy { it.modelLine }
+
+    for ((source, checks) in sourceChecks) {
+      val sourceKey = checkNotNull(ModelLineKey.fromName(source))
+      emitDateStatusMetric(
+        sourceKey,
+        DataAvailabilityMonitorMetrics.STATUS_GAP,
+        checks.flatMap { it.gaps }.toSet().size,
+      )
+      emitDateStatusMetric(
+        sourceKey,
+        DataAvailabilityMonitorMetrics.STATUS_WITHOUT_DONE_BLOB,
+        checks.flatMap { it.unfinished }.toSet().size,
+      )
+      emitDateStatusMetric(
+        sourceKey,
+        DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
+        if (checks.any { it.blocks }) 0 else dates[source]?.completeDates()?.size ?: 0,
+      )
+    }
+    for ((target, plan) in plans) {
+      if (!plan.ready && plan.interval != null) {
+        logger.warning {
+          "Availability for $target is blocked: " +
+            plan.checks
+              .filter { it.blocks }
+              .joinToString {
+                it.modelLine + " gap dates: " + it.gaps + ", unfinalized dates: " + it.unfinished
+              }
+        }
+      }
+    }
+
+    ensureLeaseActive()
+    val previous =
+      try {
+        throttler.onReady {
+          ensureLeaseActive()
+          dataProvidersStub
+            .withDeadlineAfter(kingdomPublicationTimeout.toNanos(), TimeUnit.NANOSECONDS)
+            .getDataProvider(getDataProviderRequest { name = dataProviderName })
+        }
+      } catch (e: StatusException) {
+        throw Exception("Error reading current data availability for $dataProviderName", e)
+      }
+    val existing = previous.dataAvailabilityIntervalsList.associate { it.key to it.value }
+    val eligiblePlans = plans.filterValues { it.ready }
+    val updates = eligiblePlans.mapValues { checkNotNull(it.value.interval) }
+    val retained = linkedMapOf<String, Interval>()
+    for ((target, oldInterval) in existing) {
+      val plan = plans[target] ?: continue
+      if (plan.ready) continue
+      val checks =
+        if (plan.cutover != null) cutoverChecks(plan.cutover, oldInterval, dates)
+        else
+          listOf(
+            coverageCheck(checkNotNull(plan.source), oldInterval.dateRange(), plan.strict, dates)
+          )
+      if (checks.none { it.blocks }) retained[target] = oldInterval
+    }
+
+    val triggerTargets =
+      sources
+        .flatMap { source ->
+          modelLineMap[source]
+            ?: modelLineCutovers
+              .filter { source == it.historicalModelLine || source == it.replacementModelLine }
+              .map { it.externalModelLine }
+              .ifEmpty { if (source in hiddenModelLines) emptyList() else listOf(source) }
+        }
+        .toSet()
+    val noPublicTargets = sources.isNotEmpty() && triggerTargets.isEmpty()
+    val triggerPlans = triggerTargets.mapNotNull(plans::get)
+    val ready =
+      (if (noPublicTargets) true
+      else if (triggerPlans.isEmpty()) updates.isNotEmpty() || triggeringSources.isEmpty()
+      else triggerPlans.all { it.ready }) && triggerChecks.none { it.blocks }
+    val intervals = retained + updates
+    val publish = updates.isNotEmpty() || intervals != existing
+    return AvailabilityPublication(
+      intervals = intervals,
+      triggerReady = ready,
+      partial =
+        ready &&
+          plans.any { (target, plan) ->
+            !plan.ready &&
+              (plan.interval != null || plan.checks.any { it.blocks } || target in existing)
+          },
+      publish = publish,
+      retained = retained.keys,
+      publishedSources =
+        eligiblePlans.values
+          .flatMap { plan -> listOfNotNull(plan.source) + plan.checks.map { it.modelLine } }
+          .toSet(),
+      noWork =
+        if (noPublicTargets) !publish
+        else
+          metadataSources.isEmpty() &&
+            plans.values.none { it.interval != null || it.checks.any { check -> check.blocks } } &&
+            bounds.isEmpty() &&
+            triggerChecks.none { it.blocks },
+    )
+  }
+
+  private fun buildAvailabilityIntervals(
+    modelLineBounds: ComputeModelLineBoundsResponse,
+    cutoverAvailabilityPlans: Map<ModelLineCutover, CutoverAvailabilityPlan>,
+  ): Map<String, Interval> {
+    val boundsByModelLine =
+      modelLineBounds.modelLineBoundsList.associate { bound ->
+        bound.key to
+          interval {
+            startTime = bound.value.startTime
+            endTime = bound.value.endTime
+          }
+      }
+    val cutoversByExternalModelLine = modelLineCutovers.associateBy { it.externalModelLine }
+    val cutoverContributorModelLines =
+      modelLineCutovers.flatMapTo(mutableSetOf()) {
+        listOf(it.historicalModelLine, it.replacementModelLine)
+      }
+    val availabilityByModelLine = linkedMapOf<String, Interval>()
+
+    for ((internalModelLine, availabilityInterval) in boundsByModelLine) {
+      if (internalModelLine in cutoverContributorModelLines && internalModelLine !in modelLineMap) {
+        continue
+      }
+      val externalModelLines = modelLineMap[internalModelLine] ?: listOf(internalModelLine)
+      for (externalModelLine in externalModelLines) {
+        if (externalModelLine !in cutoversByExternalModelLine) {
+          availabilityByModelLine[externalModelLine] = availabilityInterval
+        }
+      }
+    }
+
+    for ((cutover, plan) in cutoverAvailabilityPlans) {
+      val availabilityInterval = plan.availabilityInterval ?: continue
+      availabilityByModelLine[cutover.externalModelLine] = availabilityInterval
+    }
+    return availabilityByModelLine
+  }
+
+  private data class PublicationDateInfo(
+    val datesWithDoneBlob: Map<LocalDate, List<StorageClient.Blob>>,
+    val datesWithoutDoneBlob: List<LocalDate>,
+    val finalizingDates: Set<LocalDate> = emptySet(),
+    val unreadyManagedDates: Set<LocalDate> = emptySet(),
+  )
+
+  private suspend fun enumerateApplicableDates(
+    storage: StorageClient,
+    prefix: String,
+    modelLine: String,
+    owners: ManagedDoneObjectResolver?,
+  ): PublicationDateInfo {
+    val physical = DataAvailabilityBlobs.enumerateDateInfo(storage, prefix)
+    val current = mutableMapOf<LocalDate, List<StorageClient.Blob>>()
+    val unfinished = physical.datesWithoutDoneBlob.toMutableList()
+    val finalizing = mutableSetOf<LocalDate>()
+    val unreadyManaged = mutableSetOf<LocalDate>()
+    for ((date, blobs) in physical.datesWithDoneBlob) {
+      val applicable = mutableListOf<StorageClient.Blob>()
+      for (blob in blobs) {
+        if (blob.blobKey.substringAfterLast('/') == "done") {
+          applicable += blob
+          continue
+        }
+        when (
+          checkNotNull(owners) { "Managed availability requires an authoritative owner resolver" }
+            .resolve(modelLine, date, blob.blobKey)
+        ) {
+          ManagedDoneObjectDisposition.CURRENT -> {
+            applicable += blob
+            if (!DataAvailabilityBlobs.isSynced(blob)) unreadyManaged += date
+          }
+          ManagedDoneObjectDisposition.FINALIZING -> {
+            finalizing += date
+            unreadyManaged += date
+          }
+          ManagedDoneObjectDisposition.OBSOLETE -> {}
+        }
+      }
+      if (applicable.isNotEmpty()) {
+        current[date] = applicable
+      } else if (date in finalizing) {
+        unfinished += date
+      }
+    }
+    return PublicationDateInfo(current, unfinished.distinct(), finalizing, unreadyManaged)
+  }
+
+  private data class CutoverAvailabilityPlan(
+    val historicalRequiredDates: ClosedRange<LocalDate>?,
+    val replacementRequiredDates: ClosedRange<LocalDate>?,
+    val availabilityInterval: Interval?,
+  )
+
+  private fun buildCutoverAvailabilityPlan(
+    cutover: ModelLineCutover,
+    modelLineBounds: ComputeModelLineBoundsResponse,
+    dateInfoByModelLine: Map<String, PublicationDateInfo>,
+  ): CutoverAvailabilityPlan {
+    val boundsByModelLine = modelLineBounds.modelLineBoundsList.associate { it.key to it.value }
+    val historicalBounds = boundsByModelLine[cutover.historicalModelLine]
+    val replacementBounds = boundsByModelLine[cutover.replacementModelLine]
+    val historicalDates =
+      dateInfoByModelLine[cutover.historicalModelLine]?.datesWithDoneBlob?.keys.orEmpty()
+    val replacementDates =
+      dateInfoByModelLine[cutover.replacementModelLine]?.datesWithDoneBlob?.keys.orEmpty()
+    val historicalStart =
+      listOfNotNull(
+          historicalDates.minOrNull(),
+          historicalBounds?.startTime?.toInstant()?.atZone(ZoneOffset.UTC)?.toLocalDate(),
+        )
+        .minOrNull()
+    // Metadata bounds cover persisted data; done dates also include zero-impression output.
+    val historicalEnd =
+      listOfNotNull(
+          historicalDates.maxOrNull(),
+          historicalBounds
+            ?.endTime
+            ?.toInstant()
+            ?.minusNanos(1)
+            ?.atZone(ZoneOffset.UTC)
+            ?.toLocalDate(),
+        )
+        .maxOrNull()
+    val replacementEnd =
+      listOfNotNull(
+          replacementDates.filter { it >= cutover.cutoverDate }.maxOrNull(),
+          replacementBounds
+            ?.endTime
+            ?.toInstant()
+            ?.minusNanos(1)
+            ?.atZone(ZoneOffset.UTC)
+            ?.toLocalDate()
+            ?.takeIf { it >= cutover.cutoverDate },
+        )
+        .maxOrNull()
+    // Once replacement output exists at cutover, it owns the advancing availability end.
+    val publicationEnd =
+      replacementEnd ?: historicalEnd ?: return CutoverAvailabilityPlan(null, null, null)
+    val historicalRequiredStart = minOf(historicalStart ?: cutover.cutoverDate, cutover.cutoverDate)
+    val historicalRequiredEnd = minOf(publicationEnd, cutover.legacyRequiredThroughDate)
+    val historicalRequiredDates =
+      if (historicalRequiredStart <= historicalRequiredEnd) {
+        historicalRequiredStart..historicalRequiredEnd
+      } else {
+        null
+      }
+    val replacementRequiredDates =
+      if (publicationEnd >= cutover.cutoverDate) cutover.cutoverDate..publicationEnd else null
+    val availabilityInterval =
+      if (historicalStart != null && historicalStart <= publicationEnd) {
+        interval {
+          startTime = historicalStart.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          endTime =
+            publicationEnd.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+        }
+      } else {
+        null
+      }
+    return CutoverAvailabilityPlan(
+      historicalRequiredDates,
+      replacementRequiredDates,
+      availabilityInterval,
+    )
+  }
+
+  private fun requiredDateRange(
+    modelLine: String,
+    cutoverAvailabilityPlans: Map<ModelLineCutover, CutoverAvailabilityPlan>,
+  ): ClosedRange<LocalDate>? {
+    val cutover =
+      modelLineCutovers.firstOrNull {
+        modelLine == it.historicalModelLine || modelLine == it.replacementModelLine
+      } ?: return null
+    val plan = cutoverAvailabilityPlans.getValue(cutover)
+    return if (modelLine == cutover.historicalModelLine) {
+      plan.historicalRequiredDates
+    } else {
+      plan.replacementRequiredDates
+    }
+  }
+
+  private fun findMissingDates(
+    requiredRange: ClosedRange<LocalDate>,
+    presentDates: Set<LocalDate>,
+  ): List<LocalDate> =
+    generateSequence(requiredRange.start) { it.plusDays(1) }
+      .takeWhile { it <= requiredRange.endInclusive }
+      .filter { it !in presentDates }
+      .toList()
 
   private fun emitDateStatusMetric(modelLineKey: ModelLineKey, status: String, count: Int) {
     if (count <= 0) return
@@ -609,6 +1600,14 @@ class DataAvailabilitySync(
         if (existing == null) {
           toCreate.add(item)
         } else {
+          check(
+            (existing.metadataBlobGeneration == 0L ||
+              item.impressionMetadata.metadataBlobGeneration > 0L) &&
+              (existing.impressionsBlobGeneration == 0L ||
+                item.impressionMetadata.impressionsBlobGeneration > 0L)
+          ) {
+            "Version-pinned metadata requires snapshot-aware synchronization"
+          }
           if (existing.state == ImpressionMetadata.State.DELETED) {
             toRestore.add(existing)
           }
@@ -624,6 +1623,8 @@ class DataAvailabilitySync(
               ImpressionMetadataWithBlobKey(
                 impressionMetadata = scanned,
                 impressionsBlobKey = item.impressionsBlobKey,
+                metadataBlob = item.metadataBlob,
+                impressionsBlob = item.impressionsBlob,
               )
             )
           }
@@ -767,8 +1768,9 @@ class DataAvailabilitySync(
         val metadataBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
         val customCreateTime = resultMetadata.interval.startTime.toInstant()
 
-        storageClient.updateBlobMetadata(
+        updateBlobMetadata(
           blobKey = metadataBlobUri.key,
+          expectedGeneration = item.metadataBlob?.generation,
           customCreateTime = customCreateTime,
           metadata =
             mapOf(
@@ -780,8 +1782,9 @@ class DataAvailabilitySync(
         // Also update the impressions blob with Custom-Time (no resource ID needed)
         ensureLeaseActive()
         val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(blobUri)
-        storageClient.updateBlobMetadata(
+        updateBlobMetadata(
           blobKey = impressionsBlobKey,
+          expectedGeneration = item.impressionsBlob?.generation,
           customCreateTime = customCreateTime,
         )
       }
@@ -979,6 +1982,7 @@ class DataAvailabilitySync(
     expectedModelLine: String?,
     expectedEventDate: LocalDate?,
     rawImpressionUpload: String?,
+    externalSnapshot: ExternalFolderSnapshot?,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
     val impressionMetadataMap =
       mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
@@ -991,7 +1995,7 @@ class DataAvailabilitySync(
         return@collect
       }
       val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
-      val bytes: ByteString = impressionMetadataBlob.read().flatten()
+      val bytes: ByteString = candidate.content ?: impressionMetadataBlob.read().flatten()
 
       // Build the blob details object
       val blobDetails =
@@ -1073,7 +2077,10 @@ class DataAvailabilitySync(
           else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
         }
       logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
-      val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
+      val capturedImpressionBlob = externalSnapshot?.getReferencedBlob(impressionBlobUri.key)
+      val impressionBlob =
+        if (externalSnapshot != null) capturedImpressionBlob?.blob
+        else storageClient.getBlob(impressionBlobUri.key)
       if (impressionBlob == null) {
         val eventDate =
           blobDetails.interval.startTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate()
@@ -1093,6 +2100,8 @@ class DataAvailabilitySync(
             this.rawImpressionUpload = rawImpressionUpload
           }
           outputDoneBlobGeneration = doneBlobGeneration
+          metadataBlobGeneration = candidate.capturedBlob?.generation ?: 0L
+          impressionsBlobGeneration = capturedImpressionBlob?.generation ?: 0L
           interval = blobDetails.interval
           entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
         }
@@ -1106,6 +2115,8 @@ class DataAvailabilitySync(
             ImpressionMetadataWithBlobKey(
               impressionMetadata = impressionMetadata,
               impressionsBlobKey = impressionBlobUri.key,
+              metadataBlob = candidate.capturedBlob,
+              impressionsBlob = capturedImpressionBlob,
             )
           )
       }
@@ -1113,15 +2124,7 @@ class DataAvailabilitySync(
     return impressionMetadataMap
   }
 
-  /**
-   * Generates a deterministic UUID string from the content-bearing fields of an
-   * [ImpressionMetadata].
-   *
-   * The hash includes blob_uri, model_line, interval, event_group_reference_id, and entity_keys
-   * (sorted for determinism). This ensures the same request_id is produced when the content is
-   * identical, enabling idempotent skipping. When any field changes (e.g., entity_keys are added),
-   * a new request_id is generated, signaling the server to apply the update.
-   */
+  /** Returns a deterministic request ID for metadata contents and captured generations. */
   private fun contentAwareRequestId(metadata: ImpressionMetadata): String {
     val canonicalParts = buildString {
       append(metadata.blobUri)
@@ -1141,6 +2144,10 @@ class DataAvailabilitySync(
       append(metadata.rawImpressionUpload)
       append(FIELD_SEPARATOR)
       append(metadata.outputDoneBlobGeneration)
+      append(FIELD_SEPARATOR)
+      append(metadata.metadataBlobGeneration)
+      append(FIELD_SEPARATOR)
+      append(metadata.impressionsBlobGeneration)
       append(FIELD_SEPARATOR)
       val sortedKeys =
         metadata.entityKeysList.map { "${it.entityType}$FIELD_SEPARATOR${it.entityId}" }.sorted()

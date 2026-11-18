@@ -14,7 +14,10 @@
 package org.wfanet.measurement.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.Any as ProtoAny
+import com.google.protobuf.TypeRegistry
+import java.nio.file.Paths
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -27,7 +30,11 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidR
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException.VidRangesNotDisjointDetail
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
 
 @RunWith(JUnit4::class)
 class PopulationSpecValidatorTest {
@@ -222,5 +229,95 @@ class PopulationSpecValidatorTest {
           0,
         )
       )
+  }
+
+  @Test
+  fun `validate checks only population fields present in configured version`() {
+    val populationSpec = loadVersionedPopulationSpec(VERSION_ONE_SPEC_FILE)
+
+    PopulationSpecValidator.validate(populationSpec, VersionedEvent.getDescriptor(), 1)
+
+    val exception =
+      assertFailsWith<PopulationSpecValidationException> {
+        PopulationSpecValidator.validate(populationSpec, VersionedEvent.getDescriptor(), 2)
+      }
+    assertThat(exception.details)
+      .containsExactly(
+        PopulationSpecValidationException.PopulationFieldNotSetDetail(
+          VersionedCommon.getDescriptor().findFieldByNumber(VersionedCommon.LATER_FIELD_NUMBER),
+          0,
+        )
+      )
+  }
+
+  @Test
+  fun `validate ignores population field removed in configured version`() {
+    val populationSpec = loadVersionedPopulationSpec(VERSION_THREE_SPEC_FILE)
+
+    PopulationSpecValidator.validate(populationSpec, VersionedEvent.getDescriptor(), 3)
+  }
+
+  @Test
+  fun `validate rejects non-positive event template version`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        PopulationSpecValidator.validate(
+          loadVersionedPopulationSpec(VERSION_TWO_SPEC_FILE),
+          VersionedEvent.getDescriptor(),
+          0,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("must be positive")
+  }
+
+  @Test
+  fun `validate rejects event template version newer than descriptor`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        PopulationSpecValidator.validate(
+          loadVersionedPopulationSpec(VERSION_TWO_SPEC_FILE),
+          VersionedEvent.getDescriptor(),
+          4,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("exceeds current version 3")
+  }
+
+  private fun loadVersionedPopulationSpec(fileName: String): PopulationSpec {
+    val path =
+      checkNotNull(
+        RUNFILES.getRuntimePath(
+          Paths.get(
+            "wfa_measurement_system",
+            "src",
+            "test",
+            "kotlin",
+            "org",
+            "wfanet",
+            "measurement",
+            "api",
+            "v2alpha",
+            fileName,
+          )
+        )
+      ) {
+        "Runfile not found: $fileName"
+      }
+    return parseTextProto(
+      path.toFile(),
+      PopulationSpec.getDefaultInstance(),
+      VERSIONED_TYPE_REGISTRY,
+    )
+  }
+
+  private companion object {
+    private const val VERSION_ONE_SPEC_FILE = "versioned_population_spec_v1.textproto"
+    private const val VERSION_TWO_SPEC_FILE = "versioned_population_spec_v2.textproto"
+    private const val VERSION_THREE_SPEC_FILE = "versioned_population_spec_v3.textproto"
+    private val VERSIONED_TYPE_REGISTRY =
+      TypeRegistry.newBuilder().add(VersionedCommon.getDescriptor()).build()
+    private val RUNFILES = Runfiles.preload().withSourceRepository("")
   }
 }

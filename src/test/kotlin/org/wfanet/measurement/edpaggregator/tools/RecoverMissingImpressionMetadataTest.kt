@@ -47,6 +47,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.v1alpha.AcquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
@@ -65,7 +66,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
 
 @RunWith(JUnit4::class)
@@ -111,6 +114,40 @@ class RecoverMissingImpressionMetadataTest {
           etag = "released-etag"
         }
       }
+  }
+
+  @Test
+  fun `main rejects malformed ModelLine references before synchronization`() {
+    val invalid = "modelLines/bad"
+    val valid = "modelProviders/mp/modelSuites/ms/modelLines/valid"
+    val fragments =
+      listOf(
+        "model_line_map { key: \"" + invalid + "\" value { model_lines: \"" + valid + "\" } }",
+        "model_line_map { key: \"" + valid + "\" value { model_lines: \"" + invalid + "\" } }",
+        "model_line_data_sources { key: \"" +
+          invalid +
+          "\" value { storage { gcs { bucket_name: \"" +
+          BUCKET_NAME +
+          "\" } } edp_impression_path: \"" +
+          EDP_IMPRESSION_PATH +
+          "\" } }",
+      )
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      for (fragment in fragments) {
+        val configFile = writeConfigFile(validConfig() + "\n" + fragment)
+        val output =
+          CommandLineTesting.capturingOutput(
+            requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) + storageArgs,
+            ::main,
+          )
+        CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+        CommandLineTesting.assertThat(output).err().contains("Invalid ModelLine resource name")
+        CommandLineTesting.assertThat(output).err().contains(invalid)
+      }
+    } finally {
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
   }
 
   @Test
@@ -435,16 +472,70 @@ class RecoverMissingImpressionMetadataTest {
 
   @Test
   fun `recovery registers both configured paths with exact done generations`() {
-    runRecoveryAcrossConfiguredPaths()
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE)
   }
 
   @Test
   fun `recovery blocks a missing date across both impression paths`() {
-    runRecoveryAcrossConfiguredPaths(blockedByGaps = true)
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, blockedByGaps = true)
   }
 
-  private fun runRecoveryAcrossConfiguredPaths(blockedByGaps: Boolean = false) {
+  @Test
+  fun `recovery leaves synchronized generation-pinned neighbours unchanged`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, includeRegisteredNeighbour = true)
+  }
+
+  @Test
+  fun `recovery scans an external override and the internal root`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, externalOverride = true)
+  }
+
+  @Test
+  fun `recovery checks gaps across an external override and the internal root`() {
+    runRecoveryAcrossConfiguredPaths(
+      ExternalMutation.NONE,
+      blockedByGaps = true,
+      externalOverride = true,
+    )
+  }
+
+  @Test
+  fun `recovery rejects an impressions overwrite under the old external done marker`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.OVERWRITTEN_IMPRESSIONS)
+  }
+
+  @Test
+  fun `recovery rejects metadata added outside the selected external snapshot`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.ADDED_METADATA)
+  }
+
+  private enum class ExternalMutation {
+    NONE,
+    OVERWRITTEN_IMPRESSIONS,
+    ADDED_METADATA,
+  }
+
+  @Test
+  fun `legacy recovery validates an already synchronized managed peer without changing its marker`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, managedPeer = true)
+  }
+
+  @Test
+  fun `recovery keeps hidden shared-base replacement internal after cutover removal`() {
+    runRecoveryAcrossConfiguredPaths(ExternalMutation.NONE, hiddenReplacement = true)
+  }
+
+  private fun runRecoveryAcrossConfiguredPaths(
+    externalMutation: ExternalMutation,
+    blockedByGaps: Boolean = false,
+    includeRegisteredNeighbour: Boolean = false,
+    externalOverride: Boolean = false,
+    managedPeer: Boolean = false,
+    hiddenReplacement: Boolean = false,
+  ) {
+    var externalMutationApplied = false
     val recoveredMetadata = mutableListOf<ImpressionMetadata>()
+    val registeredNeighbours = mutableListOf<ImpressionMetadata>()
     val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
@@ -462,6 +553,36 @@ class RecoverMissingImpressionMetadataTest {
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
+          if (!externalMutationApplied && externalMutation != ExternalMutation.NONE) {
+            val metadata = request.requestsList.first().impressionMetadata
+            val metadataKey = metadata.blobUri.removePrefix("gs://$BUCKET_NAME/")
+            if (metadataKey.startsWith("$EDP_IMPRESSION_PATH/")) {
+              externalMutationApplied = true
+              val metadataBytes = storageEmulator.storage.readAllBytes(BUCKET_NAME, metadataKey)
+              when (externalMutation) {
+                ExternalMutation.OVERWRITTEN_IMPRESSIONS -> {
+                  val details =
+                    org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails.parseFrom(
+                      metadataBytes
+                    )
+                  storageEmulator.storage.create(
+                    BlobInfo.newBuilder(
+                        BUCKET_NAME,
+                        details.blobUri.removePrefix("gs://$BUCKET_NAME/"),
+                      )
+                      .build(),
+                    byteArrayOf(1),
+                  )
+                }
+                ExternalMutation.ADDED_METADATA ->
+                  storageEmulator.storage.create(
+                    BlobInfo.newBuilder(BUCKET_NAME, "$metadataKey.late.metadata.binpb").build(),
+                    metadataBytes,
+                  )
+                ExternalMutation.NONE -> error("No mutation requested")
+              }
+            }
+          }
           val created =
             request.requestsList.mapIndexed { index, createRequest ->
               createRequest.impressionMetadata.copy {
@@ -479,8 +600,18 @@ class RecoverMissingImpressionMetadataTest {
             modelLineBounds += modelLineBoundMapEntry {
               key = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
               value = interval {
-                startTime = timestamp { seconds = 1 }
-                endTime = timestamp { seconds = 2 }
+                startTime = timestamp {
+                  seconds =
+                    if (managedPeer || hiddenReplacement)
+                      LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                    else 1
+                }
+                endTime = timestamp {
+                  seconds =
+                    if (managedPeer || hiddenReplacement)
+                      LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                    else 2
+                }
               }
             }
           }
@@ -493,7 +624,18 @@ class RecoverMissingImpressionMetadataTest {
         .thenReturn(DataProvider.getDefaultInstance())
     }
     val server: Server =
-      NettyServerBuilder.forPort(0)
+      ManagedDoneObjectTestServices(
+          "dataProviders/test-provider",
+          listOf(MANAGED_MODEL_LINE),
+          if (hiddenReplacement) LocalDate.of(2000, 1, 1) else LocalDate.of(1999, 12, 31),
+          MANAGED_RAW_INPUT_URI,
+        )
+        .apply {
+          ownerState =
+            org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine.State
+              .COMPLETED
+        }
+        .addTo(NettyServerBuilder.forPort(0))
         .sslContext(serverCerts.toServerTlsContext())
         .addService(impressionMetadataServiceMock)
         .addService(dataProvidersServiceMock)
@@ -502,8 +644,16 @@ class RecoverMissingImpressionMetadataTest {
         .start()
     storageEmulator.createBucket(BUCKET_NAME)
     try {
+      val paths =
+        if (hiddenReplacement) {
+          listOf(EDP_IMPRESSION_PATH)
+        } else if (externalMutation == ExternalMutation.NONE) {
+          listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH)
+        } else {
+          listOf(EDP_IMPRESSION_PATH)
+        }
       val doneGenerations =
-        listOf(EDP_IMPRESSION_PATH, INTERNAL_IMPRESSION_PATH).associate { path ->
+        paths.associate { path ->
           val date =
             if (blockedByGaps && path == INTERNAL_IMPRESSION_PATH) "2000-01-03" else "2000-01-01"
           val folder = "$path/model-line/model-line-1/$date"
@@ -511,7 +661,7 @@ class RecoverMissingImpressionMetadataTest {
           val metadataKey = "$impressionsKey.metadata.binpb"
           storageEmulator.storage.create(
             BlobInfo.newBuilder(BUCKET_NAME, impressionsKey).build(),
-            byteArrayOf(),
+            if (managedPeer || hiddenReplacement) byteArrayOf(1) else byteArrayOf(),
           )
           storageEmulator.storage.create(
             BlobInfo.newBuilder(BUCKET_NAME, metadataKey).build(),
@@ -520,24 +670,168 @@ class RecoverMissingImpressionMetadataTest {
                 eventGroupReferenceId = "event-group"
                 modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
                 interval = interval {
-                  startTime = timestamp { seconds = 1 }
-                  endTime = timestamp { seconds = 2 }
+                  startTime = timestamp {
+                    seconds =
+                      if (managedPeer || hiddenReplacement)
+                        LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                      else 1
+                  }
+                  endTime = timestamp {
+                    seconds =
+                      if (managedPeer || hiddenReplacement)
+                        LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                      else 2
+                  }
                 }
               }
               .toByteArray(),
           )
+          val neighbourData =
+            if (includeRegisteredNeighbour) {
+              storageEmulator.storage.create(
+                BlobInfo.newBuilder(BUCKET_NAME, "$folder/registered-impressions").build(),
+                byteArrayOf(1),
+              )
+            } else null
+          val neighbourMetadata =
+            neighbourData?.let { data ->
+              storageEmulator.storage.create(
+                BlobInfo.newBuilder(BUCKET_NAME, "${data.name}.metadata.binpb")
+                  .setMetadata(
+                    mapOf(
+                      DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE
+                    )
+                  )
+                  .build(),
+                blobDetails {
+                    blobUri = "gs://$BUCKET_NAME/${data.name}"
+                    eventGroupReferenceId = "event-group"
+                    modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+                    interval = interval {
+                      startTime = timestamp {
+                        seconds =
+                          if (managedPeer || hiddenReplacement)
+                            LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                          else 1
+                      }
+                      endTime = timestamp {
+                        seconds =
+                          if (managedPeer || hiddenReplacement)
+                            LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                          else 2
+                      }
+                    }
+                  }
+                  .toByteArray(),
+              )
+            }
+          // Recovery currently scans legacy completion markers.
+          val doneKey = "$folder/done"
           val doneBlob =
             storageEmulator.storage.create(
-              BlobInfo.newBuilder(BUCKET_NAME, "$folder/done").build(),
+              BlobInfo.newBuilder(BUCKET_NAME, doneKey)
+                .setMetadata(
+                  if (includeRegisteredNeighbour)
+                    mapOf(
+                      DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+                      DataAvailabilityBlobs.SYNC_ID_KEY to "original-sync",
+                      DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "original-sync",
+                    )
+                  else emptyMap()
+                )
+                .build(),
               byteArrayOf(),
             )
+          if (hiddenReplacement) {
+            // A different upload may produce objects after this upload's marker.
+            storageEmulator.storage.create(
+              BlobInfo.newBuilder(BUCKET_NAME, "$folder/later-upload").build(),
+              byteArrayOf(1),
+            )
+          }
+          if (neighbourMetadata != null) {
+            val existing = impressionMetadata {
+              name =
+                "dataProviders/test-provider/impressionMetadata/registered-${registeredNeighbours.size}"
+              blobUri = "gs://$BUCKET_NAME/${neighbourMetadata.name}"
+              blobTypeUrl = "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.BlobDetails"
+              eventGroupReferenceId = "event-group"
+              modelLine = "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+              interval = interval {
+                startTime = timestamp {
+                  seconds =
+                    if (managedPeer || hiddenReplacement)
+                      LocalDate.of(2000, 1, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                    else 1
+                }
+                endTime = timestamp {
+                  seconds =
+                    if (managedPeer || hiddenReplacement)
+                      LocalDate.of(2000, 1, 2).atStartOfDay(ZoneOffset.UTC).toEpochSecond()
+                    else 2
+                }
+              }
+              state = ACTIVE
+              metadataBlobGeneration = neighbourMetadata.generation
+              impressionsBlobGeneration = checkNotNull(neighbourData).generation
+              outputDoneBlobGeneration = doneBlob.generation
+            }
+            registeredNeighbours += existing
+            recoveredMetadata += existing
+          }
           "gs://$BUCKET_NAME/$metadataKey" to doneBlob.generation
         }
+      val managedPeerKey =
+        "$INTERNAL_IMPRESSION_PATH/" +
+          LabeledImpressionsBlobKeys.forDone(
+            "dataProviders/test-provider/rawImpressionUploads/managed",
+            MANAGED_MODEL_LINE,
+            LocalDate.of(1999, 12, 31),
+          )
+      val peerMetadata =
+        mapOf(
+          DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+          DataAvailabilityBlobs.SYNC_ID_KEY to "zero-peer-sync",
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "zero-peer-sync",
+        )
+      val initialPeerBlob =
+        if (managedPeer) {
+          storageEmulator.storage.create(
+            BlobInfo.newBuilder(BUCKET_NAME, managedPeerKey).setMetadata(peerMetadata).build(),
+            byteArrayOf(),
+          )
+          storageEmulator.storage.get(BUCKET_NAME, managedPeerKey)
+        } else null
+      val initialPeerMetadata = initialPeerBlob?.metadata?.toMap().orEmpty()
+      val initialPeerGeneration = initialPeerBlob?.generation
       val configFile =
         writeConfigFile(
-          validConfig() +
+          (if (externalOverride) {
+            validConfig()
+              .replace(
+                "edp_impression_path: \"$EDP_IMPRESSION_PATH\"",
+                "edp_impression_path: \"unused/external\"",
+              ) + "\nexternal_impression_path: \"$EDP_IMPRESSION_PATH\"\n"
+          } else validConfig()) +
             "\nvid_labeled_impression_path: \"$INTERNAL_IMPRESSION_PATH\"\n" +
-            "\nerror_if_gaps_exist: $blockedByGaps\n"
+            "\nerror_if_gaps_exist: $blockedByGaps\n" +
+            (if (hiddenReplacement)
+              """
+              hidden_model_lines: "$MANAGED_MODEL_LINE"
+              model_line_data_sources {
+                key: "$MANAGED_MODEL_LINE"
+                value {
+                  storage { gcs { bucket_name: "$BUCKET_NAME" } }
+                  edp_impression_path: "$EDP_IMPRESSION_PATH"
+                }
+              }
+              model_line_map {
+                key: "$MANAGED_MODEL_LINE"
+                value { model_lines: "$MANAGED_MODEL_LINE-alias" }
+              }
+            """
+                .trimIndent()
+            else "")
         )
 
       val capturedOutput =
@@ -552,12 +846,26 @@ class RecoverMissingImpressionMetadataTest {
           ::main,
         )
 
-      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(if (blockedByGaps) 1 else 0)
-      verifyBlocking(dataProvidersServiceMock, times(if (blockedByGaps) 0 else 2)) {
+      if (managedPeer) {
+        val currentPeer = storageEmulator.storage.get(BUCKET_NAME, managedPeerKey)
+        assertThat(currentPeer.metadata).containsExactlyEntriesIn(initialPeerMetadata)
+        assertThat(currentPeer.generation).isEqualTo(initialPeerGeneration)
+      }
+      val failed = blockedByGaps || externalMutation != ExternalMutation.NONE
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(if (failed) 1 else 0)
+      verifyBlocking(dataProvidersServiceMock, times(if (failed) 0 else doneGenerations.size)) {
         replaceDataAvailabilityIntervals(any())
       }
+      if (hiddenReplacement) {
+        val publication = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+        verifyBlocking(dataProvidersServiceMock) {
+          replaceDataAvailabilityIntervals(publication.capture())
+        }
+        assertThat(publication.firstValue.dataAvailabilityIntervalsList.map { it.key })
+          .containsExactly("$MANAGED_MODEL_LINE-alias")
+      }
       val request = argumentCaptor<BatchCreateImpressionMetadataRequest>()
-      verifyBlocking(impressionMetadataServiceMock, times(2)) {
+      verifyBlocking(impressionMetadataServiceMock, times(doneGenerations.size)) {
         batchCreateImpressionMetadata(request.capture())
       }
       val createdMetadata =
@@ -566,6 +874,29 @@ class RecoverMissingImpressionMetadataTest {
       for (metadata in createdMetadata) {
         assertThat(metadata.outputDoneBlobGeneration)
           .isEqualTo(doneGenerations.getValue(metadata.blobUri))
+      }
+      for (metadata in
+        createdMetadata.filter {
+          !hiddenReplacement && it.blobUri.startsWith("gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/")
+        }) {
+        assertThat(metadata.metadataBlobGeneration).isGreaterThan(0L)
+        assertThat(metadata.impressionsBlobGeneration).isGreaterThan(0L)
+      }
+      if (externalMutation != ExternalMutation.NONE) {
+        assertThat(externalMutationApplied).isTrue()
+        val externalDone =
+          storageEmulator.storage.get(
+            BUCKET_NAME,
+            "$EDP_IMPRESSION_PATH/model-line/model-line-1/2000-01-01/done",
+          )
+        assertThat(externalDone.metadata.orEmpty())
+          .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+      }
+      for (existing in registeredNeighbours) {
+        assertThat(recoveredMetadata.single { it.name == existing.name }).isEqualTo(existing)
+      }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchUpdateImpressionMetadata(any())
       }
       val acquired = argumentCaptor<AcquireDataAvailabilitySyncLeaseRequest>()
       verifyBlocking(leaseServiceMock, times(1)) {
@@ -699,6 +1030,10 @@ class RecoverMissingImpressionMetadataTest {
       .apply { writeText(contents) }
 
   companion object {
+    private const val MANAGED_RAW_INPUT_URI = "gs://raw/managed.parquet"
+    private const val MANAGED_MODEL_LINE =
+      "modelProviders/mp/modelSuites/ms/modelLines/model-line-1"
+
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)
     }

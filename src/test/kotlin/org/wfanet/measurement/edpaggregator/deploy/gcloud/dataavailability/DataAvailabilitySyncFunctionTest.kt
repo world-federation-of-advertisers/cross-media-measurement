@@ -41,6 +41,7 @@ import java.nio.file.Paths
 import java.time.Instant
 import java.time.LocalDate
 import java.util.Collections
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
@@ -63,6 +64,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -88,14 +90,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseSer
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
@@ -106,8 +113,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.externalDataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
@@ -129,6 +140,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -138,6 +150,7 @@ class DataAvailabilitySyncFunctionTest {
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
   @Volatile private var batchCreateStatus: Status? = null
+  private val registeredMetadata = ConcurrentHashMap<String, ImpressionMetadata>()
   private val capturedTraceparentHeaders = Collections.synchronizedList(mutableListOf<String>())
   private val capturedGrpcTraceBinHeaders = Collections.synchronizedList(mutableListOf<ByteArray>())
   private val traceparentKey = Metadata.Key.of("traceparent", Metadata.ASCII_STRING_MARSHALLER)
@@ -156,6 +169,8 @@ class DataAvailabilitySyncFunctionTest {
     }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any<GetDataProviderRequest>()) }
+      .thenAnswer { DataProvider.getDefaultInstance() }
     onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
       .thenAnswer { DataProvider.getDefaultInstance() }
   }
@@ -163,13 +178,33 @@ class DataAvailabilitySyncFunctionTest {
   private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
-        .thenAnswer { listImpressionMetadataResponse {} }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          listImpressionMetadataResponse {
+            impressionMetadata +=
+              registeredMetadata.values.filter {
+                (request.filter.blobUriPrefix.isEmpty() ||
+                  it.blobUri.startsWith(request.filter.blobUriPrefix)) &&
+                  (request.filter.blobUrisList.isEmpty() ||
+                    it.blobUri in request.filter.blobUrisList)
+              }
+          }
+        }
       onBlocking { batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>()) }
         .thenAnswer { invocation ->
           batchCreateStatus?.let { throw it.asException() }
           val request = invocation.getArgument<BatchCreateImpressionMetadataRequest>(0)
           batchCreateImpressionMetadataResponse {
-            impressionMetadata += request.requestsList.map { it.impressionMetadata }
+            impressionMetadata +=
+              request.requestsList.map { create ->
+                create.impressionMetadata
+                  .copy {
+                    name =
+                      "${request.parent}/impressionMetadata/registered-${registeredMetadata.size}"
+                    state = ImpressionMetadata.State.ACTIVE
+                  }
+                  .also { registeredMetadata[it.blobUri] = it }
+              }
           }
         }
       onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
@@ -186,42 +221,66 @@ class DataAvailabilitySyncFunctionTest {
         }
     }
 
+  private val registeredFiles =
+    mutableMapOf(
+      RAW_UPLOAD to
+        listOf(
+          rawImpressionUploadFile {
+            name = "$RAW_UPLOAD/files/file-1"
+            blobUri = RAW_INPUT_BLOB_URI
+            sizeBytes = 1L
+            eventDate = date {
+              year = 2025
+              month = 1
+              day = 5
+            }
+            blobGeneration = 1L
+          },
+          rawImpressionUploadFile {
+            name = "$RAW_UPLOAD/files/file-2"
+            blobUri = OTHER_DATE_RAW_INPUT_BLOB_URI
+            sizeBytes = 1L
+            eventDate = date {
+              year = 2025
+              month = 1
+              day = 6
+            }
+            blobGeneration = 1L
+          },
+        )
+    )
+  private val listedModelLineNames = mutableListOf(RAW_MODEL_LINE)
+
+  private val rawImpressionUploadServiceMock: RawImpressionUploadServiceCoroutineImplBase =
+    mockService {
+      onBlocking { getRawImpressionUpload(any<GetRawImpressionUploadRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetRawImpressionUploadRequest>(0)
+          check(request.name in registeredFiles) { "Unknown registered upload: ${request.name}" }
+          rawImpressionUpload {
+            name = request.name
+            state = RawImpressionUpload.State.ACTIVE
+            registrationComplete = true
+          }
+        }
+    }
+
   private val rawImpressionUploadFileServiceMock: RawImpressionUploadFileServiceCoroutineImplBase =
     mockService {
       onBlocking { listRawImpressionUploadFiles(any<ListRawImpressionUploadFilesRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
-          when (request.pageToken) {
-            "" ->
-              listRawImpressionUploadFilesResponse {
-                rawImpressionUploadFiles += rawImpressionUploadFile {
-                  name = "$RAW_UPLOAD/files/file-1"
-                  blobUri = RAW_INPUT_BLOB_URI
-                  sizeBytes = 1L
-                  eventDate = date {
-                    year = 2025
-                    month = 1
-                    day = 5
-                  }
-                  blobGeneration = 1L
-                }
-                nextPageToken = "page-2"
-              }
-            "page-2" ->
-              listRawImpressionUploadFilesResponse {
-                rawImpressionUploadFiles += rawImpressionUploadFile {
-                  name = "$RAW_UPLOAD/files/file-2"
-                  blobUri = OTHER_DATE_RAW_INPUT_BLOB_URI
-                  sizeBytes = 1L
-                  eventDate = date {
-                    year = 2025
-                    month = 1
-                    day = 6
-                  }
-                  blobGeneration = 1L
-                }
-              }
-            else -> error("Unexpected page token: ${request.pageToken}")
+          val files =
+            if (request.parent == "$DATA_PROVIDER/rawImpressionUploads/-") {
+              check(request.filter.blobUriInList.isNotEmpty())
+              registeredFiles.values.flatten().filter { it.blobUri in request.filter.blobUriInList }
+            } else {
+              checkNotNull(registeredFiles[request.parent]) { "Unknown upload: ${request.parent}" }
+            }
+          val offset = request.pageToken.removePrefix("offset-").ifEmpty { "0" }.toInt()
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += files.drop(offset).take(1)
+            if (offset + 1 < files.size) nextPageToken = "offset-${offset + 1}"
           }
         }
     }
@@ -233,6 +292,26 @@ class DataAvailabilitySyncFunctionTest {
         .thenAnswer { invocation ->
           val request = invocation.getArgument<GetRawImpressionUploadModelLineRequest>(0)
           readyAvailabilityParent(request.name)
+        }
+
+      onBlocking {
+          listRawImpressionUploadModelLines(any<ListRawImpressionUploadModelLinesRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+          check(request.parent == "$DATA_PROVIDER/rawImpressionUploads/-")
+          check(request.pageToken.isEmpty())
+          val rows = runBlocking {
+            listedModelLineNames.map { name ->
+              rawImpressionUploadModelLineServiceMock.getRawImpressionUploadModelLine(
+                getRawImpressionUploadModelLineRequest { this.name = name }
+              )
+            }
+          }
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              rows.filter { it.cmmsModelLine == request.filter.cmmsModelLine }
+          }
         }
 
       onBlocking {
@@ -358,6 +437,15 @@ class DataAvailabilitySyncFunctionTest {
       ServerInterceptors.intercept(impressionMetadataServiceMock, metadataCaptureInterceptor)
     )
     addService(
+      ServerInterceptors.intercept(rawImpressionUploadServiceMock, metadataCaptureInterceptor)
+    )
+    addService(
+      ServerInterceptors.intercept(
+        rawImpressionUploadModelLineServiceMock,
+        metadataCaptureInterceptor,
+      )
+    )
+    addService(
       ServerInterceptors.intercept(rawImpressionUploadFileServiceMock, metadataCaptureInterceptor)
     )
     addService(
@@ -391,6 +479,10 @@ class DataAvailabilitySyncFunctionTest {
               ),
               ServerInterceptors.intercept(
                 impressionMetadataServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
+              ServerInterceptors.intercept(
+                rawImpressionUploadServiceMock.bindService(),
                 metadataCaptureInterceptor,
               ),
               ServerInterceptors.intercept(
@@ -444,6 +536,182 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(parseDataWatcherGeneration(DONE_BLOB_GENERATION.toString()))
       .isEqualTo(DONE_BLOB_GENERATION)
+  }
+
+  @Test
+  fun `external WorkItem scans external folder without raw-upload discovery or bookkeeping`() =
+    runBlocking {
+      executeExternalWorkItem("edp/edp_name")
+      assertExternalWorkItemCompleted("edp/edp_name")
+    }
+
+  @Test
+  fun `external WorkItem uses its model line source prefix in the same bucket`() = runBlocking {
+    executeExternalWorkItem("edp/alternate-external")
+    assertExternalWorkItemCompleted("edp/alternate-external")
+  }
+
+  @Test
+  fun `external WorkItem cannot scan the VID Labeler root`() = runBlocking {
+    executeExternalWorkItem("vid-labeled-impressions/edp/edp_name")
+    verifyBlocking(workItemsServiceMock) { failWorkItem(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+  }
+
+  private suspend fun executeExternalWorkItem(sourceRoot: String) {
+    val configBuilder =
+      fileSystemDataAvailabilitySyncConfig()
+        .toBuilder()
+        .setEdpImpressionPath("edp/edp_name/vid-labeler")
+        .setExternalImpressionPath("edp/edp_name")
+        .setDataAvailabilityStorage(
+          storageParams {
+            gcs =
+              org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage {
+                bucketName = "bucket"
+              }
+          }
+        )
+    if (sourceRoot != "edp/edp_name") {
+      configBuilder.putModelLineDataSources(
+        MODEL_LINE,
+        DataAvailabilitySyncConfig.ModelLineDataSource.newBuilder()
+          .setStorage(configBuilder.dataAvailabilityStorage)
+          .setEdpImpressionPath(sourceRoot)
+          .build(),
+      )
+    }
+    val config = configBuilder.build()
+    val configDir = File(tempFolder.root, "configbucket").apply { mkdirs() }
+    File(configDir, "config.textproto")
+      .writeText(
+        TextFormat.printer().printToString(dataAvailabilitySyncConfigs { configs += config })
+      )
+    val folder = "$sourceRoot/model-line/some-model-line/2025-01-05"
+    val outputKey = "$folder/external-output"
+    val storage = FileSystemStorageClient(tempFolder.root)
+    storage.writeBlob(outputKey, emptyFlow())
+    storage.writeBlob(
+      "$outputKey.metadata.binpb",
+      flowOf(
+        blobDetails {
+            blobUri = "gs://bucket/$outputKey"
+            eventGroupReferenceId = "external-reference"
+            modelLine = MODEL_LINE
+            interval = interval {
+              startTime = timestamp { seconds = 1736035200 }
+              endTime = timestamp { seconds = 1736121600 }
+            }
+          }
+          .toByteString()
+      ),
+    )
+    storage.writeBlob("$folder/done", emptyFlow())
+    val port =
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "IMPRESSION_METADATA_CERT_HOST" to "localhost",
+          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+          "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+        )
+      )
+    val task = workItem {
+      name = WORK_ITEM_NAME
+      generation = 1L
+      workItemParams =
+        Any.pack(
+          workItemParams {
+            appParams =
+              Any.pack(externalDataAvailabilitySyncParams { dataProvider = DATA_PROVIDER })
+            dataPathParams = dataPathParams {
+              dataPath = "gs://bucket/$folder/done"
+              generation = 123L
+              createTime = timestamp { seconds = 1_800_000_000L }
+              eventType = StorageEventType.FINALIZED
+            }
+          }
+        )
+    }
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("Content-Type", "application/octet-stream")
+        .POST(HttpRequest.BodyPublishers.ofByteArray(task.toByteArray()))
+        .build()
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+    assertThat(response.statusCode()).isEqualTo(200)
+  }
+
+  private fun assertExternalWorkItemCompleted(sourceRoot: String) {
+    verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+    verifyBlocking(rawImpressionUploadFileServiceMock, times(0)) {
+      listRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+    val folder = "$sourceRoot/model-line/some-model-line/2025-01-05"
+    val outputKey = "$folder/external-output"
+    val metadata = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchCreateImpressionMetadata(metadata.capture())
+    }
+    assertThat(
+        metadata.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      )
+      .isEqualTo(123L)
+    assertThat(metadata.firstValue.requestsList.single().impressionMetadata.blobUri)
+      .isEqualTo("gs://bucket/$outputKey.metadata.binpb")
+  }
+
+  @Test
+  fun `trigger data source is selected by configured bucket and path`() {
+    val config =
+      DataAvailabilitySyncConfig.newBuilder()
+        .setEdpImpressionPath("edp/default")
+        .setDataAvailabilityStorage(
+          org.wfanet.measurement.config.edpaggregator.StorageParams.newBuilder()
+            .setGcs(
+              org.wfanet.measurement.config.edpaggregator.StorageParams.GcsStorage.newBuilder()
+                .setBucketName("default-bucket")
+            )
+        )
+        .putModelLineDataSources(
+          MODEL_LINE,
+          DataAvailabilitySyncConfig.ModelLineDataSource.newBuilder()
+            .setStorage(
+              org.wfanet.measurement.config.edpaggregator.StorageParams.newBuilder()
+                .setGcs(
+                  org.wfanet.measurement.config.edpaggregator.StorageParams.GcsStorage.newBuilder()
+                    .setBucketName("legacy-bucket")
+                )
+            )
+            .setEdpImpressionPath("edp/legacy")
+            .build(),
+        )
+        .build()
+
+    val selected =
+      selectTriggerDataSource(
+        config,
+        "gs://legacy-bucket/edp/legacy/model-line/model-line-1/2026-10-05/done",
+      )
+
+    assertThat(selected.storage.gcs.bucketName).isEqualTo("legacy-bucket")
+    assertThat(selected.edpImpressionPath).isEqualTo("edp/legacy")
   }
 
   @Test
@@ -552,6 +820,7 @@ class DataAvailabilitySyncFunctionTest {
                 dataPathParams = dataPathParams {
                   dataPath = "gs://output-bucket/done"
                   generation = DONE_BLOB_GENERATION
+                  createTime = timestamp { seconds = 1_800_000_000L }
                   eventType = StorageEventType.FINALIZED
                 }
               }
@@ -622,6 +891,11 @@ class DataAvailabilitySyncFunctionTest {
           .toByteString()
       ),
     )
+    storage.writeBlob(
+      "edp/edp_name/" +
+        LabeledImpressionsBlobKeys.forDone(RAW_UPLOAD, MODEL_LINE, LocalDate.of(2025, 1, 5)),
+      emptyFlow(),
+    )
     functionProcess.start(
       mapOf(
         "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
@@ -643,6 +917,7 @@ class DataAvailabilitySyncFunctionTest {
   private fun sendAvailabilityWorkItem(
     port: Int,
     eventDate: LocalDate = LocalDate.of(2025, 1, 5),
+    workItemGeneration: Long = 1L,
   ): java.net.http.HttpResponse<String> {
     val request =
       DataAvailabilitySyncWorkItems.createRequest(
@@ -664,7 +939,7 @@ class DataAvailabilitySyncFunctionTest {
     val item =
       request.workItem.copy {
         name = WORK_ITEM_NAME
-        generation = 1L
+        generation = workItemGeneration
       }
     return HttpClient.newHttpClient()
       .send(
@@ -700,6 +975,58 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(sendAvailabilityWorkItem(port).statusCode()).isEqualTo(200)
     verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+  }
+
+  @Test
+  fun `WorkItem fails terminally when its source model line is missing`() {
+    val port = startAvailabilityWorkItemFunction()
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    assertThat(sendAvailabilityWorkItem(port, workItemGeneration = 7L).statusCode()).isEqualTo(200)
+    val failure = argumentCaptor<FailWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock) { failWorkItem(failure.capture()) }
+    assertThat(failure.firstValue.name).isEqualTo(WORK_ITEM_NAME)
+    assertThat(failure.firstValue.expectedWorkItemGeneration).isEqualTo(7L)
+    verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+  }
+
+  @Test
+  fun `WorkItem retries source model line lookup failures and completes after recovery`() {
+    val port = startAvailabilityWorkItemFunction()
+    for (status in listOf(Status.INTERNAL, Status.UNAVAILABLE)) {
+      rawImpressionUploadModelLineServiceMock.stub {
+        onBlocking {
+            getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>())
+          }
+          .thenThrow(status.asRuntimeException())
+      }
+      assertThat(sendAvailabilityWorkItem(port).statusCode()).isAtLeast(500)
+    }
+    verifyBlocking(workItemAttemptsServiceMock, times(2)) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenReturn(readyAvailabilityParent())
+    }
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isEqualTo(200)
+    verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
   }
 
   @Test
@@ -749,6 +1076,140 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `obsolete managed delivery completes without metadata publication or date acknowledgement`() {
+    val port = startAvailabilityWorkItemFunction()
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenReturn(
+          readyAvailabilityParent().copy {
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+          }
+        )
+    }
+
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isEqualTo(200)
+    verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+  }
+
+  @Test
+  fun `ordinary failed labeling owner preserves the original availability attempt for recovery`() {
+    val port = startAvailabilityWorkItemFunction()
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenReturn(
+          readyAvailabilityParent().copy {
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+            pendingAvailabilityDates.clear()
+          }
+        )
+    }
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isAtLeast(500)
+    verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+  }
+
+  @Test
+  fun `recovering a processing failed owner completes the same original availability execution`() {
+    val port = startAvailabilityWorkItemFunction()
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenReturn(
+          readyAvailabilityParent().copy {
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+            pendingAvailabilityDates.clear()
+          }
+        )
+    }
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isAtLeast(500)
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenReturn(readyAvailabilityParent())
+    }
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isEqualTo(200)
+    val attempts = argumentCaptor<CreateWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsServiceMock, times(2)) {
+      createWorkItemAttempt(attempts.capture())
+    }
+    assertThat(attempts.allValues.map { it.parent }).containsExactly(WORK_ITEM_NAME, WORK_ITEM_NAME)
+    assertThat(attempts.allValues.map { it.expectedWorkItemGeneration }).containsExactly(1L, 1L)
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+    val metadata = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchCreateImpressionMetadata(metadata.capture())
+    }
+    assertThat(
+        metadata.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      )
+      .isEqualTo(123L)
+    verifyBlocking(rawImpressionUploadModelLineServiceMock) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+  }
+
+  @Test
+  fun `managed completion marker deleted before persistence leaves the attempt retryable`() {
+    val port = startAvailabilityWorkItemFunction()
+    val done =
+      File(
+        tempFolder.root,
+        "edp/edp_name/" +
+          LabeledImpressionsBlobKeys.forDone(RAW_UPLOAD, MODEL_LINE, LocalDate.of(2025, 1, 5)),
+      )
+    assertThat(done.delete()).isTrue()
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isAtLeast(500)
+    verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `service does not publish external metadata with a missing referenced impressions object`() {
+    assertThat(syncWithMetadataFailure(Status.INTERNAL, missingImpressions = true)).isAtLeast(500)
+  }
+
+  @Test
+  fun `managed ownership lookup outage remains retryable before metadata writes`() {
+    val port = startAvailabilityWorkItemFunction()
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking {
+          listRawImpressionUploadModelLines(any<ListRawImpressionUploadModelLinesRequest>())
+        }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    }
+
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isAtLeast(500)
+    verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
   }
 
   @Test
@@ -845,11 +1306,38 @@ class DataAvailabilitySyncFunctionTest {
     )
   }
 
+  @Test
+  fun `queued internal WorkItem on the old root tolerates an external override`() {
+    runInternalPathWorkItem(legacyRoot = true, externalOverride = true)
+  }
+
+  @Test
+  fun `internal WorkItem rejects another model line source root`() {
+    runInternalPathWorkItem(
+      outputRootOverride = "edp/historical-input",
+      configuredModelRoot = "vid-labeled-impressions/edp/edp_name",
+      expectSourceRejected = true,
+    )
+  }
+
+  @Test
+  fun `internal WorkItem accepts its configured model line source root`() {
+    runInternalPathWorkItem(configuredModelRoot = "vid-labeled-impressions/edp/edp_name")
+  }
+
   private fun runInternalPathWorkItem(
     blockedByGaps: Boolean = false,
+    legacyRoot: Boolean = false,
+    externalOverride: Boolean = false,
     workItemGeneration: Long = 1L,
     legacyMessage: Boolean = false,
+    outputRootOverride: String? = null,
+    configuredModelRoot: String? = null,
+    expectSourceRejected: Boolean = false,
   ) {
+    val outputRoot =
+      outputRootOverride
+        ?: if (legacyRoot) "edp/edp_name" else "vid-labeled-impressions/edp/edp_name"
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
@@ -861,19 +1349,34 @@ class DataAvailabilitySyncFunctionTest {
                 fileSystemDataAvailabilitySyncConfig().copy {
                   vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
                   errorIfGapsExist = blockedByGaps
+                  if (externalOverride) externalImpressionPath = "external/edp_name"
+                  if (configuredModelRoot != null) {
+                    modelLineDataSources[MODEL_LINE] =
+                      DataAvailabilitySyncConfig.ModelLineDataSource.newBuilder()
+                        .setStorage(dataAvailabilityStorage)
+                        .setEdpImpressionPath(configuredModelRoot)
+                        .build()
+                  }
+                  if (outputRootOverride != null) {
+                    modelLineDataSources[
+                      "modelProviders/mp1/modelSuites/ms1/modelLines/historical"] =
+                      DataAvailabilitySyncConfig.ModelLineDataSource.newBuilder()
+                        .setStorage(dataAvailabilityStorage)
+                        .setEdpImpressionPath(outputRootOverride)
+                        .build()
+                  }
                 }
             }
           )
       )
-    val outputDirectory =
-      "vid-labeled-impressions/edp/edp_name/model-line/some-model-line/2025-01-05"
+    val outputDirectory = "$outputRoot/model-line/some-model-line/2025-01-05"
     File(tempFolder.root, outputDirectory).mkdirs()
     val workItemEventDate = LocalDate.of(2025, 1, 5)
     val expectedOutputKey =
-      "vid-labeled-impressions/edp/edp_name/" +
+      "$outputRoot/" +
         LabeledImpressionsBlobKeys.forInput(RAW_INPUT_BLOB_URI, MODEL_LINE, workItemEventDate)
     val otherDateOutputKey =
-      "vid-labeled-impressions/edp/edp_name/" +
+      "$outputRoot/" +
         LabeledImpressionsBlobKeys.forInput(
           OTHER_DATE_RAW_INPUT_BLOB_URI,
           MODEL_LINE,
@@ -927,6 +1430,9 @@ class DataAvailabilitySyncFunctionTest {
       externalDone.writeBytes(byteArrayOf())
       File(tempFolder.root, "$outputDirectory/done").writeBytes(byteArrayOf())
     }
+    val internalDoneKey =
+      "$outputRoot/" + LabeledImpressionsBlobKeys.forDone(RAW_UPLOAD, MODEL_LINE, workItemEventDate)
+    File(tempFolder.root, internalDoneKey).writeBytes(byteArrayOf())
     val port = startFunction(configBucketDir)
     val workItem = workItem {
       name = WORK_ITEM_NAME
@@ -952,12 +1458,13 @@ class DataAvailabilitySyncFunctionTest {
             dataPathParams = dataPathParams {
               dataPath =
                 LabeledImpressionsBlobKeys.forDoneUri(
-                  "file:////vid-labeled-impressions/edp/edp_name",
+                  "file:////$outputRoot",
                   RAW_UPLOAD,
                   MODEL_LINE,
                   LocalDate.of(2025, 1, 5),
                 )
               generation = 123L
+              createTime = timestamp { seconds = 1_800_000_000L }
               eventType = StorageEventType.FINALIZED
             }
             traceContext["traceparent"] = "00-1af7651916cd43dd8448eb211c80319c-0123456789abcdef-01"
@@ -989,6 +1496,20 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(createAttempt.firstValue.expectedWorkItemGeneration)
       .isEqualTo(workItemGeneration.takeUnless { it == 0L } ?: 1L)
     assertThat(createAttempt.firstValue.supportsAttemptLease).isTrue()
+    if (expectSourceRejected) {
+      verifyBlocking(workItemsServiceMock) { failWorkItem(any()) }
+      verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+      verifyBlocking(rawImpressionUploadFileServiceMock, times(0)) {
+        listRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchCreateImpressionMetadata(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+        markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+      }
+      return
+    }
     if (blockedByGaps) {
       verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
       verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
@@ -1006,11 +1527,17 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(workItemAttemptsServiceMock, times(0)) { failWorkItemAttempt(any()) }
     verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
     val listFiles = argumentCaptor<ListRawImpressionUploadFilesRequest>()
-    verifyBlocking(rawImpressionUploadFileServiceMock, times(2)) {
+    verifyBlocking(rawImpressionUploadFileServiceMock, atLeastOnce()) {
       listRawImpressionUploadFiles(listFiles.capture())
     }
-    assertThat(listFiles.allValues.map { it.parent }).containsExactly(RAW_UPLOAD, RAW_UPLOAD)
-    assertThat(listFiles.allValues.map { it.pageToken }).containsExactly("", "page-2").inOrder()
+    val sourceRequests = listFiles.allValues.filter { it.parent == RAW_UPLOAD }
+    assertThat(sourceRequests.map { it.pageToken })
+      .containsExactly("", "offset-1", "", "offset-1")
+      .inOrder()
+    val overlapRequests = listFiles.allValues.filter { it.parent.endsWith("/-") }
+    assertThat(overlapRequests).isNotEmpty()
+    assertThat(overlapRequests.all { it.filter.blobUriInList == listOf(RAW_INPUT_BLOB_URI) })
+      .isTrue()
     val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock) {
       batchCreateImpressionMetadata(metadataRequest.capture())
@@ -1033,31 +1560,21 @@ class DataAvailabilitySyncFunctionTest {
     val mainRawUpload = "$DATA_PROVIDER/rawImpressionUploads/main"
     val mainRawModelLine = "$mainRawUpload/rawImpressionUploadModelLines/upload-model-line"
     val mainRawInputBlobUri = "gs://raw-bucket/main/input.parquet"
-    rawImpressionUploadFileServiceMock.stub {
-      onBlocking { listRawImpressionUploadFiles(any<ListRawImpressionUploadFilesRequest>()) }
-        .thenAnswer { invocation ->
-          val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
-          val (rawInputBlobUri, fileName) =
-            when (request.parent) {
-              mainRawUpload -> mainRawInputBlobUri to "$mainRawUpload/files/file-1"
-              RAW_UPLOAD -> RAW_INPUT_BLOB_URI to "$RAW_UPLOAD/files/file-1"
-              else -> error("Unexpected upload: ${request.parent}")
-            }
-          listRawImpressionUploadFilesResponse {
-            rawImpressionUploadFiles += rawImpressionUploadFile {
-              name = fileName
-              blobUri = rawInputBlobUri
-              sizeBytes = 1L
-              eventDate = date {
-                year = 2025
-                month = 1
-                day = 5
-              }
-              blobGeneration = 1L
-            }
+    listedModelLineNames += mainRawModelLine
+    registeredFiles[mainRawUpload] =
+      listOf(
+        rawImpressionUploadFile {
+          name = "$mainRawUpload/files/file-1"
+          blobUri = mainRawInputBlobUri
+          sizeBytes = 1L
+          eventDate = date {
+            year = 2025
+            month = 1
+            day = 5
           }
+          blobGeneration = 1L
         }
-    }
+      )
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
@@ -1101,6 +1618,14 @@ class DataAvailabilitySyncFunctionTest {
         )
       }
     }
+    runBlocking {
+      for (upload in listOf(mainRawUpload, RAW_UPLOAD)) {
+        storageClient.writeBlob(
+          "edp/edp_name/" + LabeledImpressionsBlobKeys.forDone(upload, MODEL_LINE, eventDate),
+          emptyFlow(),
+        )
+      }
+    }
     val port = runBlocking {
       functionProcess.start(
         mapOf(
@@ -1130,7 +1655,10 @@ class DataAvailabilitySyncFunctionTest {
 
     // Both handoffs exist before either is delivered, modeling the healing fence delaying the
     // serialized queue until every replacement has produced labeled output.
-    for (workItem in listOf(mainWorkItem, advertiserWorkItem)) {
+    // Main registers metadata first and waits for its peer; the next execution retains its
+    // immutable source after advertiser metadata is ready.
+    for (workItem in
+      listOf(mainWorkItem, advertiserWorkItem, mainWorkItem.copy { generation = 2L })) {
       val request =
         HttpRequest.newBuilder()
           .uri(URI.create("http://localhost:$port"))
@@ -1162,8 +1690,10 @@ class DataAvailabilitySyncFunctionTest {
       markRawImpressionUploadModelLineAvailabilitySynchronized(synchronizedRequests.capture())
     }
     assertThat(synchronizedRequests.allValues.map { it.name })
-      .containsExactly(mainRawModelLine, RAW_MODEL_LINE)
+      .containsExactly(RAW_MODEL_LINE, mainRawModelLine)
       .inOrder()
+    verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock) { failWorkItem(any()) }
     verifyBlocking(workItemAttemptsServiceMock, times(2)) { completeWorkItemAttempt(any()) }
   }
 
@@ -1231,6 +1761,10 @@ class DataAvailabilitySyncFunctionTest {
       storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
     }
     // In practice, the DataWatcher makes this HTTP call
+    runBlocking {
+      FileSystemStorageClient(tempFolder.root)
+        .writeBlob(SelectedStorageClient.parseBlobUri(localDoneBlobUri).key, emptyFlow())
+    }
     val client = HttpClient.newHttpClient()
     val getRequest =
       HttpRequest.newBuilder()
@@ -1249,7 +1783,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchCreateImpressionMetadata(metadataRequest.capture())
@@ -1365,6 +1899,10 @@ class DataAvailabilitySyncFunctionTest {
     val traceId = "1af7651916cd43dd8448eb211c80319c"
     val traceParentHeader = "00-$traceId-0123456789abcdef-01"
 
+    runBlocking {
+      FileSystemStorageClient(tempFolder.root)
+        .writeBlob(SelectedStorageClient.parseBlobUri(localDoneBlobUri).key, emptyFlow())
+    }
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
@@ -1385,7 +1923,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
 
@@ -1477,6 +2015,10 @@ class DataAvailabilitySyncFunctionTest {
       storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
       storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
     }
+    runBlocking {
+      FileSystemStorageClient(tempFolder.root)
+        .writeBlob(SelectedStorageClient.parseBlobUri(localDoneBlobUri).key, emptyFlow())
+    }
     val client = HttpClient.newHttpClient()
     val getRequest =
       HttpRequest.newBuilder()
@@ -1495,7 +2037,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
@@ -1597,7 +2139,7 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `sync returns error when date gaps are detected`() {
+  fun `sync blocks a gap between external and internal output roots`() {
     val modelLineResourceName = "modelProviders/mp1/modelSuites/ms1/modelLines/modelLine1"
     val modelLineId = "modelLine1"
     val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
@@ -1634,7 +2176,10 @@ class DataAvailabilitySyncFunctionTest {
       }
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
-      modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
+      vidLabeledImpressionPath = "edp/edp_name/vid-labeler"
+      modelLineMap[modelLineResourceName] = modelLineList {
+        modelLines += "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped"
+      }
       errorIfGapsExist = true
     }
 
@@ -1648,12 +2193,13 @@ class DataAvailabilitySyncFunctionTest {
     // Set up model-line date paths with a gap (missing 2026-03-14)
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     for (date in listOf("2026-03-13", "2026-03-15")) {
-      val donePath = "edp/edp_name/model-line/$modelLineId/$date/done"
+      val outputPath = if (date == "2026-03-13") "edp/edp_name" else "edp/edp_name/vid-labeler"
+      val donePath = "$outputPath/model-line/$modelLineId/$date/done"
       File(tempFolder.root, donePath).parentFile.mkdirs()
       runBlocking {
         storageClient.writeBlob(donePath, emptyFlow())
         storageClient.writeBlob(
-          "edp/edp_name/model-line/$modelLineId/$date/data_campaign_1",
+          "$outputPath/model-line/$modelLineId/$date/data_campaign_1",
           emptyFlow(),
         )
       }
@@ -1683,6 +2229,10 @@ class DataAvailabilitySyncFunctionTest {
       storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
     }
 
+    runBlocking {
+      FileSystemStorageClient(tempFolder.root)
+        .writeBlob(SelectedStorageClient.parseBlobUri(localDoneBlobUri).key, emptyFlow())
+    }
     val client = HttpClient.newHttpClient()
     val request =
       HttpRequest.newBuilder()
@@ -1699,7 +2249,7 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
-  private fun syncWithMetadataFailure(status: Status): Int {
+  private fun syncWithMetadataFailure(status: Status, missingImpressions: Boolean = false): Int {
     batchCreateStatus = status
     val localImpressionBlobKey = "edp/edp_name/timestamp/impressions"
     val localImpressionBlobUri = "file:////edp/edp_name/timestamp/impressions"
@@ -1747,8 +2297,9 @@ class DataAvailabilitySyncFunctionTest {
     }
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     runBlocking {
-      storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
+      if (!missingImpressions) storageClient.writeBlob(localImpressionBlobKey, emptyFlow())
       storageClient.writeBlob(localMetadataBlobKey, flowOf(blobDetails.toByteString()))
+      storageClient.writeBlob(SelectedStorageClient.parseBlobUri(localDoneBlobUri).key, emptyFlow())
     }
     val request =
       HttpRequest.newBuilder()
@@ -1760,8 +2311,14 @@ class DataAvailabilitySyncFunctionTest {
 
     val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
 
-    verifyBlocking(impressionMetadataServiceMock, atLeastOnce()) {
-      batchCreateImpressionMetadata(any())
+    if (missingImpressions) {
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchCreateImpressionMetadata(any())
+      }
+    } else {
+      verifyBlocking(impressionMetadataServiceMock, atLeastOnce()) {
+        batchCreateImpressionMetadata(any())
+      }
     }
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
     return response.statusCode()
@@ -1791,7 +2348,7 @@ class DataAvailabilitySyncFunctionTest {
       vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
       modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] =
         modelLineList {
-          modelLines += "some-model-line-mapped"
+          modelLines += "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped"
         }
     }
 

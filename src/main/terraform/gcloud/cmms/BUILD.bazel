@@ -23,7 +23,10 @@ filegroup(
         "envs/qa/vid-labeling-dispatcher-config.textproto",
         "envs/qa/vid-labeling-monitor-config.textproto",
     ],
-    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator:__pkg__"],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__pkg__",
+    ],
 )
 
 filegroup(

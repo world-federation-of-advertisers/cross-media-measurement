@@ -149,10 +149,12 @@ durably scheduled or already exists with the same identity. It does not wait for
 synchronize. Each acknowledged event date is removed from the pending set; the model line becomes
 `COMPLETED` only after that set is empty.
 
-Uploads received during healing remain deferred by the healing dispatch gate even during the brief
-post-fence handoff. A later correction does not acquire another fence while a preceding replacement
-remains `AVAILABILITY_SYNCING`, preventing its queued WorkItems from exhausting retries behind the
-new fence.
+Ordinary input remains subject to the healing dispatch gates while correction plans are pending or
+active. A subsequent correction plan can proceed once preceding healing has completed labeling and
+scheduled its availability handoff. Pending availability synchronization does not prevent the plan.
+Historical predecessors from completed healing require live snapshots that predate the approved
+source computation. Active synchronization leases still drain before eviction; surviving pending
+output is retried after the fence is released.
 
 ## Monitor automatic progression
 

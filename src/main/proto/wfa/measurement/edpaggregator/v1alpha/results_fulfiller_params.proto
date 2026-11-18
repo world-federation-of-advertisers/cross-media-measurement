@@ -24,6 +24,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/type/date.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -287,4 +288,20 @@ message ResultsFulfillerParams {
   // non-exhaustive type can silently include unmatched impressions and
   // overcount.
   repeated string whole_blob_entity_types = 14;
+
+  // Storage and validity window for an internal model line selected by a
+  // report-level cutover.
+  message ModelLineDataSource {
+    // Full blob URI prefix immediately above the `model-line` directory.
+    string blob_uri_prefix = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // First valid UTC event date, inclusive. Unset when unbounded.
+    google.type.Date valid_start_date = 2;
+
+    // Last valid UTC event date, inclusive. Unset when unbounded.
+    google.type.Date valid_end_date = 3;
+  }
+
+  // Internal model line resource name to its cutover data source.
+  map<string, ModelLineDataSource> model_line_data_sources = 15;
 }

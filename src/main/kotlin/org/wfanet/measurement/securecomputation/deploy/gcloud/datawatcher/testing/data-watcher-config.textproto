@@ -39,3 +39,17 @@ watched_paths {
     }
   }
 }
+
+watched_paths {
+  identifier: "external-availability"
+  source_path_regex: "^gs://test-bucket/external/model-line/[^/]+/[^/]+/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/example"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/example"
+      }
+    }
+  }
+}

@@ -59,7 +59,7 @@ class PostgresMeasurementsServiceTest : MeasurementsServiceTest<PostgresMeasurem
     return Services(
       PostgresMeasurementsService(idGenerator, client),
       PostgresMetricsService(idGenerator, client),
-      PostgresReportingSetsService(idGenerator, client),
+      PostgresReportingSetsService(idGenerator, client, validateCreateReportingSet = true),
       PostgresMeasurementConsumersService(idGenerator, client),
     )
   }
@@ -69,7 +69,8 @@ class PostgresMeasurementsServiceTest : MeasurementsServiceTest<PostgresMeasurem
     val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     val measurementsService = PostgresMeasurementsService(idGenerator, client)
     val metricsService = PostgresMetricsService(idGenerator, client)
-    val reportingSetsService = PostgresReportingSetsService(idGenerator, client)
+    val reportingSetsService =
+      PostgresReportingSetsService(idGenerator, client, validateCreateReportingSet = true)
     val measurementConsumersService = PostgresMeasurementConsumersService(idGenerator, client)
 
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)

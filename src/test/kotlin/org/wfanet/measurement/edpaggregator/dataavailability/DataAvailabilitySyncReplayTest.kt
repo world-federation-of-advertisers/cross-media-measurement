@@ -66,10 +66,46 @@ class DataAvailabilitySyncReplayTest {
   }
 
   @Test
+  fun `replay selects only upload-specific VID Labeler completion blobs`() = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    val uploadHash = "a".repeat(64)
+    storageClient.writeBlob(
+      "edp/internal/model-line/1/2026-01-01/done-$uploadHash",
+      ByteString.EMPTY,
+    )
+    storageClient.writeBlob("edp/internal/model-line/1/2026-01-01/done", ByteString.EMPTY)
+    storageClient.writeBlob(
+      "edp/internal/model-line/1/2026-01-01/done-not-a-hash",
+      ByteString.EMPTY,
+    )
+    val replayedUris = mutableListOf<String>()
+    val replay =
+      DataAvailabilitySyncReplay(
+        storageClient = storageClient,
+        storageRootUri = BlobUri(scheme = "gs", bucket = "bucket", key = ""),
+        selection =
+          DataAvailabilitySyncReplay.Selection.BlobPrefix(
+            value = "edp/internal",
+            completionBlobType = CompletionBlobType.VID_LABELER,
+          ),
+        sync = { doneBlobUri ->
+          replayedUris += doneBlobUri
+          DataAvailabilitySync.Outcome.PUBLISHED
+        },
+      )
+
+    val result = replay.replay()
+
+    assertThat(replayedUris)
+      .containsExactly("gs://bucket/edp/internal/model-line/1/2026-01-01/done-$uploadHash")
+    assertThat(result.doneBlobsSelected).isEqualTo(1)
+  }
+
+  @Test
   fun `replay reports every outcome and continues after a failure`() =
     runBlocking<Unit> {
       val storageClient = InMemoryStorageClient()
-      for (date in 1..4) {
+      for (date in 1..6) {
         storageClient.writeBlob("edp/meta/model-line/1/2026-01-0$date/done", ByteString.EMPTY)
       }
       var invocation = 0
@@ -85,6 +121,8 @@ class DataAvailabilitySyncReplayTest {
               0 -> DataAvailabilitySync.Outcome.NO_WORK
               1 -> throw failure
               2 -> DataAvailabilitySync.Outcome.BLOCKED_GAPS
+              3 -> DataAvailabilitySync.Outcome.PARTIALLY_PUBLISHED
+              4 -> DataAvailabilitySync.Outcome.PUBLISHED_OTHER_IDENTITIES
               else -> DataAvailabilitySync.Outcome.PUBLISHED
             }
           },
@@ -92,10 +130,11 @@ class DataAvailabilitySyncReplayTest {
 
       val result = replay.replay()
 
-      assertThat(result.doneBlobsSelected).isEqualTo(4)
-      assertThat(result.published).isEqualTo(1)
+      assertThat(result.doneBlobsSelected).isEqualTo(6)
+      assertThat(result.published).isEqualTo(3)
+      assertThat(result.partiallyPublished).isEqualTo(2)
       assertThat(result.noWork).isEqualTo(1)
-      assertThat(result.blockedByGaps).isEqualTo(1)
+      assertThat(result.blockedByGaps).isEqualTo(2)
       assertThat(result.errors)
         .containsExactly(
           DataAvailabilitySyncReplay.ReplayError(

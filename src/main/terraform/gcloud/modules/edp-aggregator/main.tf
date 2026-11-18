@@ -348,6 +348,7 @@ module "data_watcher_delete_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
+  additional_trigger_event_types              = ["archived"]
   retry_on_failure                            = true
   uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_delete_config.generation
 }
@@ -437,12 +438,13 @@ module "data_availability_sync_cloud_function" {
     for key in concat(local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]) :
     local.all_secrets[key].secret_id
   ]
-
   # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
   # ImpressionMetadata service from completion-marker bursts.
-  max_instances   = 5
-  concurrency     = 1
-  timeout_seconds = 540
+  max_instances = 5
+  concurrency   = 1
+
+  # WorkItem attempts renew their leases while synchronizing, independently of source-event delivery.
+  timeout_seconds = 3600
 }
 
 module "data_availability_cleanup_cloud_function" {
@@ -762,6 +764,19 @@ resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_it
   member       = var.pubsub_iam_service_account_member
 }
 
+# Allow operator workloads using the EDPA internal identity to redeliver failed availability work.
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_operator_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_item_operator_dead_letter_subscriber" {
+  subscription = module.data_availability_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = module.edp_aggregator_internal.iam_service_account.member
+}
+
 resource "google_service_account_iam_member" "data_availability_sync_work_item_token_creator" {
   service_account_id = module.data_availability_sync_cloud_function.cloud_function_service_account.name
   role               = "roles/iam.serviceAccountTokenCreator"
@@ -920,6 +935,23 @@ resource "google_pubsub_subscription_iam_member" "vid_labeling_dead_letter_subsc
   subscription = module.vid_labeling_queue[each.key].dead_letter_subscription.name
   role         = "roles/pubsub.subscriber"
   member       = var.pubsub_iam_service_account_member
+}
+
+# Allow operator workloads using the EDPA internal identity to redeliver failed phase work.
+resource "google_pubsub_topic_iam_member" "vid_labeling_operator_publisher" {
+  for_each = var.vid_labeling_workers
+
+  topic  = module.vid_labeling_queue[each.key].pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_pubsub_subscription_iam_member" "vid_labeling_operator_dead_letter_subscriber" {
+  for_each = var.vid_labeling_workers
+
+  subscription = module.vid_labeling_queue[each.key].dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = module.edp_aggregator_internal.iam_service_account.member
 }
 
 module "vid_labeling_tee_app" {
@@ -1315,4 +1347,15 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_work_item_invok
   service    = var.event_group_sync_function_name
   role       = "roles/run.invoker"
   member     = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+# TODO(world-federation-of-advertisers/cross-media-measurement#4912):
+# Configure and verify operator notification routes for Halo-managed EDPA alerts.
+module "vid_labeling_availability_monitoring" {
+  source                = "../edp-aggregator-availability-monitoring"
+  thresholds            = var.vid_labeling_availability_alert_thresholds
+  notification_channels = var.vid_labeling_healing_alert_notification_channels
+
+  publication_status_storage_roots = var.data_availability_publication_status_storage_roots
+  publication_status_writer_member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }

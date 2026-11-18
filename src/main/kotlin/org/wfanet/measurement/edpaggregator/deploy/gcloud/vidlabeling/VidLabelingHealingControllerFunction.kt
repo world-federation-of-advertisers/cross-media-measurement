@@ -36,6 +36,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
@@ -75,7 +76,11 @@ class VidLabelingHealingControllerFunction(
 ) : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
-      runBlocking { runController() }
+      Tracing.withW3CTraceContext(request) {
+        runBlocking {
+          Tracing.traceSuspending("VidLabelingHealingControllerFunction") { runController() }
+        }
+      }
       response.setStatusCode(204)
     } finally {
       EdpaTelemetry.flush()
@@ -115,6 +120,7 @@ class VidLabelingHealingControllerFunction(
         EdpAggregatorConfig.getConfigAsProtoMessage(
           EnvVars.checkNotNullOrEmpty("DATA_WATCHER_CONFIG_BLOB_KEY"),
           DataWatcherConfig.getDefaultInstance(),
+          DataWatcherConfigTypes.registry,
         )
       }
     }
@@ -236,6 +242,9 @@ class VidLabelingHealingControllerFunction(
               workItemsClients
                 .getValue(dataProvider)
                 .getWorkItem(getWorkItemRequest { this.name = name })
+            },
+            retryWorkItem = { dataProvider, request ->
+              workItemsClients.getValue(dataProvider).retryWorkItem(request)
             },
           ),
         doneObjectMetadataReader = GcsDoneObjectMetadataReader(storage),

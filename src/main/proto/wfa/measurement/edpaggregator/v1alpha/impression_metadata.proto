@@ -140,4 +140,14 @@ message ImpressionMetadata {
   // Positive when set. May be unset for legacy or directly-created metadata.
   int64 output_done_blob_generation = 12
       [(google.api.field_behavior) = OPTIONAL];
+
+  // Generation of the metadata object at `blob_uri`. Positive when set;
+  // unset for legacy metadata. Fulfillment rejects a different generation.
+  int64 metadata_blob_generation = 13 [(google.api.field_behavior) = OPTIONAL];
+
+  // Generation of the labeled impressions object referenced by the metadata.
+  // Positive when set; unset for legacy metadata. Fulfillment rejects a
+  // different generation.
+  int64 impressions_blob_generation = 14
+      [(google.api.field_behavior) = OPTIONAL];
 }
