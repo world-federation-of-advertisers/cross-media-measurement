@@ -115,16 +115,16 @@ message RequisitionDetails {
       TrusTee trus_tee = 1;
 
       // Values the `DataProvider` supplied alongside the frequency vector,
-      // recorded verbatim for the mill to read inside the TEE. A serialized
-      // public API
-      // `FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails`.
+      // recorded verbatim for the mill to read inside the TEE.
       oneof details {
-        // Values in plaintext, when [TrusTee.data_format][] is
-        // `FREQUENCY_VECTOR`.
+        // Serialized public API
+        // `FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails`, in
+        // the version given by [RequisitionDetails.public_api_version][], when
+        // [TrusTee.data_format][] is `FREQUENCY_VECTOR`.
         bytes fulfillment_details = 2;
 
-        // Values encrypted with the same Data Encryption Key as the frequency
-        // vector, when [TrusTee.data_format][] is
+        // [fulfillment_details][] encrypted with the same Data Encryption Key
+        // as the frequency vector, when [TrusTee.data_format][] is
         // `ENCRYPTED_FREQUENCY_VECTOR`.
         bytes encrypted_fulfillment_details = 3;
       }
