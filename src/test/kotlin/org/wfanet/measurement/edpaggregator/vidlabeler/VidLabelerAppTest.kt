@@ -23,6 +23,7 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
@@ -51,6 +52,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -69,8 +71,14 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
@@ -82,8 +90,11 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
@@ -125,8 +136,16 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
+import org.wfanet.measurement.storage.ParquetValue
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.parquetRow
+import org.wfanet.measurement.storage.parquetValue
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.virtualpeople.common.LabelerInput
+import org.wfanet.virtualpeople.common.LabelerOutput
+import org.wfanet.virtualpeople.common.VirtualPersonActivity
 
 @RunWith(JUnit4::class)
 class VidLabelerAppTest {
@@ -302,6 +321,9 @@ class VidLabelerAppTest {
       { _, _ ->
         mockVidAssigner
       },
+    converter: ImpressionConverter = ImpressionConverter { _, _ ->
+      error("impressionConverter should not be invoked")
+    },
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     writeGcsObject: suspend (String?, BlobInfo, ByteArray, Long) -> Long = { _, _, _, _ ->
@@ -334,9 +356,7 @@ class VidLabelerAppTest {
       // The model is loaded up-front by VidLabeler.label(); the converter never runs because the
       // (mocked) RawImpressionUploadFileService returns no files, so there are no events to label.
       loadAssigner = loadAssigner,
-      buildImpressionConverter = { _, _ ->
-        ImpressionConverter { _, _ -> error("impressionConverter should not be invoked") }
-      },
+      buildImpressionConverter = { _, _ -> converter },
       rpcThrottlers = rpcThrottlers,
       writeGcsObject = writeGcsObject,
       getGcsObjectGeneration = getGcsObjectGeneration,
@@ -549,6 +569,267 @@ class VidLabelerAppTest {
   }
 
   @Test
+  fun `runWork accepts completed zero membership labeling without snapshots`() = runBlocking {
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.LABELING
+            encryptedMergedDek = this@VidLabelerAppTest.encryptedDek
+          }
+        }
+    }
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob { name = VID_LABELING_JOB }
+        }
+    }
+    createApp().runWork(buildMessage(memoizedParams()))
+    verifyBlocking(rankIndexBlobsService, never()) { listRankIndexBlobs(any()) }
+    verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(any()) }
+  }
+
+  private fun stubCompletedPhase0(
+    offsets: List<Long> = emptyList(),
+    state: RawImpressionUploadModelLine.State = RawImpressionUploadModelLine.State.LABELING,
+    kek: String = kekUri,
+    withDate: Boolean = false,
+    withCompletion: Boolean = true,
+  ) {
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            this.state = state
+            poolOffsets += offsets
+            if (withCompletion)
+              encryptedMergedDek = this@VidLabelerAppTest.encryptedDek.copy { kekUri = kek }
+            if (withDate)
+              maxEventDate =
+                com.google.type.date {
+                  year = 2026
+                  month = 6
+                  day = 30
+                }
+          }
+        }
+    }
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          this.state = VidLabelingJob.State.CREATED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob { name = VID_LABELING_JOB }
+        }
+    }
+  }
+
+  @Test
+  fun `runWork encrypts ordinary output with the persisted empty completion KEK`() =
+    runBlocking<Unit> {
+      val persistedKek = FakeKmsClient.KEY_URI_PREFIX + "persisted-completion-key"
+      kmsClient.setAead(
+        persistedKek,
+        KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+          .getPrimitive(RegistryConfiguration.get(), Aead::class.java),
+      )
+      encryptedDek = rankStore.generateDek(persistedKek)
+      stubCompletedPhase0(kek = persistedKek)
+      val inputFile = "$UPLOAD/files/ordinary"
+      vidLabelingJobsService.stub {
+        onBlocking { getVidLabelingJob(any()) } doReturn
+          vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.CREATED
+            etag = "etag-1"
+            rawImpressionUploadFiles += inputFile
+          }
+      }
+      rawImpressionUploadFilesService.stub {
+        onBlocking { getRawImpressionUploadFile(any()) } doReturn
+          rawImpressionUploadFile {
+            name = inputFile
+            blobUri = "gs://raw-bucket/ordinary.parquet"
+            blobGeneration = 1L
+          }
+      }
+      val row = parquetRow {
+        columns["event_id_column"] = parquetValue { stringValue = "ordinary" }
+      }
+      val blob =
+        mock<ParquetStorageClient.ParquetBlob> {
+          onBlocking { readSchema() } doReturn
+            mapOf("event_id_column" to ParquetValue.KindCase.STRING_VALUE)
+          onBlocking { readRows() } doReturn flowOf(row.columnsMap)
+          onBlocking { readKeyValueMetadata() } doReturn
+            mapOf(RawImpressionFileMetadata.EVENT_DATE_KEY to "2026-06-30")
+        }
+      mockParquetStorageClient.stub { onBlocking { getBlob(any()) } doReturn blob }
+      val attributes =
+        PopulationAttributeWriter(
+          TestEvent.getDescriptor(),
+          populationSpec {
+            subpopulations +=
+              PopulationSpecKt.subPopulation {
+                attributes +=
+                  com.google.protobuf.Any.pack(
+                    person {
+                      gender = Person.Gender.FEMALE
+                      ageGroup = Person.AgeGroup.YEARS_35_TO_54
+                      socialGradeGroup = Person.SocialGradeGroup.C2_D_E
+                    }
+                  )
+                vidRanges +=
+                  PopulationSpecKt.vidRange {
+                    startVid = 1L
+                    endVidInclusive = 100L
+                  }
+              }
+          },
+        )
+      val converter = ImpressionConverter { _, _ ->
+        ConvertedImpression(
+          labelerInput = LabelerInput.newBuilder().setTimestampUsec(1782777600000000L).build(),
+          buildEvent = { TestEvent.getDefaultInstance() },
+          entityKeys =
+            listOf(
+              LabeledImpressionKt.entityKey {
+                entityType = "person"
+                entityId = "ordinary"
+              }
+            ),
+          populationAttributeWriter = attributes,
+        )
+      }
+      val assigner =
+        object : VidAssigner {
+          override fun assign(input: LabelerInput): LabelerOutput {
+            assertThat(input.rankAssignmentsCount).isEqualTo(0)
+            return LabelerOutput.newBuilder()
+              .addPeople(VirtualPersonActivity.newBuilder().setVirtualPersonId(42L))
+              .build()
+          }
+        }
+      tempFolder.root.resolve("output-bucket").mkdirs()
+      createApp(converter = converter, loadAssigner = { _, _ -> assigner })
+        .runWork(buildMessage(memoizedParams()))
+      val metadataFile =
+        tempFolder.root.walkTopDown().single { it.isFile && it.name.endsWith(".metadata.binpb") }
+      val details = BlobDetails.parseFrom(metadataFile.readBytes())
+      assertThat(details.encryptedDek.kekUri).isEqualTo(persistedKek)
+      assertThat(details.encryptedDek.kekUri).isNotEqualTo(kekUri)
+      val parsed = SelectedStorageClient.parseBlobUri(details.blobUri)
+      val client =
+        SelectedStorageClient(parsed, tempFolder.root, null)
+          .withEnvelopeEncryption(kmsClient, persistedKek, details.encryptedDek.ciphertext)
+      val impressions =
+        MesosRecordIoStorageClient(client).getBlob(parsed.key)!!.read().toList().map {
+          LabeledImpression.parseFrom(it)
+        }
+      assertThat(impressions).hasSize(1)
+      assertThat(impressions.single().vid).isEqualTo(42L)
+      assertThat(impressions.single().entityKeysList.single().entityId).isEqualTo("ordinary")
+      verifyBlocking(rankIndexBlobsService, never()) { listRankIndexBlobs(any()) }
+    }
+
+  @Test
+  fun `runWork rejects completion metadata without encrypted DEK ciphertext`() = runBlocking {
+    encryptedDek = encryptedDek.copy { clearCiphertext() }
+    stubCompletedPhase0()
+    val error =
+      assertFailsWith<IllegalStateException> { createApp().runWork(buildMessage(memoizedParams())) }
+    assertThat(error).hasMessageThat().contains("no encrypted DEK ciphertext")
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+  }
+
+  @Test
+  fun `runWork rejects an empty completion with no output KEK`() = runBlocking {
+    stubCompletedPhase0(kek = "")
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createApp().runWork(buildMessage(memoizedParams()))
+      }
+    assertThat(error).hasMessageThat().contains("KEK URI")
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+  }
+
+  @Test
+  fun `runWork rejects empty completion with an inconsistent ranked date`() = runBlocking {
+    stubCompletedPhase0(withDate = true)
+    val error =
+      assertFailsWith<IllegalStateException> { createApp().runWork(buildMessage(memoizedParams())) }
+    assertThat(error).hasMessageThat().contains("ranked event date")
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+  }
+
+  @Test
+  fun `runWork waits for the empty completion parent to enter labeling`() = runBlocking {
+    stubCompletedPhase0(state = RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    val error =
+      assertFailsWith<IllegalStateException> { createApp().runWork(buildMessage(memoizedParams())) }
+    assertThat(error).hasMessageThat().contains("requires LABELING")
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+  }
+
+  @Test
+  fun `runWork does not label a failed empty completion`() = runBlocking {
+    stubCompletedPhase0(state = RawImpressionUploadModelLine.State.FAILED)
+    assertFailsWith<IllegalStateException> { createApp().runWork(buildMessage(memoizedParams())) }
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+  }
+
+  @Test
+  fun `runWork does not infer empty completion from absent snapshots`() = runBlocking {
+    stubCompletedPhase0(withCompletion = false)
+    val error =
+      assertFailsWith<IllegalStateException> { createApp().runWork(buildMessage(memoizedParams())) }
+    assertThat(error).hasMessageThat().contains("No SNAPSHOT")
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+  }
+
+  @Test
+  fun `runWork rejects required rank snapshots even when another pool has a snapshot`() =
+    runBlocking {
+      seedRankIndexBlob()
+      stubCompletedPhase0(offsets = listOf(7L), withDate = true)
+      val error =
+        assertFailsWith<IllegalStateException> {
+          createApp().runWork(buildMessage(memoizedParams()))
+        }
+      assertThat(error).hasMessageThat().contains("expected pool offsets [7]")
+      verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+    }
+
+  @Test
+  fun `runWork checks required offsets before reusing the cached index`() =
+    runBlocking<Unit> {
+      seedRankIndexBlob()
+      stubCompletedPhase0(offsets = listOf(0L), withDate = true)
+      val app = createApp()
+      app.runWork(buildMessage(memoizedParams()))
+      stubCompletedPhase0(offsets = listOf(7L), withDate = true)
+      val error =
+        assertFailsWith<IllegalStateException> { app.runWork(buildMessage(memoizedParams())) }
+      assertThat(error).hasMessageThat().contains("expected pool offsets [7]")
+      verifyBlocking(vidLabelingJobsService, times(1)) { markVidLabelingJobSucceeded(any()) }
+    }
+
+  @Test
   fun `runWork labels the non-memoized path and marks job succeeded`() =
     runBlocking<Unit> {
       // No rank index is seeded: the non-memoized (hash-only) path reads no RankIndexBlob and wraps
@@ -636,7 +917,7 @@ class VidLabelerAppTest {
       markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(5)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
   }
