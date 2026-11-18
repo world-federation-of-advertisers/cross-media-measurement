@@ -36,6 +36,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
@@ -43,7 +44,13 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -137,8 +144,9 @@ class DataWatcher(
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
-          WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
-      if (isRetryable || isRecoveryOperation) {
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata ||
+          WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY in objectMetadata
+      if (isRetryable || isRecoveryOperation || isVidDispatchQueue(config)) {
         // Retryable failures and recovery operations must be at-least-once. Surfacing the failure
         // keeps the Eventarc delivery unacknowledged so it is retried and, after exhaustion,
         // retained in the configured DLQ.
@@ -146,6 +154,12 @@ class DataWatcher(
       }
     }
   }
+
+  private fun isVidDispatchQueue(config: WatchedPath): Boolean =
+    config.hasControlPlaneQueueSink() &&
+      (config.controlPlaneQueueSink.queue == VidLabelingDispatchWorkItems.QUEUE ||
+        config.controlPlaneQueueSink.appParams.`is`(VidLabelingDispatcherParams::class.java) ||
+        config.controlPlaneQueueSink.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java))
 
   private suspend fun sendToControlPlane(
     config: WatchedPath,
@@ -165,17 +179,92 @@ class DataWatcher(
         DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
         else -> throw IllegalArgumentException("Missing or invalid storage event type")
       }
-    val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
+    val sourceIdentity = dataPathParams {
+      dataPath = path
+      generation = objectGeneration
+      createTime = objectCreateTime.toProtoTime()
+      eventType = storageEventType
+    }
+    val dispatchParams =
+      if (isVidDispatchQueue(config)) {
+        require(queueConfig.queue == VidLabelingDispatchWorkItems.QUEUE) {
+          "Invalid VID dispatch queue"
+        }
+        require(queueConfig.appParams.`is`(VidLabelingDispatcherParams::class.java)) {
+          "Dispatch configuration must use VidLabelingDispatcherParams"
+        }
+        val configured = queueConfig.appParams.unpack(VidLabelingDispatcherParams::class.java)
+        val legacyOperationId = objectMetadata[WatchedBlobs.EVICTION_OPERATION_ID_KEY]
+        val recoveryMetadata =
+          if (
+            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY !in objectMetadata &&
+              legacyOperationId != null
+          ) {
+            // Normalize metadata emitted by the legacy HTTP recovery producer at intake.
+            val sourceUpload =
+              requireNotNull(
+                RawImpressionUploadKey.fromName(
+                  objectMetadata[WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY].orEmpty()
+                )
+              ) {
+                "Recovery source must identify a RawImpressionUpload"
+              }
+            objectMetadata +
+              (WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+                UploadHealingOperationKey(sourceUpload.parentKey, legacyOperationId).toName())
+          } else objectMetadata
+        val fields =
+          listOf(
+            WatchedBlobs.OVERRIDE_MODEL_LINES_KEY,
+            WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY,
+            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY,
+          )
+        require(fields.all { it in recoveryMetadata } || fields.none { it in recoveryMetadata }) {
+          "Recovery metadata must contain the complete authorization tuple"
+        }
+        require(
+          fields.none { it in recoveryMetadata } ||
+            fields.all { recoveryMetadata.getValue(it).isNotBlank() }
+        ) {
+          "Recovery metadata values must not be empty"
+        }
+        val params =
+          VidLabelingDispatchWorkItems.normalize(
+            vidLabelingDispatchWorkItemParams {
+              dataProvider = configured.dataProvider
+              source = sourceIdentity
+              if (fields.all { it in recoveryMetadata }) {
+                recovery = recoveryParams {
+                  overrideModelLines +=
+                    recoveryMetadata
+                      .getValue(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY)
+                      .split(',')
+                      .map { it.trim() }
+                      .filter { it.isNotEmpty() }
+                  sourceUpload = recoveryMetadata.getValue(WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY)
+                  uploadHealingOperation =
+                    recoveryMetadata.getValue(WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY)
+                }
+              }
+            }
+          )
+        require(
+          legacyOperationId == null ||
+            params.hasRecovery() &&
+              legacyOperationId == params.recovery.uploadHealingOperation.substringAfterLast('/')
+        ) {
+          "Recovery operation name does not match the legacy operation ID"
+        }
+        params
+      } else null
+    val idempotencyKey =
+      "${config.identifier}\u0000$path\u0000$objectGeneration" +
+        (dispatchParams?.let { "\u0000${VidLabelingDispatchWorkItems.intentId(it)}" } ?: "")
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
-          appParams = queueConfig.appParams
-          this.dataPathParams = dataPathParams {
-            this.dataPath = path
-            generation = objectGeneration
-            createTime = objectCreateTime.toProtoTime()
-            eventType = storageEventType
-          }
+          appParams = dispatchParams?.pack() ?: queueConfig.appParams
+          if (dispatchParams == null) this.dataPathParams = sourceIdentity
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()

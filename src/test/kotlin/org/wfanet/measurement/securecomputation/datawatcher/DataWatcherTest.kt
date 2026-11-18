@@ -18,6 +18,7 @@ package org.wfanet.measurement.securecomputation.datawatcher
 
 import com.google.auth.oauth2.IdTokenProvider
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.gson.Gson
 import com.google.protobuf.Any
 import com.google.protobuf.Int32Value
@@ -65,6 +66,7 @@ import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
@@ -74,6 +76,9 @@ import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpoin
 import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -129,6 +134,260 @@ class DataWatcherTest() {
   private fun getMetrics(): List<MetricData> {
     metricReader.forceFlush()
     return metricExporter.finishedMetricItems
+  }
+
+  private fun dispatchWatcher(provider: String = "dataProviders/provider") =
+    DataWatcher(
+      workItemsStub,
+      listOf(
+        watchedPath {
+          identifier = "vid-labeling-dispatch"
+          sourcePathRegex = "gs://raw/.*/done"
+          controlPlaneQueueSink = controlPlaneQueueSink {
+            queue = VidLabelingDispatchWorkItems.QUEUE
+            appParams = vidLabelingDispatcherParams { dataProvider = provider }.pack()
+          }
+        }
+      ),
+      idTokenProvider = mockIdTokenProvider,
+      controlPlaneThrottler = rpcThrottlers.controlPlane,
+    )
+
+  @Test
+  fun `approved replay has distinct identity and equivalent recovery events deduplicate`() =
+    runBlocking {
+      val watcher = dispatchWatcher()
+      val path = "gs://raw/day/done"
+      val recovery =
+        sourceMetadata() +
+          mapOf(
+            WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+              "modelProviders/mp/modelSuites/ms/modelLines/second,modelProviders/mp/modelSuites/ms/modelLines/first",
+            WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to
+              "dataProviders/provider/rawImpressionUploads/source",
+            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+              "dataProviders/provider/uploadHealingOperations/operation",
+          )
+      watcher.receivePath(path, sourceMetadata())
+      watcher.receivePath(path, recovery)
+      watcher.receivePath(
+        path,
+        recovery +
+          (WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+            "modelProviders/mp/modelSuites/ms/modelLines/first, modelProviders/mp/modelSuites/ms/modelLines/second"),
+      )
+      val requests = argumentCaptor<EnsureWorkItemRequest>()
+      verifyBlocking(workItemsServiceMock, times(3)) { ensureWorkItem(requests.capture()) }
+      assertThat(requests.allValues[0].workItemId).isNotEqualTo(requests.allValues[1].workItemId)
+      assertThat(requests.allValues[1].workItemId).isEqualTo(requests.allValues[2].workItemId)
+      val ordinary =
+        requests.allValues[0]
+          .workItem
+          .workItemParams
+          .unpack<WorkItemParams>()
+          .appParams
+          .unpack<VidLabelingDispatchWorkItemParams>()
+      assertThat(ordinary.hasSource()).isTrue()
+      assertThat(ordinary.hasRecovery()).isFalse()
+      val params = requests.allValues[1].workItem.workItemParams.unpack<WorkItemParams>()
+      val app = params.appParams.unpack<VidLabelingDispatchWorkItemParams>()
+      assertThat(params.hasDataPathParams()).isFalse()
+      assertThat(app.dataProvider).isEqualTo("dataProviders/provider")
+      assertThat(app.recovery.overrideModelLinesList)
+        .containsExactly(
+          "modelProviders/mp/modelSuites/ms/modelLines/first",
+          "modelProviders/mp/modelSuites/ms/modelLines/second",
+        )
+        .inOrder()
+      assertThat(app.recovery.sourceUpload)
+        .isEqualTo("dataProviders/provider/rawImpressionUploads/source")
+      assertThat(app.recovery.uploadHealingOperation)
+        .isEqualTo("dataProviders/provider/uploadHealingOperations/operation")
+      assertThat(app.source.generation).isEqualTo(42L)
+      assertThat(app.source.createTime).isEqualTo(Instant.parse(SOURCE_CREATE_TIME).toProtoTime())
+      assertThat(params)
+        .isEqualTo(requests.allValues[2].workItem.workItemParams.unpack<WorkItemParams>())
+    }
+
+  @Test
+  fun `dispatch identity includes provider and immutable source generation`() = runBlocking {
+    val path = "gs://raw/day/done"
+    dispatchWatcher().receivePath(path, sourceMetadata())
+    dispatchWatcher().receivePath(path, sourceMetadata())
+    dispatchWatcher("dataProviders/other").receivePath(path, sourceMetadata())
+    dispatchWatcher()
+      .receivePath(path, sourceMetadata() + (DataWatcher.GENERATION_METADATA_KEY to "43"))
+    val requests = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(4)) { ensureWorkItem(requests.capture()) }
+    assertThat(requests.allValues[0].workItemId).isEqualTo(requests.allValues[1].workItemId)
+    assertThat(requests.allValues.map { it.workItemId }.toSet()).hasSize(3)
+  }
+
+  @Test
+  fun `permanent dispatch handoff failure remains unacknowledged`() = runBlocking {
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow Status.NOT_FOUND.asRuntimeException()
+    }
+    val error =
+      assertFailsWith<StatusException> {
+        dispatchWatcher().receivePath("gs://raw/day/done", sourceMetadata())
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `dispatch rejects missing source metadata and partial recovery before persistence`() =
+    runBlocking {
+      val watcher = dispatchWatcher()
+      assertFailsWith<IllegalArgumentException> {
+        watcher.receivePath(
+          "gs://raw/day/done",
+          sourceMetadata() - DataWatcher.CREATE_TIME_METADATA_KEY,
+        )
+      }
+      assertFailsWith<IllegalArgumentException> {
+        watcher.receivePath(
+          "gs://raw/day/done",
+          sourceMetadata() +
+            (WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+              "modelProviders/mp/modelSuites/ms/modelLines/first"),
+        )
+      }
+      assertFailsWith<IllegalArgumentException> {
+        watcher.receivePath(
+          "gs://raw/day/done",
+          sourceMetadata() +
+            mapOf(
+              WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "",
+              WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "",
+              WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to "",
+            ),
+        )
+      }
+      verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch rejects duplicate recovery targets`() = runBlocking {
+    assertFailsWith<IllegalArgumentException> {
+      dispatchWatcher()
+        .receivePath(
+          "gs://raw/day/done",
+          sourceMetadata() +
+            mapOf(
+              WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+                "modelProviders/mp/modelSuites/ms/modelLines/first,modelProviders/mp/modelSuites/ms/modelLines/first",
+              WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to
+                "dataProviders/provider/rawImpressionUploads/source",
+              WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+                "dataProviders/provider/uploadHealingOperations/operation",
+            ),
+        )
+    }
+    verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+  }
+
+  private fun dispatchRecoveryMetadata(): Map<String, String> =
+    sourceMetadata() +
+      mapOf(
+        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+          "modelProviders/mp/modelSuites/ms/modelLines/first",
+        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to
+          "dataProviders/provider/rawImpressionUploads/source",
+        WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+          "dataProviders/provider/uploadHealingOperations/operation",
+      )
+
+  @Test
+  fun `dispatch rejects malformed and mismatched recovery uploads before persistence`() =
+    runBlocking {
+      for (source in listOf("source", "dataProviders/other/rawImpressionUploads/source")) {
+        assertFailsWith<IllegalArgumentException> {
+          dispatchWatcher()
+            .receivePath(
+              "gs://raw/day/done",
+              dispatchRecoveryMetadata() + (WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to source),
+            )
+        }
+      }
+      verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch rejects bare operation IDs and mismatched operation parents before persistence`() =
+    runBlocking {
+      for (operation in
+        listOf("operation", "dataProviders/other/uploadHealingOperations/operation")) {
+        assertFailsWith<IllegalArgumentException> {
+          dispatchWatcher()
+            .receivePath(
+              "gs://raw/day/done",
+              dispatchRecoveryMetadata() + (WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to operation),
+            )
+        }
+      }
+      verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+    }
+
+  @Test
+  fun `dispatch rejects a conflicting legacy operation ID before persistence`() = runBlocking {
+    assertFailsWith<IllegalArgumentException> {
+      dispatchWatcher()
+        .receivePath(
+          "gs://raw/day/done",
+          dispatchRecoveryMetadata() + (WatchedBlobs.EVICTION_OPERATION_ID_KEY to "other"),
+        )
+    }
+    verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+  }
+
+  @Test
+  fun `dispatch normalizes legacy recovery metadata to the same complete intent`() = runBlocking {
+    val watcher = dispatchWatcher()
+    val metadata = dispatchRecoveryMetadata()
+    watcher.receivePath("gs://raw/day/done", metadata)
+    watcher.receivePath(
+      "gs://raw/day/done",
+      metadata - WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY +
+        (WatchedBlobs.EVICTION_OPERATION_ID_KEY to "operation"),
+    )
+    val requests = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requests.capture()) }
+    assertThat(requests.allValues[0].workItemId).isEqualTo(requests.allValues[1].workItemId)
+    val params =
+      requests.allValues[1]
+        .workItem
+        .workItemParams
+        .unpack<WorkItemParams>()
+        .appParams
+        .unpack<VidLabelingDispatchWorkItemParams>()
+    assertThat(params.recovery.uploadHealingOperation)
+      .isEqualTo("dataProviders/provider/uploadHealingOperations/operation")
+    assertThat(params.hasSource()).isTrue()
+  }
+
+  @Test
+  fun `dispatch rejects persisted parameters used as configuration`() = runBlocking {
+    val watcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(
+          watchedPath {
+            identifier = "vid-labeling-dispatch"
+            sourcePathRegex = "gs://raw/.*/done"
+            controlPlaneQueueSink = controlPlaneQueueSink {
+              queue = VidLabelingDispatchWorkItems.QUEUE
+              appParams =
+                vidLabelingDispatchWorkItemParams { dataProvider = "dataProviders/provider" }.pack()
+            }
+          }
+        ),
+        idTokenProvider = mockIdTokenProvider,
+      )
+    assertFailsWith<IllegalArgumentException> {
+      watcher.receivePath("gs://raw/day/done", sourceMetadata())
+    }
+    verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
   }
 
   @Test
