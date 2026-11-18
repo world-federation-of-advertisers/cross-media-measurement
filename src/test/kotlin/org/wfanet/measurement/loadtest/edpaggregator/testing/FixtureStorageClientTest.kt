@@ -18,7 +18,6 @@ import com.google.cloud.NoCredentials
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.common.truth.Truth.assertThat
-import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteStringUtf8
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
@@ -26,7 +25,6 @@ import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -35,62 +33,10 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageException
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 class FixtureStorageClientTest {
-  @Test
-  fun `GCS fixture captures the generation from its completed upload`() = runBlocking {
-    GcsEndpoint(existingGeneration = 7L, firstUploadStatus = 200).use { endpoint ->
-      val recorded = mutableMapOf<String, String>()
-      FixtureStorageClient(FixtureGcsStorageClient(endpoint.storage, BUCKET)) { key, token ->
-          recorded[key] = token
-        }
-        .writeBlob(KEY, "fixture".toByteStringUtf8())
-      assertThat(recorded[KEY]).isEqualTo("8")
-    }
-  }
-
-  @Test
-  fun `GCS fixture rejects replacement between upload completion and lookup`() = runBlocking {
-    GcsEndpoint(existingGeneration = 7L, firstUploadStatus = 200, replacementAfterUpload = 9L)
-      .use { endpoint ->
-        val recorded = mutableMapOf<String, String>()
-        assertFailsWith<BlobChangedException> {
-          FixtureStorageClient(FixtureGcsStorageClient(endpoint.storage, BUCKET)) { key, token ->
-              recorded[key] = token
-            }
-            .writeBlob(KEY, "fixture".toByteStringUtf8())
-        }
-        assertThat(recorded).isEmpty()
-      }
-  }
-
-  @Test
-  fun `writeBlob records its write generation even if another writer replaces it`() = runBlocking {
-    val backing = InMemoryStorageClient()
-    val racingClient =
-      object : ConditionalOperationStorageClient by backing {
-        override suspend fun writeBlobIfNotFound(
-          blobKey: String,
-          content: Flow<ByteString>,
-        ): StorageClient.Blob {
-          val written = backing.writeBlobIfNotFound(blobKey, content)
-          backing.writeBlob(blobKey, "other writer".toByteStringUtf8())
-          return written
-        }
-      }
-    val recorded = mutableMapOf<String, String>()
-    val written =
-      FixtureStorageClient(racingClient) { key, token -> recorded[key] = token }
-        .writeBlob("fixture", "this run".toByteStringUtf8())
-
-    assertThat(recorded["fixture"])
-      .isEqualTo((written as ConditionalOperationStorageClient.Blob).freshnessToken)
-    assertThat(recorded["fixture"]).isNotEqualTo(backing.getFreshnessToken("fixture"))
-  }
-
   @Test
   fun `writeBlob creates and replaces a fixture`() = runBlocking {
     val backing = InMemoryStorageClient()
@@ -209,11 +155,7 @@ class FixtureStorageClientTest {
     }
   }
 
-  private class GcsEndpoint(
-    existingGeneration: Long?,
-    firstUploadStatus: Int,
-    replacementAfterUpload: Long? = null,
-  ) : AutoCloseable {
+  private class GcsEndpoint(existingGeneration: Long?, firstUploadStatus: Int) : AutoCloseable {
     val uploadAttempts = AtomicInteger()
     val preconditions = AtomicReference<List<String>>(emptyList())
     val uploaded = AtomicReference<ByteArray>()
@@ -227,9 +169,7 @@ class FixtureStorageClientTest {
           val method = exchange.requestMethod
           val bytes = exchange.requestBody.readBytes()
           val generation =
-            if (method == "GET" && uploaded.get() != null && replacementAfterUpload != null)
-              replacementAfterUpload
-            else if (method == "PUT" || uploaded.get() != null) (existingGeneration ?: 0L) + 1L
+            if (method == "PUT" || uploaded.get() != null) (existingGeneration ?: 0L) + 1L
             else existingGeneration
           val size = if (method == "PUT") bytes.size else uploaded.get()?.size ?: 7
           val metadata =

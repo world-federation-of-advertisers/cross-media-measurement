@@ -15,13 +15,11 @@
 package org.wfanet.measurement.loadtest.edpaggregator.testing
 
 import com.google.api.client.http.HttpResponseException
-import com.google.cloud.storage.StorageOptions
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Message
 import com.google.type.interval
 import java.io.File
-import java.net.URI
 import java.security.GeneralSecurityException
 import java.time.Duration
 import java.time.LocalDate
@@ -93,7 +91,6 @@ class ImpressionsWriter(
   private val schema: String = "file:///",
   private val outputKey: String = "",
   private val includeEventGroupReferenceIdInImpressions: Boolean,
-  private val onBlobWritten: ((String, String) -> Unit)? = null,
 ) {
 
   init {
@@ -182,7 +179,8 @@ class ImpressionsWriter(
         }
       val impressionsFileUri = "$schema$impressionsBucket/$impressionsBlobKey"
       val encryptedStorage = run {
-        val selectedStorageClient = fixtureStorageClient(impressionsFileUri)
+        val selectedStorageClient =
+          FixtureStorageClient(SelectedStorageClient(impressionsFileUri, storagePath))
 
         val aeadStorageClient = retryKmsKeySetup {
           selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
@@ -213,7 +211,8 @@ class ImpressionsWriter(
       logger.info("Writing metadata to $impressionsMetadataFileUri")
 
       // Create the impressions metadata store
-      val impressionsMetadataStorageClient = fixtureStorageClient(impressionsMetadataFileUri)
+      val impressionsMetadataStorageClient =
+        FixtureStorageClient(SelectedStorageClient(impressionsMetadataFileUri, storagePath))
 
       val zoneId = ZoneOffset.UTC
       val startOfDay = localDate.atStartOfDay(zoneId).toInstant().toProtoTime()
@@ -236,19 +235,6 @@ class ImpressionsWriter(
       )
     }
   }
-
-  private fun fixtureStorageClient(blobUri: String): FixtureStorageClient =
-    FixtureStorageClient(
-      if (onBlobWritten != null && blobUri.startsWith("gs://")) {
-        FixtureGcsStorageClient(
-          StorageOptions.getDefaultInstance().service,
-          URI.create(blobUri).host,
-        )
-      } else SelectedStorageClient(blobUri, storagePath),
-      onBlobWritten?.let { record ->
-        { _: String, freshnessToken: String -> record(blobUri, freshnessToken) }
-      },
-    )
 
   /** Retries transient KMS failures before writing impressions or metadata. */
   private suspend fun <T> retryKmsKeySetup(block: () -> T): T {

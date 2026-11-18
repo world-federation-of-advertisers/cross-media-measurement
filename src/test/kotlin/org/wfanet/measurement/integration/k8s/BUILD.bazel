@@ -385,7 +385,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration/testing:vid_labeling_awaiter",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
-        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:fixture_storage_client",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:impression_writer",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:raw_impressions_writer",
         "//src/main/proto/wfa/measurement/api/v2alpha:model_line_kt_jvm_proto",
