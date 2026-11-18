@@ -423,6 +423,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         arrayOf(
           "populations",
           "create",
+          "--event-template-version=1",
           "--parent=$dataProviderName",
           "--description=$DESCRIPTION",
           "--population-spec=${populationSpecFile.path}",
@@ -483,6 +484,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         arrayOf(
           "model-lines",
           "create",
+          "--event-template-version=1",
           "--parent=${modelSuite.name}",
           "--display-name=$DISPLAY_NAME",
           "--description=$DESCRIPTION",
@@ -618,6 +620,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       createModelLineRequest {
         parent = modelSuite.name
         modelLine = modelLine {
+          eventTemplateVersion = 1
           displayName = DISPLAY_NAME
           description = DESCRIPTION
           activeStartTime = Timestamps.parse(START_TIME)

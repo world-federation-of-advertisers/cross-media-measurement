@@ -432,6 +432,7 @@ class ResourceSetup(
           externalModelSuiteId = internalModelSuite.externalModelSuiteId
           activeStartTime = timestamp { seconds = 1609502400 }
           type = InternalModelLine.Type.PROD
+          eventTemplateVersion = 1
         }
       )
     } catch (e: StatusException) {

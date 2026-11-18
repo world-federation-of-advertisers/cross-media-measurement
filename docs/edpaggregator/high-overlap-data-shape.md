@@ -423,9 +423,10 @@ Nothing in this repository creates a `ModelLine`; every `ensureModelLine` is a
 lookup that fails if absent. So the line is provisioned once per environment by
 an operator, using the `ModelRepository` tool, and referenced by resource name.
 
-`model-lines create` requires `--population`, because it creates the ModelLine, a
-`ModelRelease` and a `ModelRollout` together. Bootstrap it against any existing
-Population: seeding then creates the correct high overlap Population
+`model-lines create` requires `--population` and `--event-template-version`,
+because it creates the ModelLine, a `ModelRelease` and a `ModelRollout` together.
+Use the event-template version defining the high overlap PopulationSpec. Bootstrap
+it against an existing Population with that contract: seeding then creates the correct high overlap Population
 and attaches its own release and rollout, which supersedes the bootstrap because
 the PDP resolves the **most recent** rollout on a line.
 

@@ -263,6 +263,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
         inProcessCmmsComponents.getPopulationData().populationSpec,
         "(common.gender == ${Common.Gender.MALE_VALUE}) && (common.age_group <= ${Common.AgeGroup.YEARS_35_TO_54_VALUE})",
         TestEvent.getDescriptor(),
+        eventTemplateVersion = 1,
       )
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
   }
@@ -342,6 +343,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
         inProcessCmmsComponents.getPopulationData().populationSpec,
         "(common.gender == ${Common.Gender.MALE_VALUE}) && (common.age_group == ${Common.AgeGroup.YEARS_35_TO_54_VALUE})",
         TestEvent.getDescriptor(),
+        eventTemplateVersion = 1,
       )
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
   }
@@ -387,6 +389,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
         inProcessCmmsComponents.getPopulationData().populationSpec,
         "(common.gender == ${Common.Gender.MALE_VALUE})",
         TestEvent.getDescriptor(),
+        eventTemplateVersion = 1,
       )
     assertThat(retrievedMetric.result.populationCount.value).isEqualTo(expectedResult)
   }
@@ -1992,6 +1995,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
           createModelLineRequest {
             parent = modelSuiteName
             modelLine = modelLine {
+              eventTemplateVersion = 1
               type = ModelLine.Type.PROD
               activeStartTime = timestamp {
                 seconds = legacy.activeStartTime.seconds + 1
@@ -2005,6 +2009,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
           createModelLineRequest {
             parent = modelSuiteName
             modelLine = modelLine {
+              eventTemplateVersion = 1
               type = ModelLine.Type.DEV
               activeStartTime = legacy.activeStartTime
             }

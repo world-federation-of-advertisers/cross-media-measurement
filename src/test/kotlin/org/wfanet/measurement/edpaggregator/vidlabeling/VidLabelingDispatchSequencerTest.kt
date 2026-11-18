@@ -243,6 +243,8 @@ class VidLabelingDispatchSequencerTest {
     )
   }
 
+  private var configuredModelLineConfigs = MODEL_LINE_CONFIGS
+
   private fun createSequencer(
     numberOfShards: Int = NUMBER_OF_SHARDS,
     subpoolAssignerParamsTemplate: SubpoolAssignerParams = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
@@ -265,7 +267,7 @@ class VidLabelingDispatchSequencerTest {
       queueName = QUEUE_NAME,
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = numberOfShards,
-      modelLineConfigs = MODEL_LINE_CONFIGS,
+      modelLineConfigs = configuredModelLineConfigs,
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
@@ -3093,6 +3095,83 @@ class VidLabelingDispatchSequencerTest {
     assertThat(shardInfo).isNull()
   }
 
+  private suspend fun dispatchWithVersions(
+    memoized: Boolean,
+    repositoryVersion: Int?,
+    localVersion: Int?,
+  ) {
+    stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
+    stubModelLines(createdModelLine())
+    if (memoized) stubMemoizedDispatch()
+    else {
+      stubShardResolution(memoized = false)
+      stubNonMemoizedFilesAndJobs()
+      stubMarkTransitions()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    }
+    configuredModelLineConfigs =
+      MODEL_LINE_CONFIGS.mapValues { (_, config) ->
+        config.copy { eventTemplateVersion = localVersion ?: 0 }
+      }
+    whenever(modelLinesService.getModelLine(any()))
+      .thenReturn(
+        modelLine {
+          name = MODEL_LINE
+          activeStartTime = ACTIVE_START_TIME
+          activeEndTime = ACTIVE_END_TIME
+          if (repositoryVersion != null) eventTemplateVersion = repositoryVersion
+        }
+      )
+    createSequencer().dispatchNext()
+  }
+
+  @Test
+  fun `memoized dispatch pins the repository version without local configuration`() = runBlocking {
+    dispatchWithVersions(true, 3, null)
+    val captor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+    for (request in captor.allValues) {
+      val params =
+        request.workItem.workItemParams
+          .unpack<WorkItemParams>()
+          .appParams
+          .unpack<SubpoolAssignerParams>()
+      assertThat(params.eventTemplateVersion).isEqualTo(3)
+    }
+  }
+
+  @Test
+  fun `non-memoized dispatch pins the repository version without local configuration`() =
+    runBlocking {
+      dispatchWithVersions(false, 3, null)
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      for (request in captor.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<VidLabelerParams>()
+        assertThat(params.modelLineConfigsMap.getValue(MODEL_LINE).eventTemplateVersion)
+          .isEqualTo(3)
+      }
+    }
+
+  @Test
+  fun `memoized dispatch rejects conflicting repository and local versions`() = runBlocking {
+    val exception = assertFailsWith<IllegalArgumentException> { dispatchWithVersions(true, 3, 1) }
+    assertThat(exception.message).contains("does not match")
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `non-memoized dispatch rejects absent repository and local versions`() = runBlocking {
+    val exception =
+      assertFailsWith<IllegalArgumentException> { dispatchWithVersions(false, null, null) }
+    assertThat(exception.message).contains("missing")
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp123"
     private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
@@ -3189,6 +3268,7 @@ class VidLabelingDispatchSequencerTest {
           },
         MODEL_LINE_2 to
           VidLabelerParamsKt.modelLineConfig {
+            eventTemplateVersion = EVENT_TEMPLATE_VERSION
             labelerInputFieldMapping +=
               LabelerInputFieldMapping.newBuilder()
                 .setFieldPath("age")

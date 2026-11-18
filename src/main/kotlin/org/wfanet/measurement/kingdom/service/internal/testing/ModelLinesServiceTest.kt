@@ -65,6 +65,7 @@ import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.modelRollout
 import org.wfanet.measurement.internal.kingdom.replaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineTypeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
@@ -314,6 +315,72 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("ModelSuite not found")
+  }
+
+  @Test
+  fun `event template version persists when creating a model line`() = runBlocking {
+    val provider = population.createModelProvider(modelProvidersService)
+    val suite = population.createModelSuite(modelSuitesService, provider)
+    val created =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelProviderId = suite.externalModelProviderId
+          externalModelSuiteId = suite.externalModelSuiteId
+          type = ModelLine.Type.DEV
+          activeStartTime = Instant.now().plusSeconds(2000).toProtoTime()
+          eventTemplateVersion = 3
+        }
+      )
+    val retrieved =
+      modelLinesService.getModelLine(
+        getModelLineRequest {
+          externalModelProviderId = created.externalModelProviderId
+          externalModelSuiteId = created.externalModelSuiteId
+          externalModelLineId = created.externalModelLineId
+        }
+      )
+    assertThat(retrieved.eventTemplateVersion).isEqualTo(3)
+  }
+
+  @Test
+  fun `historical version can be initialized once and repeated idempotently`() = runBlocking {
+    val provider = population.createModelProvider(modelProvidersService)
+    val suite = population.createModelSuite(modelSuitesService, provider)
+    val created =
+      modelLinesService.createModelLine(
+        modelLine {
+          externalModelProviderId = suite.externalModelProviderId
+          externalModelSuiteId = suite.externalModelSuiteId
+          type = ModelLine.Type.DEV
+          activeStartTime = Instant.now().plusSeconds(2000).toProtoTime()
+        }
+      )
+    assertThat(created.hasEventTemplateVersion()).isFalse()
+    val request = setModelLineEventTemplateVersionRequest {
+      externalModelProviderId = created.externalModelProviderId
+      externalModelSuiteId = created.externalModelSuiteId
+      externalModelLineId = created.externalModelLineId
+      eventTemplateVersion = 1
+    }
+    val initialized = modelLinesService.setModelLineEventTemplateVersion(request)
+    assertThat(initialized.eventTemplateVersion).isEqualTo(1)
+    assertThat(modelLinesService.setModelLineEventTemplateVersion(request)).isEqualTo(initialized)
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        modelLinesService.setModelLineEventTemplateVersion(
+          request.copy { eventTemplateVersion = 3 }
+        )
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val retrieved =
+      modelLinesService.getModelLine(
+        getModelLineRequest {
+          externalModelProviderId = created.externalModelProviderId
+          externalModelSuiteId = created.externalModelSuiteId
+          externalModelLineId = created.externalModelLineId
+        }
+      )
+    assertThat(retrieved).isEqualTo(initialized)
   }
 
   @Test

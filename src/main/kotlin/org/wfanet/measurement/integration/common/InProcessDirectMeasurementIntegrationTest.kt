@@ -112,6 +112,7 @@ abstract class InProcessDirectMeasurementIntegrationTest(
         createModelLineRequest {
           parent = modelSuite.name
           modelLine = modelLine {
+            eventTemplateVersion = 1
             activeStartTime = MODEL_LINE_ACTIVE_START_TIME
             type = ModelLine.Type.PROD
           }
