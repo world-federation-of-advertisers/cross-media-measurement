@@ -52,7 +52,9 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.internal.edpaggregator.encryptedDek
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineFailedRequest
@@ -1395,6 +1397,205 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
         )
         .single()
         .getLong("RawImpressionUploadModelLineId")
+    }
+
+  private suspend fun emptyPoolAssignment(
+    upload: String,
+    completed: Boolean = true,
+    withJobs: Boolean = true,
+    unfinished: Boolean = false,
+    offsets: List<Long> = emptyList(),
+    withDate: Boolean = false,
+    kekUri: String = "fake-kms://edp",
+  ): RawImpressionUploadModelLine {
+    val model = registeredModel(upload, "gs://input/$upload")
+    val pool =
+      newService(IdGenerator.Default)
+        .markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            dataProviderResourceId = testProvider
+            rawImpressionUploadResourceId = upload
+            rawImpressionUploadModelLineResourceId = model.rawImpressionUploadModelLineResourceId
+            etag = model.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+    if (withJobs) addPoolAssignmentEvidence(upload)
+    val mutations = mutableListOf<Mutation>()
+    if (unfinished) {
+      mutations +=
+        Mutation.newUpdateBuilder("PoolAssignmentJob")
+          .set("DataProviderResourceId")
+          .to(testProvider)
+          .set("RawImpressionUploadId")
+          .to(uploadIdsByResourceId.getValue(upload))
+          .set("PoolAssignmentJobId")
+          .to(1L)
+          .set("State")
+          .to(Value.protoEnum(PoolAssignmentState.POOL_ASSIGNMENT_STATE_CREATED))
+          .build()
+    }
+    mutations +=
+      Mutation.newUpdateBuilder("RawImpressionUploadModelLine")
+        .apply {
+          set("DataProviderResourceId").to(testProvider)
+          set("RawImpressionUploadId").to(uploadIdsByResourceId.getValue(upload))
+          set("RawImpressionUploadModelLineId").to(readModelId(pool))
+          set("PoolOffsets").toInt64Array(offsets)
+          if (completed) {
+            set("EncryptedMergedDek").to(Value.protoMessage(encryptedDek { this.kekUri = kekUri }))
+          }
+          if (withDate) {
+            set("MaxEventDate").to(com.google.cloud.Date.fromYearMonthDay(2026, 1, 5))
+          }
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+        .build()
+    spannerDatabase.databaseClient.write(mutations)
+    return newService(IdGenerator.Default)
+      .getRawImpressionUploadModelLine(
+        getRawImpressionUploadModelLineRequest {
+          dataProviderResourceId = testProvider
+          rawImpressionUploadResourceId = upload
+          rawImpressionUploadModelLineResourceId = pool.rawImpressionUploadModelLineResourceId
+        }
+      )
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling skips ranking after completed empty pool assignment`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("empty-pool")
+      val labeled = labeling(pool)
+      assertThat(labeled.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+      assertThat(getParentUploadState(testProvider, "empty-pool"))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling rejects completion supported only by another model`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("wrong-model-pool")
+      spannerDatabase.databaseClient.write(
+        listOf(
+          Mutation.newUpdateBuilder("PoolAssignmentJob")
+            .set("DataProviderResourceId")
+            .to(testProvider)
+            .set("RawImpressionUploadId")
+            .to(uploadIdsByResourceId.getValue("wrong-model-pool"))
+            .set("PoolAssignmentJobId")
+            .to(1L)
+            .set("CmmsModelLine")
+            .to("$testModel-other")
+            .build()
+        )
+      )
+      val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling ignores unfinished jobs for another model`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("other-unfinished-pool")
+      spannerDatabase.databaseClient.write(
+        listOf(
+          insertMutation("PoolAssignmentJob") {
+            set("DataProviderResourceId").to(testProvider)
+            set("RawImpressionUploadId").to(uploadIdsByResourceId.getValue("other-unfinished-pool"))
+            set("PoolAssignmentJobId").to(2L)
+            set("PoolAssignmentJobResourceId").to("other-model-pool")
+            set("CmmsModelLine").to("$testModel-other")
+            set("ShardIndex").to(0L)
+            set("State").to(Value.protoEnum(PoolAssignmentState.POOL_ASSIGNMENT_STATE_CREATED))
+            set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+            set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+          }
+        )
+      )
+      assertThat(labeling(pool).state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling rejects absent pool jobs`() = runBlocking {
+    val pool = emptyPoolAssignment("absent-pool", withJobs = false)
+    val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling rejects unfinished pool assignment`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("unfinished-pool", unfinished = true)
+      val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling rejects missing pool completion evidence`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("no-pool-completion", completed = false)
+      val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling rejects required ranked memberships`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("ranked-pool", offsets = listOf(7L), withDate = true)
+      val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling rejects pool offsets without an event date`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("offsets-only-pool", offsets = listOf(7L))
+      val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling rejects empty offsets with a ranked event date`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("invalid-empty-pool", withDate = true)
+      val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling rejects missing output KEK`() = runBlocking {
+    val pool = emptyPoolAssignment("missing-kek", kekUri = "")
+    val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling preserves the empty completion CAS`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("stale-empty-pool")
+      val error =
+        assertFailsWith<StatusRuntimeException> { labeling(pool.copy { etag = "stale-etag" }) }
+      assertThat(error.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineLabeling respects an eviction fence for empty completion`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("fenced-empty-pool")
+      setEvictionFence(
+        testProvider,
+        "other-operation",
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING,
+      )
+      val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   companion object {

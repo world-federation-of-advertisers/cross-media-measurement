@@ -65,7 +65,9 @@ service RawImpressionUploadModelLineService {
       MarkRawImpressionUploadModelLineRankingRequest)
       returns (RawImpressionUploadModelLine);
 
-  // Marks a `RawImpressionUploadModelLine` as `LABELING`. Throws
+  // Marks a `RawImpressionUploadModelLine` as `LABELING`. Allows
+  // `POOL_ASSIGNING` only after all Phase-0 shards succeeded without ranked
+  // memberships and their completion DEK was persisted. Throws
   // `ABORTED` if `etag` does not match. Throws `FAILED_PRECONDITION`
   // if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineLabeling(
