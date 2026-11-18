@@ -428,7 +428,6 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
         arrayOf(
           "populations",
           "create",
-          "--event-template-version=1",
           "--parent=$dataProviderName",
           "--description=$DESCRIPTION",
           "--population-spec=${populationSpecFile.path}",

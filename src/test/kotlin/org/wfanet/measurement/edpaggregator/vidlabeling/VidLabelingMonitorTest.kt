@@ -3927,7 +3927,6 @@ class VidLabelingMonitorTest {
       mapOf(
         MODEL_LINE to
           VidLabelerParamsKt.modelLineConfig {
-            eventTemplateVersion = 1
             labelerInputFieldMapping +=
               LabelerInputFieldMapping.newBuilder()
                 .setFieldPath("age")

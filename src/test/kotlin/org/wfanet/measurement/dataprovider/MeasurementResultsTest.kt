@@ -263,7 +263,6 @@ class MeasurementResultsTest {
         POPULATION_SPEC,
         filterExpression,
         eventMessageDescriptor,
-        eventTemplateVersion = 1,
       )
 
     // Result should be the size of VID_RANGE_1

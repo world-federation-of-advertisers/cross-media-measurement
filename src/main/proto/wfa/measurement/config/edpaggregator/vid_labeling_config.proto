@@ -88,10 +88,8 @@ message VidLabelingConfig {
     string population_spec_blob_uri = 7
         [(google.api.field_behavior) = REQUIRED];
 
-    // Fallback event schema version for model lines without repository
-    // metadata. Omit when the ModelLine defines the version. A supplied value
-    // must match the repository version when both are present.
-    int32 event_template_version = 8;
+    // Event schema version against which the `PopulationSpec` was defined.
+    int32 event_template_version = 8 [(google.api.field_behavior) = REQUIRED];
   }
 
   // Map from model line resource name to its configuration.

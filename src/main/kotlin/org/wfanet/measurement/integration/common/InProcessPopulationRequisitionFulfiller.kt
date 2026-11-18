@@ -33,7 +33,6 @@ import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
@@ -99,10 +98,6 @@ class InProcessPopulationRequisitionFulfiller(
             modelReleasesClient,
             populationsClient,
             TestEvent.getDescriptor(),
-            modelLinesStub =
-              ModelLinesGrpcKt.ModelLinesCoroutineStub(kingdomPublicApiChannel)
-                .withPrincipalName(resourceName),
-            modelLineEventTemplateVersions = emptyMap(),
             // Kingdom RPCs here go to an in-process test server, not a real rate-limited
             // Kingdom, so there's no need to pace or serialize them the way the workflow-loop
             // cadence throttler above does.

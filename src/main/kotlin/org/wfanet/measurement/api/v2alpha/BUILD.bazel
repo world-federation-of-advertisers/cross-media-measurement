@@ -117,9 +117,3 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
-
-kt_jvm_library(
-    name = "model_line_event_template_versions",
-    srcs = ["ModelLineEventTemplateVersions.kt"],
-    deps = ["//src/main/proto/wfa/measurement/api/v2alpha:model_line_kt_jvm_proto"],
-)

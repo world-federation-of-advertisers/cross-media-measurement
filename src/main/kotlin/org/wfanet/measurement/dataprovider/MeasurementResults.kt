@@ -26,7 +26,9 @@ import kotlinx.coroutines.flow.fold
 import kotlinx.coroutines.flow.toSet
 import org.projectnessie.cel.Program
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
 import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.size
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
@@ -141,24 +143,36 @@ object MeasurementResults {
    * @param populationSpec specification of the population
    * @param filterExpression CEL filter expression identifying the sub-populations
    * @param eventMessageDescriptor protobuf descriptor of the event message
-   * @param eventTemplateVersion population-field contract of the model line
    * @throws EventFilterValidationException if [filterExpression] is not valid
    */
   fun computePopulation(
     populationSpec: PopulationSpec,
     filterExpression: String,
     eventMessageDescriptor: Descriptors.Descriptor,
-    eventTemplateVersion: Int,
   ): Long {
+    val operativeFieldPaths: Set<String> = getPopulationOperativeFields(eventMessageDescriptor)
     val program: Program =
-      EventFilters.compilePopulationProgram(
-        eventMessageDescriptor,
-        filterExpression,
-        eventTemplateVersion,
-      )
+      EventFilters.compileProgram(eventMessageDescriptor, filterExpression, operativeFieldPaths)
     return populationSpec.subpopulationsList
       .filter { EventFilters.matches(it.toEventMessage(eventMessageDescriptor), program) }
       .sumOf { it.vidRangesList.sumOf { vidRange -> vidRange.size() } }
+  }
+
+  /**
+   * Returns the field paths of the operative fields for the specified [eventMessageDescriptor].
+   *
+   * Operative fields are those for which [EventFieldDescriptor.populationAttribute] is `true`.
+   */
+  private fun getPopulationOperativeFields(
+    eventMessageDescriptor: Descriptors.Descriptor
+  ): Set<String> {
+    return EventTemplates.getPopulationFields(eventMessageDescriptor)
+      .map { field ->
+        val templateName =
+          field.containingType.options.getExtension(EventAnnotationsProto.eventTemplate).name
+        "${templateName}.${field.name}"
+      }
+      .toSet()
   }
 
   /** Builds an event message for the sub-population attributes using [eventMessageDescriptor]. */

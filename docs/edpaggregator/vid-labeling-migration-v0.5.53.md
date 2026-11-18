@@ -1,9 +1,5 @@
 # VID Labeling migration to v0.5.53
 
-For subsequent releases with repository version metadata, see the
-[model-line version migration](../operations/model-line-event-template-version-migration.md).
-It allows the local version to be removed after that line is backfilled.
-
 ## Database changes
 
 | Table | Change |

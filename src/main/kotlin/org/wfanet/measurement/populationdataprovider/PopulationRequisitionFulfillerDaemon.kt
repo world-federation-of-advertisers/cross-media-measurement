@@ -26,8 +26,6 @@ import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
@@ -41,10 +39,8 @@ import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
-import org.wfanet.measurement.config.PopulationRequisitionFulfillerConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
 import picocli.CommandLine
 import picocli.CommandLine.Command
@@ -149,29 +145,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   )
   private lateinit var eventMessageTypeUrl: String
 
-  @Option(
-    names = ["--model-line-event-template-versions-config"],
-    description =
-      [
-        "PopulationRequisitionFulfillerConfig textproto with fallback versions for historical model lines"
-      ],
-  )
-  private var modelLineVersionsConfigFile: File? = null
-
   override fun run() {
-    val modelLineVersions =
-      modelLineVersionsConfigFile
-        ?.let {
-          parseTextProto(it, PopulationRequisitionFulfillerConfig.getDefaultInstance())
-            .modelLineEventTemplateVersionsMap
-        }
-        .orEmpty()
-    for ((name, version) in modelLineVersions) {
-      require(ModelLineKey.fromName(name) != null) {
-        "Invalid ModelLine name in version configuration"
-      }
-      require(version > 0) { "Configured event_template_version must be positive for $name" }
-    }
     require(kingdomRpcMinInterval > Duration.ZERO) {
       "--kingdom-rpc-min-interval must be positive, got $kingdomRpcMinInterval"
     }
@@ -230,8 +204,6 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         modelReleasesStub,
         populationsStub,
         eventMessageDescriptor,
-        ModelLinesGrpcKt.ModelLinesCoroutineStub(publicApiChannel),
-        modelLineVersions,
         kingdomRpcThrottler,
       )
 

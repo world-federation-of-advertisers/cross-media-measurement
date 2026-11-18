@@ -29,7 +29,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLine
-import org.wfanet.measurement.api.v2alpha.ModelLineEventTemplateVersions
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
@@ -817,25 +816,6 @@ class VidLabelingDispatchSequencer(
     }
     val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
 
-    // The active window is read per ModelLine so the TEE can drop out-of-window impressions; the
-    // model blob path comes from each line's resolved ModelShard.
-    val resolvedModelLines: Map<String, ModelLine> =
-      bundle
-        .map { it.modelLine.cmmsModelLine }
-        .distinct()
-        .associateWith { modelLineName ->
-          val resolved = getModelLine(modelLineName)
-          val config =
-            requireNotNull(modelLineConfigs[modelLineName]) {
-              "No ModelLineConfig found for model line: $modelLineName"
-            }
-          ModelLineEventTemplateVersions.resolve(
-            resolved,
-            config.eventTemplateVersion.takeUnless { it == 0 },
-          )
-          resolved
-        }
-
     val claimedBundle =
       if (alreadyClaimed) {
         bundle
@@ -848,6 +828,10 @@ class VidLabelingDispatchSequencer(
       }
     if (claimedBundle.isEmpty()) return false
     val modelLineNames: List<String> = claimedBundle.map { it.modelLine.cmmsModelLine }
+    // The active window is read per ModelLine so the TEE can drop out-of-window impressions; the
+    // model blob path comes from each line's resolved ModelShard.
+    val resolvedModelLines: Map<String, ModelLine> =
+      modelLineNames.associateWith { getModelLine(it) }
     val modelBlobPathByLine: Map<String, String> =
       claimedBundle.associate { it.modelLine.cmmsModelLine to it.shardInfo.modelBlobPath }
 
@@ -1023,10 +1007,6 @@ class VidLabelingDispatchSequencer(
       }
     // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
     val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
-    ModelLineEventTemplateVersions.resolve(
-      resolvedModelLine,
-      modelLineConfig.eventTemplateVersion.takeUnless { it == 0 },
-    )
 
     if (!alreadyClaimed && !markPoolAssigning(modelLine.name, modelLine.etag)) return false
 
@@ -1275,11 +1255,7 @@ class VidLabelingDispatchSequencer(
           // Phase-2 resolves each assigned VID's population attributes from this spec, and rejects
           // a WorkItem without it. Like the fields above, it is dropped unless copied explicitly.
           populationSpecBlobUri = modelLineConfig.populationSpecBlobUri
-          eventTemplateVersion =
-            ModelLineEventTemplateVersions.resolve(
-              resolvedModelLine,
-              modelLineConfig.eventTemplateVersion.takeUnless { it == 0 },
-            )
+          eventTemplateVersion = modelLineConfig.eventTemplateVersion
           // The active window lets the TEE drop out-of-window impressions before labeling.
           activeStartTime = resolvedModelLine.activeStartTime
           if (resolvedModelLine.hasActiveEndTime()) {
@@ -1485,7 +1461,7 @@ class VidLabelingDispatchSequencer(
     }
   }
 
-  /** Fetches the `ModelLine` to read its active window and event-template version. */
+  /** Fetches the `ModelLine` to read its active window (`active_start_time`/`active_end_time`). */
   private suspend fun getModelLine(modelLineName: String): ModelLine =
     rpcThrottlers.kingdom.onReady {
       modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
@@ -1594,11 +1570,7 @@ class VidLabelingDispatchSequencer(
         // Pass-through for the same reason: Phase-2 resolves each assigned VID's population
         // attributes from this spec and rejects a WorkItem without it.
         populationSpecBlobUri = modelLineConfig.populationSpecBlobUri
-        eventTemplateVersion =
-          ModelLineEventTemplateVersions.resolve(
-            resolvedModelLine,
-            modelLineConfig.eventTemplateVersion.takeUnless { it == 0 },
-          )
+        eventTemplateVersion = modelLineConfig.eventTemplateVersion
         // Pass-through so the Phase-1 last-out can stamp the per-impression entity-key columns on
         // the memoized VidLabeler ModelLineConfig.
         requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)

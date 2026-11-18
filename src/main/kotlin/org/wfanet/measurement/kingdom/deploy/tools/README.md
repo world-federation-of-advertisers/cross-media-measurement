@@ -292,8 +292,7 @@ ModelRepository \
       --tls-key-file=src/main/k8s/testing/secretfiles/mp1_tls.key \
       --cert-collection-file=src/main/k8s/testing/secretfiles/kingdom_root.pem \
       --kingdom-public-api-target=v2alpha.kingdom.dev.halo-cmm.org:8443 \
-      populations create --parent=dataProviders/AAAAAAAAAHs --description=testing \
-      --event-template-version=1 \
+      populations create --parent=modelProviders/AAAAAAAAAHs --description=testing \
       --event-message-descriptor-set=/path/to/event-descriptor-set.bin \
       --event-message-type-url='type.googleapis.com/halo_cmm.origin.uk.eventtemplate.v1.Event' \
       --population-spec=/path/to/population-spec.binpb

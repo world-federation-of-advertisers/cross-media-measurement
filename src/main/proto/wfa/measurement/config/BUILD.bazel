@@ -37,14 +37,3 @@ kt_jvm_proto_library(
     name = "rate_limit_config_kt_jvm_proto",
     deps = [":rate_limit_config_proto"],
 )
-
-proto_library(
-    name = "population_requisition_fulfiller_config_proto",
-    srcs = ["population_requisition_fulfiller_config.proto"],
-    strip_import_prefix = IMPORT_PREFIX,
-)
-
-kt_jvm_proto_library(
-    name = "population_requisition_fulfiller_config_kt_jvm_proto",
-    deps = [":population_requisition_fulfiller_config_proto"],
-)

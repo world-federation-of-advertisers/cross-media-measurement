@@ -31,9 +31,6 @@ import org.wfanet.measurement.api.v2alpha.ListModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.ModelLine
-import org.wfanet.measurement.api.v2alpha.ModelLineEventTemplateVersions
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRollout
@@ -47,7 +44,6 @@ import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
-import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsRequest
@@ -89,9 +85,7 @@ class PopulationRequisitionFulfiller(
   private val populationsStub: PopulationsGrpcKt.PopulationsCoroutineStub,
   /** Protobuf descriptor of the event message for the CMMS instance. */
   private val eventMessageDescriptor: Descriptors.Descriptor,
-  private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
-  private val modelLineEventTemplateVersions: Map<String, Int>,
-  private val kingdomRpcThrottler: Throttler,
+  kingdomRpcThrottler: Throttler,
 ) :
   RequisitionFulfiller(
     pdpData,
@@ -150,14 +144,8 @@ class PopulationRequisitionFulfiller(
         logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
         logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
 
-        val resolvedPopulation = getValidPopulationSpec(measurementSpec)
-        fulfillPopulationMeasurement(
-          requisition,
-          requisitionSpec,
-          measurementSpec,
-          resolvedPopulation.populationSpec,
-          resolvedPopulation.eventTemplateVersion,
-        )
+        val populationSpec: PopulationSpec = getValidPopulationSpec(measurementSpec)
+        fulfillPopulationMeasurement(requisition, requisitionSpec, measurementSpec, populationSpec)
       } catch (e: RequisitionRefusalException) {
         if (e !is RequisitionRefusalException.Test) {
           logger.log(Level.WARNING, e) { "Refusing Requisition ${requisition.name}" }
@@ -174,32 +162,7 @@ class PopulationRequisitionFulfiller(
    * @throws RequisitionRefusalException if there was a problem obtaining the valid [PopulationSpec]
    *   that should result in the [Requisition] being refused.
    */
-  private data class ResolvedPopulation(
-    val populationSpec: PopulationSpec,
-    val eventTemplateVersion: Int,
-  )
-
-  private suspend fun getValidPopulationSpec(measurementSpec: MeasurementSpec): ResolvedPopulation {
-    val modelLine: ModelLine =
-      try {
-        kingdomRpcThrottler.onReady {
-          modelLinesStub.getModelLine(getModelLineRequest { name = measurementSpec.modelLine })
-        }
-      } catch (e: StatusException) {
-        if (e.status.code == Status.Code.NOT_FOUND) {
-          throw InvalidRequisitionException("ModelLine ${measurementSpec.modelLine} not found", e)
-        }
-        throw Exception("Error retrieving ModelLine ${measurementSpec.modelLine}", e)
-      }
-    val version =
-      try {
-        ModelLineEventTemplateVersions.resolve(
-          modelLine,
-          modelLineEventTemplateVersions[measurementSpec.modelLine],
-        )
-      } catch (e: IllegalArgumentException) {
-        throw UnfulfillableRequisitionException("ModelLine event-template version is invalid", e)
-      }
+  private suspend fun getValidPopulationSpec(measurementSpec: MeasurementSpec): PopulationSpec {
     val modelRelease: ModelRelease = getModelRelease(measurementSpec.modelLine)
     val population: Population = getPopulation(modelRelease.population)
     if (!population.hasPopulationSpec()) {
@@ -208,14 +171,13 @@ class PopulationRequisitionFulfiller(
       )
     }
 
-    try {
-      PopulationSpecValidator.validate(population.populationSpec, eventMessageDescriptor, version)
-    } catch (e: PopulationSpecValidationException) {
-      throw UnfulfillableRequisitionException("PopulationSpec is invalid", e)
-    } catch (e: IllegalArgumentException) {
-      throw UnfulfillableRequisitionException("ModelLine event-template version is unsupported", e)
+    return population.populationSpec.also {
+      try {
+        PopulationSpecValidator.validate(it, eventMessageDescriptor)
+      } catch (e: PopulationSpecValidationException) {
+        throw UnfulfillableRequisitionException("PopulationSpec is invalid", e)
+      }
     }
-    return ResolvedPopulation(population.populationSpec, version)
   }
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4426): Pace via
@@ -301,7 +263,6 @@ class PopulationRequisitionFulfiller(
     requisitionSpec: RequisitionSpec,
     measurementSpec: MeasurementSpec,
     populationSpec: PopulationSpec,
-    eventTemplateVersion: Int,
   ) {
     val filterExpression = requisitionSpec.population.filter.expression
     // Create measurement result with sum of valid populations.
@@ -315,7 +276,6 @@ class PopulationRequisitionFulfiller(
                   populationSpec,
                   filterExpression,
                   eventMessageDescriptor,
-                  eventTemplateVersion,
                 )
               } catch (e: EventFilterValidationException) {
                 throw InvalidRequisitionException("Population filter is invalid", e)

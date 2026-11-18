@@ -74,17 +74,14 @@ class VidLabelingConfigValidationTest {
   }
 
   @Test
-  fun `allows a missing local version for repository resolution`() {
-    val config = configWith(validModelLineConfig().toBuilder().clearEventTemplateVersion().build())
-    requireValidModelLineConfigs(config)
-  }
+  fun `throws when a model line omits event_template_version`() {
+    val config =
+      configWith(validModelLineConfig().toBuilder().apply { clearEventTemplateVersion() }.build())
 
-  @Test
-  fun `rejects a negative local version`() {
-    val config = configWith(validModelLineConfig().toBuilder().setEventTemplateVersion(-1).build())
     val exception =
       assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
     assertThat(exception).hasMessageThat().contains("event_template_version")
+    assertThat(exception).hasMessageThat().contains(MODEL_LINE)
   }
 
   @Test

@@ -388,7 +388,6 @@ class ModelRepositoryTest {
           "--population-spec=${populationSpecFile.path}",
           "--event-message-descriptor-set=$EVENT_MESSAGE_DESCRIPTOR_SET_PATH",
           "--event-message-type-url=$EVENT_MESSAGE_TYPE_URL",
-          "--event-template-version=1",
         )
 
     val output = callCli(args)
@@ -430,7 +429,6 @@ class ModelRepositoryTest {
           "--population-spec=${populationSpecFile.path}",
           "--event-message-descriptor-set=$EVENT_MESSAGE_DESCRIPTOR_SET_PATH",
           "--event-message-type-url=$EVENT_MESSAGE_TYPE_URL",
-          "--event-template-version=1",
         )
 
     val capturedOutput: CommandLineTesting.CapturedOutput =
