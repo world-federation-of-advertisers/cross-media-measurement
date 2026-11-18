@@ -124,6 +124,10 @@ class RecoverUploaderTest {
             WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to MODEL_LINE,
             WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to UPLOAD,
             WatchedBlobs.EVICTION_OPERATION_ID_KEY to EVICTION_OPERATION_ID,
+            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+              (UPLOAD.substringBefore("/rawImpressionUploads/") +
+                "/uploadHealingOperations/" +
+                EVICTION_OPERATION_ID),
           ),
         )
       )
