@@ -16,14 +16,33 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher
 
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 
 /** Validates DataWatcher configuration. */
 object DataWatcherConfigValidator {
   fun validate(config: DataWatcherConfig) {
     for (watchedPath in config.watchedPathsList) {
       if (!watchedPath.hasControlPlaneQueueSink()) continue
+      val sink = watchedPath.controlPlaneQueueSink
+      if (sink.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java)) {
+        require(sink.queue == VidLabelingDispatchWorkItems.QUEUE) { "Invalid VID dispatch queue" }
+        require(sink.serializationKey.isEmpty()) { "VID dispatch uses model-line sequencing" }
+        val params =
+          VidLabelingDispatchWorkItems.normalize(
+            sink.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+          )
+        require(
+          !params.hasSource() &&
+            params.overrideModelLinesCount == 0 &&
+            params.recoverySourceUpload.isEmpty() &&
+            params.evictionOperationId.isEmpty()
+        ) {
+          "Recovery parameters must come from the source event"
+        }
+      }
       require(
         !watchedPath.controlPlaneQueueSink.appParams.`is`(ResultsFulfillerParams::class.java)
       ) {

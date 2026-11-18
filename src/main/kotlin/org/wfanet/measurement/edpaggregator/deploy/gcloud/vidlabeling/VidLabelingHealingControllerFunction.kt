@@ -22,12 +22,14 @@ import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageException
 import com.google.cloud.storage.StorageOptions
 import com.google.type.Date
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
+import java.io.IOException
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -229,7 +231,11 @@ class VidLabelingHealingControllerFunction(
         evictionExecutorFactory = { evictors.getValue(it.name) },
         manifestReader = GcsCorrectionManifestReader(storage),
         doneBlobReplayerFactory = { config ->
-          DataWatcherDoneBlobReplayer(watchers.getValue(config.name))
+          DataWatcherDoneBlobReplayer(
+            watchers.getValue(config.name),
+            GcsDoneObjectMetadataReader(storage)::readVersion,
+            rpcThrottlers.metadataRead,
+          )
         },
         recoveryExecutorFactory = { recoverUploader },
         dataAvailabilitySyncWorkItemPublisher =
@@ -264,6 +270,22 @@ class VidLabelingHealingControllerFunction(
 
 internal class GcsDoneObjectMetadataReader(private val storage: Storage) :
   DoneObjectMetadataReader {
+  suspend fun readVersion(uri: String, generation: Long): DoneObjectMetadata? {
+    val parsed = GcsUri.parse(uri)
+    return withContext(Dispatchers.IO) {
+      val blob =
+        try {
+          storage.get(BlobId.of(parsed.bucket, parsed.key, generation))
+        } catch (e: StorageException) {
+          if (e.isRetryable) throw IOException("Unable to read approved done-object metadata", e)
+          throw e
+        }
+      blob?.let {
+        DoneObjectMetadata(it.generation, checkNotNull(it.createTimeOffsetDateTime).toInstant())
+      }
+    }
+  }
+
   override suspend fun read(uri: String): DoneObjectMetadata? {
     val parsed = GcsUri.parse(uri)
     return withContext(Dispatchers.IO) {
@@ -406,16 +428,30 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
     }
 }
 
-internal class DataWatcherDoneBlobReplayer(private val dataWatcher: DataWatcher) :
-  DoneBlobReplayer {
+internal class DataWatcherDoneBlobReplayer(
+  private val dataWatcher: DataWatcher,
+  private val readVersion: suspend (String, Long) -> DoneObjectMetadata?,
+  private val throttler: org.wfanet.measurement.common.throttler.Throttler,
+) : DoneBlobReplayer {
   override suspend fun replay(request: DoneBlobReplayer.Request) {
     val operationId =
       requireNotNull(UploadHealingOperationKey.fromName(request.uploadHealingOperation))
         .uploadHealingOperationId
+    val metadata =
+      checkNotNull(
+        throttler.onReady { readVersion(request.doneBlobUri, request.doneBlobGeneration) }
+      ) {
+        "The approved done-object generation is unavailable"
+      }
+    check(metadata.generation == request.doneBlobGeneration) {
+      "Approved done-object identity changed"
+    }
     dataWatcher.receivePath(
       request.doneBlobUri,
       mapOf(
         DataWatcher.GENERATION_METADATA_KEY to request.doneBlobGeneration.toString(),
+        DataWatcher.CREATE_TIME_METADATA_KEY to metadata.createTime.toString(),
+        DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to request.cmmsModelLines.joinToString(","),
         WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to request.sourceRawImpressionUpload,
         WatchedBlobs.EVICTION_OPERATION_ID_KEY to operationId,

@@ -36,6 +36,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
@@ -44,6 +45,8 @@ import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -138,7 +141,7 @@ class DataWatcher(
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
           WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
-      if (isRetryable || isRecoveryOperation) {
+      if (isRetryable || isRecoveryOperation || isVidDispatchQueue(config)) {
         // Retryable failures and recovery operations must be at-least-once. Surfacing the failure
         // keeps the Eventarc delivery unacknowledged so it is retried and, after exhaustion,
         // retained in the configured DLQ.
@@ -146,6 +149,10 @@ class DataWatcher(
       }
     }
   }
+
+  private fun isVidDispatchQueue(config: WatchedPath): Boolean =
+    config.hasControlPlaneQueueSink() &&
+      config.controlPlaneQueueSink.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java)
 
   private suspend fun sendToControlPlane(
     config: WatchedPath,
@@ -165,17 +172,60 @@ class DataWatcher(
         DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
         else -> throw IllegalArgumentException("Missing or invalid storage event type")
       }
-    val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
+    val sourceIdentity = dataPathParams {
+      dataPath = path
+      generation = objectGeneration
+      createTime = objectCreateTime.toProtoTime()
+      eventType = storageEventType
+    }
+    val dispatchParams =
+      if (isVidDispatchQueue(config)) {
+        val configured = queueConfig.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+        require(
+          !configured.hasSource() &&
+            configured.overrideModelLinesCount == 0 &&
+            configured.recoverySourceUpload.isEmpty() &&
+            configured.evictionOperationId.isEmpty()
+        ) {
+          "Recovery parameters must come from the source event"
+        }
+        val fields =
+          listOf(
+            WatchedBlobs.OVERRIDE_MODEL_LINES_KEY,
+            WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY,
+            WatchedBlobs.EVICTION_OPERATION_ID_KEY,
+          )
+        require(fields.all { it in objectMetadata } || fields.none { it in objectMetadata }) {
+          "Recovery metadata must contain the complete authorization tuple"
+        }
+        require(
+          fields.none { it in objectMetadata } ||
+            fields.all { objectMetadata.getValue(it).isNotBlank() }
+        ) {
+          "Recovery metadata values must not be empty"
+        }
+        VidLabelingDispatchWorkItems.normalize(
+          configured.copy {
+            source = sourceIdentity
+            overrideModelLines +=
+              objectMetadata[WatchedBlobs.OVERRIDE_MODEL_LINES_KEY]
+                ?.split(',')
+                ?.map { it.trim() }
+                ?.filter { it.isNotEmpty() }
+                .orEmpty()
+            recoverySourceUpload = objectMetadata[WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY].orEmpty()
+            evictionOperationId = objectMetadata[WatchedBlobs.EVICTION_OPERATION_ID_KEY].orEmpty()
+          }
+        )
+      } else null
+    val idempotencyKey =
+      "${config.identifier}\u0000$path\u0000$objectGeneration" +
+        (dispatchParams?.let { "\u0000${VidLabelingDispatchWorkItems.intentId(it)}" } ?: "")
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
-          appParams = queueConfig.appParams
-          this.dataPathParams = dataPathParams {
-            this.dataPath = path
-            generation = objectGeneration
-            createTime = objectCreateTime.toProtoTime()
-            eventType = storageEventType
-          }
+          appParams = dispatchParams?.pack() ?: queueConfig.appParams
+          if (dispatchParams == null) this.dataPathParams = sourceIdentity
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
