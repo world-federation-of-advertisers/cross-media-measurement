@@ -37,10 +37,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.MemoizedVidLabelingJobDispatcher
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -72,6 +74,7 @@ import org.wfanet.measurement.storage.ParquetStorageClient
  *   [WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub].
  * @param vidRankBuilderQueue Resource name of the Secure Computation queue for Phase-1
  *   (`VidRankBuilder`) work items, published by the last-shard-out fan-out.
+ * @param vidLabelerQueue Resource name of the Phase-2 queue for completed zero-membership work.
  * @param kmsClients Per-DataProvider KMS clients used to wrap/unwrap DEKs for raw-impression and
  *   `SubpoolFingerprints` blobs.
  * @param getSubpoolMapStorageConfig Lambda to obtain the [StorageConfig] for reading and writing
@@ -84,6 +87,7 @@ import org.wfanet.measurement.storage.ParquetStorageClient
  * @param rawImpressionUploadModelLinesStub Stub for the `RawImpressionUploadModelLine`
  *   metadata-storage service.
  * @param rankerJobsStub Stub for the `RankerJob` metadata-storage service.
+ * @param vidLabelingJobsStub Stub for creating file-batched labeling jobs.
  * @param poolAssignmentJobsStub Stub to mark this shard's `PoolAssignmentJob` `SUCCEEDED` and learn
  *   whether it is the last shard out.
  * @param rawImpressionUploadFilesStub Stub for discovering this upload's raw-impression files.
@@ -104,6 +108,7 @@ class SubpoolAssignerApp(
   private val workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val vidRankBuilderQueue: String,
+  private val vidLabelerQueue: String,
   private val kmsClients: Map<String, KmsClient>,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
   private val getRawImpressionsStorageConfig: (StorageParams) -> StorageConfig,
@@ -111,6 +116,7 @@ class SubpoolAssignerApp(
   private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
+  private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
@@ -129,6 +135,10 @@ class SubpoolAssignerApp(
     workItemAttemptsStub = workItemAttemptsClient,
     controlPlaneThrottler = rpcThrottlers.controlPlane,
   ) {
+
+  init {
+    require(vidLabelerQueue.isNotEmpty()) { "vid_labeler_queue must not be empty" }
+  }
 
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
@@ -223,6 +233,24 @@ class SubpoolAssignerApp(
             totalShards = params.totalShards,
             vidRankBuilderQueue = vidRankBuilderQueue,
             vidRankBuilderParamsTemplate = vidRankBuilderParamsTemplate,
+            dispatchLabeling = { context ->
+              MemoizedVidLabelingJobDispatcher(
+                  rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+                  vidLabelingJobsStub = vidLabelingJobsStub,
+                  workItemsStub = workItemsClient,
+                  rawImpressionUpload = params.rawImpressionUpload,
+                  modelLine = params.modelLine,
+                  vidLabelerParamsTemplate =
+                    MemoizedVidLabelingJobDispatcher.buildParamsTemplate(
+                      vidRankBuilderParamsTemplate
+                    ),
+                  vidLabelerQueue = vidLabelerQueue,
+                  maxFileBatchSizeBytes = params.maxFileBatchSizeBytes,
+                  rpcThrottlers = rpcThrottlers,
+                  traceContextProvider = { context },
+                )
+                .dispatch()
+            },
             rpcThrottlers = rpcThrottlers,
           )
           .assign()

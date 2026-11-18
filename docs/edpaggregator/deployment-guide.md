@@ -760,6 +760,35 @@ supply:
 Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
 entries only once your market has adopted VID labeling.
 
+The SubpoolAssigner runner requires `--vid-labeler-queue` in addition to
+`--vid-rank-builder-queue`. Set both to their configured Secure Computation queue names. When
+all fingerprint shards have succeeded, the worker chooses ranking for nonempty ranked-pool
+membership, or normal file-batched VID labeling for empty membership. Ordinary population
+routing and uploads with no rows inside the model-line active window can both take the empty
+route. The worker publishes every labeling WorkItem before requesting the parent state change.
+Its metadata mTLS identity must be permitted to create labeling jobs, and its control-plane
+identity must be permitted to publish to the labeling queue.
+
+For releases introducing this route, deploy the metadata services first, then VidLabeler and
+VidRankBuilder, and finally SubpoolAssigner with the new queue option. Since stock Terraform
+workers share `image_tag`, use prerequisite releases or hold Phase-0 consumption until the
+metadata and labeling consumers are ready. Verify ordinary-only and no-active-row uploads
+complete their dated availability handoffs, then verify a ranked upload on the same model line.
+For rollback, roll back SubpoolAssigner first and remove the new option when invoking an older
+binary. Keep the metadata services and VidLabeler until all no-snapshot labeling jobs drain.
+
+The VID-labeling monitor automatically replays a succeeded Phase-0 shard for a stalled
+`POOL_ASSIGNING` parent, including a completed upload with no ranked memberships. Recovery
+checks the persisted completion DEK and every expected shard, then resumes deterministic
+labeling-job creation and publication. The monitor retains its three-recovery-attempt limit.
+If an upload already exhausted those attempts, inspect the parent and all shard jobs and,
+under explicit operator authorization, resubmit the original SubpoolAssigner parameters in a
+new WorkItem with a fresh identity on the Phase-0 queue. Queue selection remains automatic;
+there is no per-upload recovery queue flag. Preserve the original files, jobs, and WorkItems.
+A parent already in `LABELING`, `AVAILABILITY_SYNCING`, `COMPLETED`, or `FAILED` is not reopened
+by a late Phase-0 delivery. The healing controller continues to use the same dispatcher and
+workers; its approval and fence requirements still apply.
+
 Each `VidLabelingConfig` must set `raw_impressions_blob_prefix` to that DataProvider's dedicated,
 bucket-relative raw-only root, without leading or trailing `/` characters. Keep labeled output,
 rank-index, and temporary work prefixes outside it. Configured labeled-output descendants are
