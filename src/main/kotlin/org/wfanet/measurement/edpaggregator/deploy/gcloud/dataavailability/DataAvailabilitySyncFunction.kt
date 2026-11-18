@@ -24,6 +24,7 @@ import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
@@ -365,12 +366,19 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         verifyDoneObject = { workItem ->
           if (workItem.appParams.triggeringRawImpressionUpload.isNotEmpty()) {
             val parent =
-              globalThrottler.onReady {
-                rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
-                  getRawImpressionUploadModelLineRequest {
-                    name = workItem.rawImpressionUploadModelLineName
-                  }
-                )
+              try {
+                globalThrottler.onReady {
+                  rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+                    getRawImpressionUploadModelLineRequest {
+                      name = workItem.rawImpressionUploadModelLineName
+                    }
+                  )
+                }
+              } catch (e: StatusException) {
+                if (e.status.code == Status.Code.NOT_FOUND) {
+                  throw IllegalArgumentException("WorkItem source model line does not exist", e)
+                }
+                throw IllegalStateException("Unable to read WorkItem source model line", e)
               }
             require(
               parent.name == workItem.rawImpressionUploadModelLineName &&
@@ -588,6 +596,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         },
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
+      hiddenModelLines = dataAvailabilitySyncConfig.hiddenModelLinesList.toSet(),
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
       availabilityImpressionPaths =
         (availabilityImpressionPaths + triggerDataSource.edpImpressionPath).distinct(),

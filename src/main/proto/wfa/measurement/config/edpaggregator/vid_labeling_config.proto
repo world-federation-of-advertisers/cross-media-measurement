@@ -87,6 +87,9 @@ message VidLabelingConfig {
     // Cloud Function boot by requireValidModelLineConfigs.
     string population_spec_blob_uri = 7
         [(google.api.field_behavior) = REQUIRED];
+
+    // Event schema version against which the `PopulationSpec` was defined.
+    int32 event_template_version = 8 [(google.api.field_behavior) = REQUIRED];
   }
 
   // Map from model line resource name to its configuration.

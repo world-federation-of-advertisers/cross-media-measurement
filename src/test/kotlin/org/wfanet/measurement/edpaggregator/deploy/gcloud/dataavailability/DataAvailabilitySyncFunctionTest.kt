@@ -64,6 +64,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
@@ -168,6 +169,8 @@ class DataAvailabilitySyncFunctionTest {
     }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
+    onBlocking { getDataProvider(any<GetDataProviderRequest>()) }
+      .thenAnswer { DataProvider.getDefaultInstance() }
     onBlocking { replaceDataAvailabilityIntervals(any<ReplaceDataAvailabilityIntervalsRequest>()) }
       .thenAnswer { DataProvider.getDefaultInstance() }
   }
@@ -914,6 +917,7 @@ class DataAvailabilitySyncFunctionTest {
   private fun sendAvailabilityWorkItem(
     port: Int,
     eventDate: LocalDate = LocalDate.of(2025, 1, 5),
+    workItemGeneration: Long = 1L,
   ): java.net.http.HttpResponse<String> {
     val request =
       DataAvailabilitySyncWorkItems.createRequest(
@@ -935,7 +939,7 @@ class DataAvailabilitySyncFunctionTest {
     val item =
       request.workItem.copy {
         name = WORK_ITEM_NAME
-        generation = 1L
+        generation = workItemGeneration
       }
     return HttpClient.newHttpClient()
       .send(
@@ -971,6 +975,58 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(sendAvailabilityWorkItem(port).statusCode()).isEqualTo(200)
     verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+  }
+
+  @Test
+  fun `WorkItem fails terminally when its source model line is missing`() {
+    val port = startAvailabilityWorkItemFunction()
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+    }
+
+    assertThat(sendAvailabilityWorkItem(port, workItemGeneration = 7L).statusCode()).isEqualTo(200)
+    val failure = argumentCaptor<FailWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock) { failWorkItem(failure.capture()) }
+    assertThat(failure.firstValue.name).isEqualTo(WORK_ITEM_NAME)
+    assertThat(failure.firstValue.expectedWorkItemGeneration).isEqualTo(7L)
+    verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+  }
+
+  @Test
+  fun `WorkItem retries source model line lookup failures and completes after recovery`() {
+    val port = startAvailabilityWorkItemFunction()
+    for (status in listOf(Status.INTERNAL, Status.UNAVAILABLE)) {
+      rawImpressionUploadModelLineServiceMock.stub {
+        onBlocking {
+            getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>())
+          }
+          .thenThrow(status.asRuntimeException())
+      }
+      assertThat(sendAvailabilityWorkItem(port).statusCode()).isAtLeast(500)
+    }
+    verifyBlocking(workItemAttemptsServiceMock, times(2)) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(0)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(0)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(any())
+    }
+
+    rawImpressionUploadModelLineServiceMock.stub {
+      onBlocking { getRawImpressionUploadModelLine(any<GetRawImpressionUploadModelLineRequest>()) }
+        .thenReturn(readyAvailabilityParent())
+    }
+    assertThat(sendAvailabilityWorkItem(port).statusCode()).isEqualTo(200)
+    verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+    verifyBlocking(impressionMetadataServiceMock) { batchCreateImpressionMetadata(any()) }
   }
 
   @Test
@@ -1727,7 +1783,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
       batchCreateImpressionMetadata(metadataRequest.capture())
@@ -1867,7 +1923,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
 
@@ -1981,7 +2037,7 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(requestCaptor.firstValue.name).isEqualTo("dataProviders/edp123")
     assertThat(requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key })
-      .contains("some-model-line-mapped")
+      .contains("modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
   }
@@ -2121,7 +2177,9 @@ class DataAvailabilitySyncFunctionTest {
       dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
       edpImpressionPath = "edp/edp_name"
       vidLabeledImpressionPath = "edp/edp_name/vid-labeler"
-      modelLineMap[modelLineResourceName] = modelLineList { modelLines += "some-model-line-mapped" }
+      modelLineMap[modelLineResourceName] = modelLineList {
+        modelLines += "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped"
+      }
       errorIfGapsExist = true
     }
 
@@ -2290,7 +2348,7 @@ class DataAvailabilitySyncFunctionTest {
       vidLabeledImpressionPath = "vid-labeled-impressions/edp/edp_name"
       modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] =
         modelLineList {
-          modelLines += "some-model-line-mapped"
+          modelLines += "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line-mapped"
         }
     }
 

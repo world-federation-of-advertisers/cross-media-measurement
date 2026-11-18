@@ -27,3 +27,9 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+kt_jvm_library(
+    name = "managed_done_blob_cleanup",
+    srcs = ["ManagedDoneBlobCleanup.kt"],
+    deps = ["@wfa_common_jvm//imports/java/com/google/cloud/storage"],
+)
