@@ -148,6 +148,12 @@ private constructor(
   companion object {
     private val logger = Logger.getLogger(MemoizedRankIndex::class.java.name)
 
+    /** Builds an empty index with the KEK used to wrap labeled output. */
+    fun empty(kekUri: String): MemoizedRankIndex {
+      require(kekUri.isNotEmpty()) { "Output KEK URI must not be empty" }
+      return MemoizedRankIndex(LongArray(0), emptyArray(), kekUri)
+    }
+
     /** Default number of subpool blobs decrypted/built concurrently. */
     // TODO(world-federation-of-advertisers/cross-media-measurement#4741): Make reader parallelism a
     //  VID-labeler deployment setting instead of always using this default.
