@@ -27,6 +27,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.api.ETags
@@ -34,6 +35,7 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadModelLineResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCompletedRawImpressionUploadModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonSucceededPoolAssignmentJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findHistoricalAvailabilityUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findInProgressModelLinesForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findNewerSnapshotBasis
@@ -49,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasPendingV
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasVidLabelingHealingDispatchGate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readPoolAssignmentJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadModelLineState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
@@ -67,6 +70,7 @@ import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUpl
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesResponse
@@ -564,6 +568,7 @@ class SpannerRawImpressionUploadModelLineService(
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
         validPreviousStates =
           setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
             // Non-memoized uploads skip Phase 0/1 and go straight CREATED -> LABELING.
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
@@ -973,6 +978,40 @@ class SpannerRawImpressionUploadModelLineService(
               validPreviousStates,
             )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+
+        if (
+          currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING &&
+            nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        ) {
+          val modelLine = result.rawImpressionUploadModelLine
+          if (
+            !modelLine.hasEncryptedMergedDek() ||
+              modelLine.encryptedMergedDek.kekUri.isEmpty() ||
+              modelLine.poolOffsetsList.isNotEmpty() ||
+              modelLine.hasMaxEventDate() ||
+              txn
+                .readPoolAssignmentJobs(
+                  dataProviderResourceId,
+                  rawImpressionUploadResourceId,
+                  ListPoolAssignmentJobsRequestKt.filter {
+                    cmmsModelLine = modelLine.cmmsModelLine
+                  },
+                  limit = 1,
+                )
+                .firstOrNull() == null ||
+              txn.countNonSucceededPoolAssignmentJobs(
+                dataProviderResourceId,
+                result.rawImpressionUploadId,
+                modelLine.cmmsModelLine,
+              ) != 0L
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "Direct labeling requires completed Phase-0 shards with no ranked memberships " +
+                  "and a persisted completion DEK"
+              )
+              .asRuntimeException()
+          }
         }
 
         if (
