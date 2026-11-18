@@ -123,7 +123,7 @@ def _extract_error_info(
         logging.warning(
             "Failed to parse google.rpc.Status from grpc-status-details-bin"
             " trailer",
-            exc_info=True,
+            exc_info=noise_correction_value_logging.is_enabled(),
         )
         return None
     if status is None:

@@ -85,6 +85,53 @@ class PostProcessReportResultJobTest(unittest.TestCase):
                     self.assertNotIn("938475629", output)
                     self.assertNotIn("Traceback", output)
 
+    def test_mismatched_status_trailer_omits_values_when_disabled(self):
+        self._assert_mismatched_status_trailer_logging(False)
+
+    def test_mismatched_status_trailer_includes_values_when_enabled(self):
+        self._assert_mismatched_status_trailer_logging(True)
+
+    def _assert_mismatched_status_trailer_logging(self, enabled: bool):
+        job = post_process_report_result_job.PostProcessReportResultJob(
+            mock.create_autospec(grpc.Channel),
+            log_noise_correction_values=enabled,
+            enable_validation=True,
+            enable_correction=True,
+        )
+        basic_report = BasicReport(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_basic_report_id="basic_report_1",
+            external_report_result_id=101,
+        )
+        self.mock_post_processor.process.return_value = (
+            report_results_service_pb2.AddProcessedResultValuesRequest(
+                cmms_measurement_consumer_id="mc_id_1",
+                external_report_result_id=101,
+            )
+        )
+        rpc_error = self._make_rpc_error_with_error_info(
+            grpc.StatusCode.FAILED_PRECONDITION,
+            reason="BASIC_REPORT_STATE_INVALID",
+            metadata={"basicReportState": "SUCCEEDED"},
+            details_text="Invalid reach=938475629",
+        )
+        rpc_error.details = lambda: "Different status text"
+        self.mock_report_results_stub.AddProcessedResultValues.side_effect = rpc_error
+
+        with self.assertLogs(level="WARNING") as captured:
+            self.assertFalse(job._process_basic_report(basic_report))
+
+        output = "\n".join(captured.output)
+        self.assertIn("Failed to parse google.rpc.Status", output)
+        self.assertIn("FAILED_PRECONDITION", output)
+        self.mock_basic_reports_stub.FailBasicReport.assert_called_once()
+        if enabled:
+            self.assertIn("reach=938475629", output)
+            self.assertIn("ValueError", output)
+        else:
+            self.assertNotIn("938475629", output)
+            self.assertNotIn("Traceback", output)
+
     def test_assembly_only_writes_processed_results(self):
         job = post_process_report_result_job.PostProcessReportResultJob(
             mock.create_autospec(grpc.Channel),

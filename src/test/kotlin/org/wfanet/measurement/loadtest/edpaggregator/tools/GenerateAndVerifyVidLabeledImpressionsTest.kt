@@ -557,6 +557,39 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
   }
 
   @Test
+  fun `verify main omits raw values from malformed impression failures for every logging setting`() {
+    runGenerate()
+    val metadataFile = firstGeneratedMetadataFile()
+    val details = BlobDetails.parseFrom(metadataFile.readBytes())
+    val blobUri = SelectedStorageClient.parseBlobUri(details.blobUri)
+    val encryptedStorage =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        SelectedStorageClient(blobUri, tempFolder.root),
+        GenerateSyntheticData.buildFakeKmsClient(KEK_URI, fakeKekKeysetFile()),
+        KEK_URI,
+        details.encryptedDek,
+      )
+    val records =
+      runBlocking { encryptedStorage.getBlob(blobUri.key)!!.read().toList() }.toMutableList()
+    records[0] = LabeledImpression.parseFrom(records[0]).copy { vid = -938_475_629L }.toByteString()
+    runBlocking { encryptedStorage.writeBlob(blobUri.key, flowOf(*records.toTypedArray())) }
+
+    for (logMeasurementValues in listOf(null, false, true)) {
+      val result = runVerifyMetadataMain(metadataFile, logMeasurementValues)
+
+      CommandLineTesting.assertThat(result.output).status().isEqualTo(1)
+      val logs = result.logMessages.joinToString("\n")
+      assertThat(logs).contains("FAIL:")
+      assertThat(logs).contains(metadataFile.name)
+      assertThat(logs).contains("while validating a LabeledImpression: IllegalStateException")
+      assertThat(logs).doesNotContain("938475629")
+      assertThat(logs).doesNotContain("Invalid VID")
+      assertThat(logs).doesNotContain("Record[")
+      assertThat(logs).doesNotContain("\tat ")
+    }
+  }
+
+  @Test
   fun `verify main rejects raw KMS ciphertext without a Tink envelope`() {
     runGenerate()
     val originalMetadataFile = firstGeneratedMetadataFile()

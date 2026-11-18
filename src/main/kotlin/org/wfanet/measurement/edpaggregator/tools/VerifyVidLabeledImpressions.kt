@@ -891,8 +891,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           errors++
           logger.log(
             Level.SEVERE,
-            "  FAIL: $metadataUri while ${stage.description}: ${e.message}",
-            e,
+            "  FAIL: $metadataUri while ${stage.description}: ${e.javaClass.simpleName}",
           )
         }
       }
