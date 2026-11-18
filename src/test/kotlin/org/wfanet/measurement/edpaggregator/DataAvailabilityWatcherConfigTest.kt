@@ -29,6 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
@@ -37,6 +38,7 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingStorageConfigValidator
 import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 
 @RunWith(JUnit4::class)
@@ -73,6 +75,26 @@ class DataAvailabilityWatcherConfigTest {
         runtimeConfigs,
         watcherConfig,
       )
+      val dispatchRoutes =
+        watcherConfig.watchedPathsList.filter { it.identifier == "vid-labeling-dispatch" }
+      assertThat(dispatchRoutes).hasSize(dispatcherConfigs.configsCount)
+      for (config in dispatcherConfigs.configsList) {
+        val example =
+          "gs://${config.rawImpressionsStorageParams.gcs.bucketName}/${config.rawImpressionsBlobPrefix}/2000-01-01/done"
+        val route = dispatchRoutes.single { it.sourcePathRegex.toRegex().matches(example) }
+        assertThat(route.hasControlPlaneQueueSink()).isTrue()
+        assertThat(route.controlPlaneQueueSink.queue).isEqualTo(VidLabelingDispatchWorkItems.QUEUE)
+        assertThat(route.controlPlaneQueueSink.serializationKey).isEmpty()
+        val params =
+          route.controlPlaneQueueSink.appParams.unpack(
+            VidLabelingDispatchWorkItemParams::class.java
+          )
+        assertThat(params.dataProvider).isEqualTo(config.dataProvider)
+        assertThat(params.hasSource()).isFalse()
+        assertThat(params.overrideModelLinesList).isEmpty()
+        assertThat(params.recoverySourceUpload).isEmpty()
+        assertThat(params.evictionOperationId).isEmpty()
+      }
       val deleteConfig =
         parseTextProto(
           resolveRunfile("$configDirectory/data-watcher-delete-config.textproto").toFile(),
