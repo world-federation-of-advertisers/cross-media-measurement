@@ -15,6 +15,7 @@
 package k8s
 
 #SecureComputation: {
+	_vidLabelingDispatchQueueEnabled: bool | *false
 
 	_verboseGrpcServerLogging:    bool | *false
 	_verboseGrpcClientLogging:    bool | *false
@@ -93,6 +94,9 @@ package k8s
 				"--dead-letter-subscription-id=vid-labeler-queue-dlq-sub",
 				"--dead-letter-subscription-id=data-availability-sync-queue-dlq-sub",
 				"--dead-letter-subscription-id=event-group-sync-queue-dlq-sub",
+                    if _vidLabelingDispatchQueueEnabled {
+    "--dead-letter-subscription-id=vid-labeling-dispatch-queue-dlq-sub",
+  }
 				"--dead-letter-subscription-id=results-fulfiller-queue-dlq-sub",
 			] + _spannerConfig.flags
 
