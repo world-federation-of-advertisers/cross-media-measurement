@@ -49,6 +49,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemInvocation
 import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemRunner
 
@@ -209,8 +210,7 @@ internal class DataAvailabilitySyncWorkItemProcessor(
   ): WorkItemInvocation {
     val handler =
       object : WorkItemRunner.Handler() {
-        override val workItem =
-          input.workItem.toBuilder().setGeneration(input.workItemGeneration).build()
+        override val workItem = input.workItem.copy { generation = input.workItemGeneration }
         private var stage = DataAvailabilitySync.Stage.DISCOVERY
         private var leaseName: String? = null
         private var outcome: DataAvailabilitySync.Outcome? = null
