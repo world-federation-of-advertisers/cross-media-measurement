@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.TestRule
+import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.testing.chainRulesSequentially
@@ -36,18 +37,80 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.REPORTING_CHANGELOG_PATH)
 
-  override fun newServices(idGenerator: IdGenerator): Services<SpannerBasicReportsService> {
+  private val postgresDatabaseClient by lazy { postgresDatabaseProvider.createDatabase() }
+
+  override suspend fun removeReportingSetEventGroups(
+    cmmsMeasurementConsumerId: String,
+    externalReportingSetId: String,
+  ) {
+    removeReportingSetRows(
+      "ReportingSetEventGroups",
+      cmmsMeasurementConsumerId,
+      externalReportingSetId,
+    )
+  }
+
+  override suspend fun removeReportingSetCompilation(
+    cmmsMeasurementConsumerId: String,
+    externalReportingSetId: String,
+  ) {
+    removeReportingSetRows(
+      "WeightedSubsetUnions",
+      cmmsMeasurementConsumerId,
+      externalReportingSetId,
+    )
+  }
+
+  private suspend fun removeReportingSetRows(
+    table: String,
+    cmmsMeasurementConsumerId: String,
+    externalReportingSetId: String,
+  ) {
+    val transaction = postgresDatabaseClient.readWriteTransaction()
+    try {
+      transaction.executeStatement(
+        boundStatement(
+          """
+          DELETE FROM $table
+          WHERE (MeasurementConsumerId, ReportingSetId) = (
+            SELECT MeasurementConsumerId, ReportingSetId
+            FROM ReportingSets
+              JOIN MeasurementConsumers USING (MeasurementConsumerId)
+            WHERE CmmsMeasurementConsumerId = $1 AND ExternalReportingSetId = $2
+          )
+          """
+            .trimIndent()
+        ) {
+          bind("$1", cmmsMeasurementConsumerId)
+          bind("$2", externalReportingSetId)
+        }
+      )
+      transaction.commit()
+    } finally {
+      transaction.close()
+    }
+  }
+
+  override fun newServices(
+    idGenerator: IdGenerator,
+    validateInsertBasicReport: Boolean,
+    validateCreateReportingSet: Boolean,
+  ): Services<SpannerBasicReportsService> {
     val spannerDatabaseClient = spannerDatabase.databaseClient
-    val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     return Services(
       basicReportsService =
         SpannerBasicReportsService(
           spannerClient = spannerDatabaseClient,
           postgresClient = postgresDatabaseClient,
           impressionQualificationFilterMapping = impressionQualificationFilterMapping,
+          validateInsertBasicReport = validateInsertBasicReport,
         ),
       PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient),
-      PostgresReportingSetsService(idGenerator, postgresDatabaseClient),
+      PostgresReportingSetsService(
+        idGenerator,
+        postgresDatabaseClient,
+        validateCreateReportingSet = validateCreateReportingSet,
+      ),
       SpannerReportResultsService(
         spannerClient = spannerDatabaseClient,
         impressionQualificationFilterMapping = impressionQualificationFilterMapping,
