@@ -346,6 +346,7 @@ proto_library(
     srcs = ["vid_labeling_dispatcher_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],

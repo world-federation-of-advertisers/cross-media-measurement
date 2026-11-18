@@ -55,9 +55,18 @@ class ValidateDataWatcherConfigTest {
   }
 
   @Test
+  fun `main accepts a VID labeling dispatch route`() {
+    assertSuccess(execute(route("VidLabelingDispatchWorkItemParams")))
+  }
+
+  @Test
   fun `main accepts mixed route parameter types`() {
     assertSuccess(
-      execute(route("EventGroupSyncParams") + route("ExternalDataAvailabilitySyncParams"))
+      execute(
+        route("EventGroupSyncParams") +
+          route("ExternalDataAvailabilitySyncParams") +
+          route("VidLabelingDispatchWorkItemParams")
+      )
     )
   }
 
