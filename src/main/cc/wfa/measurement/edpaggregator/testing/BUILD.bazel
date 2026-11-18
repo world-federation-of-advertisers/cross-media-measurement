@@ -1,0 +1,13 @@
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+package(default_visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:__pkg__"])
+
+cc_binary(
+    name = "encode_riegeli_test_record",
+    testonly = True,
+    srcs = ["encode_riegeli_test_record.cc"],
+    deps = [
+        "@com_google_riegeli//riegeli/bytes:string_writer",
+        "@com_google_riegeli//riegeli/records:record_writer",
+    ],
+)
