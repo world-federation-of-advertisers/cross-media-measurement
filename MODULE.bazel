@@ -43,7 +43,7 @@ bazel_dep(
     repo_name = "wfa_common_jvm",
 )
 
-# DO_NOT_SUBMIT(world-federation-of-advertisers/bazel-registry#233): Remove after registry merge.
+# TODO(world-federation-of-advertisers/bazel-registry#233): Remove after registry merge.
 git_override(
     module_name = "common-jvm",
     commit = "68c1ac159aed79040b2d378832d6eff9c20cd632",
