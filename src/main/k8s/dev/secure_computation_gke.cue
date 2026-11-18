@@ -42,6 +42,7 @@ objectSets: [
 ]
 
 secureComputation: #SecureComputation & {
+	_vidLabelingDispatchQueueEnabled: true
 
 	_secureComputationSecretName: _secretName
 	_verboseGrpcServerLogging:    true
