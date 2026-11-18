@@ -352,6 +352,7 @@ class PoolAssignmentJobService(
       }
 
     return markPoolAssignmentJobSucceededResponse {
+      lastShard = internalResponse.lastShard
       poolAssignmentJob = internalResponse.poolAssignmentJob.toPublic()
       if (internalResponse.hasLastShardResult()) {
         this.lastShardResult = lastShardResult {
