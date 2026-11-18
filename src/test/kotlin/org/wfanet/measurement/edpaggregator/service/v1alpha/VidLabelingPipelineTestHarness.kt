@@ -118,8 +118,10 @@ import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
@@ -142,6 +144,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataA
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.validateWorkItemDoneObjectGeneration
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices as EdpaInternalApiServices
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata as EdpaSchemata
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.testing.VidLabelingDispatchWorkItemTestRunner
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.GENERATION_PATH_PREFIX
@@ -202,6 +205,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.retryUploadHealingOperationR
 import org.wfanet.measurement.edpaggregator.v1alpha.scalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeler.ParquetImpressionConverter
 import org.wfanet.measurement.edpaggregator.vidlabeler.PopulationAttributeWriter
@@ -297,6 +301,8 @@ data class PipelineHarnessConfig(
   val modelLineActiveStarts: Map<String, Instant> = emptyMap(),
   val modelLineActiveEnds: Map<String, Instant> = emptyMap(),
   val dispatcherClockUsesToday: Boolean = false,
+  val queuedDispatch: Boolean = false,
+  val workItemClock: Clock = Clock.systemUTC(),
   val initialToday: LocalDate = LocalDate.of(2026, 9, 3),
 )
 
@@ -335,6 +341,7 @@ abstract class VidLabelingPipelineTestHarness(
     InProcessWorkItemTransport(
       pipelineConfig.redeliveryDelayMillis,
       pipelineConfig.maxDeliveryAttempts,
+      pipelineConfig.workItemClock,
     )
   protected val edpaInternalServer = GrpcTestServerRule {
     EdpaInternalApiServices.build(edpaDatabase.databaseClient, EmptyCoroutineContext)
@@ -488,6 +495,7 @@ abstract class VidLabelingPipelineTestHarness(
   protected lateinit var workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub
   protected lateinit var workItemAttemptsStub: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
   protected lateinit var dispatchSequencer: VidLabelingDispatchSequencer
+  protected lateinit var dispatchWorkItemProcessor: VidLabelingDispatchWorkItemTestRunner
   protected lateinit var internalDataAvailabilitySync: DataAvailabilitySync
   protected lateinit var externalDataAvailabilitySync: DataAvailabilitySync
   private lateinit var availabilityWorkItemProcessor: DataAvailabilitySyncWorkItemProcessor
@@ -621,7 +629,7 @@ abstract class VidLabelingPipelineTestHarness(
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
-    val dispatcherFactory = { exchange: HttpExchange ->
+    val dispatcherFactory = { overrides: List<String>, source: String?, operation: String? ->
       VidLabelingDispatcher(
         storageClient = fileStorage,
         rawImpressionUploadStub = uploadsStub,
@@ -634,10 +642,9 @@ abstract class VidLabelingPipelineTestHarness(
         dataProviderName = providerName,
         modelSuiteName =
           checkNotNull(ModelLineKey.fromName(modelLineFixtures.first().name)).parentKey.toName(),
-        overrideModelLines =
-          exchange.requestHeaders.getFirst(OVERRIDE_MODEL_LINES_HEADER)?.split(',').orEmpty(),
-        recoverySourceUpload = exchange.requestHeaders.getFirst(RECOVERY_SOURCE_UPLOAD_HEADER),
-        recoveryOperationId = exchange.requestHeaders.getFirst(EVICTION_OPERATION_ID_HEADER),
+        overrideModelLines = overrides,
+        recoverySourceUpload = source,
+        recoveryOperationId = operation,
         modelLineConfigs = modelLineFixtures.associate { it.name to modelLineConfig },
         readEventDate = { uri -> readEventDate(uri) },
         readBlobMetadata = { key -> blobMetadata(key) },
@@ -654,6 +661,21 @@ abstract class VidLabelingPipelineTestHarness(
           ),
       )
     }
+
+    dispatchWorkItemProcessor =
+      VidLabelingDispatchWorkItemTestRunner(
+        workItemsStub,
+        workItemAttemptsStub,
+        { app, source, guard ->
+          guard()
+          dispatcherFactory(
+              app.overrideModelLinesList,
+              app.recoverySourceUpload.takeIf { it.isNotEmpty() },
+              app.evictionOperationId.takeIf { it.isNotEmpty() },
+            )
+            .upload(source.dataPath, source.generation)
+        },
+      )
 
     internalDataAvailabilitySync =
       DataAvailabilitySync(
@@ -751,7 +773,11 @@ abstract class VidLabelingPipelineTestHarness(
     httpServer.createContext(
       "/raw",
       SuspendingHttpHandler(endpointFailure::set) { exchange ->
-        dispatcherFactory(exchange)
+        dispatcherFactory(
+            exchange.requestHeaders.getFirst(OVERRIDE_MODEL_LINES_HEADER)?.split(',').orEmpty(),
+            exchange.requestHeaders.getFirst(RECOVERY_SOURCE_UPLOAD_HEADER),
+            exchange.requestHeaders.getFirst(EVICTION_OPERATION_ID_HEADER),
+          )
           .upload(
             checkNotNull(exchange.requestHeaders.getFirst(DATA_WATCHER_PATH_HEADER)),
             checkNotNull(exchange.requestHeaders.getFirst(DATA_WATCHER_GENERATION_HEADER)).toLong(),
@@ -769,9 +795,16 @@ abstract class VidLabelingPipelineTestHarness(
           watchedPath {
             identifier = "raw-upload"
             sourcePathRegex = "${Regex.escape(rawPrefix)}/.+/done"
-            httpEndpointSink = httpEndpointSink {
-              endpointUri = "$endpoint/raw"
-              appParams = Struct.getDefaultInstance()
+            if (pipelineConfig.queuedDispatch) {
+              controlPlaneQueueSink = controlPlaneQueueSink {
+                queue = VidLabelingDispatchWorkItems.QUEUE
+                appParams = vidLabelingDispatchWorkItemParams { dataProvider = providerName }.pack()
+              }
+            } else {
+              httpEndpointSink = httpEndpointSink {
+                endpointUri = "$endpoint/raw"
+                appParams = Struct.getDefaultInstance()
+              }
             }
           }
         ),
@@ -1043,6 +1076,14 @@ abstract class VidLabelingPipelineTestHarness(
             request.doneBlobUri,
             mapOf(
               DataWatcher.GENERATION_METADATA_KEY to request.doneBlobGeneration.toString(),
+              DataWatcher.CREATE_TIME_METADATA_KEY to
+                blobVersionMetadata(
+                    SelectedStorageClient.parseBlobUri(request.doneBlobUri).key,
+                    request.doneBlobGeneration,
+                  )
+                  .createTime
+                  .toString(),
+              DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
               WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to request.cmmsModelLines.joinToString(","),
               WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to request.sourceRawImpressionUpload,
               WatchedBlobs.EVICTION_OPERATION_ID_KEY to operationId,
@@ -1510,6 +1551,23 @@ abstract class VidLabelingPipelineTestHarness(
       )
     appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     appJobs += apps.map { appScope.launch { it.run() } }
+    if (pipelineConfig.queuedDispatch)
+      appJobs +=
+        appScope.launch {
+          val messages =
+            workItemTransport.subscribe(VidLabelingDispatchWorkItems.QUEUE, WorkItem.parser())
+          for (message in messages) {
+            try {
+              dispatchWorkItemProcessor.process(message.body)
+              message.ack()
+            } catch (e: CancellationException) {
+              throw e
+            } catch (_: Exception) {
+              message.nack()
+            }
+          }
+        }
+
     appJobs +=
       appScope.launch {
         val messages =
@@ -2673,6 +2731,7 @@ abstract class VidLabelingPipelineTestHarness(
   protected class InProcessWorkItemTransport(
     private val redeliveryDelayMillis: Long = REDELIVERY_DELAY_MILLIS,
     private val maxDeliveryAttempts: Int = 3,
+    private val clock: Clock = Clock.systemUTC(),
   ) : QueueSubscriber {
     private data class RedeliveryGate(
       val queueName: String,
@@ -2681,7 +2740,6 @@ abstract class VidLabelingPipelineTestHarness(
     )
 
     private val stateMutex = Mutex()
-    private val clock = Clock.systemUTC()
     private val redeliveryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val channels =
       ConcurrentHashMap<String, Channel<QueueSubscriber.QueueMessage<WorkItem>>>()
