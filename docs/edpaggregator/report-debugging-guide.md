@@ -27,7 +27,7 @@ Two fulfillment paths exist for an EDP, and this guide covers both:
 A single measurement can mix both kinds of EDP. The Reporting, Kingdom, and
 Duchy stages are common to both; only stage 4 branches.
 
-## Fulfillment value diagnostics
+## Measurement value diagnostics
 
 Fulfillment logs omit full measurement results and dynamically chosen impression
 clips by default. Requisition identifiers, measurement types, and fulfillment
@@ -41,7 +41,19 @@ disabled for routine operation. Enable it only where the underlying data is
 appropriate for value logging; collected logs and report-trace artifacts may
 contain these values.
 
-Post-processing has a separate opt-in flag, `--log-noise-correction-values`.
+The impression verification tool also accepts `--log-measurement-values=true`
+for aggregate impression counts. Its default logs retain verification outcomes
+and blob/error counts. It does not log raw impression samples, even with the flag
+enabled. Publisher validation requires an explicit `logMeasurementValues` setting;
+when disabled, its logs retain validation verdicts and skip reasons while omitting
+counts, deviations, and free-form publisher details.
+
+The Reporting API server and report jobs accept the same flag for detailed
+variance-calculation exceptions, which can contain measurement values. Default
+logs retain the metric identifier and failure type.
+
+Post-processing has a separate opt-in flag, `--log-noise-correction-values`,
+which also controls exception details during processing and result writeback.
 
 ## Golden rule: trace one report, in order
 

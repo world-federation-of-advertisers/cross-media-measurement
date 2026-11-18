@@ -37,6 +37,7 @@ import java.util.Base64
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -519,6 +520,43 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
   }
 
   @Test
+  fun `verify main omits impression counts by default and with value logging disabled`() {
+    runGenerate()
+    val metadataFile = firstGeneratedMetadataFile()
+
+    for (logMeasurementValues in listOf(null, false)) {
+      val result = runVerifyMetadataMain(metadataFile, logMeasurementValues)
+
+      CommandLineTesting.assertThat(result.output).status().isEqualTo(0)
+      val logs = result.logMessages.joinToString("\n")
+      assertThat(logs).contains("PASS:")
+      assertThat(logs).contains("Blobs processed: 1")
+      assertThat(logs).contains("Decrypted impression records")
+      assertThat(logs).doesNotContain("Total impressions decrypted:")
+      assertThat(logs).doesNotContain(" impressions")
+      assertThat(logs).doesNotContain("vid=")
+      assertThat(logs).doesNotContain("eventTime=")
+    }
+  }
+
+  @Test
+  fun `verify main logs aggregate counts when enabled without raw impression samples`() {
+    runGenerate()
+    val metadataFile = firstGeneratedMetadataFile()
+
+    val result = runVerifyMetadataMain(metadataFile, logMeasurementValues = true)
+
+    CommandLineTesting.assertThat(result.output).status().isEqualTo(0)
+    val logs = result.logMessages.joinToString("\n")
+    assertThat(logs).containsMatch("Total impressions decrypted: [1-9][0-9]*")
+    assertThat(logs).containsMatch("Decrypted [1-9][0-9]* impression records")
+    assertThat(logs).contains("Event group '${SPEC_A.eventGroupReferenceId}':")
+    assertThat(logs).contains("Entity '${SPEC_A.entityKeyType}=")
+    assertThat(logs).doesNotContain("vid=")
+    assertThat(logs).doesNotContain("eventTime=")
+  }
+
+  @Test
   fun `verify main rejects raw KMS ciphertext without a Tink envelope`() {
     runGenerate()
     val originalMetadataFile = firstGeneratedMetadataFile()
@@ -532,7 +570,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
       originalDetails.copy { encryptedDek = invalidEncryptedDek }.toByteArray()
     )
 
-    val result = runVerifyMetadataMain(invalidMetadataFile)
+    val result = runVerifyMetadataMain(invalidMetadataFile, logMeasurementValues = null)
 
     CommandLineTesting.assertThat(result.output).status().isEqualTo(1)
     assertThat(result.logMessages.joinToString("\n"))
@@ -560,7 +598,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
       }
     runBlocking { encryptedStorage.writeBlob(blobUri.key, flowOf(delimitedRecord)) }
 
-    val result = runVerifyMetadataMain(metadataFile)
+    val result = runVerifyMetadataMain(metadataFile, logMeasurementValues = null)
 
     CommandLineTesting.assertThat(result.output).status().isEqualTo(1)
     assertThat(result.logMessages.joinToString("\n")).contains("parsing a bare LabeledImpression")
@@ -582,7 +620,7 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
       originalMetadataFile.resolveSibling("metadata-wrong-associated-data.binpb")
     invalidMetadataFile.writeBytes(originalDetails.copy { blobUri = copiedBlobUri }.toByteArray())
 
-    val result = runVerifyMetadataMain(invalidMetadataFile)
+    val result = runVerifyMetadataMain(invalidMetadataFile, logMeasurementValues = null)
 
     CommandLineTesting.assertThat(result.output).status().isEqualTo(1)
     assertThat(result.logMessages.joinToString("\n"))
@@ -1318,12 +1356,16 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
       .toList()
   }
 
-  private fun runVerifyMetadataMain(metadataFile: File): VerificationMainResult {
+  private fun runVerifyMetadataMain(
+    metadataFile: File,
+    logMeasurementValues: Boolean?,
+  ): VerificationMainResult {
     val logMessages = mutableListOf<String>()
+    val formatter = SimpleFormatter()
     val handler =
       object : Handler() {
         override fun publish(record: LogRecord) {
-          logMessages += record.message
+          logMessages += formatter.format(record)
         }
 
         override fun flush() {}
@@ -1335,16 +1377,18 @@ class GenerateAndVerifyVidLabeledImpressionsTest {
     val output =
       try {
         val metadataUri = "file:///" + metadataFile.relativeTo(tempFolder.root).path
-        CommandLineTesting.capturingOutput(
-          arrayOf(
+        val args =
+          mutableListOf(
             "--kms-type=FAKE",
             "--kek-uri=$KEK_URI",
             "--fake-kek-keyset-file=${fakeKekKeysetFile().path}",
             "--local-storage-path=${tempFolder.root.path}",
             "--metadata-uri=$metadataUri",
-          ),
-          ::verifyVidLabeledImpressionsMain,
-        )
+          )
+        if (logMeasurementValues != null) {
+          args += "--log-measurement-values=$logMeasurementValues"
+        }
+        CommandLineTesting.capturingOutput(args.toTypedArray(), ::verifyVidLabeledImpressionsMain)
       } finally {
         logger.removeHandler(handler)
       }

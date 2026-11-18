@@ -46,6 +46,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -2769,12 +2770,13 @@ class MetricsServiceTest {
       on { nextLong() } doReturn RANDOM_OUTPUT_LONG
     }
 
-    service = createService(variancesMock)
+    service = createService(variancesMock, logMeasurementValues = false)
   }
 
   private fun createService(
     variances: Variances,
     signingPrivateKeyDir: File = SECRETS_DIR,
+    logMeasurementValues: Boolean,
   ): MetricsService {
     return MetricsService(
       METRIC_SPEC_CONFIG,
@@ -2799,6 +2801,7 @@ class MetricsServiceTest {
       MEASUREMENT_CONSUMER_MODEL_LINES,
       POPULATION_DATA_PROVIDER_NAME,
       kingdomMeasurementBatchConcurrency = 8,
+      logMeasurementValues = logMeasurementValues,
     )
   }
 
@@ -5639,7 +5642,12 @@ class MetricsServiceTest {
   @Test
   fun `createMetric attributes signing key load failure to pending Measurements`(): Unit =
     runBlocking {
-      service = createService(variancesMock, SECRETS_DIR.resolve("missing-signing-key-directory"))
+      service =
+        createService(
+          variancesMock,
+          SECRETS_DIR.resolve("missing-signing-key-directory"),
+          logMeasurementValues = false,
+        )
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
       } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
@@ -6495,6 +6503,7 @@ class MetricsServiceTest {
         emptyMap(),
         POPULATION_DATA_PROVIDER_NAME,
         kingdomMeasurementBatchConcurrency = 8,
+        logMeasurementValues = false,
       )
 
     wheneverBlocking {
@@ -10067,7 +10076,7 @@ class MetricsServiceTest {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
     } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
-    service = createService(variances = VariancesImpl)
+    service = createService(variances = VariancesImpl, logMeasurementValues = false)
 
     for ((noiseMechanism, relativeFrequencies) in
       listOf(
@@ -12858,6 +12867,67 @@ class MetricsServiceTest {
           metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
         }
       )
+  }
+
+  @Test
+  fun `variance failure logs omit result values when value logging is disabled`() {
+    val logs = captureVarianceFailureLogs(logMeasurementValues = false)
+
+    assertThat(logs).contains("buildMetricResult failed for")
+    assertThat(logs).contains("MeasurementVarianceNotComputableException")
+    assertThat(logs).doesNotContain("reach=938475629")
+    assertThat(logs).doesNotContain("IllegalArgumentException")
+  }
+
+  @Test
+  fun `variance failure logs include exception values when value logging is enabled`() {
+    val logs = captureVarianceFailureLogs(logMeasurementValues = true)
+
+    assertThat(logs).contains("buildMetricResult exception:")
+    assertThat(logs).contains("reach=938475629")
+    assertThat(logs).contains("IllegalArgumentException")
+  }
+
+  private fun captureVarianceFailureLogs(logMeasurementValues: Boolean): String {
+    service = createService(variancesMock, logMeasurementValues = logMeasurementValues)
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+    whenever(variancesMock.computeMetricVariance(any<ReachMetricVarianceParams>()))
+      .thenThrow(IllegalArgumentException("Invalid reach=938475629"))
+    wheneverBlocking { internalMetricsMock.batchGetMetrics(any()) } doReturn
+      internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC }
+    val request = batchGetMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      names += SUCCEEDED_INCREMENTAL_REACH_METRIC.name
+    }
+
+    val logs = StringBuffer()
+    val formatter = SimpleFormatter()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          logs.append(formatter.format(record))
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger(MetricsService::class.java.name)
+    logger.addHandler(handler)
+    try {
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchGetMetrics(request) }
+        }
+      assertThat(response.metricsList.single().state).isEqualTo(Metric.State.FAILED)
+      assertThat(response.metricsList.single().failure.reason)
+        .isEqualTo(Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID)
+    } finally {
+      logger.removeHandler(handler)
+    }
+    return logs.toString()
   }
 
   @Test

@@ -22,6 +22,14 @@ import picocli.CommandLine
 /** Flags specific to the V2Alpha API version. */
 class V2AlphaFlags {
   @CommandLine.Option(
+    names = ["--log-measurement-values"],
+    defaultValue = "false",
+    description = ["Include measurement values in diagnostic exceptions. Disabled by default."],
+  )
+  var logMeasurementValues: Boolean = false
+    private set
+
+  @CommandLine.Option(
     names = ["--measurement-consumer-config-file"],
     description = ["File path to a MeasurementConsumerConfig textproto"],
     required = true,

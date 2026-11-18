@@ -26,6 +26,10 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.util.UUID
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -69,11 +73,116 @@ class EdpValidationPostProcessorTest {
     fakeCloudFunction.stop()
   }
 
-  private fun postProcessor(configs: DataProviderValidationConfigs = configsFor(DATA_PROVIDER)) =
+  @Test
+  fun `validation logs omit numeric results when value logging is disabled`() {
+    fakeCloudFunction.responseBody = resultResponse(10_000_000L)
+
+    val logs = captureValidationLogs {
+      val result =
+        postProcessor(logMeasurementValues = false)
+          .validate(listOf(row(reportedImpressions = 8_500_000L)))
+      assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.FAILED)
+    }
+
+    assertThat(logs).contains("Validation FAILED for $DATA_PROVIDER entity campaign-1")
+    assertThat(logs).doesNotContain("10000000")
+    assertThat(logs).doesNotContain("8500000")
+    assertThat(logs).doesNotContain("reported=")
+    assertThat(logs).doesNotContain("publisher=")
+    assertThat(logs).doesNotContain("expected=")
+    assertThat(logs).doesNotContain("deviation=")
+  }
+
+  @Test
+  fun `validation logs include numeric results when value logging is enabled`() {
+    fakeCloudFunction.responseBody = resultResponse(10_000_000L)
+
+    val logs = captureValidationLogs {
+      val result =
+        postProcessor(logMeasurementValues = true)
+          .validate(listOf(row(reportedImpressions = 8_500_000L)))
+      assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.FAILED)
+    }
+
+    assertThat(logs).contains("reported=8500000")
+    assertThat(logs).contains("publisher=10000000")
+    assertThat(logs).contains("expected=10000000")
+    assertThat(logs).contains("deviation=0.15")
+  }
+
+  @Test
+  fun `validation logs omit free-form skip detail when value logging is disabled`() {
+    fakeCloudFunction.responseBody =
+      dataProviderImpressionQueryResponse {
+          requestId = REQUEST_ID
+          skipped = skipDetail {
+            reason = DataProviderImpressionQueryResponse.SkipDetail.SkipReason.ENTITY_NOT_FOUND
+            detail = "diagnostic value=938475629"
+          }
+        }
+        .toByteArray()
+
+    val logs = captureValidationLogs {
+      postProcessor(logMeasurementValues = false)
+        .validate(listOf(row(reportedImpressions = 8_500_000L)))
+    }
+
+    assertThat(logs).contains("Validation skipped for $DATA_PROVIDER: ENTITY_NOT_FOUND")
+    assertThat(logs).doesNotContain("938475629")
+  }
+
+  @Test
+  fun `validation logs include skip detail when value logging is enabled`() {
+    fakeCloudFunction.responseBody =
+      dataProviderImpressionQueryResponse {
+          requestId = REQUEST_ID
+          skipped = skipDetail {
+            reason = DataProviderImpressionQueryResponse.SkipDetail.SkipReason.ENTITY_NOT_FOUND
+            detail = "diagnostic value=938475629"
+          }
+        }
+        .toByteArray()
+
+    val logs = captureValidationLogs {
+      postProcessor(logMeasurementValues = true)
+        .validate(listOf(row(reportedImpressions = 8_500_000L)))
+    }
+
+    assertThat(logs).contains("ENTITY_NOT_FOUND - diagnostic value=938475629")
+  }
+
+  private fun captureValidationLogs(block: () -> Unit): String {
+    val logs = StringBuffer()
+    val formatter = SimpleFormatter()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          logs.append(formatter.format(record))
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger(EdpValidationPostProcessor::class.java.name)
+    logger.addHandler(handler)
+    try {
+      block()
+    } finally {
+      logger.removeHandler(handler)
+    }
+    return logs.toString()
+  }
+
+  private fun postProcessor(
+    configs: DataProviderValidationConfigs = configsFor(DATA_PROVIDER),
+    logMeasurementValues: Boolean,
+  ) =
     EdpValidationPostProcessor(
       configs = configs,
       client = ValidationCloudFunctionClient(idTokenProvider = FakeIdTokenProvider()),
       metrics = testMetrics,
+      logMeasurementValues = logMeasurementValues,
     )
 
   /** Builds a config with one entry per [dataProviders], all pointing at the fake endpoint. */
@@ -94,7 +203,9 @@ class EdpValidationPostProcessorTest {
   fun `validate returns PASSED when deviation is within tolerance`() {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 
-    val result = postProcessor().validate(listOf(row(reportedImpressions = 10_000_000L)))
+    val result =
+      postProcessor(logMeasurementValues = false)
+        .validate(listOf(row(reportedImpressions = 10_000_000L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.PASSED)
   }
@@ -111,7 +222,7 @@ class EdpValidationPostProcessorTest {
           endTimeSeconds = 1_700_086_456L,
         )
 
-    val result = postProcessor().validate(listOf(input))
+    val result = postProcessor(logMeasurementValues = false).validate(listOf(input))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.PASSED)
     assertThat(fakeCloudFunction.requestCount).isEqualTo(1)
@@ -134,7 +245,8 @@ class EdpValidationPostProcessorTest {
   fun `validate sends a deterministic name-based request id derived from the query`() {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 
-    postProcessor().validate(listOf(row(reportedImpressions = 10_000_000L)))
+    postProcessor(logMeasurementValues = false)
+      .validate(listOf(row(reportedImpressions = 10_000_000L)))
 
     val sentRequest =
       DataProviderImpressionQueryRequest.parseFrom(fakeCloudFunction.lastRequestBody)
@@ -149,7 +261,9 @@ class EdpValidationPostProcessorTest {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 
     // Reported is 15% below the publisher count, exceeding the 10% failure threshold.
-    val result = postProcessor().validate(listOf(row(reportedImpressions = 8_500_000L)))
+    val result =
+      postProcessor(logMeasurementValues = false)
+        .validate(listOf(row(reportedImpressions = 8_500_000L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.FAILED)
   }
@@ -160,7 +274,9 @@ class EdpValidationPostProcessorTest {
 
     // A cloud function error never fails the report; with no verdict produced the result is
     // SKIPPED.
-    val result = postProcessor().validate(listOf(row(reportedImpressions = 8_500_000L)))
+    val result =
+      postProcessor(logMeasurementValues = false)
+        .validate(listOf(row(reportedImpressions = 8_500_000L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.SKIPPED)
   }
@@ -177,7 +293,9 @@ class EdpValidationPostProcessorTest {
         }
         .toByteArray()
 
-    val result = postProcessor().validate(listOf(row(reportedImpressions = 8_500_000L)))
+    val result =
+      postProcessor(logMeasurementValues = false)
+        .validate(listOf(row(reportedImpressions = 8_500_000L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.SKIPPED)
   }
@@ -185,7 +303,7 @@ class EdpValidationPostProcessorTest {
   @Test
   fun `validate returns NOT_CONFIGURED when no row matches a config`() {
     val result =
-      postProcessor()
+      postProcessor(logMeasurementValues = false)
         .validate(
           listOf(row(dataProviderName = "dataProviders/unconfigured", reportedImpressions = 1L))
         )
@@ -200,7 +318,8 @@ class EdpValidationPostProcessorTest {
     // Publisher count 500 is below the configured minimum of 1000, so no comparison is made.
     fakeCloudFunction.responseBody = resultResponse(500L)
 
-    val result = postProcessor().validate(listOf(row(reportedImpressions = 500L)))
+    val result =
+      postProcessor(logMeasurementValues = false).validate(listOf(row(reportedImpressions = 500L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.SKIPPED)
   }
@@ -217,7 +336,9 @@ class EdpValidationPostProcessorTest {
       }
     fakeCloudFunction.responseBody = resultResponse(500L)
 
-    val result = postProcessor(configs).validate(listOf(row(reportedImpressions = 500L)))
+    val result =
+      postProcessor(configs, logMeasurementValues = false)
+        .validate(listOf(row(reportedImpressions = 500L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.SKIPPED)
   }
@@ -232,7 +353,9 @@ class EdpValidationPostProcessorTest {
       }
     fakeCloudFunction.responseBody = resultResponse(500L)
 
-    val result = postProcessor(configs).validate(listOf(row(reportedImpressions = 500L)))
+    val result =
+      postProcessor(configs, logMeasurementValues = false)
+        .validate(listOf(row(reportedImpressions = 500L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.PASSED)
   }
@@ -244,7 +367,7 @@ class EdpValidationPostProcessorTest {
     // With a 0.1 sampling width the expected count is 1,000,000, matching the reported count, so a
     // naive unscaled comparison (1M vs 10M) would FAIL but the scaled comparison PASSES.
     val result =
-      postProcessor()
+      postProcessor(logMeasurementValues = false)
         .validate(listOf(row(reportedImpressions = 1_000_000L, vidSamplingWidth = 0.1)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.PASSED)
@@ -254,7 +377,8 @@ class EdpValidationPostProcessorTest {
   fun `metrics - PASS emits queries and report_results with the right attributes`() {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 
-    postProcessor().validate(listOf(row(reportedImpressions = 10_000_000L)))
+    postProcessor(logMeasurementValues = false)
+      .validate(listOf(row(reportedImpressions = 10_000_000L)))
 
     val passAttrs =
       Attributes.of(
@@ -278,7 +402,8 @@ class EdpValidationPostProcessorTest {
   fun `metrics - FAIL emits report_failures and report_results with the right attributes`() {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 
-    postProcessor().validate(listOf(row(reportedImpressions = 8_500_000L)))
+    postProcessor(logMeasurementValues = false)
+      .validate(listOf(row(reportedImpressions = 8_500_000L)))
 
     assertThat(
         counterValue(
@@ -312,7 +437,8 @@ class EdpValidationPostProcessorTest {
   fun `metrics - cloud function error emits cf_errors and skipped_queries with the right attributes`() {
     fakeCloudFunction.responseStatus = 500
 
-    postProcessor().validate(listOf(row(reportedImpressions = 8_500_000L)))
+    postProcessor(logMeasurementValues = false)
+      .validate(listOf(row(reportedImpressions = 8_500_000L)))
 
     assertThat(
         counterValue(
@@ -351,7 +477,7 @@ class EdpValidationPostProcessorTest {
   fun `metrics - below minimum emits skipped_queries with below_minimum_count`() {
     fakeCloudFunction.responseBody = resultResponse(500L)
 
-    postProcessor().validate(listOf(row(reportedImpressions = 500L)))
+    postProcessor(logMeasurementValues = false).validate(listOf(row(reportedImpressions = 500L)))
 
     assertThat(
         counterValue(
@@ -373,7 +499,8 @@ class EdpValidationPostProcessorTest {
     // expected count to zero, so the skip reason is distinct from the publisher-floor skip.
     fakeCloudFunction.responseBody = resultResponse(2000L)
 
-    postProcessor().validate(listOf(row(reportedImpressions = 5L, vidSamplingWidth = 1e-9)))
+    postProcessor(logMeasurementValues = false)
+      .validate(listOf(row(reportedImpressions = 5L, vidSamplingWidth = 1e-9)))
 
     assertThat(
         counterValue(
@@ -396,7 +523,7 @@ class EdpValidationPostProcessorTest {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 
     val result =
-      postProcessor(configsFor(dpPass, dpFail))
+      postProcessor(configsFor(dpPass, dpFail), logMeasurementValues = false)
         .validate(
           listOf(
             row(dataProviderName = dpPass, reportedImpressions = 10_000_000L),
@@ -427,7 +554,8 @@ class EdpValidationPostProcessorTest {
   fun `validate increments report_results exactly once per call`() {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 
-    postProcessor().validate(listOf(row(reportedImpressions = 10_000_000L)))
+    postProcessor(logMeasurementValues = false)
+      .validate(listOf(row(reportedImpressions = 10_000_000L)))
 
     assertThat(counterTotal("edp_validation.report_results")).isEqualTo(1)
     assertThat(
