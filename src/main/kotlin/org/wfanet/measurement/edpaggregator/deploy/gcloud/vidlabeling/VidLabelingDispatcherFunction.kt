@@ -16,66 +16,31 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
-import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
-import com.google.cloud.storage.BlobId
-import com.google.cloud.storage.Storage
-import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.util.JsonFormat
-import io.grpc.Status
-import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
-import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
-import java.io.File
-import java.nio.file.Files
-import java.nio.file.attribute.BasicFileAttributes
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.Path
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
-import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
-import org.wfanet.measurement.common.EnvVars
-import org.wfanet.measurement.common.Instrumentation
-import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
-import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
-import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
-import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
-import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
-import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
-import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.storage.ParquetStorageClient
-import org.wfanet.measurement.storage.SelectedStorageClient
-import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemCloudFunction
+import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemInvocation
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /**
@@ -126,12 +91,56 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `X-Eviction-Operation-Id`: Optional. Eviction operation that authorizes the recovery. Required
  *   together with `X-Recovery-Source-Upload`.
  */
-class VidLabelingDispatcherFunction : HttpFunction {
+class VidLabelingDispatcherFunction : WorkItemCloudFunction() {
+  private val runtime = VidLabelingDispatcherRuntime()
+
   init {
     EdpaTelemetry.ensureInitialized()
   }
 
-  override fun service(request: HttpRequest, response: HttpResponse) {
+  override fun isWorkItemRequest(request: HttpRequest): Boolean =
+    request.getFirstHeader("x-goog-pubsub-message-id").isPresent ||
+      request.contentType.orElse("").substringBefore(';') == "application/octet-stream"
+
+  override suspend fun createWorkItemInvocation(workItem: WorkItem): WorkItemInvocation {
+    val provider =
+      runCatching {
+          val frame = workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+          frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java).dataProvider
+        }
+        .getOrDefault("")
+    val (items, attempts) = runtime.controlPlaneClients(provider)
+    return VidLabelingDispatcherWorkItemProcessor(
+        items,
+        attempts,
+        { input, guard ->
+          runtime.validateSource(input)
+          runtime
+            .createDispatcher(
+              input.appParams.dataProvider,
+              input.source.dataPath,
+              input.appParams.recovery.overrideModelLinesList,
+              input.appParams.recovery.sourceUpload.takeIf { it.isNotEmpty() },
+              UploadHealingOperationKey.fromName(input.appParams.recovery.uploadHealingOperation)
+                ?.uploadHealingOperationId,
+              guard,
+            )
+            .upload(input.source.dataPath, input.source.generation)
+        },
+      )
+      .createInvocation(workItem)
+  }
+
+  override fun handleFailure(error: Exception, response: HttpResponse) {
+    response.setStatusCode(if (error is IllegalArgumentException) 400 else 503)
+    response.writer.write("VID dispatch failed: " + error::class.java.simpleName)
+  }
+
+  override fun flushTelemetry() {
+    EdpaTelemetry.flush()
+  }
+
+  override fun serviceLegacyRequest(request: HttpRequest, response: HttpResponse) {
     try {
       logger.fine("Starting VidLabelingDispatcherFunction")
 
@@ -161,191 +170,21 @@ class VidLabelingDispatcherFunction : HttpFunction {
       val recoverySourceUpload = request.getFirstHeader(RECOVERY_SOURCE_UPLOAD_HEADER).orElse(null)
       val evictionOperationId = request.getFirstHeader(EVICTION_OPERATION_ID_HEADER).orElse(null)
 
-      val config: VidLabelingConfig =
-        vidLabelingConfigsByDataProvider[dispatcherParams.dataProvider]
-          ?: throw IllegalArgumentException(
-            "No VidLabelingConfig found for data provider: ${dispatcherParams.dataProvider}"
-          )
-
-      val storageClient: StorageClient = createStorageClient(doneBlobPath)
-      val readBlobMetadata = createBlobMetadataReader(doneBlobPath)
-      val parquetStorageClient: ParquetStorageClient = createParquetStorageClient(doneBlobPath)
-      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
-
-      val modelLinesStub =
-        ModelLinesGrpcKt.ModelLinesCoroutineStub(
-          VidLabelingFunctionHelpers.createInstrumentedChannel(
-            config.modelLinesConnection,
-            modelLinesTarget,
-            modelLinesCertHost,
-            grpcTelemetry,
-          )
-        )
-
-      val modelRolloutsStub =
-        ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub(
-          VidLabelingFunctionHelpers.createInstrumentedChannel(
-            config.modelRolloutsConnection,
-            modelRolloutsTarget,
-            modelRolloutsCertHost,
-            grpcTelemetry,
-          )
-        )
-
-      val modelShardsStub =
-        ModelShardsGrpcKt.ModelShardsCoroutineStub(
-          VidLabelingFunctionHelpers.createInstrumentedChannel(
-            config.modelShardsConnection,
-            modelShardsTarget,
-            modelShardsCertHost,
-            grpcTelemetry,
-          )
-        )
-
-      val rawImpressionUploadChannel =
-        VidLabelingFunctionHelpers.createInstrumentedChannel(
-          config.rawImpressionMetadataStorageConnection,
-          rawImpressionUploadTarget,
-          rawImpressionUploadCertHost,
-          grpcTelemetry,
-        )
-      val rawImpressionUploadStub =
-        RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-      val rawImpressionUploadFilesStub =
-        RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-      val rawImpressionUploadModelLineStub =
-        RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-      val correctionCandidateStub =
-        RawImpressionUploadCorrectionCandidateServiceGrpcKt
-          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawImpressionUploadChannel)
-      val rankIndexBlobStub =
-        RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
-      val uploadHealingOperationStub =
-        UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-      // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
-      val poolAssignmentJobStub =
-        PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
-          rawImpressionUploadChannel
-        )
-      // VidLabelingJobService is served by the same RawImpressionMetadata storage deployment.
-      val vidLabelingJobStub =
-        VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(rawImpressionUploadChannel)
-      val workItemsStub =
-        WorkItemsGrpcKt.WorkItemsCoroutineStub(
-          VidLabelingFunctionHelpers.createInstrumentedChannel(
-            config.controlPlaneConnection,
-            controlPlaneTarget,
-            controlPlaneCertHost,
-            grpcTelemetry,
-          )
-        )
-
-      require(config.numberOfShards > 0) {
-        "number_of_shards must be positive for data provider: ${config.dataProvider}"
-      }
-      // Fail fast on per-model-line config the TEE would otherwise only reject at Phase-2.
-      requireValidModelLineConfigs(config)
-      // Fail fast on the bin-packing cap the memoized path only rejects inside the TEE.
-      requireValidMaxFileBatchSizeBytes(config)
-      val modelLineConfigs =
-        VidLabelingFunctionHelpers.convertModelLineConfigs(config.modelLineConfigsMap)
-
-      val dispatchSequencer =
-        VidLabelingDispatchSequencer(
-          rawImpressionUploadStub = rawImpressionUploadStub,
-          rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-          rankIndexBlobStub = rankIndexBlobStub,
-          uploadHealingOperationStub = uploadHealingOperationStub,
-          workItemsStub = workItemsStub,
-          poolAssignmentJobStub = poolAssignmentJobStub,
-          modelRolloutsStub = modelRolloutsStub,
-          modelShardsStub = modelShardsStub,
-          modelLinesStub = modelLinesStub,
-          dataProviderName = config.dataProvider,
-          vidLabelerParamsTemplate =
-            VidLabelingFunctionHelpers.buildVidLabelerParamsTemplate(config),
-          subpoolAssignerParamsTemplate =
-            VidLabelingFunctionHelpers.buildSubpoolAssignerParamsTemplate(config),
-          queueName = vidLabelerQueueName,
-          poolAssignerQueueName = poolAssignerQueueName,
-          numberOfShards = config.numberOfShards,
-          modelLineConfigs = modelLineConfigs,
-          rawImpressionUploadFileStub = rawImpressionUploadFilesStub,
-          vidLabelingJobStub = vidLabelingJobStub,
-          maxFileBatchSizeBytes = config.maxFileBatchSizeBytes,
-          rpcThrottlers = rpcThrottlers,
-          validateEventTemplateVersion = { modelLineConfig, version ->
-            VidLabelingFunctionHelpers.validateEventTemplateVersion(
-              modelLineConfig,
-              version,
-              config.rawImpressionsStorageParams.gcs.projectId,
-            )
-          },
-        )
-
       val dispatcher =
-        VidLabelingDispatcher(
-          storageClient = storageClient,
-          readEventDate = { blobUri ->
-            val parquetBlobPath =
-              if (fileSystemPath.isNullOrEmpty()) {
-                blobUri
-              } else {
-                SelectedStorageClient.parseBlobUri(blobUri).key
-              }
-            readEventDateFromFooter(parquetStorageClient, parquetBlobPath)
-          },
-          readBlobMetadata = readBlobMetadata,
-          rawImpressionUploadStub = rawImpressionUploadStub,
-          rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
-          correctionDetectionStub = correctionCandidateStub,
-          rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-          rankIndexBlobStub = rankIndexBlobStub,
-          modelLinesStub = modelLinesStub,
-          dispatchSequencer = dispatchSequencer,
-          dataProviderName = config.dataProvider,
-          modelSuiteName = config.modelSuite,
-          overrideModelLines = overrideModelLines,
-          recoverySourceUpload = recoverySourceUpload,
-          recoveryOperationId = evictionOperationId,
-          modelLineConfigs = modelLineConfigs,
-          footerReadConcurrency =
-            VidLabelingDispatcher.resolveFooterReadConcurrency(
-              System.getenv(VidLabelingDispatcher.FOOTER_READ_CONCURRENCY_ENV)
-            ),
-          rpcThrottlers = rpcThrottlers,
-          getHealingOperation = { name ->
-            try {
-              uploadHealingOperationStub.getUploadHealingOperation(
-                getUploadHealingOperationRequest { this.name = name }
-              )
-            } catch (e: StatusException) {
-              if (e.status.code == Status.Code.NOT_FOUND) null else throw e
-            }
-          },
-          readBlobVersionMetadata = createBlobVersionMetadataReader(doneBlobPath, readBlobMetadata),
-          getCorrectionCandidate = { name ->
-            correctionCandidateStub.getRawImpressionUploadCorrectionCandidate(
-              getRawImpressionUploadCorrectionCandidateRequest { this.name = name }
-            )
-          },
+        runtime.createDispatcher(
+          dispatcherParams.dataProvider,
+          doneBlobPath,
+          overrideModelLines,
+          recoverySourceUpload,
+          evictionOperationId,
         )
-
       Tracing.withW3CTraceContext(request) {
         val doneBlobPathHash = VidLabelingTraceLogging.sha256(doneBlobPath)
         Tracing.trace(
           spanName = "edpa.vid_labeling.upload.register",
           attributes =
             Attributes.builder()
-              .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, config.dataProvider)
+              .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dispatcherParams.dataProvider)
               .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, doneBlobPathHash)
               .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, doneBlobGeneration)
               .put(XmmTraceAttributes.LIFECYCLE_STAGE, "upload_registration")
@@ -377,182 +216,15 @@ class VidLabelingDispatcherFunction : HttpFunction {
       logger.log(Level.WARNING, "Rejecting request as bad input", e)
       response.setStatusCode(400)
       response.writer.write(e.message ?: "Bad request")
-    } finally {
-      EdpaTelemetry.flush()
     }
   }
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
-    private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
-    private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
-    private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
-    private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
-    private const val EVICTION_OPERATION_ID_HEADER: String = "X-Eviction-Operation-Id"
-    private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
-
-    private val modelLinesTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_LINES_TARGET")
-    private val modelLinesCertHost: String? = System.getenv("MODEL_LINES_CERT_HOST")
-    private val modelRolloutsTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_ROLLOUTS_TARGET")
-    private val modelRolloutsCertHost: String? = System.getenv("MODEL_ROLLOUTS_CERT_HOST")
-    private val modelShardsTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_SHARDS_TARGET")
-    private val modelShardsCertHost: String? = System.getenv("MODEL_SHARDS_CERT_HOST")
-    private val rawImpressionUploadTarget: String =
-      EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET")
-    private val rawImpressionUploadCertHost: String? =
-      System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST")
-    private val controlPlaneTarget: String = EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET")
-    private val controlPlaneCertHost: String? = System.getenv("CONTROL_PLANE_CERT_HOST")
-    private val vidLabelerQueueName: String = EnvVars.checkNotNullOrEmpty("VID_LABELER_QUEUE_NAME")
-    private val poolAssignerQueueName: String =
-      EnvVars.checkNotNullOrEmpty("POOL_ASSIGNER_QUEUE_NAME")
-
-    private val fileSystemPath: String? = System.getenv("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH")
-
-    private val configBlobKey: String = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
-
-    private val rpcThrottlers: VidLabelingRpcThrottlers by lazy {
-      VidLabelingRpcThrottlersEnvironment.load()
-    }
-
-    private val vidLabelingConfigs: VidLabelingConfigs by lazy {
-      runBlocking {
-        EdpAggregatorConfig.getConfigAsProtoMessage(
-          configBlobKey,
-          VidLabelingConfigs.getDefaultInstance(),
-        )
-      }
-    }
-
-    private val vidLabelingConfigsByDataProvider: Map<String, VidLabelingConfig> by lazy {
-      vidLabelingConfigs.configsList.associateBy { it.dataProvider }
-    }
-
-    /**
-     * Builds a [ParquetStorageClient] over the raw-impression storage for footer-only reads (no
-     * decryption). Mirrors [createStorageClient]'s FileSystem/GCS mode selection.
-     */
-    private fun createParquetStorageClient(doneBlobPath: String): ParquetStorageClient {
-      return if (!fileSystemPath.isNullOrEmpty()) {
-        ParquetStorageClient(
-          Configuration(),
-          Path(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH")),
-        )
-      } else {
-        val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-        val projectId =
-          requireNotNull(System.getenv(GOOGLE_PROJECT_ID_ENV)?.takeIf { it.isNotEmpty() }) {
-            "$GOOGLE_PROJECT_ID_ENV must be set for GCS footer reads"
-          }
-        ParquetStorageClient(gcsHadoopConfiguration(projectId), Path("gs://${doneBlobUri.bucket}"))
-      }
-    }
-
-    private fun createStorageClient(doneBlobPath: String): StorageClient {
-      return if (!fileSystemPath.isNullOrEmpty()) {
-        FileSystemStorageClient(
-          File(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH"))
-        )
-      } else {
-        val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-        GcsStorageClient(
-          StorageOptions.newBuilder()
-            .also { builder ->
-              val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
-              if (!projectId.isNullOrEmpty()) {
-                builder.setProjectId(projectId)
-              }
-            }
-            .build()
-            .service,
-          doneBlobUri.bucket,
-        )
-      }
-    }
-
-    private fun createBlobMetadataReader(
-      doneBlobPath: String
-    ): suspend (String) -> RawImpressionBlobMetadata {
-      if (!fileSystemPath.isNullOrEmpty()) {
-        val storageRoot = File(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH"))
-        return { blobKey ->
-          withContext(Dispatchers.IO) {
-            val blobFile = storageRoot.resolve(blobKey)
-            val attributes =
-              Files.readAttributes(blobFile.toPath(), BasicFileAttributes::class.java)
-            check(attributes.isRegularFile) {
-              "Raw impression file disappeared before registration: $blobKey"
-            }
-            val generation = attributes.lastModifiedTime().toMillis()
-            check(generation > 0L) { "Raw impression file has no modification time: $blobKey" }
-            RawImpressionBlobMetadata(
-              generation = generation,
-              sizeBytes = attributes.size(),
-              createTime = attributes.creationTime().toInstant(),
-            )
-          }
-        }
-      }
-      val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-      val storage: Storage =
-        StorageOptions.newBuilder()
-          .also { builder ->
-            val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
-            if (!projectId.isNullOrEmpty()) {
-              builder.setProjectId(projectId)
-            }
-          }
-          .build()
-          .service
-      return { blobKey ->
-        withContext(Dispatchers.IO) {
-          val blob =
-            checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, blobKey))) {
-              "Raw impression blob disappeared before registration: $blobKey"
-            }
-          RawImpressionBlobMetadata(
-            generation = blob.generation,
-            sizeBytes = blob.size,
-            createTime = blob.createTimeOffsetDateTime.toInstant(),
-          )
-        }
-      }
-    }
-
-    private fun createBlobVersionMetadataReader(
-      doneBlobPath: String,
-      currentReader: suspend (String) -> RawImpressionBlobMetadata,
-    ): suspend (String, Long) -> RawImpressionBlobMetadata {
-      if (!fileSystemPath.isNullOrEmpty()) {
-        return { key, generation ->
-          currentReader(key).also {
-            check(it.generation == generation) { "The retained raw-object version is unavailable" }
-          }
-        }
-      }
-      val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-      val storage =
-        StorageOptions.newBuilder()
-          .also { builder ->
-            System.getenv(GOOGLE_PROJECT_ID_ENV)
-              ?.takeIf { it.isNotEmpty() }
-              ?.let { builder.setProjectId(it) }
-          }
-          .build()
-          .service
-      return { key, generation ->
-        withContext(Dispatchers.IO) {
-          val blob =
-            checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, key, generation))) {
-              "The retained raw-object version is unavailable"
-            }
-          RawImpressionBlobMetadata(
-            blob.generation,
-            blob.size,
-            blob.createTimeOffsetDateTime.toInstant(),
-          )
-        }
-      }
-    }
+    private val logger = Logger.getLogger(VidLabelingDispatcherFunction::class.java.name)
+    private const val DATA_WATCHER_PATH_HEADER = "X-DataWatcher-Path"
+    private const val DATA_WATCHER_GENERATION_HEADER = "X-DataWatcher-Generation"
+    private const val OVERRIDE_MODEL_LINES_HEADER = "X-Override-Model-Lines"
+    private const val RECOVERY_SOURCE_UPLOAD_HEADER = "X-Recovery-Source-Upload"
+    private const val EVICTION_OPERATION_ID_HEADER = "X-Eviction-Operation-Id"
   }
 }
