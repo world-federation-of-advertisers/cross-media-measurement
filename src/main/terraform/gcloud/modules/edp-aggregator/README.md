@@ -156,3 +156,10 @@ report alone does not establish that cleanup received the notification. Inspect
 the dead-letter subscription for failed deliveries and keep the event, object,
 and metadata identifiers in the test record. Remove the remaining test objects
 and verify cleanup after completing the check.
+
+## Durable VID dispatch WorkItems
+
+Configure `vid_labeling_dispatch_work_item_queue` before switching raw-upload
+watcher routes. The dispatcher accepts both queued jobs and legacy HTTP deliveries.
+See the [migration and retry guide](../../../../../../docs/operations/migrating-vid-labeling-dispatch.md)
+for deployment order, historical recovery, and rollback constraints.
