@@ -345,7 +345,7 @@ configs {
   }
   model_suite: "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo"
   staleness_threshold {
-    seconds: 28800
+    seconds: 86400
   }
 }
 configs {
@@ -411,6 +411,6 @@ configs {
   }
   model_suite: "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo"
   staleness_threshold {
-    seconds: 28800
+    seconds: 86400
   }
 }
