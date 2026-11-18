@@ -102,6 +102,8 @@ the cause. Check both failed WorkItems and the queue's oldest unacknowledged
 message age. Configure `data_availability_cleanup_alert_notification_channels`
 for notifications; the queue age threshold is
 `data_availability_cleanup_max_queue_age_seconds` (default 30 minutes).
+Alerts also count deliveries sent to the dead-letter queue, even after those
+deliveries have been acknowledged.
 
 #### Switch cleanup to WorkItems
 
@@ -111,10 +113,10 @@ Uploads and file deletions can continue during these steps:
    `data_availability_cleanup_work_item_dispatch_enabled = false`. This keeps
    notifications on the existing HTTP route while creating the cleanup queue
    and its permissions.
-2. Deploy the updated Secure Computation queue registry, cleanup function, and
-   deletion watcher. Wait for those deployments to finish before changing the
-   routing setting. The updated cleanup function accepts both queued jobs and
-   existing HTTP requests.
+2. Deploy the updated Secure Computation internal API server and its queue
+   registry, cleanup function, and deletion watcher. Wait for those deployments
+   to finish before changing the routing setting. The updated cleanup function
+   accepts both queued jobs and existing HTTP requests.
 3. Set `data_availability_cleanup_work_item_dispatch_enabled = true` in the
    environment's Terraform configuration and run the normal deployment
    workflow. New notifications now create WorkItems.

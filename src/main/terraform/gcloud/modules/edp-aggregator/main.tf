@@ -889,6 +889,24 @@ resource "google_monitoring_alert_policy" "data_availability_cleanup_queue" {
       }
     }
   }
+  conditions {
+    display_name = "Cleanup delivery was dead-lettered"
+    condition_threshold {
+      filter = join(" AND ", [
+        "resource.type = \"pubsub_subscription\"",
+        "metric.type = \"pubsub.googleapis.com/subscription/dead_letter_message_count\"",
+        "resource.label.subscription_id = \"${module.data_availability_cleanup_work_item_queue.pubsub_subscription.name}\"",
+        "metric.label.response_code = \"success\"",
+      ])
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_SUM"
+      }
+    }
+  }
   documentation {
     content   = "Check the oldest cleanup delivery and WorkItem failures. Increase cleanup worker capacity only within the metadata API budget. Retry failed WorkItems after repairing the cause. Storage deletion continues while cleanup waits."
     mime_type = "text/markdown"
