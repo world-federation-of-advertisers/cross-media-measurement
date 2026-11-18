@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.timestamp
 import com.google.rpc.ErrorInfo
 import io.grpc.Status
@@ -278,18 +279,24 @@ class EventGroupSyncWorkItemProcessorTest {
   }
 
   @Test
-  fun `deleted event is rejected before attempt creation`() {
-    val work = input().workItem
-    val params = work.workItemParams.unpack(WorkItem.WorkItemParams::class.java).toBuilder()
-    params.dataPathParams =
-      params.dataPathParams
-        .toBuilder()
-        .setEventType(WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED)
-        .build()
-    assertFailsWith<IllegalArgumentException> {
-      EventGroupSyncWorkItem.parse(
-        work.toBuilder().setWorkItemParams(Any.pack(params.build())).build()
-      )
+  fun `accepts queued work from a producer using the old event type field`() {
+    for (fieldNumber in listOf(4, 5)) {
+      val work = input().workItem
+      val params = work.workItemParams.unpack(WorkItem.WorkItemParams::class.java).toBuilder()
+      params.dataPathParams =
+        params.dataPathParams
+          .toBuilder()
+          .setUnknownFields(
+            UnknownFieldSet.newBuilder()
+              .addField(fieldNumber, UnknownFieldSet.Field.newBuilder().addVarint(1L).build())
+              .build()
+          )
+          .build()
+      val parsed =
+        EventGroupSyncWorkItem.parse(
+          work.toBuilder().setWorkItemParams(Any.pack(params.build())).build()
+        )
+      assertThat(parsed.source.generation).isEqualTo(7L)
     }
   }
 
@@ -308,7 +315,6 @@ class EventGroupSyncWorkItemProcessorTest {
               dataPathParams = dataPathParams {
                 dataPath = sourcePath
                 generation = 7L
-                eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
               }
             }
           )

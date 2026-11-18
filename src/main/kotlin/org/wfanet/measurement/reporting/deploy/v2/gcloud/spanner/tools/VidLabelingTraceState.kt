@@ -352,9 +352,7 @@ private fun WorkItem.parseAvailabilityParams():
       !params.hasDataPathParams() ||
       !params.dataPathParams.hasGeneration() ||
       params.dataPathParams.dataPath.isEmpty() ||
-      params.dataPathParams.generation <= 0L ||
-      params.dataPathParams.eventType !=
-        WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+      params.dataPathParams.generation <= 0L
   ) {
     return null
   }

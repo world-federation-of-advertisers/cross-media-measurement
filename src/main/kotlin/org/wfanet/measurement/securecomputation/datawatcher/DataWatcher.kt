@@ -20,6 +20,7 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdToken
 import com.google.auth.oauth2.IdTokenProvider
 import com.google.protobuf.Any
+import com.google.protobuf.UnknownFieldSet
 import io.grpc.Status
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -99,6 +100,14 @@ class DataWatcher(
       return
     }
 
+    if (
+      config.eventTypesCount > 0 &&
+        objectMetadata[EVENT_TYPE_METADATA_KEY] !in config.eventTypesList
+    ) {
+      logger.log(Level.FINE, "Configuration ${config.identifier} did not match event type")
+      return
+    }
+
     logger.log(
       Level.INFO,
       "Configuration matched path: config=${config.identifier}, pathHash=${pathHash(path)}",
@@ -159,12 +168,6 @@ class DataWatcher(
     val objectCreateTime =
       objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
         ?: throw IllegalArgumentException("Missing source object creation time")
-    val storageEventType =
-      when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
-        FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-        DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-        else -> throw IllegalArgumentException("Missing or invalid storage event type")
-      }
     val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
@@ -174,7 +177,6 @@ class DataWatcher(
             this.dataPath = path
             generation = objectGeneration
             createTime = objectCreateTime.toProtoTime()
-            eventType = storageEventType
           }
           traceContext.putAll(W3CTraceContext.inject())
         }
@@ -264,11 +266,22 @@ class DataWatcher(
       existing.queue == requestedWorkItem.queue &&
         existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
-        existingParams.dataPathParams == requestedParams.dataPathParams
+        existingParams.dataPathParams.withoutLegacyEventType() ==
+          requestedParams.dataPathParams.withoutLegacyEventType()
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }
     return existing.workItemParams
+  }
+
+  private fun WorkItem.WorkItemParams.DataPathParams.withoutLegacyEventType():
+    WorkItem.WorkItemParams.DataPathParams {
+    // Earlier Halo builds used field 4 or 5 for event_type.
+    return toBuilder()
+      .setUnknownFields(
+        UnknownFieldSet.newBuilder(unknownFields).clearField(4).clearField(5).build()
+      )
+      .build()
   }
 
   private fun sendToHttpEndpoint(
