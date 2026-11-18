@@ -78,6 +78,7 @@ class ImpressionWriterTest {
     }
     tempFolder.root.resolve("some-impression-bucket").mkdirs()
     tempFolder.root.resolve("some-metadata-bucket").mkdirs()
+    val writtenGenerations = mutableMapOf<String, String>()
     val impressionWriter =
       ImpressionsWriter(
         "some-event-group-path",
@@ -89,6 +90,7 @@ class ImpressionWriterTest {
         tempFolder.root,
         "file:///",
         includeEventGroupReferenceIdInImpressions = false,
+        onBlobWritten = { uri, token -> writtenGenerations[uri] = token },
       )
     val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
@@ -154,6 +156,7 @@ class ImpressionWriterTest {
     runBlocking {
       impressionWriter.writeLabeledImpressionData(events, modelLineName, "edp/edp-test")
     }
+    assertThat(writtenGenerations).hasSize(4)
     val storageClient = FileSystemStorageClient(tempFolder.root)
     runBlocking {
       listOf("2020-01-01", "2020-01-02").forEach { date ->
@@ -176,6 +179,19 @@ class ImpressionWriterTest {
         val serializedEncryptionKey = encryptedDek.ciphertext
 
         val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
+        assertThat(writtenGenerations[blobDetails.blobUri])
+          .isEqualTo(
+            selectedStorageClient.getFreshnessToken(
+              "edp/edp-test/ds/$date/some-event-group-path/impressions"
+            )
+          )
+        val metadataUri =
+          "file:///some-metadata-bucket/edp/edp-test/ds/$date/some-event-group-path/metadata.binpb"
+        assertThat(writtenGenerations[metadataUri])
+          .isEqualTo(
+            SelectedStorageClient(metadataUri, tempFolder.root)
+              .getFreshnessToken("edp/edp-test/ds/$date/some-event-group-path/metadata.binpb")
+          )
         val decryptionClient =
           selectedStorageClient.withEnvelopeEncryption(kmsClient, kekUri, serializedEncryptionKey)
         val impressions =

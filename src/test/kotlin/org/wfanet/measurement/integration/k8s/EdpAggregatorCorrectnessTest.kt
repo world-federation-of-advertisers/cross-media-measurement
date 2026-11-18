@@ -18,6 +18,7 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.api.client.http.javanet.NetHttpTransport
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.storage.HttpStorageOptions
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.common.truth.Truth.assertThat
@@ -35,11 +36,13 @@ import java.util.UUID
 import java.util.logging.Logger
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.ClassRule
@@ -80,15 +83,21 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.integration.testing.ImpressionMetadataAwaiter
 import org.wfanet.measurement.integration.testing.RequisitionFetcherClient
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
+import org.wfanet.measurement.loadtest.edpaggregator.testing.FixtureGcsStorageClient
+import org.wfanet.measurement.loadtest.edpaggregator.testing.FixtureStorageClient
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -344,7 +353,27 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   private class CreateDoneBlobs : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
-    private val storageClient = StorageOptions.getDefaultInstance().service
+    private val storageClient =
+      StorageOptions.newBuilder()
+        .setTransportOptions(
+          HttpStorageOptions.defaults()
+            .defaultTransportOptions
+            .toBuilder()
+            .setConnectTimeout(10_000)
+            .setReadTimeout(10_000)
+            .build()
+        )
+        .setRetrySettings(
+          StorageOptions.getDefaultRetrySettings()
+            .toBuilder()
+            .setTotalTimeoutDuration(Duration.ofSeconds(30))
+            .setInitialRpcTimeoutDuration(Duration.ofSeconds(10))
+            .setMaxRpcTimeoutDuration(Duration.ofSeconds(10))
+            .setMaxAttempts(3)
+            .build()
+        )
+        .build()
+        .service
     private val googleProjectId: String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
 
@@ -357,7 +386,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             )
             createDoneBlobs()
 
-            logger.info("Event Group Sync completed.")
+            logger.info("Labeled fixture synchronization completed.")
           }
           base.evaluate()
         }
@@ -376,6 +405,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             "non-memoized model line must be a full ModelLine resource name: $modelLine"
           }
           .modelLineId
+      val doneBlobGenerations = mutableMapOf<String, Long>()
       buildPaths(modelLineId).forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient =
@@ -392,7 +422,105 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         }
 
         logger.info("Creating a new DONE blob at path: $path...")
-        selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
+        val written =
+          FixtureStorageClient(FixtureGcsStorageClient(storageClient, bucket))
+            .writeBlob(doneBlobUri.key, emptyFlow())
+        doneBlobGenerations[path] =
+          (written as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
+      }
+      awaitFixtureAvailability(modelLine, doneBlobGenerations)
+    }
+
+    private suspend fun awaitFixtureAvailability(modelLine: String, doneBlobs: Map<String, Long>) {
+      val expectedBlobs = writeReusedLabeledImpressions.expectedBlobGenerations
+      if (expectedBlobs.isEmpty()) {
+        logger.warning("No rewritten labeled fixtures; skipping synchronization await.")
+        return
+      }
+      val pipelinedDataProvider =
+        System.getenv("PIPELINED_DATA_PROVIDER") ?: EDPA_DATA_PROVIDERS.first()
+      val parentsByPath =
+        mapOf(
+          EDP7_IMPRESSION_PATH to pipelinedDataProvider,
+          EDPA_META_IMPRESSION_PATH to EDPA_DATA_PROVIDERS.single { it != pipelinedDataProvider },
+        )
+      val expectedByParent =
+        expectedBlobs.entries
+          .filter { it.key.substringAfterLast('/').startsWith("metadata") }
+          .groupBy { (uri, _) ->
+            val key = SelectedStorageClient.parseBlobUri(uri).key
+            parentsByPath.getValue(key.substringBefore("/model-line/"))
+          }
+          .mapValues { (_, blobs) ->
+            blobs.map { (uri, generation) ->
+              val prefix = uri.substringBeforeLast('/')
+              val suffix =
+                uri.substringAfterLast('/').removePrefix("metadata").removeSuffix(".binpb")
+              impressionMetadata {
+                blobUri = uri
+                this.modelLine = modelLine
+                metadataBlobGeneration = generation
+                impressionsBlobGeneration = expectedBlobs.getValue("$prefix/impressions$suffix")
+                outputDoneBlobGeneration = doneBlobs.getValue("$prefix/done")
+              }
+            }
+          }
+      val channel = AwaitVidLabelingRule.buildEdpaChannel()
+      var publicationSummary = "metadata synchronization has not completed"
+      try {
+        val ready =
+          withTimeoutOrNull(DATA_AVAILABILITY_PUBLICATION_TIMEOUT * 2) {
+            ImpressionMetadataAwaiter(
+                ImpressionMetadataServiceCoroutineStub(channel),
+                pollInterval = 5.seconds,
+                timeout = DATA_AVAILABILITY_PUBLICATION_TIMEOUT,
+                rpcTimeout = 30.seconds,
+              )
+              .awaitCompletion(expectedByParent)
+            val published =
+              withTimeoutOrNull(DATA_AVAILABILITY_PUBLICATION_TIMEOUT) publication@{
+                while (true) {
+                  val pending =
+                    runInterruptible(Dispatchers.IO) {
+                      doneBlobs.mapNotNull { (uri, generation) ->
+                        val key = SelectedStorageClient.parseBlobUri(uri).key
+                        val blob =
+                          checkNotNull(storageClient.get(bucket, key)) {
+                            "Done blob disappeared: $uri"
+                          }
+                        check(blob.generation == generation) { "Done blob was replaced: $uri" }
+                        val metadata = blob.metadata.orEmpty()
+                        val syncId = metadata[DATA_AVAILABILITY_SYNC_ID_METADATA_KEY]
+                        val publishedSyncId =
+                          metadata[DATA_AVAILABILITY_PUBLISHED_SYNC_ID_METADATA_KEY]
+                        if (syncId != null && publishedSyncId == syncId) null
+                        else
+                          "$uri: generation=$generation, syncId=$syncId, publishedSyncId=$publishedSyncId"
+                      }
+                    }
+                  publicationSummary = pending.joinToString("; ")
+                  if (pending.isEmpty()) return@publication true
+                  logger.info("Waiting for fixture publication. $publicationSummary")
+                  delay(5.seconds)
+                }
+                @Suppress("UNREACHABLE_CODE") false
+              }
+            check(published == true) {
+              "Timed out waiting for labeled fixture publication. $publicationSummary"
+            }
+            runInterruptible(Dispatchers.IO) {
+              for ((uri, generation) in expectedBlobs) {
+                val key = SelectedStorageClient.parseBlobUri(uri).key
+                check(storageClient.get(bucket, key)?.generation == generation) {
+                  "Labeled fixture was replaced while awaiting synchronization: $uri"
+                }
+              }
+            }
+            true
+          }
+        check(ready == true) { "Timed out validating labeled fixtures. $publicationSummary" }
+      } finally {
+        channel.shutdown()
       }
     }
 

@@ -91,9 +91,16 @@ class WriteReusedLabeledImpressionsRule(
   private val vidLabelerProvider: () -> NonMemoizedVidLabeler,
 ) : TestRule {
 
+  /** Exact GCS generations of the impression files and metadata sidecars written by this rule. */
+  val expectedBlobGenerations: Map<String, Long>
+    get() = writtenBlobGenerations.toMap()
+
+  private val writtenBlobGenerations = mutableMapOf<String, Long>()
+
   override fun apply(base: Statement, description: Description): Statement {
     return object : Statement() {
       override fun evaluate() {
+        writtenBlobGenerations.clear()
         val modelLine = modelLineProvider()
         if (modelLine == null) {
           logger.warning(
@@ -165,6 +172,7 @@ class WriteReusedLabeledImpressionsRule(
         schema = GCS_SCHEME,
         outputKey = eventGroup.outputKey,
         includeEventGroupReferenceIdInImpressions = false,
+        onBlobWritten = { uri, token -> writtenBlobGenerations[uri] = token.toLong() },
       )
     val vidLabeler = vidLabelerProvider()
     val shards: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =

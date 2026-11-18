@@ -23,15 +23,23 @@ import org.wfanet.measurement.storage.StorageClient
 /**
  * Writes fixtures against their observed generation so storage retries cannot overwrite a conflict.
  */
-class FixtureStorageClient(private val delegate: ConditionalOperationStorageClient) :
-  ConditionalOperationStorageClient by delegate {
+class FixtureStorageClient(
+  private val delegate: ConditionalOperationStorageClient,
+  private val onBlobWritten: ((String, String) -> Unit)? = null,
+) : ConditionalOperationStorageClient by delegate {
   override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob {
     val freshnessToken = delegate.getFreshnessToken(blobKey)
-    return if (freshnessToken == null) {
-      delegate.writeBlobIfNotFound(blobKey, content)
-    } else {
-      delegate.writeBlobIfUnchanged(blobKey, freshnessToken, content)
-    }
+    val written =
+      if (freshnessToken == null) {
+        delegate.writeBlobIfNotFound(blobKey, content)
+      } else {
+        delegate.writeBlobIfUnchanged(blobKey, freshnessToken, content)
+      }
+    onBlobWritten?.invoke(
+      blobKey,
+      (written as ConditionalOperationStorageClient.Blob).freshnessToken,
+    )
+    return written
   }
 
   override suspend fun writeBlob(blobKey: String, content: ByteString): StorageClient.Blob =
