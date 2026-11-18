@@ -490,28 +490,43 @@ class VidLabelerApp(
     kmsClient: KmsClient,
     inputFiles: List<String>,
   ): Set<LocalDate> {
-    val rankIndexStore =
-      RankIndexStore(
-        buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
-        kmsClient,
-      )
-    // Resolve the current snapshot set every WorkItem (cheap listing); reuse the process-wide
-    // cached index when the exact same blobs would load, else build it (evicting the old one
-    // first). New Phase-1 output changes the chosen blob URIs -> a new cache key -> a rebuild.
-    // TODO: resolveLatestBlobs runs a metadata-list RPC on every WorkItem, even on a cache hit, so
-    // a metadata-service roll (UNAVAILABLE / DEADLINE_EXCEEDED) fails every WorkItem's fast path
-    // until it recovers. If it becomes a hotspot, cache the result with a short TTL to share one
-    // call across a burst of WorkItems, or retry-on-transient before falling through to a rebuild.
-    val resolvedBlobs =
-      MemoizedRankIndex.resolveLatestBlobs(
-        rankIndexBlobsStub,
-        dataProvider,
-        modelLine,
-        rpcThrottlers.metadataRead,
-      )
+    val parent =
+      listAllModelLines(parentUpload(params.vidLabelingJob)).singleOrNull {
+        it.cmmsModelLine == modelLine
+      }
     val rankIndex =
-      memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
-        MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
+      if (parent != null && parent.hasEncryptedMergedDek() && parent.poolOffsetsList.isEmpty()) {
+        check(!parent.encryptedMergedDek.ciphertext.isEmpty) {
+          "Empty Phase-0 completion for ${parent.name} has no encrypted DEK ciphertext"
+        }
+        check(!parent.hasMaxEventDate()) {
+          "Empty Phase-0 completion for ${parent.name} has a ranked event date"
+        }
+        check(parent.state == RawImpressionUploadModelLine.State.LABELING) {
+          "Parent ${parent.name} is ${parent.state}; empty-index labeling requires LABELING"
+        }
+        MemoizedRankIndex.empty(parent.encryptedMergedDek.kekUri)
+      } else {
+        val rankIndexStore =
+          RankIndexStore(
+            buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
+            kmsClient,
+          )
+        val resolvedBlobs =
+          MemoizedRankIndex.resolveLatestBlobs(
+            rankIndexBlobsStub,
+            dataProvider,
+            modelLine,
+            rpcThrottlers.metadataRead,
+          )
+        val expectedOffsets = parent?.poolOffsetsList.orEmpty().toSet()
+        val missingOffsets = expectedOffsets - resolvedBlobs.blobs.map { it.poolOffset }.toSet()
+        check(missingOffsets.isEmpty()) {
+          "Missing SNAPSHOT rank-index blobs for expected pool offsets $missingOffsets in $modelLine"
+        }
+        memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
+          MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
+        }
       }
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
