@@ -76,6 +76,23 @@ class MemoizedRankIndexTest {
   private lateinit var rankStore: RankIndexStore
   private lateinit var dek: EncryptedDek
 
+  @Test
+  fun `empty preserves the output KEK and appends no rank assignments`() {
+    val index = MemoizedRankIndex.empty("fake-kms://output")
+    val builder = LabelerInput.newBuilder()
+    assertThat(index.kekUri).isEqualTo("fake-kms://output")
+    assertThat(index.subpoolCount).isEqualTo(0)
+    assertThat(index.lookup(EventIdDigest(1L, 2))).isEmpty()
+    assertThat(index.appendRankAssignments(EventIdDigest(1L, 2), builder)).isEqualTo(0)
+    assertThat(builder.rankAssignmentsCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `empty rejects a missing output KEK`() {
+    val error = assertFailsWith<IllegalArgumentException> { MemoizedRankIndex.empty("") }
+    assertThat(error).hasMessageThat().contains("KEK URI")
+  }
+
   @Before
   fun setUp() {
     AeadConfig.register()
