@@ -701,6 +701,7 @@ class VidLabelingOperatorComparisonIntegrationTest :
           trusTeeV2ImpressionCountMode =
             ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
       for (uri in groupedBlobs) {
         val group =

@@ -86,6 +86,7 @@ class PopulationRequisitionFulfiller(
   /** Protobuf descriptor of the event message for the CMMS instance. */
   private val eventMessageDescriptor: Descriptors.Descriptor,
   kingdomRpcThrottler: Throttler,
+  logMeasurementValues: Boolean,
 ) :
   RequisitionFulfiller(
     pdpData,
@@ -93,6 +94,7 @@ class PopulationRequisitionFulfiller(
     requisitionsStub,
     kingdomRpcThrottler,
     trustedCertificates,
+    logMeasurementValues = logMeasurementValues,
   ) {
 
   init {
@@ -141,8 +143,10 @@ class PopulationRequisitionFulfiller(
             )
           }
 
-        logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
-        logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
+        if (logMeasurementValues) {
+          logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
+          logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
+        }
 
         val populationSpec: PopulationSpec = getValidPopulationSpec(measurementSpec)
         fulfillPopulationMeasurement(requisition, requisitionSpec, measurementSpec, populationSpec)

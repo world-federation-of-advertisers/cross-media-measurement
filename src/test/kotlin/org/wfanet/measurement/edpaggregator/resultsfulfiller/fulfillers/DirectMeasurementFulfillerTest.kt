@@ -21,6 +21,10 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
@@ -110,6 +114,70 @@ class DirectMeasurementFulfillerTest {
   }
 
   @Test
+  fun `fulfillment logs omit measurement values when disabled`() {
+    val logs = fulfillRequisitionAndCaptureLogs(logMeasurementValues = false)
+    assertThat(logs)
+      .contains("Fulfilling direct requisition $REQUISITION_NAME with result types reach")
+    assertThat(logs).contains("Fulfilled direct requisition $REQUISITION_NAME")
+    assertThat(logs).doesNotContain("Direct MeasurementResult:")
+    assertThat(logs).doesNotContain("987654321")
+  }
+
+  @Test
+  fun `fulfillment logs include measurement values when enabled`() {
+    val logs = fulfillRequisitionAndCaptureLogs(logMeasurementValues = true)
+    assertThat(logs).contains("Direct MeasurementResult:")
+    assertThat(logs).contains("987654321")
+    assertThat(logs).contains("Fulfilled direct requisition $REQUISITION_NAME")
+  }
+
+  private fun fulfillRequisitionAndCaptureLogs(logMeasurementValues: Boolean): String =
+    captureLogs {
+      runBlocking {
+        DirectMeasurementFulfiller(
+            requisitionName = REQUISITION_NAME,
+            requisitionDataProviderCertificateName = DATA_PROVIDER_CERTIFICATE_NAME,
+            measurementResult =
+              result { reach = MeasurementKt.ResultKt.reach { value = 987654321L } },
+            requisitionNonce = NONCE,
+            measurementEncryptionPublicKey = MC_PUBLIC_KEY,
+            directProtocolConfig = DIRECT_PROTOCOL,
+            directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+            dataProviderSigningKeyHandle = EDP_SIGNING_KEY,
+            dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+            requisitionsStub = requisitionsStub,
+            requisitionsThrottler = FakeThrottler(),
+            kingdomThrottler = FakeThrottler(),
+            logMeasurementValues = logMeasurementValues,
+          )
+          .fulfillRequisition()
+      }
+    }
+
+  private fun captureLogs(block: () -> Unit): String {
+    val logs = StringBuffer()
+    val formatter = SimpleFormatter()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          logs.append(formatter.format(record))
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger("")
+    logger.addHandler(handler)
+    try {
+      block()
+    } finally {
+      logger.removeHandler(handler)
+    }
+    return logs.toString()
+  }
+
+  @Test
   fun `fulfillRequisition creates correct proto for direct reach requisition fulfillment`() =
     runBlocking {
       val result = result { MeasurementKt.ResultKt.reach { value = 100L } }
@@ -129,6 +197,7 @@ class DirectMeasurementFulfillerTest {
           requisitionsStub = requisitionsStub,
           requisitionsThrottler = requisitionsThrottler,
           kingdomThrottler = kingdomThrottler,
+          logMeasurementValues = false,
         )
 
       directMeasurementFulfiller.fulfillRequisition()
@@ -169,6 +238,7 @@ class DirectMeasurementFulfillerTest {
         requisitionsStub = throwingUnfulfilledRequisitionsStub,
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     assertFails { runBlocking { directMeasurementFulfiller.fulfillRequisition() } }
   }
@@ -191,6 +261,7 @@ class DirectMeasurementFulfillerTest {
           requisitionsStub = throwingTerminalRequisitionsStub,
           requisitionsThrottler = FakeThrottler(),
           kingdomThrottler = FakeThrottler(),
+          logMeasurementValues = false,
         )
 
       directMeasurementFulfiller.fulfillRequisition()

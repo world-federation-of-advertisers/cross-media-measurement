@@ -27,6 +27,22 @@ Two fulfillment paths exist for an EDP, and this guide covers both:
 A single measurement can mix both kinds of EDP. The Reporting, Kingdom, and
 Duchy stages are common to both; only stage 4 branches.
 
+## Fulfillment value diagnostics
+
+Fulfillment logs omit full measurement results and dynamically chosen impression
+clips by default. Requisition identifiers, measurement types, and fulfillment
+outcomes remain available for tracing progress.
+
+To include values while debugging, start ResultsFulfiller, the EDP simulator
+(including its legacy metadata runner), or the population requisition fulfiller
+with `--log-measurement-values=true`. On standalone data providers, this also
+enables full measurement and requisition specification logs. Leave the flag
+disabled for routine operation. Enable it only where the underlying data is
+appropriate for value logging; collected logs and report-trace artifacts may
+contain these values.
+
+Post-processing has a separate opt-in flag, `--log-noise-correction-values`.
+
 ## Golden rule: trace one report, in order
 
 Pick one report, walk it down the lifecycle, and stop at the first stage that is

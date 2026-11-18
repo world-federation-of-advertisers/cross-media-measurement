@@ -52,6 +52,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
  * @param impressionMaxFrequencyPerUser Override for max frequency per user. -1 means no cap.
  * @param totalUncappedImpressions Total impression count without frequency capping.
  * @param impressionCapMode How the per-user cap is chosen.
+ * @param logMeasurementValues Whether to include measurement-derived values in diagnostic logs.
  */
 class DirectImpressionResultBuilder
 private constructor(
@@ -73,6 +74,7 @@ private constructor(
   private val impressionMaxFrequencyPerUser: Int?,
   private val totalUncappedImpressions: Long,
   private val impressionCapMode: ImpressionCapMode,
+  private val logMeasurementValues: Boolean,
 ) : MeasurementResultBuilder {
   constructor(
     directProtocolConfig: ProtocolConfig.Direct,
@@ -86,6 +88,7 @@ private constructor(
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
     impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
+    logMeasurementValues: Boolean,
   ) : this(
     directProtocolConfig = directProtocolConfig,
     histogramBuilder = { maxFrequency ->
@@ -116,6 +119,7 @@ private constructor(
     impressionMaxFrequencyPerUser = impressionMaxFrequencyPerUser,
     totalUncappedImpressions = totalUncappedImpressions,
     impressionCapMode = impressionCapMode,
+    logMeasurementValues = logMeasurementValues,
   )
 
   constructor(
@@ -130,6 +134,7 @@ private constructor(
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
     impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
+    logMeasurementValues: Boolean,
   ) : this(
     directProtocolConfig = directProtocolConfig,
     histogramBuilder = { maxFrequency ->
@@ -160,6 +165,7 @@ private constructor(
     impressionMaxFrequencyPerUser = impressionMaxFrequencyPerUser,
     totalUncappedImpressions = totalUncappedImpressions,
     impressionCapMode = impressionCapMode,
+    logMeasurementValues = logMeasurementValues,
   )
 
   /**
@@ -247,7 +253,10 @@ private constructor(
           resultMinimumThresholds,
         )
       }
-    logger.info("Dynamic impression clip chosen: ${clipped.clip}")
+    logger.info("Dynamic impression clipping applied")
+    if (logMeasurementValues) {
+      logger.info("Dynamic impression clip chosen: ${clipped.clip}")
+    }
 
     return MeasurementKt.result {
       impression = impression {

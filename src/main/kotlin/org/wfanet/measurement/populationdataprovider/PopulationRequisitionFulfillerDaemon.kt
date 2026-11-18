@@ -110,6 +110,13 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
   private lateinit var pdpCsCertificateDerFile: File
 
   @Option(
+    names = ["--log-measurement-values"],
+    defaultValue = "false",
+    description = ["Include measurement values in diagnostic logs. Disabled by default."],
+  )
+  private var logMeasurementValues: Boolean = false
+
+  @Option(
     names = ["--throttler-minimum-interval"],
     description = ["Minimum throttle interval"],
     defaultValue = "2s",
@@ -205,6 +212,7 @@ class PopulationRequisitionFulfillerDaemon : Runnable {
         populationsStub,
         eventMessageDescriptor,
         kingdomRpcThrottler,
+        logMeasurementValues = logMeasurementValues,
       )
 
     runBlocking { populationRequisitionFulfiller.run() }

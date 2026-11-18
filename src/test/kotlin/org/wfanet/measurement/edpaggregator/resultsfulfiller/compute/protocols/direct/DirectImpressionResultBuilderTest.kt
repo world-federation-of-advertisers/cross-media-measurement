@@ -17,6 +17,10 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import com.google.common.truth.Truth.assertThat
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 import kotlin.math.ln
 import kotlin.math.sqrt
 import kotlin.test.assertFailsWith
@@ -36,6 +40,66 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 class DirectImpressionResultBuilderTest {
 
   @Test
+  fun `dynamic impression logs omit the chosen clip when disabled`() {
+    val logs = buildDynamicallyClippedResultAndCaptureLogs(logMeasurementValues = false)
+    assertThat(logs).contains("Dynamic impression clipping applied")
+    assertThat(logs).doesNotContain("Dynamic impression clip chosen:")
+  }
+
+  @Test
+  fun `dynamic impression logs include the chosen clip when enabled`() {
+    val logs = buildDynamicallyClippedResultAndCaptureLogs(logMeasurementValues = true)
+    assertThat(logs).contains("Dynamic impression clip chosen:")
+    assertThat(logs).containsMatch("Dynamic impression clip chosen: [0-9]+")
+  }
+
+  private fun buildDynamicallyClippedResultAndCaptureLogs(logMeasurementValues: Boolean): String =
+    captureLogs {
+      runBlocking {
+        val result =
+          DirectImpressionResultBuilder(
+              directProtocolConfig = DIRECT_PROTOCOL,
+              frequencyData = IntArray(100) { if (it < 90) 1 else 2 },
+              privacyParams = PRIVACY_PARAMS,
+              samplingRate = SAMPLING_RATE,
+              directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+              maxPopulation = null,
+              maxFrequencyFromSpec = MAX_FREQUENCY,
+              resultMinimumThresholds = null,
+              impressionMaxFrequencyPerUser = null,
+              totalUncappedImpressions = 110L,
+              impressionCapMode = ImpressionCapMode.DYNAMIC,
+              logMeasurementValues = logMeasurementValues,
+            )
+            .buildMeasurementResult()
+        assertThat(result.hasImpression()).isTrue()
+      }
+    }
+
+  private fun captureLogs(block: () -> Unit): String {
+    val logs = StringBuffer()
+    val formatter = SimpleFormatter()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          logs.append(formatter.format(record))
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger("")
+    logger.addHandler(handler)
+    try {
+      block()
+    } finally {
+      logger.removeHandler(handler)
+    }
+    return logs.toString()
+  }
+
+  @Test
   fun `constructor rejects unrecognized impression cap mode`() {
     assertFailsWith<IllegalArgumentException> {
       DirectImpressionResultBuilder(
@@ -50,6 +114,7 @@ class DirectImpressionResultBuilderTest {
         impressionMaxFrequencyPerUser = null,
         totalUncappedImpressions = 0L,
         impressionCapMode = ImpressionCapMode.UNRECOGNIZED,
+        logMeasurementValues = false,
       )
     }
   }
@@ -71,6 +136,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
+          logMeasurementValues = false,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult()
@@ -100,6 +166,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
+          logMeasurementValues = false,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult().impression.value
@@ -131,6 +198,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = -1,
           totalUncappedImpressions = 500L,
+          logMeasurementValues = false,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult()
@@ -160,6 +228,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = MAX_FREQUENCY,
           totalUncappedImpressions = 500L,
+          logMeasurementValues = false,
         )
 
       val result = directImpressionResultBuilder.buildMeasurementResult()
@@ -188,6 +257,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 200L,
+          logMeasurementValues = false,
         )
 
       val first = build().buildMeasurementResult()
@@ -215,6 +285,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = -1,
           totalUncappedImpressions = 500L,
+          logMeasurementValues = false,
         )
         .buildMeasurementResult()
 

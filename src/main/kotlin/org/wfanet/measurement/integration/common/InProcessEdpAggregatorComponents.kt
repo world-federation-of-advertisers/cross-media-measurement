@@ -254,6 +254,7 @@ class InProcessEdpAggregatorComponents(
       metrics = ResultsFulfillerMetrics.create(),
       requisitionsThrottler = FakeThrottler(),
       kingdomThrottler = FakeThrottler(),
+      logMeasurementValues = false,
     )
   }
 
