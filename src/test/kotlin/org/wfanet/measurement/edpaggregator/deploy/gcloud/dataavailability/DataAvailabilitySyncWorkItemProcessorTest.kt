@@ -57,7 +57,6 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKey
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
@@ -796,7 +795,6 @@ class DataAvailabilitySyncWorkItemProcessorTest {
             dataPath = DONE_BLOB_URI
             generation = 7L
             createTime = timestamp { seconds = 1_800_000_000L }
-            eventType = StorageEventType.FINALIZED
           }
         }
       )
