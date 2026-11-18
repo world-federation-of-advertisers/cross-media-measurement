@@ -41,6 +41,7 @@ import org.wfanet.measurement.reporting.service.api.MeasurementConsumerNotFoundE
 import org.wfanet.measurement.reporting.service.api.ReportingSetAlreadyExistsException
 import org.wfanet.measurement.reporting.service.api.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
+import org.wfanet.measurement.reporting.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.reporting.service.internal.ReportingInternalException
 import org.wfanet.measurement.reporting.v2alpha.CreateReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.GetReportingSetRequest
@@ -112,6 +113,10 @@ class ReportingSetsService(
     return try {
       internalReportingSetsStub.createReportingSet(internalRequest).toReportingSet()
     } catch (e: StatusException) {
+      if (InternalErrors.getReason(e) == InternalErrors.Reason.INVALID_FIELD_VALUE) {
+        throw InvalidFieldValueException("reporting_set", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
       throw when (ReportingInternalException.getErrorCode(e)) {
         ErrorCode.MEASUREMENT_CONSUMER_NOT_FOUND ->
           throw MeasurementConsumerNotFoundException(request.parent, e)

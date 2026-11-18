@@ -78,6 +78,8 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
             impressionQualificationFilterMapping,
             eventMessageDescriptor,
             disableMetricsReuse,
+            validateInsertBasicReport,
+            validateCreateReportingSet,
             serviceDispatcher,
           )
         )
@@ -91,6 +93,8 @@ class GCloudInternalReportingServer : AbstractInternalReportingServer() {
           impressionQualificationFilterMapping = null,
           eventMessageDescriptor = null,
           disableMetricsReuse,
+          validateInsertBasicReport,
+          validateCreateReportingSet,
           serviceDispatcher,
         )
       )
