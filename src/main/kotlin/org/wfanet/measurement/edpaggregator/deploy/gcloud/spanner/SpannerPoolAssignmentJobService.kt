@@ -614,6 +614,7 @@ class SpannerPoolAssignmentJobService(
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
     return markPoolAssignmentJobSucceededResponse {
+      lastShard = txnResult.isLastShard
       poolAssignmentJob =
         if (txnResult.isReplay) {
           txnResult.updatedJob

@@ -1398,6 +1398,7 @@ abstract class PoolAssignmentJobServiceTest {
           }
         )
       assertThat(firstResponse.hasLastShardResult()).isFalse()
+      assertThat(firstResponse.lastShard).isFalse()
 
       val lastResponse: MarkPoolAssignmentJobSucceededResponse =
         service.markPoolAssignmentJobSucceeded(
@@ -1413,6 +1414,7 @@ abstract class PoolAssignmentJobServiceTest {
           }
         )
       assertThat(lastResponse.hasLastShardResult()).isTrue()
+      assertThat(lastResponse.lastShard).isTrue()
     }
 
   @Test
@@ -1446,6 +1448,44 @@ abstract class PoolAssignmentJobServiceTest {
         )
 
       assertThat(response.hasLastShardResult()).isFalse()
+      assertThat(response.lastShard).isTrue()
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded replays final completion with no ranked memberships`() =
+    runBlocking {
+      val shards =
+        (0..1).map { index ->
+          service.createPoolAssignmentJob(
+            createPoolAssignmentJobRequest {
+              requestId = UUID.randomUUID().toString()
+              poolAssignmentJob = poolAssignmentJob {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                cmmsModelLine = CMMS_MODEL_LINE
+                shardIndex = index
+              }
+            }
+          )
+        }
+      val requests =
+        shards.map { shard ->
+          markPoolAssignmentJobSucceededRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
+            etag = shard.etag
+            encryptedDek = ENCRYPTED_DEK
+          }
+        }
+      val early = service.markPoolAssignmentJobSucceeded(requests[0])
+      val final = service.markPoolAssignmentJobSucceeded(requests[1])
+      assertThat(early.lastShard).isFalse()
+      assertThat(final.lastShard).isTrue()
+      assertThat(final.hasLastShardResult()).isFalse()
+      assertThat(service.markPoolAssignmentJobSucceeded(requests[0])).isEqualTo(early)
+      assertThat(service.markPoolAssignmentJobSucceeded(requests[1])).isEqualTo(final)
     }
 
   @Test
