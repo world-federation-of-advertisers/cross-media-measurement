@@ -356,6 +356,12 @@ abstract class ModelLinesServiceTest<T : ModelLinesCoroutineImplBase> {
         }
       )
     assertThat(created.hasEventTemplateVersion()).isFalse()
+    val getRequest = getModelLineRequest {
+      externalModelProviderId = created.externalModelProviderId
+      externalModelSuiteId = created.externalModelSuiteId
+      externalModelLineId = created.externalModelLineId
+    }
+    assertThat(modelLinesService.getModelLine(getRequest).hasEventTemplateVersion()).isFalse()
     val request = setModelLineEventTemplateVersionRequest {
       externalModelProviderId = created.externalModelProviderId
       externalModelSuiteId = created.externalModelSuiteId

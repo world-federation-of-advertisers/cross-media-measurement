@@ -476,6 +476,22 @@ class ModelLinesServiceTest {
   }
 
   @Test
+  fun `getModelLine preserves optional version presence before and after backfill`() = runBlocking {
+    val historical = INTERNAL_MODEL_LINE.copy { clearEventTemplateVersion() }
+    wheneverBlocking { internalModelLinesMock.getModelLine(any()) }
+      .thenReturn(historical, INTERNAL_MODEL_LINE)
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      val request = getModelLineRequest { name = MODEL_LINE_NAME }
+      val before = service.getModelLine(request)
+      assertThat(before.hasEventTemplateVersion()).isFalse()
+      val after = service.getModelLine(request)
+      assertThat(after.hasEventTemplateVersion()).isTrue()
+      assertThat(after.eventTemplateVersion).isEqualTo(1)
+      assertThat(before.name).isEqualTo(after.name)
+    }
+  }
+
+  @Test
   fun `getModelLine throws INVALID_ARGUMENT when name invalid`() {
     val exception =
       assertFailsWith<StatusRuntimeException> {

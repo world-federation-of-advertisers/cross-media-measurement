@@ -32,9 +32,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
@@ -274,88 +277,138 @@ class PopulationRequisitionFulfillerTest {
     )
   }
 
+  private suspend fun assertPopulationAcrossBackfill(
+    version: Int,
+    attributes: VersionedCommon,
+    filterExpression: String,
+  ) {
+    // The population and model line stay identical as metadata is backfilled and config removed.
+    for ((repositoryVersion, configuredVersion) in
+      listOf(null to version, version to version, version to null)) {
+      clearInvocations(requisitionsServiceMock)
+      versionedFulfiller(repositoryVersion, configuredVersion, attributes, filterExpression)
+        .executeRequisitionFulfillingWorkflow()
+      val request =
+        verifyAndCapture(
+          requisitionsServiceMock,
+          RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+        )
+      val result: Measurement.Result =
+        decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+      assertThat(result.population.value).isEqualTo(100)
+      verifyBlocking(requisitionsServiceMock, never()) { refuseRequisition(any()) }
+    }
+  }
+
   @Test
-  fun `repository version fulfills historical population using latest descriptor`() = runBlocking {
-    val fulfiller =
-      versionedFulfiller(
+  fun `historical population result is unchanged by backfill and config removal`() = runBlocking {
+    assertPopulationAcrossBackfill(
+      1,
+      versionedCommon {
+        original = VersionedCommon.Segment.SEGMENT_A
+        retired = VersionedCommon.Segment.SEGMENT_B
+      },
+      "versioned_common.retired == 2",
+    )
+  }
+
+  @Test
+  fun `new population result is unchanged by backfill and config removal`() = runBlocking {
+    assertPopulationAcrossBackfill(
+      3,
+      versionedCommon {
+        original = VersionedCommon.Segment.SEGMENT_A
+        later = VersionedCommon.Segment.SEGMENT_B
+      },
+      "versioned_common.later == 2",
+    )
+  }
+
+  private suspend fun assertRefusedForEitherVersionSource(
+    version: Int,
+    attributes: VersionedCommon,
+    filterExpression: String,
+    justification: Requisition.Refusal.Justification,
+    message: String,
+  ) {
+    for ((repositoryVersion, configuredVersion) in listOf(null to version, version to null)) {
+      clearInvocations(requisitionsServiceMock)
+      versionedFulfiller(repositoryVersion, configuredVersion, attributes, filterExpression)
+        .executeRequisitionFulfillingWorkflow()
+      val request =
+        verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+      assertThat(request.refusal.justification).isEqualTo(justification)
+      assertThat(request.refusal.message).contains(message)
+      verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+    }
+  }
+
+  @Test
+  fun `historical population still requires fields active in its version for either source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
         1,
-        null,
-        versionedCommon {
-          original = VersionedCommon.Segment.SEGMENT_A
-          retired = VersionedCommon.Segment.SEGMENT_B
-        },
-        "versioned_common.original == 1",
-      )
-    fulfiller.executeRequisitionFulfillingWorkflow()
-    val request =
-      verifyAndCapture(
-        requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
-      )
-    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-    assertThat(result.population.value).isEqualTo(100)
-  }
-
-  @Test
-  fun `local version fulfills historical population without repository metadata`() = runBlocking {
-    val fulfiller =
-      versionedFulfiller(
-        null,
-        1,
-        versionedCommon {
-          original = VersionedCommon.Segment.SEGMENT_A
-          retired = VersionedCommon.Segment.SEGMENT_B
-        },
-        "",
-      )
-    fulfiller.executeRequisitionFulfillingWorkflow()
-    val request =
-      verifyAndCapture(
-        requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
-      )
-    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-    assertThat(result.population.value).isEqualTo(100)
-  }
-
-  @Test
-  fun `repository version fulfills new population using added field`() = runBlocking {
-    val fulfiller =
-      versionedFulfiller(
-        3,
-        3,
-        versionedCommon {
-          original = VersionedCommon.Segment.SEGMENT_A
-          later = VersionedCommon.Segment.SEGMENT_B
-        },
-        "versioned_common.later == 2",
-      )
-    fulfiller.executeRequisitionFulfillingWorkflow()
-    val request =
-      verifyAndCapture(
-        requisitionsServiceMock,
-        RequisitionsCoroutineImplBase::fulfillDirectRequisition,
-      )
-    val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-    assertThat(result.population.value).isEqualTo(100)
-  }
-
-  @Test
-  fun `new population missing required added field is refused`() = runBlocking {
-    val fulfiller =
-      versionedFulfiller(
-        3,
-        null,
         versionedCommon { original = VersionedCommon.Segment.SEGMENT_A },
         "",
+        Requisition.Refusal.Justification.UNFULFILLABLE,
+        "PopulationSpec is invalid",
       )
-    fulfiller.executeRequisitionFulfillingWorkflow()
-    val request =
-      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
-    assertThat(request.refusal.justification)
-      .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
-    assertThat(request.refusal.message).contains("PopulationSpec is invalid")
+    }
+
+  @Test
+  fun `removed population field cannot be filtered for either version source`() = runBlocking {
+    assertRefusedForEitherVersionSource(
+      3,
+      versionedCommon {
+        original = VersionedCommon.Segment.SEGMENT_A
+        later = VersionedCommon.Segment.SEGMENT_B
+      },
+      "versioned_common.retired == 2",
+      Requisition.Refusal.Justification.SPEC_INVALID,
+      "Population filter is invalid",
+    )
   }
+
+  @Test
+  fun `version newer than descriptor is refused for either source`() = runBlocking {
+    assertRefusedForEitherVersionSource(
+      4,
+      versionedCommon {
+        original = VersionedCommon.Segment.SEGMENT_A
+        later = VersionedCommon.Segment.SEGMENT_B
+      },
+      "",
+      Requisition.Refusal.Justification.UNFULFILLABLE,
+      "event-template version is unsupported",
+    )
+  }
+
+  @Test
+  fun `present invalid repository version cannot use valid local fallback`() = runBlocking {
+    for (repositoryVersion in listOf(0, -1)) {
+      clearInvocations(requisitionsServiceMock)
+      versionedFulfiller(repositoryVersion, 1, VersionedCommon.getDefaultInstance(), "")
+        .executeRequisitionFulfillingWorkflow()
+      val request =
+        verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+      assertThat(request.refusal.justification)
+        .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+      assertThat(request.refusal.message).contains("event-template version is invalid")
+      verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+    }
+  }
+
+  @Test
+  fun `new population missing required added field is refused for either version source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
+        3,
+        versionedCommon { original = VersionedCommon.Segment.SEGMENT_A },
+        "",
+        Requisition.Refusal.Justification.UNFULFILLABLE,
+        "PopulationSpec is invalid",
+      )
+    }
 
   @Test
   fun `conflicting repository and local versions are refused`() = runBlocking {
@@ -378,24 +431,19 @@ class PopulationRequisitionFulfillerTest {
   }
 
   @Test
-  fun `historical population rejects a filter using a later population field`() = runBlocking {
-    val fulfiller =
-      versionedFulfiller(
+  fun `historical population rejects a later field filter for either version source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
         1,
-        null,
         versionedCommon {
           original = VersionedCommon.Segment.SEGMENT_A
           retired = VersionedCommon.Segment.SEGMENT_B
         },
         "versioned_common.later == 2",
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Population filter is invalid",
       )
-    fulfiller.executeRequisitionFulfillingWorkflow()
-    val request =
-      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
-    assertThat(request.refusal.justification)
-      .isEqualTo(Requisition.Refusal.Justification.SPEC_INVALID)
-    assertThat(request.refusal.message).contains("Population filter is invalid")
-  }
+    }
 
   @Test
   fun `repository lookup failure does not use local fallback`() = runBlocking {
@@ -405,6 +453,8 @@ class PopulationRequisitionFulfillerTest {
     }
     val exception = assertFailsWith<Exception> { fulfiller.executeRequisitionFulfillingWorkflow() }
     assertThat(exception.message).contains("Error retrieving ModelLine")
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, never()) { refuseRequisition(any()) }
   }
 
   @Test

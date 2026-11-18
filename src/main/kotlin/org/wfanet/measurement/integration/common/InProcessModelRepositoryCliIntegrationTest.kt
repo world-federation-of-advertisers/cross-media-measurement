@@ -29,6 +29,7 @@ import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
+import org.junit.BeforeClass
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
@@ -43,6 +44,7 @@ import org.wfanet.measurement.api.v2alpha.ListModelSuitesResponse
 import org.wfanet.measurement.api.v2alpha.ListPopulationsPageTokenKt
 import org.wfanet.measurement.api.v2alpha.ListPopulationsResponse
 import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc.ModelLinesBlockingStub
 import org.wfanet.measurement.api.v2alpha.ModelProvider
@@ -87,6 +89,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.AuthorityKeyToPrincipalMapKt
@@ -94,6 +97,7 @@ import org.wfanet.measurement.config.authorityKeyToPrincipalMap
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.DataProvider as InternalDataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt as InternalDataProvidersGrpc
+import org.wfanet.measurement.internal.kingdom.ModelLine as InternalModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt as InternalModelLinesGrpc
 import org.wfanet.measurement.internal.kingdom.ModelProvider as InternalModelProvider
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt as InternalModelProvidersGrpc
@@ -105,6 +109,7 @@ import org.wfanet.measurement.internal.kingdom.certificate
 import org.wfanet.measurement.internal.kingdom.certificateDetails
 import org.wfanet.measurement.internal.kingdom.dataProvider
 import org.wfanet.measurement.internal.kingdom.dataProviderDetails
+import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.kingdom.deploy.common.service.toList
 import org.wfanet.measurement.kingdom.deploy.tools.ModelRepository
@@ -512,6 +517,64 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
   }
 
   @Test
+  fun `model-line version backfill persists through CLI and public reads`() = runBlocking {
+    val suiteKey = ModelSuiteKey.fromName(modelSuite.name)!!
+    // Internal creation simulates a historical row written before the version column existed.
+    val historical =
+      InternalModelLinesGrpc.ModelLinesCoroutineStub(internalApiServer.channel)
+        .createModelLine(
+          internalModelLine {
+            externalModelProviderId = internalModelProvider.externalModelProviderId
+            externalModelSuiteId = apiIdToExternalId(suiteKey.modelSuiteId)
+            activeStartTime = Timestamps.parse(START_TIME)
+            activeEndTime = Timestamps.parse(END_TIME)
+            type = InternalModelLine.Type.PROD
+          }
+        )
+    val name =
+      ModelLineKey(
+          suiteKey.modelProviderId,
+          suiteKey.modelSuiteId,
+          externalIdToApiId(historical.externalModelLineId),
+        )
+        .toName()
+    val getArgs = modelProviderArgs + arrayOf("model-lines", "get", name)
+    val before = parseTextProto(callCli(getArgs).reader(), ModelLine.getDefaultInstance())
+    assertThat(before.hasEventTemplateVersion()).isFalse()
+
+    val backfillArgs =
+      modelProviderArgs +
+        arrayOf(
+          "model-lines",
+          "set-event-template-version",
+          "--name=$name",
+          "--event-template-version=1",
+        )
+    val backfilled = parseTextProto(callCli(backfillArgs).reader(), ModelLine.getDefaultInstance())
+    assertThat(backfilled.hasEventTemplateVersion()).isTrue()
+    assertThat(backfilled.eventTemplateVersion).isEqualTo(1)
+    assertThat(backfilled.name).isEqualTo(before.name)
+    assertThat(parseTextProto(callCli(getArgs).reader(), ModelLine.getDefaultInstance()))
+      .isEqualTo(backfilled)
+    assertThat(parseTextProto(callCli(backfillArgs).reader(), ModelLine.getDefaultInstance()))
+      .isEqualTo(backfilled)
+
+    val conflictingArgs =
+      modelProviderArgs +
+        arrayOf(
+          "model-lines",
+          "set-event-template-version",
+          "--name=$name",
+          "--event-template-version=3",
+        )
+    val rejected = CommandLineTesting.capturingOutput(conflictingArgs, ModelRepository::main)
+    CommandLineTesting.assertThat(rejected).status().isNotEqualTo(0)
+    assertThat(rejected.err).contains("FAILED_PRECONDITION")
+    assertThat(parseTextProto(callCli(getArgs).reader(), ModelLine.getDefaultInstance()))
+      .isEqualTo(backfilled)
+  }
+
+  @Test
   fun `model-lines get prints ModelLine`() {
     val modelLine = createModelLine()
 
@@ -653,6 +716,12 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
       )
 
   companion object {
+    @BeforeClass
+    @JvmStatic
+    fun interceptCliExit() {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
+
     private const val HOST = "localhost"
     private const val MODULE_REPO_NAME = "wfa_measurement_system"
     private val SECRETS_DIR: File =

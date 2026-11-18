@@ -42,7 +42,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.never
+import org.mockito.kotlin.reset
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -3099,7 +3101,10 @@ class VidLabelingDispatchSequencerTest {
     memoized: Boolean,
     repositoryVersion: Int?,
     localVersion: Int?,
+    repositoryReadError: Status?,
   ) {
+    reset(modelLinesService)
+    clearInvocations(workItemsService, rawImpressionUploadModelLineService)
     stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
     stubModelLines(createdModelLine())
     if (memoized) stubMemoizedDispatch()
@@ -3122,55 +3127,146 @@ class VidLabelingDispatchSequencerTest {
           if (repositoryVersion != null) eventTemplateVersion = repositoryVersion
         }
       )
+    if (repositoryReadError != null) {
+      whenever(modelLinesService.getModelLine(any()))
+        .thenThrow(repositoryReadError.asRuntimeException())
+    }
     createSequencer().dispatchNext()
   }
 
-  @Test
-  fun `memoized dispatch pins the repository version without local configuration`() = runBlocking {
-    dispatchWithVersions(true, 3, null)
-    val captor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
-    for (request in captor.allValues) {
-      val params =
-        request.workItem.workItemParams
-          .unpack<WorkItemParams>()
-          .appParams
-          .unpack<SubpoolAssignerParams>()
-      assertThat(params.eventTemplateVersion).isEqualTo(3)
+  private suspend fun assertDispatchAcrossBackfill(memoized: Boolean) {
+    for ((repositoryVersion, localVersion) in listOf(null to 3, 3 to 3, 3 to null)) {
+      dispatchWithVersions(memoized, repositoryVersion, localVersion, null)
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      for (request in captor.allValues) {
+        val appParams = request.workItem.workItemParams.unpack<WorkItemParams>().appParams
+        val pinnedVersion =
+          if (memoized) appParams.unpack<SubpoolAssignerParams>().eventTemplateVersion
+          else
+            appParams
+              .unpack<VidLabelerParams>()
+              .modelLineConfigsMap
+              .getValue(MODEL_LINE)
+              .eventTemplateVersion
+        assertThat(pinnedVersion).isEqualTo(3)
+      }
+      if (memoized) {
+        verifyBlocking(rawImpressionUploadModelLineService) {
+          markRawImpressionUploadModelLinePoolAssigning(any())
+        }
+      } else {
+        verifyBlocking(rawImpressionUploadModelLineService) {
+          markRawImpressionUploadModelLineLabeling(any())
+        }
+      }
     }
   }
 
   @Test
-  fun `non-memoized dispatch pins the repository version without local configuration`() =
+  fun `memoized dispatch preserves pinned version across backfill and config removal`() =
     runBlocking {
-      dispatchWithVersions(false, 3, null)
-      val captor = argumentCaptor<CreateWorkItemRequest>()
-      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
-      for (request in captor.allValues) {
-        val params =
-          request.workItem.workItemParams
-            .unpack<WorkItemParams>()
-            .appParams
-            .unpack<VidLabelerParams>()
-        assertThat(params.modelLineConfigsMap.getValue(MODEL_LINE).eventTemplateVersion)
-          .isEqualTo(3)
+      assertDispatchAcrossBackfill(true)
+    }
+
+  @Test
+  fun `non-memoized dispatch preserves pinned version across backfill and config removal`() =
+    runBlocking {
+      assertDispatchAcrossBackfill(false)
+    }
+
+  private suspend fun assertInvalidVersionsLeaveWorkUnclaimed(
+    memoized: Boolean,
+    repositoryVersion: Int?,
+    localVersion: Int?,
+    message: String,
+  ) {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        dispatchWithVersions(memoized, repositoryVersion, localVersion, null)
+      }
+    assertThat(exception.message).contains(message)
+    assertNoVersionDispatch()
+  }
+
+  private suspend fun assertNoVersionDispatch() {
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLineLabeling(any())
+    }
+    verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
+    verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+  }
+
+  @Test
+  fun `memoized dispatch rejects conflicting versions before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(true, 3, 1, "does not match")
+  }
+
+  @Test
+  fun `non-memoized dispatch rejects conflicting versions before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(false, 3, 1, "does not match")
+  }
+
+  @Test
+  fun `memoized dispatch rejects missing versions before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(true, null, null, "missing")
+  }
+
+  @Test
+  fun `non-memoized dispatch rejects missing versions before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(false, null, null, "missing")
+  }
+
+  @Test
+  fun `memoized dispatch rejects present invalid repository versions despite local fallback`() =
+    runBlocking {
+      for (version in listOf(0, -1)) {
+        assertInvalidVersionsLeaveWorkUnclaimed(true, version, 1, "positive")
       }
     }
 
   @Test
-  fun `memoized dispatch rejects conflicting repository and local versions`() = runBlocking {
-    val exception = assertFailsWith<IllegalArgumentException> { dispatchWithVersions(true, 3, 1) }
-    assertThat(exception.message).contains("does not match")
-    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  fun `non-memoized dispatch rejects present invalid repository versions despite local fallback`() =
+    runBlocking {
+      for (version in listOf(0, -1)) {
+        assertInvalidVersionsLeaveWorkUnclaimed(false, version, 1, "positive")
+      }
+    }
+
+  @Test
+  fun `memoized dispatch rejects invalid local configuration before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(true, null, -1, "positive")
   }
 
   @Test
-  fun `non-memoized dispatch rejects absent repository and local versions`() = runBlocking {
-    val exception =
-      assertFailsWith<IllegalArgumentException> { dispatchWithVersions(false, null, null) }
-    assertThat(exception.message).contains("missing")
-    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  fun `non-memoized dispatch rejects invalid local configuration before claiming work`() =
+    runBlocking {
+      assertInvalidVersionsLeaveWorkUnclaimed(false, null, -1, "positive")
+    }
+
+  private suspend fun assertRepositoryFailureLeavesWorkUnclaimed(memoized: Boolean) {
+    for (status in listOf(Status.UNAVAILABLE, Status.NOT_FOUND)) {
+      val exception =
+        assertFailsWith<StatusException> { dispatchWithVersions(memoized, null, 3, status) }
+      assertThat(exception.status.code).isEqualTo(status.code)
+      assertNoVersionDispatch()
+    }
   }
+
+  @Test
+  fun `memoized dispatch does not use local fallback on repository read failure`() = runBlocking {
+    assertRepositoryFailureLeavesWorkUnclaimed(true)
+  }
+
+  @Test
+  fun `non-memoized dispatch does not use local fallback on repository read failure`() =
+    runBlocking {
+      assertRepositoryFailureLeavesWorkUnclaimed(false)
+    }
 
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp123"
