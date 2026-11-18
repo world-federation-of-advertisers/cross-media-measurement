@@ -48,6 +48,11 @@ message RawImpressionUpload {
     COMPLETED = 3;
     // At least one model line failed.
     FAILED = 4;
+    // The upload is quarantined pending correction approval.
+    CORRECTION_REQUIRED = 5;
+    // The upload's manifest is the permanent baseline after the operator
+    // removed its prior contribution without applying a replacement.
+    REMOVED_WITHOUT_REPLACEMENT = 6;
   }
 
   // Resource name.
@@ -94,4 +99,16 @@ message RawImpressionUpload {
 
   // Entity tag for optimistic concurrency control.
   string etag = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Whether processing is deferred until an active upload-healing operation
+  // completes.
+  bool processing_deferred = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Healing operation authorizing this replacement upload, if applicable.
+  string upload_healing_operation = 12 [
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
 }

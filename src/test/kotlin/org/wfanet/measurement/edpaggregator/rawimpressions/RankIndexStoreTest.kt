@@ -141,6 +141,20 @@ class RankIndexStoreTest {
   }
 
   @Test
+  fun `readBlob rejects an absent blob`() = runBlocking {
+    val store = RankIndexStore(storageClient, kmsClient)
+    val dek = store.generateDek(kekUri)
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        store.readBlob("snapshot/does-not-exist", dek).toList()
+      }
+
+    assertThat(error).hasMessageThat().contains("snapshot/does-not-exist")
+    assertThat(error).hasMessageThat().contains("does not exist")
+  }
+
+  @Test
   fun `delete removes a blob`() = runBlocking {
     val store = RankIndexStore(storageClient, kmsClient)
     val dek = store.generateDek(kekUri)
@@ -148,7 +162,7 @@ class RankIndexStoreTest {
 
     store.delete("snapshot/subpool-7")
 
-    assertThat(store.readBlob("snapshot/subpool-7", dek).toList()).isEmpty()
+    assertThat(store.openBlob("snapshot/subpool-7", dek)).isNull()
   }
 
   @Test

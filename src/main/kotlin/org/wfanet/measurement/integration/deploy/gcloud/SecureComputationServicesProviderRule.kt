@@ -14,6 +14,11 @@
 
 package org.wfanet.measurement.integration.deploy.gcloud
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -43,7 +48,13 @@ class SecureComputationServicesProviderRule(
         override fun evaluate() {
           internalServices =
             InternalApiServices(workItemPublisher, spannerDatabase.databaseClient, queueMapping)
-          base.evaluate()
+          val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+          backgroundScope.launch { internalServices.workItemPublicationRunner.run() }
+          try {
+            base.evaluate()
+          } finally {
+            backgroundScope.cancel()
+          }
         }
       }
     return spannerDatabase.apply(statement, description)

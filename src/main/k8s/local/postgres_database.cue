@@ -63,7 +63,7 @@ pods: {
 					}
 				}
 			}
-			image: "docker.io/postgres:14.4-alpine"
+			image: "docker.io/postgres:16.15-alpine"
 		}
 	}
 }

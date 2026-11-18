@@ -14,23 +14,34 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
-import com.google.common.truth.Truth
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
@@ -57,6 +68,9 @@ private const val EXTERNAL_COMPUTATION_LOG_ENTRY_ID = 7L
 private val EXTERNAL_COMPUTATION_ID_STRING = externalIdToApiId(EXTERNAL_COMPUTATION_ID)
 private val EXTERNAL_COMPUTATION_LOG_ENTRY_ID_STRING =
   externalIdToApiId(EXTERNAL_COMPUTATION_LOG_ENTRY_ID)
+private val PUBLIC_MEASUREMENT_NAME =
+  "measurementConsumers/${externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID)}/" +
+    "measurements/${externalIdToApiId(EXTERNAL_MEASUREMENT_ID)}"
 private val SYSTEM_COMPUTATION_PARTICIPATE_NAME =
   "computations/$EXTERNAL_COMPUTATION_ID_STRING/participants/$DUCHY_ID"
 private val COMPUTATION_LOG_ENTRY_NAME =
@@ -152,6 +166,28 @@ class ComputationLogEntriesServiceTest {
       MeasurementLogEntriesCoroutineStub(grpcTestServerRule.channel),
       duchyIdentityProvider = duchyIdProvider,
     )
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
+
+  @Before
+  fun initTelemetry() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+  }
 
   @Test
   fun `CreateComputationLogEntry successfully`() = runBlocking {
@@ -168,6 +204,21 @@ class ComputationLogEntriesServiceTest {
 
     val response = service.createComputationLogEntry(request)
     assertThat(response).isEqualTo(COMPUTATION_LOG_ENTRY)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_log_entry.create")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo("computations/$EXTERNAL_COMPUTATION_ID_STRING")
+    assertThat(span.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ID)
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(PUBLIC_MEASUREMENT_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_computation_log_entry_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isTrue()
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+      .isEqualTo(STAGE_ATTEMPT_STAGE_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+      .isEqualTo(STAGE_ATTEMPT_ATTEMPT_NUMBER)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
 
     verifyProtoArgument(
         measurementLogEntriesServiceMock,
@@ -206,15 +257,81 @@ class ComputationLogEntriesServiceTest {
   }
 
   @Test
+  fun `createComputationLogEntry omits lifecycle stage for routine status entry`() = runBlocking {
+    whenever(measurementLogEntriesServiceMock.createDuchyMeasurementLogEntry(any()))
+      .thenReturn(
+        DUCHY_MEASUREMENT_LOG_ENTRY.toBuilder()
+          .apply { logEntryBuilder.detailsBuilder.clearError() }
+          .build()
+      )
+    val request =
+      CreateComputationLogEntryRequest.newBuilder()
+        .apply {
+          parent = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+          computationLogEntry =
+            COMPUTATION_LOG_ENTRY.toBuilder().apply { clearName().clearErrorDetails() }.build()
+        }
+        .build()
+
+    service.createComputationLogEntry(request)
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_log_entry.create")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)).isNull()
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isNull()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
+  }
+
+  @Test
+  fun `createComputationLogEntry emits failed lifecycle span when internal RPC fails`() {
+    measurementLogEntriesServiceMock.stub {
+      onBlocking { createDuchyMeasurementLogEntry(any()) }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    }
+    val request =
+      CreateComputationLogEntryRequest.newBuilder()
+        .apply {
+          parent = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+          computationLogEntry = COMPUTATION_LOG_ENTRY.toBuilder().clearName().build()
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusException> {
+        runBlocking { service.createComputationLogEntry(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo("computations/$EXTERNAL_COMPUTATION_ID_STRING")
+    assertThat(span.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ID)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_computation_log_entry_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isTrue()
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+      .isEqualTo(STAGE_ATTEMPT_STAGE_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+      .isEqualTo(STAGE_ATTEMPT_ATTEMPT_NUMBER)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
+  }
+
+  @Test
   fun `missing resource name should throw`() {
     val e =
-      Assert.assertThrows(StatusRuntimeException::class.java) {
+      assertFailsWith<StatusRuntimeException> {
         runBlocking {
           service.createComputationLogEntry(CreateComputationLogEntryRequest.getDefaultInstance())
         }
       }
-    Truth.assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(e.localizedMessage).contains("Resource name unspecified or invalid.")
+    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(e.localizedMessage).contains("Resource name unspecified or invalid.")
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)).isNull()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.INVALID_ARGUMENT")
   }
 
   @Test
@@ -233,11 +350,11 @@ class ComputationLogEntriesServiceTest {
         }
         .build()
     val e =
-      Assert.assertThrows(StatusRuntimeException::class.java) {
+      assertFailsWith<StatusRuntimeException> {
         runBlocking { service.createComputationLogEntry(request) }
       }
-    Truth.assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    Truth.assertThat(e.localizedMessage)
+    assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(e.localizedMessage)
       .contains("Only transient error is support in the computationLogEntriesService.")
   }
 }

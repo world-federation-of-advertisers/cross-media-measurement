@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "enabled" {
+  description = "Whether this Managed Instance Group may run instances."
+  type        = bool
+  default     = true
+}
+
+variable "work_item_consumption_enabled" {
+  description = "Whether a WorkItem TEE application may consume Pub/Sub deliveries. Null for non-WorkItem applications."
+  type        = bool
+  default     = null
+}
+
 variable "instance_template_name" {
   description = "The name of the instance template."
   type        = string
@@ -44,8 +56,8 @@ variable "mig_distribution_policy_zones" {
 variable "secrets_to_access" {
   description = "List of secrets to access from the VM"
   type = list(object({
-    secret_id  = string
-    version    = string
+    secret_id = string
+    version   = string
   }))
   default = []
 }
@@ -131,6 +143,38 @@ variable "java_tool_options" {
   description = "Java tool options to be passed to the TEE container via JAVA_TOOL_OPTIONS environment variable (e.g., '-Xmx96G' for heap size based on machine type)."
   type        = string
   default     = null
+}
+
+variable "max_attempt_runtime_seconds" {
+  description = "Maximum WorkItemAttempt runtime in whole seconds, after which the TEE application fails the attempt for retry and, if its work does not stop, restarts. Null disables the limit."
+  type        = number
+  default     = null
+
+  validation {
+    condition = (
+      var.max_attempt_runtime_seconds == null ? true :
+      var.max_attempt_runtime_seconds == floor(var.max_attempt_runtime_seconds) &&
+      var.max_attempt_runtime_seconds > 0 &&
+      var.max_attempt_runtime_seconds <= 9223372036854775
+    )
+    error_message = "max_attempt_runtime_seconds must be null or a positive whole number of seconds no greater than 9223372036854775."
+  }
+}
+
+variable "stack_dump_interval_seconds" {
+  description = "If set, the TEE application logs all thread stacks at this interval in seconds, for diagnosing stuck workers. Null disables dumps."
+  type        = number
+  default     = null
+
+  validation {
+    condition = (
+      var.stack_dump_interval_seconds == null ? true :
+      var.stack_dump_interval_seconds == floor(var.stack_dump_interval_seconds) &&
+      var.stack_dump_interval_seconds > 0 &&
+      var.stack_dump_interval_seconds <= 9223372036854775
+    )
+    error_message = "stack_dump_interval_seconds must be null or a positive whole number of seconds no greater than 9223372036854775."
+  }
 }
 
 variable "extra_metadata" {

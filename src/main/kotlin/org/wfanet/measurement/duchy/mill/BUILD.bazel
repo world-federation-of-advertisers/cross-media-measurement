@@ -13,6 +13,7 @@ kt_jvm_library(
     deps = [
         ":mill_type",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
@@ -29,6 +30,12 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/duchy",
     ],
+)
+
+kt_jvm_library(
+    name = "mill_work_loop",
+    srcs = ["MillWorkLoop.kt"],
+    deps = ["@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core"],
 )
 
 kt_jvm_library(

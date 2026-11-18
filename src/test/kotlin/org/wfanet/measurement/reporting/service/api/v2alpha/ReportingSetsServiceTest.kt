@@ -64,6 +64,7 @@ import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest as
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.Errors
+import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException as InternalInvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.v2alpha.GetReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.ListReportingSetsPageTokenKt.previousPageEnd
@@ -836,6 +837,103 @@ class ReportingSetsServiceTest {
         }
       )
   }
+
+  @Test
+  fun `createReportingSet throws public INVALID_ARGUMENT when internal primitive validation fails`() =
+    runBlocking {
+      permissionsServiceMock.stub {
+        onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+          checkPermissionsResponse { permissions += PermissionName.CREATE_PRIMITIVE }
+      }
+      whenever(internalReportingSetsMock.createReportingSet(any()))
+        .thenThrow(
+          InternalInvalidFieldValueException("reporting_set") {
+              "ReportingSet is outside its own Campaign Group"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        )
+      val request = createReportingSetRequest {
+        parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+        reportingSet = PRIMITIVE_REPORTING_SETS.first().copy { clearName() }
+        reportingSetId = "reporting-set-id"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set"
+          }
+        )
+    }
+
+  @Test
+  fun `createReportingSet throws public INVALID_ARGUMENT when internal composite validation fails`() =
+    runBlocking {
+      permissionsServiceMock.stub {
+        onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+          checkPermissionsResponse { permissions += PermissionName.CREATE_COMPOSITE }
+      }
+      whenever(internalReportingSetsMock.createReportingSet(any()))
+        .thenThrow(
+          InternalInvalidFieldValueException("reporting_set") {
+              "Referenced ReportingSet is outside its own Campaign Group"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        )
+      val request = createReportingSetRequest {
+        parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+        reportingSet = ROOT_COMPOSITE_REPORTING_SET.copy { clearName() }
+        reportingSetId = "reporting-set-id"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception)
+        .errorInfo()
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "reporting_set"
+          }
+        )
+    }
+
+  @Test
+  fun `createReportingSet throws INTERNAL for unrecognized internal INVALID_ARGUMENT`() =
+    runBlocking {
+      permissionsServiceMock.stub {
+        onBlocking { checkPermissions(hasPrincipal(PRINCIPAL.name)) } doReturn
+          checkPermissionsResponse { permissions += PermissionName.CREATE_PRIMITIVE }
+      }
+      whenever(internalReportingSetsMock.createReportingSet(any()))
+        .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
+      val request = createReportingSetRequest {
+        parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+        reportingSet = PRIMITIVE_REPORTING_SETS.first().copy { clearName() }
+        reportingSetId = "reporting-set-id"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReportingSet(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.INTERNAL)
+    }
 
   @Test
   fun `createReportingSet throws FAILED_PRECONDITION when referenced ReportingSet cannot be found`() =

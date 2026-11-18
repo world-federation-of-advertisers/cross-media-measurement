@@ -1,6 +1,7 @@
 # proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 watched_paths {
+  identifier: "control-plane"
   source_path_regex: "gs://test-bucket/control-plane-sink-path-to-watch/(.*)"
   control_plane_queue_sink {
     queue: "some-topic-id"
@@ -11,6 +12,7 @@ watched_paths {
   }
 }
 watched_paths {
+  identifier: "webhook"
   source_path_regex: "gs://test-bucket/webhook-sink-path-to-watch/(.*)"
   http_endpoint_sink {
     endpoint_uri: "http://localhost:9999"
@@ -20,6 +22,33 @@ watched_paths {
         value {
           string_value: "some-value"
         }
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "event-groups"
+  source_path_regex: "^gs://test-bucket/event-group-sink-path-to-watch/event_groups[.]json$"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/example"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/example"
+      }
+    }
+  }
+}
+
+watched_paths {
+  identifier: "external-availability"
+  source_path_regex: "^gs://test-bucket/external/model-line/[^/]+/[^/]+/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/example"
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/example"
       }
     }
   }

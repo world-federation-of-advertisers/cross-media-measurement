@@ -16,6 +16,7 @@ kt_jvm_library(
     srcs = ["GcsTrusTeeMillDaemon.kt"],
     deps = [
         "//imports/java/com/google/cloud/secretmanager",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:open_telemetry_sdk_manager",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/trustee:trus_tee_mill_daemon",
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/gcloud/spanner/computation",
         "@wfa_common_jvm//imports/java/picocli",
@@ -41,6 +42,7 @@ java_image(
     base = "@java_image_base_root",
     binary = ":GcsTrusTeeMillDaemon",
     labels = {
+        "tee.launch_policy.allow_env_override": "OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER,OTEL_LOGS_EXPORTER,OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID,OTEL_METRIC_EXPORT_INTERVAL",
         "tee.launch_policy.log_redirect": "always",
     },
     main_class = "org.wfanet.measurement.duchy.deploy.gcloud.daemon.mill.trustee.GcsTrusTeeMillDaemonKt",

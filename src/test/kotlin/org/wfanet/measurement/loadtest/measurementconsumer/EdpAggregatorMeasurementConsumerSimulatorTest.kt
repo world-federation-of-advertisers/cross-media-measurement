@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCorouti
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -56,8 +57,24 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
       reportName = "$MC_NAME/reports/report1",
       modelLineName = "modelLines/line1",
       listEventGroupsEntityTypes = emptyList(),
+      listEventGroupsDataProviders = listOf(DATA_PROVIDER_NAME),
+      kingdomApiThrottler = kingdomApiThrottler,
       onMeasurementsCreated = { throw ShortCircuitException() },
     )
+  }
+
+  @Test
+  fun `listEventGroups filters by configured data providers`() {
+    stubEventGroups(listOf("sim-eg-included"))
+
+    val simulator = createSimulator(listOf("sim-eg-included"))
+    assertFailsWith<ShortCircuitException> {
+      runBlocking { simulator.testDirectReachAndFrequency("run1", 1) }
+    }
+
+    val captor = argumentCaptor<ListEventGroupsRequest>()
+    verifyBlocking(eventGroupsServiceMock) { listEventGroups(captor.capture()) }
+    assertThat(captor.firstValue.filter.dataProviderInList).containsExactly(DATA_PROVIDER_NAME)
   }
 
   @Test

@@ -22,10 +22,10 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
@@ -68,15 +68,21 @@ class RequisitionGrouperByReportId(
     reportId: String,
     requisitions: List<Requisition>,
     groupId: String,
+    selectedModelLine: String? = null,
+    reportInterval: Interval? = null,
+    requireModelLineFinalization: Boolean = false,
   ): GroupedRequisitions? {
     if (requisitions.isEmpty()) return null
     val perRequisitionGroups =
       requisitions.map { req ->
-        val measurementSpec: MeasurementSpec = req.measurementSpec.unpack()
+        val measurementSpec: MeasurementSpec = RequisitionSpecs.readMeasurementSpec(req)
         val eventGroupMapEntries =
           getEventGroupMapEntries(requisitionValidator.getRequisitionSpec(req))
         groupedRequisitions {
           modelLine = measurementSpec.modelLine
+          this.selectedModelLine = selectedModelLine ?: measurementSpec.modelLine
+          report = measurementSpec.reportingMetadata.report
+          basicReport = measurementSpec.reportingMetadata.basicReport
           this.requisitions +=
             GroupedRequisitionsKt.requisitionEntry { requisition = Any.pack(req) }
           this.eventGroupMap +=
@@ -88,7 +94,13 @@ class RequisitionGrouperByReportId(
             }
         }
       }
-    return mergeGroupedRequisitions(reportId, perRequisitionGroups, groupId)
+    return mergeGroupedRequisitions(
+      reportId,
+      perRequisitionGroups,
+      groupId,
+      reportInterval,
+      requireModelLineFinalization,
+    )
   }
 
   /**
@@ -100,15 +112,29 @@ class RequisitionGrouperByReportId(
     reportId: String,
     perRequisitionGroups: List<GroupedRequisitions>,
     groupId: String,
+    reportInterval: Interval?,
+    requireModelLineFinalization: Boolean,
   ): GroupedRequisitions {
     val firstModelLine = perRequisitionGroups.first().modelLine
+    val selectedModelLine = perRequisitionGroups.map { it.selectedModelLine }.distinct().single()
+    val basicReport =
+      perRequisitionGroups
+        .mapNotNull { it.basicReport.takeIf(String::isNotEmpty) }
+        .distinct()
+        .singleOrNull()
+        .orEmpty()
     val mergedRequisitions = perRequisitionGroups.flatMap { it.requisitionsList }
     val eventGroupMapEntries = buildEventGroupEntries(reportId, perRequisitionGroups)
     return groupedRequisitions {
       modelLine = firstModelLine
+      this.selectedModelLine = selectedModelLine
       requisitions += mergedRequisitions
       eventGroupMap += eventGroupMapEntries
       this.groupId = groupId
+      report = reportId
+      this.basicReport = basicReport
+      reportInterval?.let { this.reportInterval = it }
+      this.requireModelLineFinalization = requireModelLineFinalization
     }
   }
 

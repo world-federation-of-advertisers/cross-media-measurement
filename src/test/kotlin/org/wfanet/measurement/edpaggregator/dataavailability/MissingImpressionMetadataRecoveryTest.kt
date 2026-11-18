@@ -28,9 +28,11 @@ import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -120,6 +122,29 @@ class MissingImpressionMetadataRecoveryTest {
   }
 
   @Test
+  fun `date range rejects latest date before earliest date`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DataDateSelection.Range(
+          earliestDate = LocalDate.parse("2026-08-02"),
+          latestDate = LocalDate.parse("2026-08-01"),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("range must not be empty")
+  }
+
+  @Test
+  fun `selected dates rejects empty set`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DataDateSelection.SelectedDates(emptySet())
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not be empty")
+  }
+
+  @Test
   fun `recover distinguishes missing finalized blobs from deleted records with files`(): Unit =
     runBlocking {
       val storageClient = InMemoryStorageClient()
@@ -202,6 +227,37 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(metricValue(DELETED_RECORDS_WITH_BLOBS_METRIC)).isEqualTo(0)
     assertThat(metricValue(FAILED_UNDELETES_METRIC)).isEqualTo(0)
     assertThat(metricValue(RECOVERY_ERRORS_METRIC)).isEqualTo(0)
+  }
+
+  @Test
+  fun `recover revalidates lease before undeleting metadata`() = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    val deletedUri = metadataUri("2026-08-03", "metadata-deleted.json")
+    writeFinalizedMetadata(storageClient, "2026-08-03", "metadata-deleted.json")
+    registeredMetadata[deletedUri] = impressionMetadata {
+      name = "$DATA_PROVIDER_NAME/impressionMetadata/deleted-1"
+      blobUri = deletedUri
+      state = ImpressionMetadata.State.DELETED
+    }
+    var leaseChecks = 0
+
+    val error =
+      assertFailsWith<StatusException> {
+        buildRecovery(
+            storageClient,
+            impressionMetadataBatchSize = 100,
+            registerSyncedMetadata = true,
+            ensureLeaseActive = {
+              leaseChecks++
+              if (leaseChecks == 2) throw Status.UNAVAILABLE.asException()
+            },
+          ) { _, _ ->
+          }
+          .recover()
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(undeleteRequests).isEmpty()
   }
 
   @Test
@@ -350,6 +406,37 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(storageClient.listedBlobPrefixes)
       .doesNotContain("$EDP_IMPRESSION_PATH/model-line/model-line-1/2025-01-01/")
     assertThat(storageClient.listedBlobPrefixes).doesNotContain("$EDP_IMPRESSION_PATH/")
+  }
+
+  @Test
+  fun `recover lists blobs only from selected date folders`(): Unit = runBlocking {
+    val delegate = InMemoryStorageClient()
+    writeFinalizedMetadata(delegate, "2026-08-01", "metadata-first.json")
+    writeFinalizedMetadata(delegate, "2026-08-02", "metadata-unselected.json")
+    writeFinalizedMetadata(delegate, "2026-08-03", "metadata-third.json")
+    val storageClient = RecordingStorageClient(delegate)
+
+    val result =
+      buildRecovery(
+          storageClient,
+          impressionMetadataBatchSize = 100,
+          registerSyncedMetadata = true,
+          dateSelection =
+            DataDateSelection.SelectedDates(
+              setOf(LocalDate.parse("2026-08-01"), LocalDate.parse("2026-08-03"))
+            ),
+        ) { _, _ ->
+        }
+        .recover()
+
+    assertThat(result.finalizedMetadataBlobs).isEqualTo(2)
+    assertThat(storageClient.listedBlobPrefixes)
+      .containsExactly(
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-01/",
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-03/",
+      )
+    assertThat(storageClient.listedBlobPrefixes)
+      .doesNotContain("$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-02/")
   }
 
   @Test
@@ -842,6 +929,12 @@ class MissingImpressionMetadataRecoveryTest {
     storageClient: BlobMetadataStorageClient,
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
+    dateSelection: DataDateSelection =
+      DataDateSelection.Range(
+        earliestDate = LocalDate.parse("2026-06-01"),
+        latestDate = LocalDate.parse("2026-08-31"),
+      ),
+    ensureLeaseActive: suspend () -> Unit = {},
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     buildRecovery(
@@ -849,6 +942,8 @@ class MissingImpressionMetadataRecoveryTest {
       impressionMetadataBatchSize,
       registerSyncedMetadata,
       markSyncedBlobs = true,
+      dateSelection = dateSelection,
+      ensureLeaseActive = ensureLeaseActive,
       sync,
     )
 
@@ -857,6 +952,12 @@ class MissingImpressionMetadataRecoveryTest {
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
     markSyncedBlobs: Boolean,
+    dateSelection: DataDateSelection =
+      DataDateSelection.Range(
+        earliestDate = LocalDate.parse("2026-06-01"),
+        latestDate = LocalDate.parse("2026-08-31"),
+      ),
+    ensureLeaseActive: suspend () -> Unit = {},
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     MissingImpressionMetadataRecovery(
@@ -870,8 +971,8 @@ class MissingImpressionMetadataRecoveryTest {
           override suspend fun <T> onReady(block: suspend () -> T): T = block()
         },
       impressionMetadataBatchSize = impressionMetadataBatchSize,
-      earliestDataDate = LocalDate.parse("2026-06-01"),
-      latestDataDate = LocalDate.parse("2026-08-31"),
+      dateSelection = dateSelection,
+      ensureLeaseActive = ensureLeaseActive,
       sync = { doneBlobUri, blobKeys ->
         val doneBlobKey = doneBlobUri.removePrefix("$BUCKET_URI/")
         storageClient.updateBlobMetadata(

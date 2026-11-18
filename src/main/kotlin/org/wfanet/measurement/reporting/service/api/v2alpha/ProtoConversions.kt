@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.protobuf.Timestamp
 import com.google.type.DateTime
+import com.google.type.Interval
 import io.grpc.Status
 import java.time.DateTimeException
 import java.time.OffsetDateTime
@@ -968,6 +969,8 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
   filter: String,
   modelLineName: String,
   containingReportResourceName: String,
+  basicReportResourceName: String,
+  reportInterval: Interval?,
 ): CreateMetricRequest {
   val source = this
   return createMetricRequest {
@@ -981,6 +984,10 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
       modelLine = modelLineName
       filters += (source.details.groupingPredicatesList + filter).filter { it.isNotBlank() }
       containingReport = containingReportResourceName
+      basicReport = basicReportResourceName
+      if (reportInterval != null) {
+        this.reportInterval = reportInterval
+      }
     }
     requestId = source.createMetricRequestId
     metricId = "a" + source.createMetricRequestId

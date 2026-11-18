@@ -49,14 +49,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRankIndexBlobsReq
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 private const val DP = "dataProviders/dp"
@@ -79,6 +84,7 @@ class SubpoolRankerTest {
   private lateinit var rankStore: RankIndexStore
   private lateinit var subpoolDek: EncryptedDek
   private lateinit var fake: FakeRankIndexBlobs
+  private val modelLineStates = mutableMapOf<String, RawImpressionUploadModelLine.State>()
 
   @Before
   fun setUp() {
@@ -99,6 +105,7 @@ class SubpoolRankerTest {
     rankStore = RankIndexStore(storageClient, kmsClient)
     subpoolDek = subpoolStore.generateDek(kekUri)
     fake = FakeRankIndexBlobs()
+    modelLineStates.clear()
   }
 
   private fun ranker(
@@ -106,6 +113,7 @@ class SubpoolRankerTest {
     upload: String = UPLOAD,
     metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    allowedPriorSnapshotRawImpressionUploads: Set<String> = emptySet(),
   ): SubpoolRanker {
     val retention =
       SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY, rpcThrottlers)
@@ -113,10 +121,12 @@ class SubpoolRankerTest {
       subpoolFingerprintsStore = subpoolStore,
       rankIndexStore = rankStore,
       rankIndexBlobsStub = fake.stub,
+      rawImpressionUploadModelLinesStub = modelLinesStub(),
       retention = retention,
       dataProvider = DP,
       rawImpressionUpload = upload,
       modelLine = MODEL_LINE,
+      allowedPriorSnapshotRawImpressionUploads = allowedPriorSnapshotRawImpressionUploads,
       vidRankMapBlobPrefix = PREFIX,
       kekUri = kekUri,
       encryptedSubpoolMapsDek = subpoolDek,
@@ -126,6 +136,19 @@ class SubpoolRankerTest {
       rpcThrottlers = rpcThrottlers,
       metrics = metrics,
     )
+  }
+
+  private fun modelLinesStub(): RawImpressionUploadModelLineServiceCoroutineStub = mock {
+    onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            cmmsModelLine = MODEL_LINE
+            state = modelLineStates[request.parent] ?: RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+      }
   }
 
   /** Writes a Phase-0 merged blob for the subpool at [key] and returns it. */
@@ -328,6 +351,142 @@ class SubpoolRankerTest {
 
       // The allocator loaded the newer snapshot (99), not the older one (10).
       assertThat(readSnapshot().keys).containsExactly(99L to 0)
+    }
+
+  @Test
+  fun `ignores a newer snapshot owned by a failed model line`() =
+    runBlocking<Unit> {
+      val completedUpload = "dataProviders/dp/rawImpressionUploads/completed"
+      val failedUpload = "dataProviders/dp/rawImpressionUploads/failed"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90)),
+        uploadName = completedUpload,
+        createTimeSeconds = 1L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(99L to 0, 0, 90)),
+        uploadName = failedUpload,
+        createTimeSeconds = 5L,
+      )
+      modelLineStates[failedUpload] = RawImpressionUploadModelLine.State.FAILED
+      val key = writePhase0(emptyList())
+
+      ranker().rank(POOL, key, rankedSize = 100)
+
+      assertThat(readSnapshot().keys).containsExactly(10L to 0)
+    }
+
+  @Test
+  fun `ordinary ranking ignores an availability-syncing snapshot`() =
+    runBlocking<Unit> {
+      val availabilitySyncingUpload = "dataProviders/dp/rawImpressionUploads/healing"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90)),
+        uploadName = PRIOR_UPLOAD,
+        createTimeSeconds = 1L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(20L to 0, 1, 90)),
+        uploadName = availabilitySyncingUpload,
+        createTimeSeconds = 2L,
+      )
+      modelLineStates[availabilitySyncingUpload] =
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      val key = writePhase0(listOf(30L to 0))
+
+      ranker().rank(POOL, key, rankedSize = 100)
+
+      assertThat(readSnapshot().keys).containsExactly(10L to 0, 30L to 0)
+    }
+
+  @Test
+  fun `healing cascade consumes the approved availability-syncing predecessor`() =
+    runBlocking<Unit> {
+      val correctedUpload = "dataProviders/dp/rawImpressionUploads/corrected-day-2"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90)),
+        uploadName = PRIOR_UPLOAD,
+        createTimeSeconds = 1L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90), Triple(20L to 0, 1, 90)),
+        uploadName = correctedUpload,
+        createTimeSeconds = 2L,
+      )
+      modelLineStates[correctedUpload] = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      val key = writePhase0(listOf(30L to 0))
+
+      val result =
+        ranker(allowedPriorSnapshotRawImpressionUploads = setOf(correctedUpload))
+          .rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.priorSnapshotName).isEqualTo("$correctedUpload/rankIndexBlobs/snap-2")
+      val rebuilt = readSnapshot()
+      assertThat(rebuilt.keys).containsExactly(10L to 0, 20L to 0, 30L to 0)
+      assertThat(rebuilt.getValue(20L to 0).first).isEqualTo(1)
+      assertThat(rebuilt.values.map { it.first }.toSet()).hasSize(3)
+    }
+
+  @Test
+  fun `healing cascade ignores a newer unapproved availability-syncing snapshot`() =
+    runBlocking<Unit> {
+      val approvedUpload = "dataProviders/dp/rawImpressionUploads/approved-predecessor"
+      val unapprovedUpload = "dataProviders/dp/rawImpressionUploads/physical-future"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90), Triple(20L to 0, 1, 90)),
+        uploadName = approvedUpload,
+        createTimeSeconds = 2L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(99L to 0, 2, 90)),
+        uploadName = unapprovedUpload,
+        createTimeSeconds = 3L,
+      )
+      modelLineStates[approvedUpload] = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      modelLineStates[unapprovedUpload] = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      val key = writePhase0(listOf(30L to 0))
+
+      val result =
+        ranker(allowedPriorSnapshotRawImpressionUploads = setOf(approvedUpload))
+          .rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.priorSnapshotName).isEqualTo("$approvedUpload/rankIndexBlobs/snap-2")
+      assertThat(readSnapshot().keys).containsExactly(10L to 0, 20L to 0, 30L to 0)
+    }
+
+  @Test
+  fun `healing backfill consumes an approved availability-syncing old snapshot`() =
+    runBlocking<Unit> {
+      val correctedUpload = "dataProviders/dp/rawImpressionUploads/corrected-day-70"
+      val latestUpload = "dataProviders/dp/rawImpressionUploads/day-100"
+      seedPriorSnapshot(
+        listOf(Triple(20L to 0, 1, 70)),
+        uploadName = correctedUpload,
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(70),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 100)),
+        uploadName = latestUpload,
+        createTimeSeconds = 2L,
+        maxEventDate = epochDayToDate(100),
+      )
+      modelLineStates[correctedUpload] = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      val key = writePhase0(listOf(20L to 0))
+
+      val result =
+        ranker(
+            maxEventDate = epochDayToDate(80),
+            allowedPriorSnapshotRawImpressionUploads = setOf(correctedUpload),
+          )
+          .rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.backfill).isTrue()
+      assertThat(result.backfillSnapshotName).isEqualTo("$correctedUpload/rankIndexBlobs/snap-1")
+      val rebuilt = readSnapshot()
+      assertThat(rebuilt.keys).containsExactly(10L to 0, 20L to 0)
+      assertThat(rebuilt.getValue(20L to 0).first).isEqualTo(1)
+      assertThat(rebuilt.values.map { it.first }.toSet()).hasSize(2)
     }
 
   @Test
@@ -573,7 +732,7 @@ class SubpoolRankerTest {
 
       assertThat(result.backfill).isTrue()
       assertThat(result.backfillReusedOldRank).isEqualTo(1)
-      assertThat(result.backfillRankCollisions).isEqualTo(0) // F1 is not in the latest snapshot
+      assertThat(result.backfillRankCollisions).isEqualTo(1)
       // The backfilled day is labeled with the original rank 5 (shared with Bob — accepted
       // undercount)...
       assertThat(readDayOnly().mapValues { it.value.first }).containsExactly(1L to 0, 5)

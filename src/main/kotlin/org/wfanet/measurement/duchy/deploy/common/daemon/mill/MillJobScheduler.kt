@@ -29,13 +29,16 @@ import io.kubernetes.client.openapi.models.V1PodTemplate
 import io.kubernetes.client.openapi.models.V1PodTemplateSpec
 import io.kubernetes.client.util.ClientBuilder
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.properties.Delegates
 import kotlin.random.Random
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.time.delay
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -47,6 +50,8 @@ import org.wfanet.measurement.common.k8s.clone
 import org.wfanet.measurement.common.k8s.complete
 import org.wfanet.measurement.common.k8s.failed
 import org.wfanet.measurement.common.k8s.matchLabelsSelector
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
@@ -59,6 +64,7 @@ import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
 import org.wfanet.measurement.internal.duchy.claimWorkRequest
+import org.wfanet.measurement.system.v1alpha.ComputationKey
 import picocli.CommandLine
 
 /**
@@ -139,15 +145,24 @@ class MillJobScheduler(
 
     val claimedComputationId: String = claimedToken.globalComputationId
     logger.info { "Claimed work item for Computation $claimedComputationId" }
-    val template =
-      millType.podTemplate.template.clone().apply {
-        val container: V1Container = spec.containers.first()
-        container.addArgsItem("--mill-id=$jobName")
-        container.addArgsItem("--claimed-computation-type=$computationType")
-        container.addArgsItem("--claimed-computation-id=$claimedComputationId")
-        container.addArgsItem("--claimed-computation-version=${claimedToken.version}")
-      }
-    createJob(jobName, millType, template)
+    claimedToken.logReportTraceLifecycle(outcome = "started", error = null)
+    try {
+      val template =
+        millType.podTemplate.template.clone().apply {
+          val container: V1Container = spec.containers.first()
+          container.addArgsItem("--mill-id=$jobName")
+          container.addArgsItem("--claimed-computation-type=$computationType")
+          container.addArgsItem("--claimed-computation-id=$claimedComputationId")
+          container.addArgsItem("--claimed-computation-version=${claimedToken.version}")
+        }
+      createJob(jobName, millType, template)
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      claimedToken.logReportTraceLifecycle(outcome = "failed", error = e)
+      throw e
+    }
+    claimedToken.logReportTraceLifecycle(outcome = "succeeded", error = null)
     logger.info { "Scheduled Job $jobName for Computation $claimedComputationId" }
     if (activeJobCount + 1 >= maximumConcurrency) {
       logger.info { "Mill type $millType is now at maximum concurrency limit $maximumConcurrency" }
@@ -226,6 +241,45 @@ class MillJobScheduler(
       }
 
     return k8sClient.createJob(job)
+  }
+
+  private fun ComputationToken.logReportTraceLifecycle(outcome: String, error: Throwable?) {
+    val fields = buildList {
+      add(
+        ReportTraceAttributes.COMPUTATION_NAME_STRING to
+          ComputationKey(globalComputationId).toName()
+      )
+      add(ReportTraceAttributes.DUCHY_ID_STRING to duchyId)
+      add(ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "duchy_mill_dispatch")
+      add(ReportTraceAttributes.OUTCOME_STRING to outcome)
+      if (computationDetails.kingdomComputation.measurement.isNotEmpty()) {
+        add(
+          ReportTraceAttributes.MEASUREMENT_NAME_STRING to
+            computationDetails.kingdomComputation.measurement
+        )
+      }
+      val measurementSpec =
+        runCatching {
+            MeasurementSpec.parseFrom(computationDetails.kingdomComputation.measurementSpec)
+          }
+          .getOrNull()
+      if (measurementSpec != null) {
+        for ((key, value) in ReportTraceAttributes.fromMeasurementSpec(measurementSpec).asMap()) {
+          add(key.key to value.toString())
+        }
+      }
+      if (error != null) {
+        add(ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(error))
+        add(ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(error))
+      }
+    }
+    ReportTraceLogging.log(
+      logger,
+      if (error == null) Level.INFO else Level.SEVERE,
+      error,
+      "duchy.mill_job.schedule",
+      *fields.toTypedArray(),
+    )
   }
 
   private val MillType.workLockDuration: Duration
@@ -363,7 +417,7 @@ class MillJobScheduler(
         ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
       )
 
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(MillJobScheduler::class.java.name)
 
     private val MillType.jobNamePrefix: String
       get() =

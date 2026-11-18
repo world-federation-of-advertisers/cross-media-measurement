@@ -48,6 +48,11 @@ fun InternalWorkItem.toWorkItem(): WorkItem {
     name = WorkItemKey(source.workItemResourceId).toName()
     queue = source.queueResourceId
     state = source.state.toWorkItemState()
+    if (source.hasWorkItemParams()) {
+      workItemParams = source.workItemParams
+    }
+    serializationKey = source.serializationKey
+    generation = source.generation.takeUnless { it == 0L } ?: 1L
     createTime = source.createTime
     updateTime = source.updateTime
   }
@@ -59,8 +64,12 @@ fun InternalWorkItemAttempt.toWorkItemAttempt(): WorkItemAttempt {
     name = WorkItemAttemptKey(source.workItemResourceId, source.workItemAttemptResourceId).toName()
     state = source.state.toWorkItemAttemptState()
     attemptNumber = source.attemptNumber
+    workItemGeneration = source.workItemGeneration
     errorMessage = source.errorMessage
     createTime = source.createTime
     updateTime = source.updateTime
+    if (source.hasLeaseExpirationTime()) {
+      leaseExpirationTime = source.leaseExpirationTime
+    }
   }
 }

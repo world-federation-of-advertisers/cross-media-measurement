@@ -31,6 +31,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/dataprovider",
         "@wfa_consent_signaling_client//src/main/kotlin/org/wfanet/measurement/consent/client/measurementconsumer",
     ],
@@ -57,6 +58,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:event_query",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:event_query_measurement_consumer_simulator",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
     ],
 )
 

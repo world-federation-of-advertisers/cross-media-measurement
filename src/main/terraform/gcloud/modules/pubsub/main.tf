@@ -27,6 +27,7 @@ resource "google_pubsub_subscription" "subscription" {
   topic = google_pubsub_topic.topic.id
 
   ack_deadline_seconds       = var.ack_deadline_seconds
+  enable_message_ordering    = var.enable_message_ordering
   message_retention_duration = var.subscription_queue_retention_period
 
   dead_letter_policy {
@@ -42,7 +43,23 @@ resource "google_pubsub_subscription" "subscription" {
     maximum_backoff = var.maximum_backoff
   }
 
-  enable_exactly_once_delivery = true
+  enable_exactly_once_delivery = var.push_endpoint == null
+
+  dynamic "push_config" {
+    for_each = var.push_endpoint == null ? [] : [var.push_endpoint]
+    content {
+      push_endpoint = push_config.value
+
+      oidc_token {
+        service_account_email = var.push_service_account_email
+        audience              = coalesce(var.push_audience, push_config.value)
+      }
+
+      no_wrapper {
+        write_metadata = true
+      }
+    }
+  }
 
 }
 
@@ -57,6 +74,11 @@ resource "google_pubsub_subscription" "dead_letter_subscription" {
   topic = google_pubsub_topic.dead_letter_topic.id
 
   ack_deadline_seconds = 30
+
+  retry_policy {
+    minimum_backoff = var.minimum_backoff
+    maximum_backoff = var.maximum_backoff
+  }
 }
 
 resource "google_pubsub_topic_iam_member" "dead_letter_reader" {

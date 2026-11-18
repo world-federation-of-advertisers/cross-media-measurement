@@ -53,9 +53,10 @@ EDP's `DataProvider` in the Kingdom. The `v2alpha` `DataProvidersService`
 does not expose `ListDataProviders`, so look it up from the source of truth
 where it's already recorded:
 
-*   **`EDPA_EDPS_CONFIG` GitHub environment variable** — each entry has a
-    `data_provider: "dataProviders/<id>"` field. The portion after the slash
-    is the resource ID.
+*   **The selected environment's `event-data-provider-configs.textproto`**
+    under `src/main/terraform/gcloud/cmms/envs/` — each entry has a
+    `data_provider: "dataProviders/<id>"` field. The portion after the slash is
+    the resource ID.
 *   The EDP's registration record (whatever you used during the initial
     `DataProvider` creation).
 
@@ -74,9 +75,10 @@ MeasurementSystem \
 
 ### Step 2: Add the EDP to the Dashboard Config
 
-Add the EDP to the `edps` array of the `DASHBOARD_CONFIG_CONTENT` GitHub
-environment variable — the single source of truth. The CI workflow regenerates
-the Terraform `data_provider_resource_ids` map from it:
+Add the EDP to the `edps` array in
+`src/main/terraform/gcloud/cmms/envs/<env>/dashboard-config.json` — the single
+source of truth. The CI workflow regenerates the Terraform
+`data_provider_resource_ids` map from it:
 
 ```json
 {"name": "edp4", "resource_id": "StUvWx_13579"}
@@ -104,10 +106,10 @@ The full `edps` array then looks like:
 Apply the change one of two ways:
 
 *   **CI (normal):** Re-run the `Update CMMS` deploy workflow. It regenerates
-    `data_provider_resource_ids` from `DASHBOARD_CONFIG_CONTENT` and runs
+    `data_provider_resource_ids` from the committed dashboard config and runs
     `terraform apply`.
 *   **Manual:** A local `.tfvars` is *not* regenerated from
-    `DASHBOARD_CONFIG_CONTENT`, so add the EDP to the `data_provider_resource_ids`
+    `dashboard-config.json`, so add the EDP to the `data_provider_resource_ids`
     map in your `.tfvars` first, then apply:
 
     ```shell
@@ -389,15 +391,16 @@ reuse a report or SA across EDPs.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `ExternalReportId` | STRING | Report's external API resource ID |
+| `ExternalReportId` | STRING | Report's external API resource ID. Unique only within a MeasurementConsumer |
 | `CmmsDataProvider` | STRING | Your EDP's API resource ID |
-| `ReportState` | STRING | Report state; one of CREATED, REPORT_CREATED, UNPROCESSED_RESULTS_READY, SUCCEEDED, FAILED, INVALID, UNSPECIFIED |
+| `ReportState` | STRING | Report state; one of SUCCEEDED, FAILED, INVALID. Only terminal reports appear in this table |
 | `EventGroupCount` | INT64 | Number of your event groups in this report |
 | `CmmsEventGroupIds` | ARRAY\<STRING\> | CMMS API IDs for your event groups in this report |
 | `CampaignNames` | ARRAY\<STRING\> | Campaign names for your event groups in this report |
 | `BrandNames` | ARRAY\<STRING\> | Brand names for your event groups in this report |
 | `EntityTypes` | ARRAY\<STRING\> | Entity types for your event groups in this report |
 | `EntityIds` | ARRAY\<STRING\> | Entity IDs for your event groups in this report |
+| `CmmsMeasurementConsumer` | STRING | Advertiser's API resource ID |
 
 #### `unlinked_accounts`
 
@@ -415,9 +418,9 @@ while an account remains unlinked and is removed once it is linked.
 
 ## Operator Steps: Offboarding an EDP
 
-1.  Remove the EDP from the `edps` array in `DASHBOARD_CONFIG_CONTENT` (for a
-    manual deploy, remove it from `data_provider_resource_ids` in your local
-    `.tfvars`).
+1.  Remove the EDP from the `edps` array in the selected environment's
+    `dashboard-config.json` (for a manual deploy, remove it from
+    `data_provider_resource_ids` in your local `.tfvars`).
 2.  Re-run the `Update CMMS` deploy workflow (or `terraform apply` for a manual
     deploy). This destroys the EDP's service account, row access policies, and
     table-level IAM grants.

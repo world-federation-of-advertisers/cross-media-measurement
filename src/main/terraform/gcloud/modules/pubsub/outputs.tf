@@ -22,6 +22,11 @@ output "pubsub_subscription" {
   description = "The created Pub/Sub subscription"
 }
 
+output "dead_letter_topic" {
+  value       = google_pubsub_topic.dead_letter_topic
+  description = "The created dead-letter Pub/Sub topic"
+}
+
 output "dead_letter_subscription" {
   value       = google_pubsub_subscription.dead_letter_subscription
   description = "The created dead-letter Pub/Sub subscription"

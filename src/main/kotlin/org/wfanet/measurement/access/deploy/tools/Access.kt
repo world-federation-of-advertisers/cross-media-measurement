@@ -610,6 +610,7 @@ class CreatePolicy : Runnable {
         "Name of the resource protected by this Policy. " +
           "If not specified, this means the root of the protected API."
       ],
+    defaultValue = "",
     required = false,
   )
   private lateinit var resource: String

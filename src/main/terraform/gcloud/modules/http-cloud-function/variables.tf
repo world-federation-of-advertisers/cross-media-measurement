@@ -54,6 +54,18 @@ variable "uber_jar_path" {
   nullable    = false
 }
 
+variable "memory" {
+  description = "Memory allocated to each function instance."
+  type        = string
+  nullable    = false
+  default     = "512MB"
+
+  validation {
+    condition     = contains(["128MB", "256MB", "512MB", "1GiB", "2GiB", "4GiB", "8GiB", "16GiB", "32GiB"], var.memory)
+    error_message = "Use a supported gen2 Cloud Function memory allocation."
+  }
+}
+
 variable "secrets_to_access" {
   description = "List of secret IDs that the Cloud Function service account should have access to."
   type        = list(string)
@@ -75,8 +87,21 @@ variable "timeout_seconds" {
 }
 
 variable "max_instances" {
-  description = "Maximum number of concurrent function instances. Set to 1 to prevent overlapping invocations. Null uses the gcloud default."
+  description = "Maximum number of function instances. Null uses the gcloud default."
   type        = number
   nullable    = true
   default     = null
+}
+
+variable "concurrency" {
+  description = "Maximum number of concurrent requests per function instance. Null uses the gcloud default."
+  type        = number
+  nullable    = true
+  default     = null
+}
+
+variable "deployment_enabled" {
+  description = "Whether to deploy the function revision. The service account and IAM remain provisioned when false."
+  type        = bool
+  default     = true
 }

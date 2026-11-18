@@ -20,10 +20,10 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Timestamp
+import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.opentelemetry.api.common.Attributes
-import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -39,7 +39,6 @@ import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -59,6 +58,20 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
+
+/** One durable labeled-output or metadata-sidecar publication attempt. */
+data class LabeledOutputPublication(
+  val type: Type,
+  val uri: String,
+  val modelLine: String,
+  val outcome: String,
+  val error: Throwable? = null,
+) {
+  enum class Type(val telemetryValue: String) {
+    LABELED_OUTPUT("labeled_output"),
+    METADATA_SIDECAR("metadata_sidecar"),
+  }
+}
 
 /**
  * Per-input-file [RawImpressionSource.BlobSink] that labels one raw-impression file's
@@ -129,6 +142,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
   private val dataProvider: String,
   private val metrics: VidLabelerMetrics,
   private val encryptionKeySemaphore: Semaphore,
+  private val publicationObserver: (LabeledOutputPublication) -> Unit = {},
 ) : RawImpressionSource.BlobSink<E> {
 
   /**
@@ -198,6 +212,10 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               ?: writers
                 .computeIfAbsent(OutputGroupKey(context.modelLine)) { GroupWriter(it) }
                 .also { writer = it }
+          // Projected here, after assign(): the event is built once per impression and each
+          // assigned person's population attributes are written onto a copy of it, so no event
+          // carrying the DataProvider's uploaded demographics is ever produced.
+          val projectedEvent = converted.buildEvent()
           // A LabelerOutput can assign multiple virtual people to a single impression; emit one
           // LabeledImpression per assigned VID rather than only the first.
           for (person in output.peopleList) {
@@ -205,7 +223,12 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               labeledImpression {
                 eventTime = Timestamps.fromMicros(converted.labelerInput.timestampUsec)
                 vid = person.virtualPersonId
-                event = converted.event
+                // The model may assign this person a different demo than the DataProvider
+                // uploaded, and the VID above was drawn from that demo's pool. Write the
+                // PopulationSpec's attributes for the VID onto the event so ResultsFulfiller
+                // groups the impression into the bucket its VID came from.
+                event =
+                  converted.populationAttributeWriter.apply(projectedEvent, person.virtualPersonId)
                 entityKeys += converted.entityKeys
               }
             )
@@ -274,8 +297,13 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     private var latest: Timestamp? = null
     private val entityIdsByType = LinkedHashMap<String, LinkedHashSet<String>>()
 
-    private val blobKey = outputBlobKey(key)
-    private val outputBlobUri = "${outputStorageParams.impressionsBlobPrefix}/$blobKey"
+    private val outputBlobUri =
+      LabeledImpressionsBlobKeys.forInputUri(
+        outputStorageParams.impressionsBlobPrefix,
+        inputBlobUri,
+        key.modelLine,
+        fileMetadata.eventDate,
+      )
     private lateinit var outputEncryptedDek: EncryptedDek
 
     /** The draining/writing coroutine. Started eagerly so the blob is opened as records arrive. */
@@ -289,32 +317,32 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     }
 
     private suspend fun runWriter() {
-      // Generate-and-wrap the output DEK (a KMS roundtrip) and build the envelope-encrypting
-      // client under [encryptionKeySemaphore] so the WorkItem's group fan-out cannot burst the
-      // shared KEK past Cloud KMS rate limits. The permit guards only this short setup, not the
-      // streaming write below, so holding it can never stall another group's blob stream.
-      val aeadStorageClient =
-        encryptionKeySemaphore.withPermit {
-          val serializedEncryptionKey =
-            EncryptedStorage.generateSerializedEncryptionKey(
-              encryptKmsClient,
-              encryptKekUri,
-              TINK_KEY_TEMPLATE,
-            )
-          outputEncryptedDek = encryptedDek {
-            kekUri = encryptKekUri
-            ciphertext = serializedEncryptionKey
-            protobufFormat = EncryptedDek.ProtobufFormat.BINARY
-            typeUrl = TINK_KEYSET_TYPE_URL
-          }
-          SelectedStorageClient(
-              SelectedStorageClient.parseBlobUri(outputBlobUri),
-              storageConfig.rootDirectory,
-              storageConfig.projectId,
-            )
-            .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
-        }
       try {
+        // Generate-and-wrap the output DEK (a KMS roundtrip) and build the envelope-encrypting
+        // client under [encryptionKeySemaphore] so the WorkItem's group fan-out cannot burst the
+        // shared KEK past Cloud KMS rate limits. The permit guards only this short setup, not the
+        // streaming write below, so holding it can never stall another group's blob stream.
+        val aeadStorageClient =
+          encryptionKeySemaphore.withPermit {
+            val serializedEncryptionKey =
+              EncryptedStorage.generateSerializedEncryptionKey(
+                encryptKmsClient,
+                encryptKekUri,
+                TINK_KEY_TEMPLATE,
+              )
+            outputEncryptedDek = encryptedDek {
+              kekUri = encryptKekUri
+              ciphertext = serializedEncryptionKey
+              protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+              typeUrl = TINK_KEYSET_TYPE_URL
+            }
+            SelectedStorageClient(
+                SelectedStorageClient.parseBlobUri(outputBlobUri),
+                storageConfig.rootDirectory,
+                storageConfig.projectId,
+              )
+              .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
+          }
         // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
         // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
         MesosRecordIoStorageClient(aeadStorageClient)
@@ -335,20 +363,37 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
           "Labeled-output writer failed for model line " + key.modelLine + " at " + outputBlobUri,
           e,
         )
+        publicationObserver(
+          LabeledOutputPublication(
+            LabeledOutputPublication.Type.LABELED_OUTPUT,
+            outputBlobUri,
+            key.modelLine,
+            "failed",
+            e,
+          )
+        )
         throw e
       }
       metrics.blobsWrittenCounter.add(1, labelAttributes(key.modelLine))
       logger.info("Wrote labeled impressions for ${key.modelLine} to $outputBlobUri")
+      publicationObserver(
+        LabeledOutputPublication(
+          LabeledOutputPublication.Type.LABELED_OUTPUT,
+          outputBlobUri,
+          key.modelLine,
+          "written",
+        )
+      )
     }
 
     private fun updateAggregates(impression: LabeledImpression) {
       val eventTime = impression.eventTime
       val currentEarliest = earliest
-      if (currentEarliest == null || eventTime.epochNanos < currentEarliest.epochNanos) {
+      if (currentEarliest == null || Timestamps.compare(eventTime, currentEarliest) < 0) {
         earliest = eventTime
       }
       val currentLatest = latest
-      if (currentLatest == null || eventTime.epochNanos > currentLatest.epochNanos) {
+      if (currentLatest == null || Timestamps.compare(eventTime, currentLatest) > 0) {
         latest = eventTime
       }
       for (entityKey in impression.entityKeysList) {
@@ -358,35 +403,66 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
 
     /** Writes the `.metadata.binpb` sidecar from the aggregates collected while streaming. */
     suspend fun writeMetadata() {
-      val details = blobDetails {
-        blobUri = outputBlobUri
-        encryptedDek = outputEncryptedDek
-        modelLine = key.modelLine
-        interval = interval {
-          startTime = checkNotNull(earliest) { "No impressions written for ${key.modelLine}" }
-          endTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
-        }
-        entityKeys +=
-          entityIdsByType.map { (type, ids) ->
-            entityKeyGroup {
-              entityType = type
-              entityIds += ids
-            }
+      val metadataUri = "$outputBlobUri.metadata.binpb"
+      try {
+        val latestEventTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
+        val exclusiveEndTime =
+          try {
+            Timestamps.add(latestEventTime, Durations.fromMicros(1L))
+          } catch (e: IllegalArgumentException) {
+            throw IllegalStateException(
+              "Cannot represent exclusive interval end after $latestEventTime for ${key.modelLine}",
+              e,
+            )
           }
-      }
-
-      val metadataKey = "$blobKey.metadata.binpb"
-      val metadataUri = "${outputStorageParams.impressionsBlobPrefix}/$metadataKey"
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
-      // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
-      // labeled-impressions write: the metadata key is deterministic, so concurrent VMs labeling
-      // the same input file would race here too.
-      SelectedStorageClient(
-          SelectedStorageClient.parseBlobUri(metadataUri),
-          storageConfig.rootDirectory,
-          storageConfig.projectId,
+        val details = blobDetails {
+          blobUri = outputBlobUri
+          encryptedDek = outputEncryptedDek
+          modelLine = key.modelLine
+          interval = interval {
+            startTime = checkNotNull(earliest) { "No impressions written for ${key.modelLine}" }
+            endTime = exclusiveEndTime
+          }
+          entityKeys +=
+            entityIdsByType.map { (type, ids) ->
+              entityKeyGroup {
+                entityType = type
+                entityIds += ids
+              }
+            }
+        }
+        // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
+        // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
+        // labeled-impressions write: the metadata key is deterministic, so concurrent VMs labeling
+        // the same input file would race here too.
+        SelectedStorageClient(
+            SelectedStorageClient.parseBlobUri(metadataUri),
+            storageConfig.rootDirectory,
+            storageConfig.projectId,
+          )
+          .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        publicationObserver(
+          LabeledOutputPublication(
+            LabeledOutputPublication.Type.METADATA_SIDECAR,
+            metadataUri,
+            key.modelLine,
+            "failed",
+            e,
+          )
         )
-        .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
+        throw e
+      }
+      publicationObserver(
+        LabeledOutputPublication(
+          LabeledOutputPublication.Type.METADATA_SIDECAR,
+          metadataUri,
+          key.modelLine,
+          "written",
+        )
+      )
     }
   }
 
@@ -404,30 +480,6 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
       .put(VidLabelerMetrics.MODEL_LINE_KEY, modelLine)
       .put(VidLabelerMetrics.DROP_REASON_KEY, reason)
       .build()
-
-  /**
-   * Deterministic output blob key for [key] under this input file:
-   * `model-line/<modelLineId>/<YYYY-MM-DD>/<sha256>`. The `model-line/<id>/<date>/` layout is what
-   * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's event date
-   * ([RawImpressionFileMetadata.eventDate], read from the footer, UTC; a raw file holds one day).
-   * The trailing SHA of (input file, model line) keeps the key deterministic, so a retried input
-   * file overwrites its previous output instead of duplicating it.
-   */
-  private fun outputBlobKey(key: OutputGroupKey): String {
-    val modelLineId =
-      requireNotNull(ModelLineKey.fromName(key.modelLine)) {
-          "model line is not a valid ModelLine resource name: ${key.modelLine}"
-        }
-        .modelLineId
-    val digest =
-      MessageDigest.getInstance("SHA-256")
-        .digest("$inputBlobUri|${key.modelLine}".toByteArray(Charsets.UTF_8))
-    val sha = digest.joinToString("") { "%02x".format(it) }
-    return "model-line/$modelLineId/${fileMetadata.eventDate}/$sha"
-  }
-
-  private val Timestamp.epochNanos: Long
-    get() = seconds * NANOS_PER_SECOND + nanos
 
   companion object {
     init {
@@ -448,7 +500,6 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
      * `MemoizedRankIndex.DEFAULT_READER_PARALLELISM` on the read side.
      */
     const val DEFAULT_ENCRYPTION_KEY_PARALLELISM = 16
-    private const val NANOS_PER_SECOND = 1_000_000_000L
     private const val TINK_KEY_TEMPLATE = "AES128_GCM_HKDF_1MB"
     private const val TINK_KEYSET_TYPE_URL = "type.googleapis.com/google.crypto.tink.Keyset"
 
@@ -478,6 +529,7 @@ class MemoizedVidLabelingSink(
   dataProvider: String,
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
+  publicationObserver: (LabeledOutputPublication) -> Unit = {},
 ) :
   BaseVidLabelingSink<ParquetDigestedEvent>(
     inputBlobUri,
@@ -491,6 +543,7 @@ class MemoizedVidLabelingSink(
     dataProvider,
     metrics,
     encryptionKeySemaphore,
+    publicationObserver,
   ) {
   override fun resolveLabelerInput(
     event: ParquetDigestedEvent,
@@ -535,6 +588,7 @@ class PlainVidLabelingSink(
   dataProvider: String,
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
+  publicationObserver: (LabeledOutputPublication) -> Unit = {},
 ) :
   BaseVidLabelingSink<ParquetUndigestedEvent>(
     inputBlobUri,
@@ -548,6 +602,7 @@ class PlainVidLabelingSink(
     dataProvider,
     metrics,
     encryptionKeySemaphore,
+    publicationObserver,
   ) {
   override fun resolveLabelerInput(
     event: ParquetUndigestedEvent,

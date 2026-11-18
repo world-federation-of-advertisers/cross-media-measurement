@@ -24,9 +24,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 
@@ -42,17 +41,18 @@ class InvalidRequisitionException(
  * Only requisitions with **permanently fatal errors** (e.g., invalid or unparseable
  * [MeasurementSpec], or missing `reportId`) are refused.
  *
- * @param throttler Used to throttle outgoing gRPC requests.
  * @param privateEncryptionKey The DataProvider’s private key used to decrypt requisition data.
+ * @param allowMixedEventGroupSelectors Whether configured mapping permits mixed selector forms.
  */
-class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) {
+class RequisitionsValidator(
+  private val privateEncryptionKey: PrivateKeyHandle,
+  private val allowMixedEventGroupSelectors: Boolean,
+) {
   fun validateMeasurementSpec(requisition: Requisition): MeasurementSpec {
     return try {
-      val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
+      val measurementSpec: MeasurementSpec = RequisitionSpecs.readMeasurementSpec(requisition)
 
-      if (
-        requisition.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report.isBlank()
-      ) {
+      if (measurementSpec.reportingMetadata.report.isBlank()) {
         throw InvalidRequisitionException(
           listOf(requisition),
           refusal {
@@ -73,12 +73,21 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
         },
         e,
       )
+    } catch (e: IllegalArgumentException) {
+      logger.severe("Invalid measurement spec for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.SPEC_INVALID
+          message = "Invalid MeasurementSpec"
+        },
+        e,
+      )
     }
   }
 
   fun getRequisitionSpec(requisition: Requisition): RequisitionSpec {
-    return decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-      .unpack()
+    return RequisitionSpecs.readRequisitionSpec(requisition, privateEncryptionKey)
   }
 
   fun validateRequisitionSpec(requisition: Requisition): RequisitionSpec {
@@ -101,6 +110,16 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
         refusal {
           justification = Refusal.Justification.SPEC_INVALID
           message = "Unable to parse RequisitionSpec"
+        },
+        e,
+      )
+    } catch (e: IllegalArgumentException) {
+      logger.severe("Invalid requisition spec for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.SPEC_INVALID
+          message = "Invalid RequisitionSpec"
         },
         e,
       )
@@ -130,36 +149,29 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
     }
   }
 
-  /**
-   * Validates that event group selectors are consistent across all event groups.
-   *
-   * An event group is considered to have a meaningful entity key when it has both `entity_key` set
-   * and a non-empty `entity_id`. The Kingdom defaults `entity_type="campaign"` on all event groups,
-   * so `hasEntityKey()` alone is not sufficient to distinguish legacy (reference-id-only) event
-   * groups from those with explicit entity keys.
-   *
-   * If any event group has a meaningful entity key, all must. If none do, all must have a non-empty
-   * `event_group_reference_id`.
-   */
+  /** Requires a nonblank selector for each event group and, unless enabled, one selector form. */
   fun validateEventGroupSelectors(eventGroupMap: Map<String, EventGroupDetails>) {
     require(eventGroupMap.isNotEmpty()) { "eventGroupMap must not be empty" }
 
+    // The Kingdom may populate entity_type without an entity_id.
     val hasMeaningfulEntityKey: (EventGroupDetails) -> Boolean = {
-      it.hasEntityKey() && it.entityKey.entityId.isNotEmpty()
+      it.hasEntityKey() && it.entityKey.entityId.isNotBlank()
     }
-    val anyHasEntityKey = eventGroupMap.values.any(hasMeaningfulEntityKey)
-    if (anyHasEntityKey) {
-      if (!eventGroupMap.values.all(hasMeaningfulEntityKey)) {
-        throw InconsistentEventGroupSelectorsException(
-          "Inconsistent selectors: if any event group has entity_key with entity_id, all must"
-        )
-      }
-    } else {
-      if (!eventGroupMap.values.all { it.eventGroupReferenceId.isNotEmpty() }) {
-        throw InconsistentEventGroupSelectorsException(
-          "All event groups must have event_group_reference_id when entity_key is not present"
-        )
-      }
+    if (
+      !allowMixedEventGroupSelectors &&
+        eventGroupMap.values.any(hasMeaningfulEntityKey) &&
+        !eventGroupMap.values.all(hasMeaningfulEntityKey)
+    ) {
+      throw InconsistentEventGroupSelectorsException(
+        "Inconsistent selectors: if any event group has entity_key with entity_id, all must"
+      )
+    }
+    if (
+      eventGroupMap.values.any { !hasMeaningfulEntityKey(it) && it.eventGroupReferenceId.isBlank() }
+    ) {
+      throw InconsistentEventGroupSelectorsException(
+        "Every event group must have a nonblank entity_key.entity_id or event_group_reference_id"
+      )
     }
   }
 

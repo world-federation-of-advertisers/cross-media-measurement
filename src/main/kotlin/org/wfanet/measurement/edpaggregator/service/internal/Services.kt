@@ -17,24 +17,33 @@
 package org.wfanet.measurement.edpaggregator.service.internal
 
 import io.grpc.BindableService
+import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
 data class Services(
+  val dataAvailabilitySyncLease:
+    DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase,
   val requisitionMetadata:
     RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionUpload:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
+  val rawImpressionUploadCorrectionCandidate:
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase,
+  val uploadHealingOperation:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase,
   val rawImpressionUploadFile:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase,
   val rawImpressionUploadModelLine:
@@ -46,9 +55,12 @@ data class Services(
 ) {
   fun toList(): List<BindableService> =
     listOf(
+      dataAvailabilitySyncLease,
       requisitionMetadata,
       impressionMetadata,
       rawImpressionUpload,
+      rawImpressionUploadCorrectionCandidate,
+      uploadHealingOperation,
       rawImpressionUploadFile,
       rawImpressionUploadModelLine,
       vidLabelingJob,

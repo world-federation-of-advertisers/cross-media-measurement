@@ -1333,6 +1333,114 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamEventGroups continues DataProvider page from legacy token cursor`(): Unit =
+    runBlocking {
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+      val externalMeasurementConsumerId =
+        population
+          .createMeasurementConsumer(measurementConsumersService, accountsService)
+          .externalMeasurementConsumerId
+      val expectedEventGroups =
+        (1..3)
+          .map {
+            eventGroupsService.createEventGroup(
+              createEventGroupRequest {
+                eventGroup = eventGroup {
+                  this.externalDataProviderId = externalDataProviderId
+                  this.externalMeasurementConsumerId = externalMeasurementConsumerId
+                }
+              }
+            )
+          }
+          .sortedWith(
+            compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
+          )
+      // Legacy page tokens are converted to this two-field cursor by the public API.
+      val legacyPageEnd: EventGroup = expectedEventGroups.first()
+
+      val nextPage: List<EventGroup> =
+        eventGroupsService
+          .streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                this.externalDataProviderId = externalDataProviderId
+                after =
+                  StreamEventGroupsRequestKt.FilterKt.after {
+                    eventGroupKey = eventGroupKey {
+                      this.externalDataProviderId = legacyPageEnd.externalDataProviderId
+                      externalEventGroupId = legacyPageEnd.externalEventGroupId
+                    }
+                  }
+              }
+              limit = 2
+            }
+          )
+          .toList()
+
+      assertThat(nextPage).containsExactlyElementsIn(expectedEventGroups.drop(1)).inOrder()
+    }
+
+  @Test
+  fun `streamEventGroups continues MeasurementConsumer page from legacy token cursor`(): Unit =
+    runBlocking {
+      val externalMeasurementConsumerId =
+        population
+          .createMeasurementConsumer(measurementConsumersService, accountsService)
+          .externalMeasurementConsumerId
+      val externalDataProviderIds =
+        listOf(
+            population.createDataProvider(dataProvidersService).externalDataProviderId,
+            population.createDataProvider(dataProvidersService).externalDataProviderId,
+          )
+          .sorted()
+
+      suspend fun createEventGroup(externalDataProviderId: Long): EventGroup {
+        return eventGroupsService.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = eventGroup {
+              this.externalDataProviderId = externalDataProviderId
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+            }
+          }
+        )
+      }
+
+      val expectedEventGroups =
+        listOf(
+            createEventGroup(externalDataProviderIds[0]),
+            createEventGroup(externalDataProviderIds[0]),
+            createEventGroup(externalDataProviderIds[1]),
+          )
+          .sortedWith(
+            compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
+          )
+      // Legacy page tokens are converted to this two-field cursor by the public API.
+      val legacyPageEnd: EventGroup = expectedEventGroups.first()
+
+      val nextPage: List<EventGroup> =
+        eventGroupsService
+          .streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                this.externalMeasurementConsumerId = externalMeasurementConsumerId
+                after =
+                  StreamEventGroupsRequestKt.FilterKt.after {
+                    eventGroupKey = eventGroupKey {
+                      externalDataProviderId = legacyPageEnd.externalDataProviderId
+                      externalEventGroupId = legacyPageEnd.externalEventGroupId
+                    }
+                  }
+              }
+              limit = 2
+            }
+          )
+          .toList()
+
+      assertThat(nextPage).containsExactlyElementsIn(expectedEventGroups.drop(1)).inOrder()
+    }
+
+  @Test
   fun `streamEventGroups respects limit`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
@@ -1374,6 +1482,139 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         .toList()
 
     assertThat(eventGroups).hasSize(1)
+  }
+
+  @Test
+  fun `streamEventGroups respects externalDataProviderId`(): Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    val otherExternalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    val expectedEventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          }
+        }
+      )
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          this.externalDataProviderId = otherExternalDataProviderId
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        }
+      }
+    )
+
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { this.externalDataProviderId = externalDataProviderId }
+          }
+        )
+        .toList()
+
+    assertThat(eventGroups).containsExactly(expectedEventGroup)
+  }
+
+  @Test
+  fun `streamEventGroups returns empty for missing DataProvider`(): Unit = runBlocking {
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest { filter = filter { externalDataProviderId = 404L } }
+        )
+        .toList()
+
+    assertThat(eventGroups).isEmpty()
+  }
+
+  @Test
+  fun `streamEventGroups paginates MeasurementConsumer across DataProviders`(): Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val otherExternalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderIds =
+      listOf(
+        population.createDataProvider(dataProvidersService).externalDataProviderId,
+        population.createDataProvider(dataProvidersService).externalDataProviderId,
+      )
+    val expectedEventGroups =
+      externalDataProviderIds
+        .map { externalDataProviderId ->
+          eventGroupsService.createEventGroup(
+            createEventGroupRequest {
+              eventGroup = eventGroup {
+                this.externalDataProviderId = externalDataProviderId
+                this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              }
+            }
+          )
+        }
+        .sortedWith(
+          compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
+        )
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          this.externalDataProviderId = externalDataProviderIds.first()
+          this.externalMeasurementConsumerId = otherExternalMeasurementConsumerId
+        }
+      }
+    )
+
+    suspend fun streamPage(afterEventGroup: EventGroup?): List<EventGroup> {
+      return eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter {
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              if (afterEventGroup != null) {
+                after =
+                  StreamEventGroupsRequestKt.FilterKt.after {
+                    eventGroupKey = eventGroupKey {
+                      externalDataProviderId = afterEventGroup.externalDataProviderId
+                      externalEventGroupId = afterEventGroup.externalEventGroupId
+                    }
+                  }
+              }
+            }
+            limit = 1
+          }
+        )
+        .toList()
+    }
+
+    val firstPage: List<EventGroup> = streamPage(afterEventGroup = null)
+    val secondPage: List<EventGroup> = streamPage(firstPage.single())
+    val thirdPage: List<EventGroup> = streamPage(secondPage.single())
+
+    assertThat(firstPage + secondPage).containsExactlyElementsIn(expectedEventGroups).inOrder()
+    assertThat(thirdPage).isEmpty()
+  }
+
+  @Test
+  fun `streamEventGroups returns empty for missing MeasurementConsumer`(): Unit = runBlocking {
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest { filter = filter { externalMeasurementConsumerId = 404L } }
+        )
+        .toList()
+
+    assertThat(eventGroups).isEmpty()
   }
 
   @Test
@@ -2230,6 +2471,17 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
         .single()
     assertThat(summaryResponse.aggregatedActivitiesList).isNotEmpty()
+
+    val indexedSummaryResponse =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+            view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+          }
+        )
+        .single()
+    assertThat(indexedSummaryResponse).isEqualTo(summaryResponse)
   }
 
   @Test

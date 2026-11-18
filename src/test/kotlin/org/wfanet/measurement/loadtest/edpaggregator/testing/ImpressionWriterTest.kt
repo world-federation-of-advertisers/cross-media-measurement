@@ -16,18 +16,29 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.testing
 
+import com.google.api.client.http.HttpHeaders
+import com.google.api.client.http.HttpResponseException
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.io.File
+import java.security.GeneralSecurityException
 import java.time.LocalDate
 import java.time.ZoneId
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -40,6 +51,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
@@ -75,6 +88,7 @@ class ImpressionWriterTest {
         "some-metadata-bucket",
         tempFolder.root,
         "file:///",
+        includeEventGroupReferenceIdInImpressions = false,
       )
     val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
@@ -203,6 +217,7 @@ class ImpressionWriterTest {
         "some-metadata-bucket",
         tempFolder.root,
         "file:///",
+        includeEventGroupReferenceIdInImpressions = false,
       )
     val events =
       sequenceOf(
@@ -253,6 +268,7 @@ class ImpressionWriterTest {
         bucket,
         tempFolder.root,
         "file:///",
+        includeEventGroupReferenceIdInImpressions = false,
       )
     val events: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       sequenceOf(
@@ -363,6 +379,7 @@ class ImpressionWriterTest {
         "multi-metadata-bucket",
         tempFolder.root,
         "file:///",
+        includeEventGroupReferenceIdInImpressions = false,
       )
 
     val date = LocalDate.parse("2020-01-01")
@@ -409,6 +426,7 @@ class ImpressionWriterTest {
             .read()
             .flatten()
         )
+      assertThat(blobDetails.eventGroupReferenceId).isEqualTo("some-event-group-ref")
       val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, tempFolder.root)
       val decryptionClient =
         selectedStorageClient.withEnvelopeEncryption(
@@ -423,6 +441,10 @@ class ImpressionWriterTest {
           .toList()
           .map { LabeledImpression.parseFrom(it) }
       assertThat(impressions).hasSize(3)
+
+      for (impression in impressions) {
+        assertThat(impression.eventGroupReferenceId).isEmpty()
+      }
 
       val impressionsByEntityKeys: Map<List<Pair<String, String>>, List<LabeledImpression>> =
         impressions.groupBy { impression ->
@@ -451,6 +473,313 @@ class ImpressionWriterTest {
       }
     }
   }
+
+  @Test
+  fun `writeLabeledImpressionData writes only event group reference IDs when entity keys are absent`() =
+    runBlocking {
+      val result =
+        writeAndReadImpressions(
+          eventGroupReferenceId = "campaign-1",
+          entityKeys = emptyList(),
+          includeEventGroupReferenceIdInImpressions = true,
+        )
+
+      assertThat(result.blobDetails.eventGroupReferenceId).isEqualTo("campaign-1")
+      assertThat(result.blobDetails.entityKeysList).isEmpty()
+      assertThat(result.impressions).hasSize(2)
+      for (impression in result.impressions) {
+        assertThat(impression.eventGroupReferenceId).isEqualTo("campaign-1")
+        assertThat(impression.entityKeysList).isEmpty()
+      }
+    }
+
+  @Test
+  fun `writeLabeledImpressionData writes only entity keys when the reference ID is empty`() =
+    runBlocking {
+      val result =
+        writeAndReadImpressions(
+          eventGroupReferenceId = "",
+          entityKeys = listOf(EntityKey("campaign", "campaign-1")),
+          includeEventGroupReferenceIdInImpressions = false,
+        )
+      val expectedEntityKeyGroup = entityKeyGroup {
+        entityType = "campaign"
+        entityIds += "campaign-1"
+      }
+      val expectedEntityKey = entityKey {
+        entityType = "campaign"
+        entityId = "campaign-1"
+      }
+
+      assertThat(result.blobDetails.eventGroupReferenceId).isEmpty()
+      assertThat(result.blobDetails.entityKeysList).containsExactly(expectedEntityKeyGroup)
+      assertThat(result.impressions).hasSize(2)
+      for (impression in result.impressions) {
+        assertThat(impression.eventGroupReferenceId).isEmpty()
+        assertThat(impression.entityKeysList).containsExactly(expectedEntityKey)
+      }
+    }
+
+  @Test
+  fun `writeLabeledImpressionData writes both reference IDs and entity keys when configured`() =
+    runBlocking {
+      val result =
+        writeAndReadImpressions(
+          eventGroupReferenceId = "campaign-1",
+          entityKeys = listOf(EntityKey("campaign", "campaign-1")),
+          includeEventGroupReferenceIdInImpressions = true,
+        )
+      val expectedEntityKeyGroup = entityKeyGroup {
+        entityType = "campaign"
+        entityIds += "campaign-1"
+      }
+      val expectedEntityKey = entityKey {
+        entityType = "campaign"
+        entityId = "campaign-1"
+      }
+
+      assertThat(result.blobDetails.eventGroupReferenceId).isEqualTo("campaign-1")
+      assertThat(result.blobDetails.entityKeysList).containsExactly(expectedEntityKeyGroup)
+      assertThat(result.impressions).hasSize(2)
+      for (impression in result.impressions) {
+        assertThat(impression.eventGroupReferenceId).isEqualTo("campaign-1")
+        assertThat(impression.entityKeysList).containsExactly(expectedEntityKey)
+      }
+    }
+
+  @Test
+  fun `writeLabeledImpressionData retries each transient KMS unwrapping failure`() = runTest {
+    for (code in listOf(429, 500, 502, 503, 504)) {
+      val aead = FailingAead(kmsHttpFailure(code), failuresRemaining = 1)
+      val written =
+        writeAndReadImpressions(
+          "",
+          emptyList(),
+          false,
+          aead,
+          tempFolder.newFolder("unwrapping-$code"),
+        )
+
+      assertThat(written.impressions).hasSize(2)
+      assertThat(aead.encryptCalls).isEqualTo(1)
+      assertThat(aead.decryptCalls).isEqualTo(3)
+    }
+  }
+
+  @Test
+  fun `writeLabeledImpressionData retries each transient KMS key wrapping failure`() = runTest {
+    for (code in listOf(429, 500, 502, 503, 504)) {
+      val aead = FailingAead(kmsHttpFailure(code), failuresRemaining = 1, failEncrypt = true)
+      val written =
+        writeAndReadImpressions(
+          "",
+          emptyList(),
+          false,
+          aead,
+          tempFolder.newFolder("wrapping-$code"),
+        )
+
+      assertThat(written.impressions).hasSize(2)
+      assertThat(aead.encryptCalls).isEqualTo(2)
+    }
+  }
+
+  @Test
+  fun `writeLabeledImpressionData does not retry permission failures`() = runTest {
+    val failure = kmsHttpFailure(403)
+    val aead = FailingAead(failure, failuresRemaining = Int.MAX_VALUE)
+
+    val thrown =
+      assertFailsWith<GeneralSecurityException> {
+        writeAndReadImpressions("", emptyList(), false, aead)
+      }
+
+    assertThat(thrown).isSameInstanceAs(failure)
+    assertThat(aead.decryptCalls).isEqualTo(1)
+    assertNoImpressionsWritten()
+  }
+
+  @Test
+  fun `writeLabeledImpressionData does not retry invalid encrypted keys`() = runTest {
+    val failure = GeneralSecurityException("Invalid encrypted keyset")
+    val aead = FailingAead(failure, failuresRemaining = Int.MAX_VALUE)
+
+    val thrown =
+      assertFailsWith<GeneralSecurityException> {
+        writeAndReadImpressions("", emptyList(), false, aead)
+      }
+
+    assertThat(thrown).isSameInstanceAs(failure)
+    assertThat(aead.decryptCalls).isEqualTo(1)
+    assertNoImpressionsWritten()
+  }
+
+  @Test
+  fun `writeLabeledImpressionData bounds KMS retries before storage writes`() = runTest {
+    val failure = kmsHttpFailure(503)
+    val aead = FailingAead(failure, failuresRemaining = Int.MAX_VALUE)
+
+    val thrown =
+      assertFailsWith<GeneralSecurityException> {
+        writeAndReadImpressions("", emptyList(), false, aead)
+      }
+
+    assertThat(thrown).isSameInstanceAs(failure)
+    assertThat(aead.decryptCalls).isEqualTo(6)
+    assertNoImpressionsWritten()
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `writeLabeledImpressionData stops KMS retries on cancellation`() = runTest {
+    val aead = FailingAead(kmsHttpFailure(503), failuresRemaining = Int.MAX_VALUE)
+    val writer = launch { writeAndReadImpressions("", emptyList(), false, aead) }
+    runCurrent()
+    assertThat(aead.decryptCalls).isEqualTo(1)
+
+    writer.cancelAndJoin()
+
+    assertThat(aead.decryptCalls).isEqualTo(1)
+    assertNoImpressionsWritten()
+  }
+
+  private fun assertNoImpressionsWritten() {
+    assertThat(
+        tempFolder.root
+          .resolve("identifier-impressions-bucket/identifier-test/2020-01-01/impressions")
+          .exists()
+      )
+      .isFalse()
+    assertThat(
+        tempFolder.root
+          .resolve("identifier-metadata-bucket/identifier-test/2020-01-01/metadata.binpb")
+          .exists()
+      )
+      .isFalse()
+  }
+
+  private suspend fun writeAndReadImpressions(
+    eventGroupReferenceId: String,
+    entityKeys: List<EntityKey>,
+    includeEventGroupReferenceIdInImpressions: Boolean,
+    aead: Aead? = null,
+    storageRoot: File = tempFolder.root,
+  ): WrittenImpressions {
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
+    val kmsClient =
+      FakeKmsClient().apply {
+        val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+        setAead(
+          kekUri,
+          aead ?: kmsKeyHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java),
+        )
+      }
+    val impressionsBucket = "identifier-impressions-bucket"
+    val metadataBucket = "identifier-metadata-bucket"
+    storageRoot.resolve(impressionsBucket).mkdirs()
+    storageRoot.resolve(metadataBucket).mkdirs()
+    val impressionWriter =
+      ImpressionsWriter(
+        eventGroupReferenceId = eventGroupReferenceId,
+        eventGroupPath = "some-event-group-path",
+        kekUri = kekUri,
+        kmsClient = kmsClient,
+        impressionsBucket = impressionsBucket,
+        impressionsMetadataBucket = metadataBucket,
+        storagePath = storageRoot,
+        schema = "file:///",
+        includeEventGroupReferenceIdInImpressions = includeEventGroupReferenceIdInImpressions,
+      )
+    val date = LocalDate.parse("2020-01-01")
+    val timestamp = date.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val events =
+      sequenceOf(
+        EntityKeyedLabeledEventDateShard(
+          date,
+          sequenceOf(
+            EntityKeysWithLabeledEvents(
+              entityKeys = entityKeys,
+              labeledEvents =
+                sequenceOf(
+                  LabeledEvent(timestamp, vid = 1, message = TestEvent.getDefaultInstance()),
+                  LabeledEvent(timestamp, vid = 2, message = TestEvent.getDefaultInstance()),
+                ),
+            )
+          ),
+        )
+      )
+    val basePath = "identifier-test"
+    impressionWriter.writeLabeledImpressionData(
+      events,
+      "modelProviders/provider1/modelSuites/suite1/modelLines/some-model-line",
+      flatOutputBasePath = basePath,
+    )
+
+    val storageClient = FileSystemStorageClient(storageRoot)
+    val blobDetails =
+      BlobDetails.parseFrom(
+        storageClient.getBlob("$metadataBucket/$basePath/$date/metadata.binpb")!!.read().flatten()
+      )
+    val selectedStorageClient = SelectedStorageClient(blobDetails.blobUri, storageRoot)
+    val decryptionClient =
+      selectedStorageClient.withEnvelopeEncryption(
+        kmsClient,
+        kekUri,
+        blobDetails.encryptedDek.ciphertext,
+      )
+    val impressions: List<LabeledImpression> =
+      MesosRecordIoStorageClient(decryptionClient)
+        .getBlob("$basePath/$date/impressions")!!
+        .read()
+        .toList()
+        .map { LabeledImpression.parseFrom(it) }
+    return WrittenImpressions(blobDetails, impressions)
+  }
+
+  private fun kmsHttpFailure(statusCode: Int): GeneralSecurityException {
+    return GeneralSecurityException(
+      "Synthetic KMS failure",
+      HttpResponseException.Builder(statusCode, "Synthetic KMS failure", HttpHeaders()).build(),
+    )
+  }
+
+  private class FailingAead(
+    private val failure: GeneralSecurityException,
+    private var failuresRemaining: Int,
+    private val failEncrypt: Boolean = false,
+  ) : Aead {
+    private val delegate =
+      KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+        .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
+    var encryptCalls = 0
+      private set
+
+    var decryptCalls = 0
+      private set
+
+    override fun encrypt(plaintext: ByteArray, associatedData: ByteArray?): ByteArray {
+      encryptCalls++
+      if (failEncrypt && shouldFail()) throw failure
+      return delegate.encrypt(plaintext, associatedData)
+    }
+
+    override fun decrypt(ciphertext: ByteArray, associatedData: ByteArray?): ByteArray {
+      decryptCalls++
+      if (!failEncrypt && shouldFail()) throw failure
+      return delegate.decrypt(ciphertext, associatedData)
+    }
+
+    private fun shouldFail(): Boolean {
+      if (failuresRemaining == 0) return false
+      failuresRemaining--
+      return true
+    }
+  }
+
+  private data class WrittenImpressions(
+    val blobDetails: BlobDetails,
+    val impressions: List<LabeledImpression>,
+  )
 
   companion object {
     init {

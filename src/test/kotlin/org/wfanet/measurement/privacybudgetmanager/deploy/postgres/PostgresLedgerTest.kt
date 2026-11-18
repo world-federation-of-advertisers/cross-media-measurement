@@ -397,7 +397,7 @@ class PostgresLedgerTest {
   }
 
   private companion object {
-    const val POSTGRES_IMAGE_NAME = "postgres:15"
+    const val POSTGRES_IMAGE_NAME = "postgres:16"
     const val ACTIVE_LANDSCAPE_ID = "active-privacy-landsapce"
     const val READY_STATE = "READY"
     const val BACKFILLING_STATE = "BACKFILLING"

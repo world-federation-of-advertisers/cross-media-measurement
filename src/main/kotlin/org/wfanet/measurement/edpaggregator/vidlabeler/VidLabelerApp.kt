@@ -16,19 +16,31 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.BlobInfo
+import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageException
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
+import java.time.Instant
 import java.time.LocalDate
+import java.util.logging.Level
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
@@ -39,27 +51,43 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMeta
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.UndigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
+import org.wfanet.measurement.gcloud.gcs.GcsStorageRetryConfig
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
@@ -76,14 +104,16 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * `RankIndexBlobService`, derives each VID from its memoized rank (the labeler hashes any overflow
  * / unseen fingerprint), writes the encrypted labeled output, marks the `VidLabelingJob`
  * `SUCCEEDED`, and — when this call was the last job out for a model line — transitions the parent
- * `RawImpressionUploadModelLine` to `COMPLETED` and drops a `done` marker blob that triggers
- * downstream DataAvailabilitySync.
+ * `RawImpressionUploadModelLine` to `AVAILABILITY_SYNCING` after resolving its dated `done`
+ * markers. Ordinary handoffs are ensured before this transition. During healing it records a
+ * pending checkpoint, and the controller ensures WorkItems after releasing its fence. The parent
+ * reaches `COMPLETED` only after every date-level availability handoff succeeds.
  *
  * Failure model: [runWork] does NOT mark the job `FAILED` itself. A transient failure propagates
- * out of [runWork] so the TEE framework nacks the message, leaving the job in `LABELING`/`CREATED`
- * for Pub/Sub to redeliver and retry. The terminal `FAILED` state is written by the DLQ listener on
- * retry exhaustion (see the design's failure model), which owns the single authoritative FAILED
- * transition.
+ * out of [runWork] so the TEE framework retains the delivery while another attempt owns the
+ * WorkItem, or nacks after an execution failure. On retry exhaustion the workload-agnostic DLQ
+ * listener fails only the WorkItem; it does not change the `VidLabelingJob`, which remains
+ * available for explicit workload recovery.
  *
  * @param subscriptionId Pub/Sub subscription for VID labeling queue.
  * @param queueSubscriber handles Pub/Sub pull.
@@ -98,15 +128,16 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED` and learn
  *   whether it is the last job out for one or more model lines.
  * @param rawImpressionUploadModelLinesStub stub for transitioning the parent
- *   `RawImpressionUploadModelLine` to `COMPLETED` on last-job-out.
+ *   `RawImpressionUploadModelLine` to `AVAILABILITY_SYNCING` on last-job-out.
  * @param rankIndexBlobsStub stub used by [MemoizedRankIndex.load] to resolve the per-subpool
  *   rank-index blob pointers.
- * @param rawImpressionUploadFilesStub stub used by [RawImpressionSource] to discover this upload's
- *   raw-impression files.
+ * @param rawImpressionUploadFilesStub stub used by [RawImpressionSource] and to resolve the
+ *   upload-wide event dates finalized after the last labeling job succeeds.
  * @param buildParquetStorageClient builds a [ParquetStorageClient] for the raw-impressions storage,
  *   threaded with the per-EDP [KmsClient] for PME decryption.
  * @param buildVidRankMapStorageClient builds a [ConditionalOperationStorageClient] for the
  *   vid-rank-map storage read by [RankIndexStore].
+ * @param writeGcsObject conditionally writes a GCS object and returns its immutable generation.
  * @param loadAssigner loads the compiled VID model (C++/JNI) for a model blob URI into a
  *   [VidAssigner].
  * @param buildImpressionConverter builds the per-(WorkItem, model line) [ImpressionConverter],
@@ -120,7 +151,7 @@ class VidLabelerApp(
   subscriptionId: String,
   queueSubscriber: QueueSubscriber,
   parser: Parser<WorkItem>,
-  workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  private val workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val kmsClients: Map<String, KmsClient>,
   private val encryptKekUris: Map<String, String>,
@@ -129,6 +160,8 @@ class VidLabelerApp(
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
+  private val uploadHealingOperationsStub: UploadHealingOperationServiceCoroutineStub,
   private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
   private val buildVidRankMapStorageClient: (StorageConfig) -> ConditionalOperationStorageClient,
   private val loadAssigner:
@@ -136,6 +169,39 @@ class VidLabelerApp(
   private val buildImpressionConverter:
     suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val writeGcsObject:
+    suspend (
+      projectId: String?, blobInfo: BlobInfo, content: ByteArray, expectedGeneration: Long,
+    ) -> Long =
+    { projectId, blobInfo, content, expectedGeneration ->
+      withContext(Dispatchers.IO) {
+        GcsStorageRetryConfig.DEFAULT.buildStorageOptions(projectId = projectId)
+          .service
+          .create(blobInfo, content, Storage.BlobTargetOption.generationMatch(expectedGeneration))
+          .generation
+      }
+    },
+  private val getGcsObjectGeneration:
+    suspend (projectId: String?, bucket: String, key: String) -> Long? =
+    { projectId, bucket, key ->
+      withContext(Dispatchers.IO) {
+        GcsStorageRetryConfig.DEFAULT.buildStorageOptions(projectId = projectId)
+          .service
+          .get(bucket, key)
+          ?.generation
+      }
+    },
+  private val getGcsObjectCreateTime:
+    suspend (projectId: String?, bucket: String, key: String, generation: Long) -> Instant? =
+    { projectId, bucket, key, generation ->
+      withContext(Dispatchers.IO) {
+        GcsStorageRetryConfig.DEFAULT.buildStorageOptions(projectId = projectId)
+          .service
+          .get(BlobId.of(bucket, key, generation))
+          ?.createTimeOffsetDateTime
+          ?.toInstant()
+      }
+    },
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
   // Process-scoped cache of the built memoized rank index, shared across WorkItems so consecutive
   // WorkItems for the same (dataProvider, modelLine) with an unchanged snapshot set reuse the index
@@ -146,6 +212,20 @@ class VidLabelerApp(
   // shared instance.
   private val memoizedRankIndexCache: MemoizedRankIndexCache = MemoizedRankIndexCache(),
   private val metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
+  private val dataAvailabilitySyncWorkItemPublisher: DataAvailabilitySyncWorkItemPublisher =
+    DataAvailabilitySyncWorkItemPublisher(
+      createWorkItem = { _, request ->
+        rpcThrottlers.controlPlane.onReady { workItemsClient.createWorkItem(request) }
+      },
+      getWorkItem = { _, name ->
+        rpcThrottlers.controlPlane.onReady {
+          workItemsClient.getWorkItem(getWorkItemRequest { this.name = name })
+        }
+      },
+      retryWorkItem = { _, request ->
+        rpcThrottlers.controlPlane.onReady { workItemsClient.retryWorkItem(request) }
+      },
+    ),
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -163,14 +243,24 @@ class VidLabelerApp(
    */
   private val vidModelLoader = VidModelLoader(loadAssigner)
 
+  private data class LabelingRunResult(val outcome: String, val inputFileCount: Int)
+
+  private data class FinalizationResult(
+    val outcome: String,
+    val expectedFinalizations: Int,
+    val doneObjectsWritten: Int,
+    val parentsCompleted: Int,
+  )
+
+  private data class DoneObject(val uri: String, val generation: Long, val createTime: Instant)
+
   /**
    * Processes one VID-labeling WorkItem.
    *
    * Any exception thrown here propagates (including a coroutine `CancellationException`) so the TEE
    * framework nacks the message: a transient failure is retried by Pub/Sub and the job state stays
-   * in `LABELING`/`CREATED`. This worker never marks the job `FAILED` itself — the single
-   * authoritative terminal `FAILED` transition is owned by the DLQ listener on retry exhaustion
-   * (see the class-level failure model).
+   * in `LABELING`/`CREATED`. This worker never marks the job `FAILED` itself, and the
+   * workload-agnostic DLQ listener fails only the WorkItem on retry exhaustion.
    */
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
@@ -184,19 +274,60 @@ class VidLabelerApp(
     require(params.hasVidLabeledImpressionsStorageParams()) {
       "vid_labeled_impressions_storage_params must be set"
     }
+    val route = if (params.hasMemoizedParams()) "memoized" else "non_memoized"
+    val modelLines = params.modelLinesList.sorted()
 
-    // Two Phase-2 configurations share this worker and are mutually exclusive: the memoized
-    // rank-index path (memoized_params set) and the non-memoized hash-only path (top-level
-    // vid_labeling_job set, bundling all of an upload's non-memoized model lines).
-    if (params.hasMemoizedParams()) {
-      runMemoized(params, dataProvider)
-    } else {
-      runNonMemoized(params, dataProvider)
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.label",
+      attributes =
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dataProvider)
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, rawImpressionUpload(params))
+          .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, params.vidLabelingJob)
+          .put(VidLabelingTraceAttributes.PIPELINE_PHASE, "phase2")
+          .put(VidLabelingTraceAttributes.LABEL_ROUTE, route)
+          .put(VidLabelingTraceAttributes.MODEL_LINE_NAMES, modelLines)
+          .put(XmmTraceAttributes.LIFECYCLE_STAGE, "label")
+          .put(XmmTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      val result =
+        if (params.hasMemoizedParams()) {
+          runMemoized(params, dataProvider)
+        } else {
+          runNonMemoized(params, dataProvider)
+        }
+      Span.current()
+        .setAttribute(
+          VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT,
+          result.inputFileCount.toLong(),
+        )
+        .setAttribute(XmmTraceAttributes.OUTCOME, result.outcome)
+      for (modelLine in modelLines) {
+        VidLabelingTraceLogging.log(
+          logger,
+          "edpa.vid_labeling.label_completed",
+          VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProvider,
+          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to
+            rawImpressionUpload(params),
+          VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to params.vidLabelingJob,
+          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+          VidLabelingTraceAttributes.PIPELINE_PHASE_STRING to "phase2",
+          VidLabelingTraceAttributes.LABEL_ROUTE_STRING to route,
+          VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT_STRING to
+            result.inputFileCount.toString(),
+          XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "label",
+          XmmTraceAttributes.OUTCOME_STRING to result.outcome,
+        )
+      }
     }
   }
 
   /** Memoized rank-index Phase-2 path: derive each VID from its memoized rank. */
-  private suspend fun runMemoized(params: VidLabelerParams, dataProvider: String) {
+  private suspend fun runMemoized(
+    params: VidLabelerParams,
+    dataProvider: String,
+  ): LabelingRunResult {
     // MemoizedParams now carries only the rank-index storage; the job + model line are top-level
     // (shared with the non-memoized path). The memoized path always has exactly one model line.
     val mp = params.memoizedParams
@@ -226,6 +357,11 @@ class VidLabelerApp(
         rpcThrottlers.metadataRead.onReady {
           vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = vidLabelingJob })
         }
+      Span.current()
+        .setAttribute(
+          VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT,
+          job.rawImpressionUploadFilesCount.toLong(),
+        )
       val observedEventDates: Set<LocalDate> =
         if (job.state != VidLabelingJob.State.SUCCEEDED) {
           labelMemoized(
@@ -242,18 +378,24 @@ class VidLabelerApp(
           emptySet()
         }
 
-      markSucceededAndTransition(
-        params,
-        vidLabelingJob,
-        dataProvider,
-        job.etag,
-        attributes,
-        observedEventDates,
-        job.rawImpressionUploadFilesList,
-        kmsClient,
-      )
+      val finalized =
+        markSucceededAndTransition(
+          params,
+          vidLabelingJob,
+          dataProvider,
+          job.etag,
+          attributes,
+          observedEventDates,
+          job.rawImpressionUploadFilesList,
+          kmsClient,
+          replay = job.state == VidLabelingJob.State.SUCCEEDED,
+        )
       // Count only successful completions; a thrown failure skips this and nacks the message.
       metrics.workItemsProcessedCounter.add(1, attributes)
+      return LabelingRunResult(
+        outcome = labelingOutcome(job.state, finalized),
+        inputFileCount = job.rawImpressionUploadFilesCount,
+      )
     } finally {
       // Record wall-clock for every attempt (success or failure) so latency dashboards see retries.
       metrics.workItemDurationHistogram.record(
@@ -268,7 +410,10 @@ class VidLabelerApp(
    * job's bin-packed files, loading each model from its blob (the TEE never reads the VID Repo) and
    * wrapping the output with this EDP's [encryptKekUris] entry.
    */
-  private suspend fun runNonMemoized(params: VidLabelerParams, dataProvider: String) {
+  private suspend fun runNonMemoized(
+    params: VidLabelerParams,
+    dataProvider: String,
+  ): LabelingRunResult {
     require(params.vidLabelingJob.isNotEmpty()) {
       "vid_labeling_job must be set on the non-memoized path"
     }
@@ -291,6 +436,11 @@ class VidLabelerApp(
             getVidLabelingJobRequest { name = params.vidLabelingJob }
           )
         }
+      Span.current()
+        .setAttribute(
+          VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT,
+          job.rawImpressionUploadFilesCount.toLong(),
+        )
       val observedEventDates: Set<LocalDate> =
         if (job.state != VidLabelingJob.State.SUCCEEDED) {
           labelNonMemoized(
@@ -305,17 +455,23 @@ class VidLabelerApp(
           emptySet()
         }
 
-      markSucceededAndTransition(
-        params,
-        params.vidLabelingJob,
-        dataProvider,
-        job.etag,
-        attributes,
-        observedEventDates,
-        job.rawImpressionUploadFilesList,
-        kmsClient,
-      )
+      val finalized =
+        markSucceededAndTransition(
+          params,
+          params.vidLabelingJob,
+          dataProvider,
+          job.etag,
+          attributes,
+          observedEventDates,
+          job.rawImpressionUploadFilesList,
+          kmsClient,
+          replay = job.state == VidLabelingJob.State.SUCCEEDED,
+        )
       metrics.workItemsProcessedCounter.add(1, attributes)
+      return LabelingRunResult(
+        outcome = labelingOutcome(job.state, finalized),
+        inputFileCount = job.rawImpressionUploadFilesCount,
+      )
     } finally {
       metrics.workItemDurationHistogram.record(
         (System.nanoTime() - startNanos) / NANOS_PER_SECOND,
@@ -417,6 +573,7 @@ class VidLabelerApp(
       )
 
     val impressionConverter = buildImpressionConverter(modelLine, config)
+    val publicationObserver = outputPublicationObserver(params, dataProvider, "memoized")
 
     return VidLabeler(
         rawImpressionSource = rawImpressionSource,
@@ -428,7 +585,33 @@ class VidLabelerApp(
         // The labeled output is wrapped with the EDP's KEK, the same one the rank-index blobs were
         // written with; read it from the loaded RankIndexBlobs so there is no separate KEK field.
         encryptKekUri = rankIndex.kekUri,
-        newSink = ::MemoizedVidLabelingSink,
+        newSink = {
+          inputBlobUri,
+          contexts,
+          converter,
+          metadata,
+          client,
+          kekUri,
+          storageParams,
+          storageConfig,
+          provider,
+          sinkMetrics,
+          semaphore ->
+          MemoizedVidLabelingSink(
+            inputBlobUri,
+            contexts,
+            converter,
+            metadata,
+            client,
+            kekUri,
+            storageParams,
+            storageConfig,
+            provider,
+            sinkMetrics,
+            semaphore,
+            publicationObserver,
+          )
+        },
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
         dataProvider = dataProvider,
@@ -521,6 +704,7 @@ class VidLabelerApp(
       }
 
     val impressionConverter = buildImpressionConverter(firstModelLine, firstConfig)
+    val publicationObserver = outputPublicationObserver(params, dataProvider, "non_memoized")
 
     return VidLabeler(
         rawImpressionSource = rawImpressionSource,
@@ -532,7 +716,33 @@ class VidLabelerApp(
         impressionConverter = impressionConverter,
         encryptKmsClient = kmsClient,
         encryptKekUri = encryptKekUri,
-        newSink = ::PlainVidLabelingSink,
+        newSink = {
+          inputBlobUri,
+          contexts,
+          converter,
+          metadata,
+          client,
+          kekUri,
+          storageParams,
+          storageConfig,
+          provider,
+          sinkMetrics,
+          semaphore ->
+          PlainVidLabelingSink(
+            inputBlobUri,
+            contexts,
+            converter,
+            metadata,
+            client,
+            kekUri,
+            storageParams,
+            storageConfig,
+            provider,
+            sinkMetrics,
+            semaphore,
+            publicationObserver,
+          )
+        },
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
         dataProvider = dataProvider,
@@ -542,14 +752,14 @@ class VidLabelerApp(
 
   /**
    * Marks this WorkItem's `VidLabelingJob` `SUCCEEDED` and, when the service reports this call
-   * completed one or more model lines (last-job-out), drops that model line's single `done` marker
-   * blob and then transitions its parent `RawImpressionUploadModelLine` to `COMPLETED`. The service
-   * returns a model line in `completedModelLines` only to the caller whose mark finished its last
-   * outstanding `VidLabelingJob`, so exactly one TEE finalizes each model line — a sibling TEE that
-   * finishes the same model line earlier (while others still label it) gets nothing back for it and
-   * writes no marker. Idempotent on Pub/Sub redelivery: the mark is keyed by a deterministic
-   * `request_id`, the transition swallows the benign already-advanced races, and the done blob has
-   * a deterministic key.
+   * completed one or more model lines (last-job-out), drops one `done` marker for every registered
+   * upload event date and then transitions its parent `RawImpressionUploadModelLine` to
+   * `COMPLETED`. The service returns a model line in `completedModelLines` only to the caller whose
+   * mark finished its last outstanding `VidLabelingJob`, so exactly one TEE finalizes each model
+   * line — a sibling TEE that finishes the same model line earlier (while others still label it)
+   * gets nothing back for it and writes no marker. Idempotent on Pub/Sub redelivery: the mark is
+   * keyed by a deterministic `request_id`, the transition swallows the benign already-advanced
+   * races, and every done blob has a deterministic key.
    *
    * The mark and the parent-line transitions are two separate RPCs, not a single atomic
    * `MarkLabelingJobSucceeded` that also flips the parent (as an earlier design draft described).
@@ -568,7 +778,96 @@ class VidLabelerApp(
     observedEventDates: Set<LocalDate>,
     inputFiles: List<String>,
     kmsClient: KmsClient,
-  ) {
+    replay: Boolean,
+  ): FinalizationResult =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.label.finalize",
+      attributes =
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dataProvider)
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, rawImpressionUpload(params))
+          .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, vidLabelingJob)
+          .put(VidLabelingTraceAttributes.MODEL_LINE_NAMES, params.modelLinesList.sorted())
+          .put(VidLabelingTraceAttributes.LABEL_ROUTE, labelRoute(params))
+          .put(XmmTraceAttributes.LIFECYCLE_STAGE, "label_finalize")
+          .put(XmmTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      try {
+        markSucceededAndTransitionInternal(
+            params,
+            vidLabelingJob,
+            dataProvider,
+            etag,
+            attributes,
+            observedEventDates,
+            inputFiles,
+            kmsClient,
+            replay,
+          )
+          .also { result ->
+            Span.current()
+              .setAttribute(XmmTraceAttributes.OUTCOME, result.outcome)
+              .setAttribute(
+                VidLabelingTraceAttributes.LABEL_EXPECTED_FINALIZATIONS,
+                result.expectedFinalizations.toLong(),
+              )
+              .setAttribute(
+                VidLabelingTraceAttributes.LABEL_DONE_OBJECTS_WRITTEN,
+                result.doneObjectsWritten.toLong(),
+              )
+              .setAttribute(
+                VidLabelingTraceAttributes.LABEL_PARENTS_COMPLETED,
+                result.parentsCompleted.toLong(),
+              )
+            logLabelLifecycle(
+              Level.INFO,
+              "edpa.vid_labeling.label.finalized",
+              params,
+              dataProvider,
+              "label_finalize",
+              result.outcome,
+              VidLabelingTraceAttributes.LABEL_EXPECTED_FINALIZATIONS_STRING to
+                result.expectedFinalizations.toString(),
+              VidLabelingTraceAttributes.LABEL_DONE_OBJECTS_WRITTEN_STRING to
+                result.doneObjectsWritten.toString(),
+              VidLabelingTraceAttributes.LABEL_PARENTS_COMPLETED_STRING to
+                result.parentsCompleted.toString(),
+            )
+          }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        Span.current()
+          .setAttribute(XmmTraceAttributes.OUTCOME, "failed")
+          .setAttribute(XmmTraceAttributes.ERROR_TYPE, XmmTraceAttributes.errorType(e))
+        XmmTraceAttributes.errorCode(e)?.let {
+          Span.current().setAttribute(XmmTraceAttributes.ERROR_CODE, it)
+        }
+        logLabelFailure(
+          Level.WARNING,
+          "edpa.vid_labeling.label.finalize_failed",
+          params,
+          dataProvider,
+          "label_finalize",
+          "failed",
+          e,
+        )
+        throw e
+      }
+    }
+
+  private suspend fun markSucceededAndTransitionInternal(
+    params: VidLabelerParams,
+    vidLabelingJob: String,
+    dataProvider: String,
+    etag: String,
+    attributes: Attributes,
+    observedEventDates: Set<LocalDate>,
+    inputFiles: List<String>,
+    kmsClient: KmsClient,
+    replay: Boolean,
+  ): FinalizationResult {
     val response =
       try {
         rpcThrottlers.metadataWrite.onReady {
@@ -586,12 +885,56 @@ class VidLabelerApp(
             }
           )
         }
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: StatusException) {
         metrics.markSucceededFailuresCounter.add(1, attributes)
+        logLabelFailure(
+          Level.WARNING,
+          "edpa.vid_labeling.label.job_succeeded",
+          params,
+          dataProvider,
+          "label_finalize",
+          "failed",
+          e,
+          VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to vidLabelingJob,
+        )
+        throw e
+      } catch (e: Exception) {
+        logLabelFailure(
+          Level.WARNING,
+          "edpa.vid_labeling.label.job_succeeded",
+          params,
+          dataProvider,
+          "label_finalize",
+          "failed",
+          e,
+          VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to vidLabelingJob,
+        )
         throw e
       }
 
-    if (!response.hasLastVidLabelingJobResult()) return
+    val jobOutcome = if (replay) "already_completed" else "succeeded"
+    Span.current()
+      .addEvent(
+        "edpa.vid_labeling.label.job_succeeded",
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, vidLabelingJob)
+          .put(XmmTraceAttributes.OUTCOME, jobOutcome)
+          .build(),
+      )
+    logLabelLifecycle(
+      Level.INFO,
+      "edpa.vid_labeling.label.job_succeeded",
+      params,
+      dataProvider,
+      "label_finalize",
+      jobOutcome,
+      VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to vidLabelingJob,
+    )
+    if (!response.hasLastVidLabelingJobResult()) {
+      return FinalizationResult("not_last_out", 0, 0, 0)
+    }
 
     val upload = parentUpload(vidLabelingJob)
     // One unfiltered List of every model line under the upload (a superset of the lines this call
@@ -599,82 +942,226 @@ class VidLabelerApp(
     // completed model line resolves to its parent row (name + etag) for the COMPLETED transition.
     val parentsByModelLine = listAllModelLines(upload).associateBy { it.cmmsModelLine }
     val completedModelLines = response.lastVidLabelingJobResult.completedModelLinesList
-    // The date folder each completed model line's done marker goes in. Reuse the event dates the
-    // labeler already read from each file's footer while streaming (no extra I/O); on the
-    // skip-relabel recovery path no labeling ran this delivery, so fall back to reading
-    // the footers.
-    val eventDates = observedEventDates.ifEmpty { readEventDates(params, kmsClient, inputFiles) }
-    if (completedModelLines.isNotEmpty()) {
-      if (eventDates.isEmpty()) {
-        logger.warning(
-          "VidLabelingJob $vidLabelingJob reported completed model line(s) but carried no input " +
-            "files; cannot resolve the footer event date, so no done marker is written"
-        )
+    // The last WorkItem contains only its own file batch. Resolve dates from every registered file
+    // so earlier batches cannot leave a dated output folder without its durable handoff.
+    val eventDates =
+      if (completedModelLines.isEmpty()) {
+        emptySet()
       } else {
-        // TODO(world-federation-of-advertisers/cross-media-measurement#4145): future improvement —
-        //   this only validates THIS (last-out) WorkItem's files. An upload whose files span
-        //   several dates across separate single-date WorkItems still leaves the other WorkItems'
-        //   date folders without a done marker; finalize done per (model line, date) upload-wide.
-        check(eventDates.size == 1) {
-          "VidLabelingJob $vidLabelingJob spans multiple event dates ${eventDates.sorted()}; the " +
-            "done marker is written per (model line, date) and this path assumes one date per upload"
+        listUploadEventDates(upload).ifEmpty {
+          observedEventDates.ifEmpty { readEventDates(params, kmsClient, inputFiles) }
         }
       }
+    if (completedModelLines.isNotEmpty() && eventDates.isEmpty()) {
+      logger.warning(
+        "VidLabelingJob $vidLabelingJob reported completed model line(s), but upload $upload has " +
+          "no registered event dates; no done marker is written"
+      )
     }
-    // Single shared event date for this WorkItem (null only when it carried no files).
-    val eventDate = eventDates.singleOrNull()
+    var doneObjectsWritten = 0
+    var parentsTransitioned = 0
     for (completedModelLine in completedModelLines) {
       val parent = parentsByModelLine[completedModelLine]
       if (parent == null) {
         logger.warning(
           "RawImpressionUploadModelLine not found for $completedModelLine under $upload; " +
-            "cannot mark COMPLETED"
+            "cannot start availability synchronization"
+        )
+        logLabelLifecycle(
+          Level.WARNING,
+          "edpa.vid_labeling.label.parent_transition",
+          params,
+          dataProvider,
+          "label_finalize",
+          "missing",
+          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to completedModelLine,
         )
         continue
       }
-      // Write the `done` marker BEFORE the COMPLETED transition so COMPLETED is the last,
-      // truth-bearing signal. A persistent writeDoneBlob failure then leaves the model line in
-      // LABELING (recoverable) instead of stranding a COMPLETED-but-unavailable upload: on Pub/Sub
-      // redelivery the idempotent markVidLabelingJobSucceeded replay re-reports this completed
-      // model line (recomputed from sibling job states), so writeDoneBlob is retried; only once it
-      // succeeds does markParentCompleted commit COMPLETED. Only this TEE reached last-job-out for
-      // `completedModelLine`, so only it finalizes the (model line, date): it drops the single
-      // `done` marker in that model line's shared-event-date folder — the one VidLabelingSink wrote
-      // its labeled output to — and DataAvailabilitySync finalizes it. Independent per model line:
-      // a FAILED/stuck sibling no longer withholds this line's availability.
-      if (eventDate != null) {
-        writeDoneBlob(
-          params.vidLabeledImpressionsStorageParams,
-          completedModelLine,
-          eventDate,
-          dataProvider,
+      val doneObjects = mutableMapOf<LocalDate, DoneObject>()
+      for (eventDate in eventDates.sorted()) {
+        doneObjects[eventDate] =
+          resolveDoneObject(
+            dataProvider,
+            upload,
+            parent.name,
+            params.vidLabeledImpressionsStorageParams,
+            completedModelLine,
+            eventDate,
+            params,
+          )
+        doneObjectsWritten++
+      }
+      if (doneObjects.isEmpty()) continue
+      val availabilityDeferred = isAvailabilityDeferredForHealing(upload, parent)
+      // Healing records a pending checkpoint before its fence can be released. Its controller
+      // ensures every dated handoff after release and before completing availability publication.
+      if (!availabilityDeferred) {
+        for ((eventDate, doneObject) in doneObjects) {
+          ensureDataAvailabilitySyncWorkItem(
+            dataProvider,
+            upload,
+            parent.name,
+            completedModelLine,
+            eventDate,
+            doneObject,
+            params,
+          )
+        }
+      }
+      val parentTransition =
+        try {
+          markParentAvailabilitySyncing(parent, eventDates, dataProvider)
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          logLabelFailure(
+            Level.WARNING,
+            "edpa.vid_labeling.label.parent_transition",
+            params,
+            dataProvider,
+            "label_finalize",
+            "failed",
+            e,
+            VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
+            VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to completedModelLine,
+          )
+          throw e
+        }
+      parentsTransitioned++
+      val transitionOutcome =
+        if (parentTransition.transitioned) "availability_syncing"
+        else "already_availability_syncing"
+      Span.current()
+        .addEvent(
+          "edpa.vid_labeling.label.parent_transition",
+          Attributes.builder()
+            .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME, parent.name)
+            .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, completedModelLine)
+            .put(XmmTraceAttributes.OUTCOME, transitionOutcome)
+            .build(),
+        )
+      logLabelLifecycle(
+        Level.INFO,
+        "edpa.vid_labeling.label.parent_transition",
+        params,
+        dataProvider,
+        "label_finalize",
+        transitionOutcome,
+        VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
+        VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to completedModelLine,
+      )
+      if (availabilityDeferred) {
+        logger.info(
+          "Deferring Data Availability WorkItems for $upload model line $completedModelLine " +
+            "until its upload-healing operation completes"
         )
       }
-      markParentCompleted(parent, dataProvider)
     }
+    val expectedFinalizations = completedModelLines.size
+    val expectedDoneObjects = expectedFinalizations * eventDates.size
+    val outcome =
+      when {
+        expectedFinalizations == 0 -> "no_work"
+        eventDates.isEmpty() ||
+          doneObjectsWritten < expectedDoneObjects ||
+          parentsTransitioned < expectedFinalizations -> "missing"
+        replay -> "recovered"
+        else -> "succeeded"
+      }
+    return FinalizationResult(
+      outcome,
+      expectedFinalizations,
+      doneObjectsWritten,
+      parentsTransitioned,
+    )
+  }
+
+  /** Lists the authoritative event dates persisted for every registered file in [upload]. */
+  private suspend fun listUploadEventDates(upload: String): Set<LocalDate> {
+    val eventDates = mutableSetOf<LocalDate>()
+    rawImpressionUploadFilesStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = upload
+                this.pageToken = pageToken
+              }
+            )
+          }
+        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+      }
+      .collect { page -> eventDates.addAll(page.map { it.eventDate.toLocalDate() }) }
+    return eventDates
+  }
+
+  /** Returns whether healing ownership still defers publication for [modelLine]. */
+  private suspend fun isAvailabilityDeferredForHealing(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+  ): Boolean {
+    val upload =
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadsStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = uploadName }
+        )
+      }
+    val operationName =
+      upload.uploadHealingOperation.ifEmpty {
+        if (modelLine.evictionOperationId.isEmpty()) return false
+        val uploadKey =
+          requireNotNull(RawImpressionUploadKey.fromName(uploadName)) {
+            "Invalid RawImpressionUpload name: $uploadName"
+          }
+        UploadHealingOperationKey(uploadKey.dataProviderId, modelLine.evictionOperationId).toName()
+      }
+    val operation =
+      rpcThrottlers.metadataRead.onReady {
+        uploadHealingOperationsStub.getUploadHealingOperation(
+          getUploadHealingOperationRequest { name = operationName }
+        )
+      }
+    return operation.state != UploadHealingOperation.State.COMPLETE
   }
 
   /**
-   * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. Swallows
-   * only the benign already-advanced races (FAILED_PRECONDITION / ABORTED) so a redelivered
-   * last-job-out — or a concurrent worker that already advanced the line — is a no-op, and rethrows
-   * everything else so a transient failure nacks the message. The etag CAS (not a client-side state
-   * pre-check) is the source of truth, so a stale [parent] snapshot is safe.
+   * Transitions [parent] to `AVAILABILITY_SYNCING` with every event date that downstream work must
+   * acknowledge. An optimistic-lock failure is successful only when the parent has already reached
+   * this phase or completed it.
    */
-  private suspend fun markParentCompleted(
+  private data class ParentTransitionResult(
+    val modelLine: RawImpressionUploadModelLine,
+    val transitioned: Boolean,
+  )
+
+  private suspend fun markParentAvailabilitySyncing(
     parent: RawImpressionUploadModelLine,
+    eventDates: Set<LocalDate>,
     dataProvider: String,
-  ) {
+  ): ParentTransitionResult {
     try {
-      rpcThrottlers.metadataWrite.onReady {
-        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
-          markRawImpressionUploadModelLineCompletedRequest {
-            name = parent.name
-            etag = parent.etag
-            requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(parent.name)
-          }
-        )
-      }
+      val modelLine =
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineAvailabilitySyncing(
+            markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+              name = parent.name
+              etag = parent.etag
+              pendingAvailabilityDates +=
+                eventDates.sorted().map { eventDate ->
+                  date {
+                    year = eventDate.year
+                    month = eventDate.monthValue
+                    day = eventDate.dayOfMonth
+                  }
+                }
+              requestId =
+                RequestIds.forMarkRawImpressionUploadModelLineAvailabilitySyncing(parent.name)
+            }
+          )
+        }
+      return ParentTransitionResult(modelLine, transitioned = true)
     } catch (e: StatusException) {
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
@@ -690,10 +1177,57 @@ class VidLabelerApp(
         )
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineCompleted(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
+      val current =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+            getRawImpressionUploadModelLineRequest { name = parent.name }
+          )
+        }
+      if (
+        current.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ||
+          current.state == RawImpressionUploadModelLine.State.COMPLETED
+      ) {
+        logger.info(
+          "markRawImpressionUploadModelLineAvailabilitySyncing(${parent.name}) observed " +
+            "${current.state} after ${e.status.code}; treating as done"
+        )
+        return ParentTransitionResult(current, transitioned = false)
+      }
+      if (
+        e.status.code == Status.Code.ABORTED &&
+          current.state == RawImpressionUploadModelLine.State.LABELING
+      ) {
+        val retried =
+          rpcThrottlers.metadataWrite.onReady {
+            rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineAvailabilitySyncing(
+              markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+                name = current.name
+                etag = current.etag
+                pendingAvailabilityDates +=
+                  eventDates.sorted().map { eventDate ->
+                    date {
+                      year = eventDate.year
+                      month = eventDate.monthValue
+                      day = eventDate.dayOfMonth
+                    }
+                  }
+                requestId =
+                  RequestIds.forMarkRawImpressionUploadModelLineAvailabilitySyncing(current.name)
+              }
+            )
+          }
+        return ParentTransitionResult(retried, transitioned = true)
+      }
+      metrics.markCompletedFailuresCounter.add(
+        1,
+        Attributes.of(
+          metrics.DATA_PROVIDER_ATTR,
+          dataProvider,
+          metrics.MODEL_LINE_ATTR,
+          parent.cmmsModelLine,
+        ),
       )
+      throw e
     }
   }
 
@@ -724,8 +1258,8 @@ class VidLabelerApp(
    * Reads the `event_date` footer of every file in [inputFiles] into a set (empty when [inputFiles]
    * is empty). The date lives only in each file's plaintext Parquet footer ("Option Y").
    *
-   * Used only on the skip-relabel recovery path, where no labeling ran this delivery to collect the
-   * dates from the sinks; the happy path reuses the dates [VidLabeler.label] already read.
+   * Used only as a fallback when the upload-wide file listing is empty. The normal finalization
+   * path uses the immutable event dates persisted on every registered upload file.
    *
    * TODO(world-federation-of-advertisers/cross-media-measurement#4130): Cover the done-marker write
    *   end-to-end in [VidLabelerAppTest] once `ParquetStorageClient` can WRITE footer key-value
@@ -768,32 +1302,455 @@ class VidLabelerApp(
   }
 
   /**
-   * Writes the single empty `done` marker for [cmmsModelLine] at
-   * `<prefix>/model-line/<modelLineId>/<eventDate>/done` — the folder [VidLabelingSink] wrote this
-   * model line's labeled output to — so `DataAvailabilitySync` finalizes that (model line, date).
+   * Writes an empty upload-specific `done` marker for [cmmsModelLine] in the folder
+   * [VidLabelingSink] wrote this model line's labeled output to, so `DataAvailabilitySync`
+   * finalizes that upload, model line, and date without another upload replacing its marker.
    *
-   * Written unconditionally (a full-object replace): re-dropping an existing marker on reprocessing
-   * re-triggers `DataAvailabilitySync` for that date, the intended behavior when data is relabeled.
+   * The write succeeds only while the observed object generation remains current.
    */
   private suspend fun writeDoneBlob(
     outputStorageParams: VidLabelerParams.StorageParams,
+    rawImpressionUpload: String,
     cmmsModelLine: String,
     eventDate: LocalDate,
     dataProvider: String,
-  ) {
-    val modelLineId =
-      requireNotNull(ModelLineKey.fromName(cmmsModelLine)) {
-          "completed model line is not a valid ModelLine resource name: $cmmsModelLine"
-        }
-        .modelLineId
+    params: VidLabelerParams,
+    expectedGeneration: Long,
+  ): DoneObject {
     val storageConfig = getStorageConfig(outputStorageParams)
     val doneUri =
-      "${outputStorageParams.impressionsBlobPrefix}/model-line/$modelLineId/$eventDate/done"
+      LabeledImpressionsBlobKeys.forDoneUri(
+        outputStorageParams.impressionsBlobPrefix,
+        rawImpressionUpload,
+        cmmsModelLine,
+        eventDate,
+      )
     val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
-    SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
-      .writeBlob(doneBlobUri.key, ByteString.EMPTY)
+    val doneObject =
+      try {
+        if (doneBlobUri.scheme == "gs") {
+          val bucket = checkNotNull(doneBlobUri.bucket)
+          val generation =
+            writeGcsObject(
+              storageConfig.projectId,
+              BlobInfo.newBuilder(bucket, doneBlobUri.key).build(),
+              ByteArray(0),
+              expectedGeneration,
+            )
+          val createTime =
+            requireNotNull(
+              getGcsObjectCreateTime(storageConfig.projectId, bucket, doneBlobUri.key, generation)
+            ) {
+              "Done object creation time is not available for path hash " +
+                "${VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)} at generation $generation"
+            }
+          DoneObject(doneUri, generation, createTime)
+        } else {
+          val storage =
+            SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
+          val blob = storage.writeBlob(doneBlobUri.key, ByteString.EMPTY)
+          val generation = checkNotNull(storage.getFreshnessToken(doneBlobUri.key)).toLong()
+          DoneObject(doneUri, generation, blob.createTime)
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        logLabelFailure(
+          Level.WARNING,
+          "edpa.vid_labeling.label.done_object",
+          params,
+          dataProvider,
+          "label_finalize",
+          "failed",
+          e,
+          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
+          VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
+          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to
+            VidLabelingTraceAttributes.gcsObjectPathHash(doneUri),
+        )
+        throw e
+      }
+    val generation = doneObject.generation
+    val doneObjectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneUri, generation)
+    val doneObjectPathHash = doneObjectIdentity.pathHash
     metrics.doneBlobsWrittenCounter.add(1, Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider))
-    logger.info("Wrote done marker $doneUri")
+    logger.info("Wrote done marker path_hash=$doneObjectPathHash generation=$generation")
+    Span.current()
+      .addEvent(
+        "edpa.vid_labeling.label.done_object",
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, cmmsModelLine)
+          .put(VidLabelingTraceAttributes.LABEL_EVENT_DATE, eventDate.toString())
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, doneObjectPathHash)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, doneObjectIdentity.generation)
+          .put(XmmTraceAttributes.OUTCOME, "written")
+          .build(),
+      )
+    logLabelLifecycle(
+      Level.INFO,
+      "edpa.vid_labeling.label.done_object",
+      params,
+      dataProvider,
+      "label_finalize",
+      "written",
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
+      VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to doneObjectPathHash,
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
+    )
+    return doneObject
+  }
+
+  private enum class DoneWorkItemIdentity {
+    MISSING,
+    MATCHING,
+    DIFFERENT,
+  }
+
+  private data class DoneObjectState(
+    val doneObject: DoneObject?,
+    val workItemIdentity: DoneWorkItemIdentity,
+  )
+
+  /** Resolves one generation without overwriting a concurrent publication. */
+  private suspend fun resolveDoneObject(
+    dataProvider: String,
+    rawImpressionUpload: String,
+    rawImpressionUploadModelLine: String,
+    outputStorageParams: VidLabelerParams.StorageParams,
+    modelLine: String,
+    eventDate: LocalDate,
+    params: VidLabelerParams,
+  ): DoneObject {
+    val observed =
+      readDoneObjectState(
+        dataProvider,
+        rawImpressionUpload,
+        rawImpressionUploadModelLine,
+        outputStorageParams,
+        modelLine,
+        eventDate,
+      )
+    // A per-upload marker with no WorkItem is a resumable publication. Its deterministic task
+    // is checked before ordinary publication or after the healing fence releases.
+    if (
+      observed.doneObject != null && observed.workItemIdentity != DoneWorkItemIdentity.DIFFERENT
+    ) {
+      return observed.doneObject
+    }
+    val expectedGeneration = observed.doneObject?.generation ?: 0L
+    return try {
+      writeDoneBlob(
+        outputStorageParams,
+        rawImpressionUpload,
+        modelLine,
+        eventDate,
+        dataProvider,
+        params,
+        expectedGeneration,
+      )
+    } catch (e: StorageException) {
+      if (e.code != 412) throw e
+      val winner =
+        readDoneObjectState(
+          dataProvider,
+          rawImpressionUpload,
+          rawImpressionUploadModelLine,
+          outputStorageParams,
+          modelLine,
+          eventDate,
+        )
+      check(winner.workItemIdentity == DoneWorkItemIdentity.MATCHING) {
+        "Concurrent done-marker publication has no matching durable availability WorkItem"
+      }
+      checkNotNull(winner.doneObject)
+    }
+  }
+
+  /** Reads the live marker and the exact immutable identity of its deterministic WorkItem. */
+  private suspend fun readDoneObjectState(
+    dataProvider: String,
+    rawImpressionUpload: String,
+    rawImpressionUploadModelLine: String,
+    outputStorageParams: VidLabelerParams.StorageParams,
+    modelLine: String,
+    eventDate: LocalDate,
+  ): DoneObjectState {
+    val storageConfig = getStorageConfig(outputStorageParams)
+    val doneUri =
+      LabeledImpressionsBlobKeys.forDoneUri(
+        outputStorageParams.impressionsBlobPrefix,
+        rawImpressionUpload,
+        modelLine,
+        eventDate,
+      )
+    val parsed = SelectedStorageClient.parseBlobUri(doneUri)
+    val doneObject =
+      if (parsed.scheme == "gs") {
+        val bucket = checkNotNull(parsed.bucket)
+        val generation =
+          getGcsObjectGeneration(storageConfig.projectId, bucket, parsed.key)
+            ?: return DoneObjectState(null, DoneWorkItemIdentity.MISSING)
+        val createTime =
+          checkNotNull(
+            getGcsObjectCreateTime(storageConfig.projectId, bucket, parsed.key, generation)
+          ) {
+            "Observed done-marker generation is no longer available"
+          }
+        DoneObject(doneUri, generation, createTime)
+      } else {
+        val storage =
+          SelectedStorageClient(parsed, storageConfig.rootDirectory, storageConfig.projectId)
+        val blob =
+          storage.getBlob(parsed.key) ?: return DoneObjectState(null, DoneWorkItemIdentity.MISSING)
+        val generation = (blob as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
+        DoneObject(doneUri, generation, blob.createTime)
+      }
+    val generation = doneObject.generation
+    val createTime = doneObject.createTime
+    val request =
+      DataAvailabilitySyncWorkItems.createRequest(
+        dataProvider,
+        rawImpressionUpload,
+        rawImpressionUploadModelLine,
+        modelLine,
+        eventDate,
+        doneUri,
+        generation,
+        createTime,
+        Tracing.currentW3CTraceContext(),
+      )
+    val existing =
+      try {
+        rpcThrottlers.controlPlane.onReady {
+          workItemsClient.getWorkItem(
+            getWorkItemRequest { name = "workItems/${request.workItemId}" }
+          )
+        }
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.NOT_FOUND) {
+          return DoneObjectState(doneObject, DoneWorkItemIdentity.MISSING)
+        }
+        throw e
+      }
+    val identity =
+      if (DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
+        DoneWorkItemIdentity.MATCHING
+      } else {
+        val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)
+        logger.info(
+          "Replacing done marker path_hash=$pathHash generation=$generation because its WorkItem " +
+            "belongs to another availability handoff"
+        )
+        DoneWorkItemIdentity.DIFFERENT
+      }
+    return DoneObjectState(doneObject, identity)
+  }
+
+  private suspend fun ensureDataAvailabilitySyncWorkItem(
+    dataProvider: String,
+    rawImpressionUpload: String,
+    rawImpressionUploadModelLine: String,
+    modelLine: String,
+    eventDate: LocalDate,
+    doneObject: DoneObject,
+    params: VidLabelerParams,
+  ) {
+    val generation = doneObject.generation
+    val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneObject.uri)
+    val result =
+      dataAvailabilitySyncWorkItemPublisher.ensure(
+        dataProvider,
+        rawImpressionUpload,
+        rawImpressionUploadModelLine,
+        modelLine,
+        eventDate,
+        doneObject.uri,
+        generation,
+        doneObject.createTime,
+        Tracing.currentW3CTraceContext(),
+      ) { workItemName, error ->
+        logAvailabilityWorkItemFailure(
+          params,
+          dataProvider,
+          rawImpressionUpload,
+          modelLine,
+          pathHash,
+          generation,
+          workItemName,
+          error,
+        )
+      }
+    val workItemName = result.workItemName
+    val outcome = result.outcome
+    Span.current()
+      .addEvent(
+        "edpa.data_availability_sync_work_item.create",
+        Attributes.builder()
+          .put(XmmTraceAttributes.WORK_ITEM_NAME, workItemName)
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, rawImpressionUpload)
+          .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
+          .put(XmmTraceAttributes.OUTCOME, outcome)
+          .build(),
+      )
+    logLabelLifecycle(
+      Level.INFO,
+      "edpa.data_availability_sync_work_item.create",
+      params,
+      dataProvider,
+      "availability_work_item_create",
+      outcome,
+      XmmTraceAttributes.WORK_ITEM_NAME_STRING to workItemName,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
+    )
+  }
+
+  private fun logAvailabilityWorkItemFailure(
+    params: VidLabelerParams,
+    dataProvider: String,
+    rawImpressionUpload: String,
+    modelLine: String,
+    pathHash: String,
+    generation: Long,
+    workItemName: String,
+    error: Throwable,
+  ) {
+    logLabelFailure(
+      Level.WARNING,
+      "edpa.data_availability_sync_work_item.create",
+      params,
+      dataProvider,
+      "availability_work_item_create",
+      "failed",
+      error,
+      XmmTraceAttributes.WORK_ITEM_NAME_STRING to workItemName,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
+    )
+  }
+
+  private fun labelingOutcome(
+    jobState: VidLabelingJob.State,
+    finalization: FinalizationResult,
+  ): String =
+    when {
+      finalization.outcome == "missing" -> "missing"
+      jobState != VidLabelingJob.State.SUCCEEDED -> "succeeded"
+      finalization.outcome == "recovered" -> "recovered"
+      else -> "already_completed"
+    }
+
+  private fun labelRoute(params: VidLabelerParams): String =
+    if (params.hasMemoizedParams()) "memoized" else "non_memoized"
+
+  private fun rawImpressionUpload(params: VidLabelerParams): String =
+    params.rawImpressionUpload.ifEmpty {
+      params.vidLabelingJob.takeIf { it.isNotEmpty() }?.let(::parentUpload).orEmpty()
+    }
+
+  private fun outputPublicationObserver(
+    params: VidLabelerParams,
+    dataProvider: String,
+    route: String,
+  ): (LabeledOutputPublication) -> Unit {
+    val span = Span.current()
+    return { publication ->
+      val publicationError = publication.error
+      val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(publication.uri)
+      val event =
+        when (publication.type) {
+          LabeledOutputPublication.Type.LABELED_OUTPUT -> "edpa.vid_labeling.label.labeled_output"
+          LabeledOutputPublication.Type.METADATA_SIDECAR ->
+            "edpa.vid_labeling.label.metadata_sidecar"
+        }
+      val eventAttributes =
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, publication.modelLine)
+          .put(VidLabelingTraceAttributes.LABEL_ROUTE, route)
+          .put(VidLabelingTraceAttributes.LABEL_OUTPUT_TYPE, publication.type.telemetryValue)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
+          .put(XmmTraceAttributes.OUTCOME, publication.outcome)
+          .also { builder ->
+            if (publicationError != null) {
+              builder.put(
+                XmmTraceAttributes.ERROR_TYPE,
+                XmmTraceAttributes.errorType(publicationError),
+              )
+              XmmTraceAttributes.errorCode(publicationError)?.let {
+                builder.put(XmmTraceAttributes.ERROR_CODE, it)
+              }
+            }
+          }
+          .build()
+      span.addEvent(event, eventAttributes)
+      VidLabelingTraceLogging.logLabelOutput(
+        logger,
+        if (publicationError == null) Level.INFO else Level.WARNING,
+        event,
+        dataProvider,
+        rawImpressionUpload(params),
+        params.vidLabelingJob,
+        route,
+        publication.modelLine,
+        publication.type.telemetryValue,
+        pathHash,
+        publication.outcome,
+        publicationError,
+      )
+    }
+  }
+
+  private fun logLabelLifecycle(
+    level: Level,
+    event: String,
+    params: VidLabelerParams,
+    dataProvider: String,
+    lifecycleStage: String,
+    outcome: String,
+    vararg fields: Pair<String, String?>,
+  ) {
+    VidLabelingTraceLogging.log(
+      logger,
+      level,
+      event,
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProvider,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload(params),
+      VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to params.vidLabelingJob,
+      VidLabelingTraceAttributes.LABEL_ROUTE_STRING to labelRoute(params),
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to lifecycleStage,
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      *fields,
+    )
+  }
+
+  private fun logLabelFailure(
+    level: Level,
+    event: String,
+    params: VidLabelerParams,
+    dataProvider: String,
+    lifecycleStage: String,
+    outcome: String,
+    error: Throwable,
+    vararg fields: Pair<String, String?>,
+  ) {
+    logLabelLifecycle(
+      level,
+      event,
+      params,
+      dataProvider,
+      lifecycleStage,
+      outcome,
+      *fields,
+      XmmTraceAttributes.ERROR_TYPE_STRING to XmmTraceAttributes.errorType(error),
+      XmmTraceAttributes.ERROR_CODE_STRING to XmmTraceAttributes.errorCode(error),
+    )
   }
 
   /**

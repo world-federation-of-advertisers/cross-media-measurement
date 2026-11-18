@@ -30,7 +30,7 @@ module "common" {
 
 resource "google_sql_database_instance" "postgres" {
   name             = var.postgres_instance_name
-  database_version = "POSTGRES_14"
+  database_version = "POSTGRES_16"
   settings {
     tier = "db-f1-micro"
 
@@ -86,7 +86,7 @@ module "default_node_pool" {
   cluster         = module.cluster.cluster
   service_account = module.common.cluster_service_account
   machine_type    = "e2-custom-2-4096"
-  max_node_count  = 4
+  max_node_count  = 5
 }
 
 module "reporting" {

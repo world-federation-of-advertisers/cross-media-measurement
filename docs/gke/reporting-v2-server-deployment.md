@@ -57,6 +57,10 @@ See [Machine Setup](machine-setup.md).
 This can be done using Terraform. See [the guide](terraform.md) to use the
 example configuration for Reporting.
 
+Include system workloads and rolling-update surge pods when sizing the node pool.
+A replacement pod must fit while its predecessor remains available. The
+Halo-managed Reporting pool permits an additional autoscaled node for rollouts.
+
 Applying the Terraform configuration will create a new cluster. You can use the
 `gcloud` CLI to obtain credentials so that you can access the cluster via
 `kubectl`. For example:
@@ -114,7 +118,10 @@ bazel build //src/main/k8s/dev:reporting_v2.tar \
   --define basic_reports_enabled=true \
   --define reporting_set_reporting_unit_components_enabled=false \
   --define spanner_instance=instance \
-  --define pdp_name=dataProviders/KnvDaDC7QKA
+  --define pdp_name=dataProviders/KnvDaDC7QKA \
+  --define mcp_host= \
+  --define oauth_issuer= \
+  --define oauth_protected_resource=
 ```
 
 Note: The value of the `spanner_instance` variable is only used when
@@ -127,6 +134,49 @@ Note: `reporting_set_reporting_unit_components_enabled` gates whether `BasicRepo
 remain `false` until the feature is fully released.
 
 Extract the generated archive to some directory.
+
+### Configure report validation and correction
+
+The `report-result-post-processor` supports `--enable-validation` and
+`--enable-correction`, both defaulting to `true`. In the Reporting CUE
+configuration, set `_reportResultValidationEnabled` and
+`_reportResultCorrectionEnabled` respectively before generating the Kustomization.
+
+Validation runs report quality checks and, when correction is enabled,
+large-correction checks. Disabling validation skips these checks; correction
+still enforces the solver's mathematical constraints and requires a solution.
+With validation enabled and correction disabled, the original results are
+checked. Quality issues are logged without changing measurements or failing
+the BasicReport.
+
+Report assembly and processed-result writeback run in every mode. Disabling
+correction skips the solver and consistency adjustments, preserving the original
+reach, impression, and frequency values while calculating derived metrics.
+Set both options to `false` for assembly only. The job still requires valid
+input structure and a positive population.
+
+Per-report lifecycle logs include `xmm.noise_correction.validation_enabled` and
+`xmm.noise_correction.correction_enabled` to identify the selected flags.
+
+### Configure noise-correction diagnostic logging
+
+The reusable Reporting configuration defaults
+`_logNoiseCorrectionValues` to `false`. The `dev` GKE configuration used above
+sets it to `true`, which passes `--log-noise-correction-values=true` to the
+`report-result-post-processor`.
+
+When enabled, application logs may include report-result values after noise but
+before correction, corrected values, solver residuals, numerical constraint
+mismatches, and bounded exception tracebacks. It does not add logging of raw
+pre-noise inputs. Enable it only where log access and retention policies permit
+these values.
+
+When adapting the `dev` configuration for a deployment that should not emit
+these diagnostics, remove its `_logNoiseCorrectionValues: true` assignment or
+set it to `false` in the deployment-specific copy of
+[`reporting_v2_gke.cue`](../../src/main/k8s/dev/reporting_v2_gke.cue) before
+generating the Kustomization. The base default remains `false` in
+[`reporting_v2.cue`](../../src/main/k8s/reporting_v2.cue).
 
 You can customize this generated object configuration with your own settings
 such as the number of replicas per deployment, the memory and CPU requirements
@@ -293,6 +343,10 @@ Within the Kustomization directory, run
 kubectl apply -k src/main/k8s/dev/reporting_v2
 ```
 
+The example Access internal API configuration uses two replicas and a
+`PodDisruptionBudget`. It requires two eligible nodes; ensure both replicas are
+ready before proceeding.
+
 Now all components should be successfully deployed to your GKE cluster. You can
 verify by running
 
@@ -333,6 +387,12 @@ NAME                                  SCHEDULE     SUSPEND   ACTIVE   LAST SCHED
 report-scheduling-cronjob             30 6 * * *   False     0        <none>          10m
 report-result-post-processor-cronjob  30 7 * * *   False     0        <none>          10m
 ```
+
+The Halo-managed `Configure Reporting V2` workflow waits up to ten minutes per
+deployment, including node provisioning and initialization. If applying the
+configuration or waiting for readiness fails, inspect the
+`reporting-rollout-diagnostics-<attempt>` artifact for pod states and scheduling
+events.
 
 ## Appendix
 

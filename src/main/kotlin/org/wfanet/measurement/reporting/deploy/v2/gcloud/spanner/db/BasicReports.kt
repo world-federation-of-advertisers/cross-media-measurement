@@ -226,15 +226,50 @@ fun AsyncDatabaseClient.TransactionContext.setExternalReportId(
   }
 }
 
-/** Buffers an update mutation that sets BasicReportResultDetails for the BasicReports table. */
+/**
+ * Sets ExternalReportId without changing BasicReport state when the field is currently empty.
+ *
+ * @return whether the row was updated
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.updateExternalReportIdIfEmpty(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+  externalReportId: String,
+): Boolean {
+  val updatedRowCount =
+    executeUpdate(
+      statement(
+        """
+        UPDATE BasicReports
+        SET ExternalReportId = @externalReportId
+        WHERE MeasurementConsumerId = @measurementConsumerId
+          AND BasicReportId = @basicReportId
+          AND (ExternalReportId IS NULL OR ExternalReportId = '')
+        """
+          .trimIndent()
+      ) {
+        bind("measurementConsumerId").to(measurementConsumerId)
+        bind("basicReportId").to(basicReportId)
+        bind("externalReportId").to(externalReportId)
+      }
+    )
+  check(updatedRowCount in 0L..1L) {
+    "Updated $updatedRowCount BasicReports rows for ($measurementConsumerId, $basicReportId)"
+  }
+  return updatedRowCount == 1L
+}
+
+/** Buffers an update mutation that sets the Campaign Group and result details for a BasicReport. */
 fun AsyncDatabaseClient.TransactionContext.updateBasicReportResultDetails(
   measurementConsumerId: Long,
   basicReportId: Long,
+  externalCampaignGroupId: String,
   resultDetails: BasicReportResultDetails,
 ) {
   bufferUpdateMutation("BasicReports") {
     set("MeasurementConsumerId").to(measurementConsumerId)
     set("BasicReportId").to(basicReportId)
+    set("ExternalCampaignGroupId").to(externalCampaignGroupId)
     set("BasicReportResultDetails").to(resultDetails)
   }
 }

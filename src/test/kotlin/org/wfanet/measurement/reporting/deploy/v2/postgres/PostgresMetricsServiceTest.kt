@@ -31,7 +31,7 @@ class PostgresMetricsServiceTest : MetricsServiceTest<PostgresMetricsService>() 
     val client: PostgresDatabaseClient = databaseProvider.createDatabase()
     return Services(
       PostgresMetricsService(idGenerator, client),
-      PostgresReportingSetsService(idGenerator, client),
+      PostgresReportingSetsService(idGenerator, client, validateCreateReportingSet = true),
       PostgresMeasurementConsumersService(idGenerator, client),
       PostgresMeasurementsService(idGenerator, client),
     )

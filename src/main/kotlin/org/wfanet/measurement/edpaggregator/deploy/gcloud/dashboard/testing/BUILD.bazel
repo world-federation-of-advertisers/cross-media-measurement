@@ -1,0 +1,14 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_testonly = True,
+    default_visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dashboard:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+    ],
+)
+
+kt_jvm_library(
+    name = "testing",
+    srcs = glob(["*.kt"]),
+)

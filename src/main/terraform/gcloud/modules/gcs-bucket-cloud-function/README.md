@@ -1,17 +1,26 @@
 # GCS-Triggered Cloud Function
 
 Terraform module to deploy a Cloud Function (Gen2) triggered by GCS object
-events (finalize or delete), with a Pub/Sub dead letter queue for
-undeliverable notifications.
+events (finalize or delete, with optional additional events), with a Pub/Sub dead
+letter queue for undeliverable notifications.
+
+## Additional storage events
+
+Set `additional_trigger_event_types = ["archived"]` to send archive notifications
+from a versioned bucket to the same function. Deleting a live object without a
+generation archives it; overwriting an object also archives its previous version.
+A cleanup handler must check whether a live version remains before deleting its
+metadata. Additional triggers use the existing trigger identity and dead-letter
+queue.
 
 ## Dead Letter Queue
 
 Eventarc creates a Pub/Sub push subscription to deliver GCS notifications to
-the Cloud Function. If the Cloud Function is unavailable (e.g. during
-redeployment or when Cloud Run has scaled to zero and cold-start fails), the
-push subscription retries with exponential backoff. Without a dead letter
-queue, messages that cannot be delivered within the retention period are
-silently dropped.
+the Cloud Function. Google Cloud does not retry failed invocations by default.
+This module defaults `retry_on_failure` to `true` and explicitly passes
+`--retry`, enabling redelivery with exponential backoff. Without a dead letter
+queue, messages that cannot be delivered within the retention period are silently
+dropped.
 
 This module creates a DLQ topic and subscription for each function, and
 attaches it to the Eventarc-managed subscription after deployment. Failed

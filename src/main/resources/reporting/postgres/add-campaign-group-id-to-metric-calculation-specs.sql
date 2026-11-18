@@ -21,7 +21,7 @@ ALTER TABLE MetricCalculationSpecs
   ADD FOREIGN KEY (MeasurementConsumerId, CampaignGroupId)
     REFERENCES ReportingSets(MeasurementConsumerId, ReportingSetId);
 
--- changeset tristanvuong2021:add-metric-calculation-specs-campaign-group-id-index dbms:postgresl
+-- changeset tristanvuong2021:add-metric-calculation-specs-campaign-group-id-index dbms:postgresql
 -- comment: For finding metric calculation specs by campaign group id
 CREATE INDEX metric_calculation_specs_campaign_group_id_index
   ON MetricCalculationSpecs (MeasurementConsumerId, CampaignGroupId);

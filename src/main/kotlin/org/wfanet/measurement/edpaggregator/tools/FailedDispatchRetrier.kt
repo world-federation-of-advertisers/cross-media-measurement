@@ -16,20 +16,33 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.Any
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
@@ -37,7 +50,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
@@ -75,6 +90,7 @@ class FailedDispatchRetrier(
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsCoroutineStub,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
 ) {
   /** Outcome of a [retryFailed] run. */
   data class RetryResult(
@@ -179,9 +195,33 @@ class FailedDispatchRetrier(
       "${updated.name} changed to ${updated.state} with failure_reason " +
         "${updated.failureReason} while claiming the retry; no WorkItems were published"
     }
+    val refreshSnapshots =
+      if (phaseWorkItems.phase == RawImpressionUploadModelLine.State.LABELING) false
+      else {
+        val upload =
+          try {
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadsStub.getRawImpressionUpload(
+                getRawImpressionUploadRequest { name = rawImpressionUpload }
+              )
+            }
+          } catch (e: StatusException) {
+            throw IllegalStateException("Unable to read retry upload $rawImpressionUpload", e)
+          }
+        upload.uploadHealingOperation.isEmpty()
+      }
+    val currentSnapshots =
+      if (refreshSnapshots) currentAvailabilityOwners(rawImpressionUpload, cmmsModelLine) else null
     var republished = 0
     for ((oldId, sourceWorkItem) in sourceWorkItems) {
-      if (republishWorkItem(oldId, sourceWorkItem, modelLine.failureAttemptId)) republished++
+      val source =
+        if (currentSnapshots == null) sourceWorkItem
+        else
+          sourceWorkItem.copy {
+            workItemParams =
+              refreshedSnapshotParameters(sourceWorkItem.workItemParams, currentSnapshots)
+          }
+      if (republishWorkItem(oldId, source, modelLine.failureAttemptId)) republished++
     }
 
     return RetryResult(
@@ -190,6 +230,95 @@ class FailedDispatchRetrier(
       updated.state,
       wasAlreadyStarted = modelLine.state != RawImpressionUploadModelLine.State.FAILED,
     )
+  }
+
+  private suspend fun currentAvailabilityOwners(
+    currentUpload: String,
+    cmmsModelLine: String,
+  ): List<String> {
+    val provider = currentUpload.substringBefore("/rawImpressionUploads/")
+    val result = mutableSetOf<String>()
+    for (state in listOf(RawImpressionUpload.State.ACTIVE, RawImpressionUpload.State.FAILED)) {
+      var page = ""
+      do {
+        val uploads =
+          try {
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadsStub.listRawImpressionUploads(
+                listRawImpressionUploadsRequest {
+                  parent = provider
+                  filter = ListRawImpressionUploadsRequestKt.filter { stateIn += state }
+                  pageToken = page
+                }
+              )
+            }
+          } catch (e: StatusException) {
+            throw IllegalStateException("Unable to list availability snapshot owners", e)
+          }
+        for (upload in uploads.rawImpressionUploadsList) {
+          if (upload.name == currentUpload || !upload.registrationComplete) continue
+          var modelPage = ""
+          do {
+            val lines =
+              try {
+                rpcThrottlers.metadataRead.onReady {
+                  rawImpressionModelLinesStub.listRawImpressionUploadModelLines(
+                    listRawImpressionUploadModelLinesRequest {
+                      parent = upload.name
+                      filter =
+                        ListRawImpressionUploadModelLinesRequestKt.filter {
+                          stateIn += RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+                          this.cmmsModelLine = cmmsModelLine
+                        }
+                      pageToken = modelPage
+                    }
+                  )
+                }
+              } catch (e: StatusException) {
+                throw IllegalStateException(
+                  "Unable to read availability snapshot owner ${upload.name}",
+                  e,
+                )
+              }
+            if (
+              lines.rawImpressionUploadModelLinesList.any {
+                it.cmmsModelLine == cmmsModelLine &&
+                  it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+              }
+            )
+              result += upload.name
+            modelPage = lines.nextPageToken
+          } while (modelPage.isNotEmpty())
+        }
+        page = uploads.nextPageToken
+      } while (page.isNotEmpty())
+    }
+    return result.sorted()
+  }
+
+  private fun refreshedSnapshotParameters(source: Any, owners: List<String>): Any {
+    if (!source.`is`(WorkItemParams::class.java)) return source
+    val wrapper = source.unpack(WorkItemParams::class.java)
+    val app = wrapper.appParams
+    val refreshed =
+      when {
+        app.`is`(SubpoolAssignerParams::class.java) ->
+          Any.pack(
+            app.unpack(SubpoolAssignerParams::class.java).copy {
+              allowedPriorSnapshotRawImpressionUploads.clear()
+              allowedPriorSnapshotRawImpressionUploads += owners
+            }
+          )
+        app.`is`(VidRankBuilderParams::class.java) ->
+          Any.pack(
+            app.unpack(VidRankBuilderParams::class.java).copy {
+              allowedPriorSnapshotRawImpressionUploads.clear()
+              allowedPriorSnapshotRawImpressionUploads += owners
+            }
+          )
+        else -> return source
+      }
+    return Any.pack(wrapper.copy { appParams = refreshed })
   }
 
   /** Returns the phase of an existing retry for [failureAttemptId], or `null` if none exists. */
@@ -210,6 +339,7 @@ class FailedDispatchRetrier(
             RawImpressionUploadModelLine.State.POOL_ASSIGNING,
           )
         RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
         RawImpressionUploadModelLine.State.COMPLETED -> RETRY_PHASES
         RawImpressionUploadModelLine.State.CREATED,
         RawImpressionUploadModelLine.State.FAILED,
@@ -219,10 +349,38 @@ class FailedDispatchRetrier(
     val candidatePhases =
       if (fromPhase == null) possiblePhases else possiblePhases.filter { it == fromPhase }
     for (phase in candidatePhases) {
+      if (phase == RawImpressionUploadModelLine.State.LABELING) {
+        val jobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+        val unfinishedIds =
+          jobs
+            .filter { it.state != VidLabelingJob.State.SUCCEEDED }
+            .map { WorkItemIds.forVidLabeler(it.name) }
+        if (unfinishedIds.isNotEmpty()) {
+          val lineages = unfinishedIds.map { findRetryLineage(it, failureAttemptId) }
+          if (
+            lineages.all { it == RetryLineage.ACTIVE_OR_SUCCEEDED } ||
+              (phasePrecedes(phase, currentState) && lineages.all { it != RetryLineage.MISSING })
+          ) {
+            return phase
+          }
+          continue
+        }
+        val completedLineages =
+          jobs
+            .map { WorkItemIds.forVidLabeler(it.name) }
+            .map { findRetryLineage(it, failureAttemptId) }
+        if (completedLineages.any { it != RetryLineage.MISSING }) return phase
+        continue
+      }
       val originalWorkItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
+      val lineages = originalWorkItemIds.map { findRetryLineage(it, failureAttemptId) }
+      if (lineages.isNotEmpty() && lineages.all { it == RetryLineage.ACTIVE_OR_SUCCEEDED }) {
+        return phase
+      }
       if (
-        originalWorkItemIds.isNotEmpty() &&
-          originalWorkItemIds.all { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }
+        phasePrecedes(phase, currentState) &&
+          lineages.isNotEmpty() &&
+          lineages.all { it != RetryLineage.MISSING }
       ) {
         return phase
       }
@@ -230,11 +388,12 @@ class FailedDispatchRetrier(
     return null
   }
 
-  private suspend fun retryWorkItemIsActiveOrSucceeded(
+  private suspend fun findRetryLineage(
     originalWorkItemId: String,
     failureAttemptId: String,
-  ): Boolean {
+  ): RetryLineage {
     var retryWorkItemId = RequestIds.forRetriedWorkItem(originalWorkItemId, failureAttemptId)
+    var retryExists = false
     while (true) {
       val retryWorkItem =
         try {
@@ -242,13 +401,16 @@ class FailedDispatchRetrier(
             workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$retryWorkItemId" })
           }
         } catch (e: StatusException) {
-          if (e.status.code == Status.Code.NOT_FOUND) return false
+          if (e.status.code == Status.Code.NOT_FOUND) {
+            return if (retryExists) RetryLineage.FAILED else RetryLineage.MISSING
+          }
           throw e
         }
+      retryExists = true
       when (retryWorkItem.state) {
         WorkItem.State.QUEUED,
         WorkItem.State.RUNNING,
-        WorkItem.State.SUCCEEDED -> return true
+        WorkItem.State.SUCCEEDED -> return RetryLineage.ACTIVE_OR_SUCCEEDED
         WorkItem.State.FAILED -> {
           val failureVersion =
             "${retryWorkItem.updateTime.seconds}:${retryWorkItem.updateTime.nanos}"
@@ -261,6 +423,40 @@ class FailedDispatchRetrier(
     }
   }
 
+  private fun phasePrecedes(
+    phase: RawImpressionUploadModelLine.State,
+    currentState: RawImpressionUploadModelLine.State,
+  ): Boolean =
+    when (phase) {
+      RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+        currentState in
+          setOf(
+            RawImpressionUploadModelLine.State.RANKING,
+            RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      RawImpressionUploadModelLine.State.RANKING ->
+        currentState in
+          setOf(
+            RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      RawImpressionUploadModelLine.State.LABELING ->
+        currentState in
+          setOf(
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      RawImpressionUploadModelLine.State.CREATED,
+      RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+      RawImpressionUploadModelLine.State.COMPLETED,
+      RawImpressionUploadModelLine.State.FAILED,
+      RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,
+      RawImpressionUploadModelLine.State.UNRECOGNIZED -> false
+    }
+
   /**
    * The furthest phase [cmmsModelLine] under [uploadName] reached, inferred from which per-phase
    * job rows exist: `VidLabelingJob`s ⇒ `LABELING`, else `RankerJob`s ⇒ `RANKING`, else
@@ -270,11 +466,11 @@ class FailedDispatchRetrier(
     uploadName: String,
     cmmsModelLine: String,
   ): PhaseWorkItems {
-    val vidLabelingJobNames = listVidLabelingJobNames(uploadName, cmmsModelLine)
-    if (vidLabelingJobNames.isNotEmpty()) {
+    val vidLabelingJobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+    if (vidLabelingJobs.isNotEmpty()) {
       return PhaseWorkItems(
         RawImpressionUploadModelLine.State.LABELING,
-        vidLabelingJobNames.map { WorkItemIds.forVidLabeler(it) },
+        labelingPhaseWorkItemIds(vidLabelingJobs),
       )
     }
     val rankerJobNames = listRankerJobNames(uploadName, cmmsModelLine)
@@ -314,7 +510,7 @@ class FailedDispatchRetrier(
   ): List<String> =
     when (phase) {
       RawImpressionUploadModelLine.State.LABELING ->
-        listVidLabelingJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidLabeler(it) }
+        labelingPhaseWorkItemIds(uploadName, cmmsModelLine)
       RawImpressionUploadModelLine.State.RANKING ->
         listRankerJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidRankBuilder(it) }
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
@@ -324,11 +520,23 @@ class FailedDispatchRetrier(
       else -> error("unreachable: $phase is not a retry phase")
     }
 
-  private suspend fun listVidLabelingJobNames(
+  private suspend fun labelingPhaseWorkItemIds(
     uploadName: String,
     cmmsModelLine: String,
-  ): List<String> {
-    val names = mutableListOf<String>()
+  ): List<String> = labelingPhaseWorkItemIds(listVidLabelingJobs(uploadName, cmmsModelLine))
+
+  private fun labelingPhaseWorkItemIds(jobs: List<VidLabelingJob>): List<String> {
+    val unfinished = jobs.filter { it.state != VidLabelingJob.State.SUCCEEDED }
+    return (if (unfinished.isEmpty()) jobs.take(1) else unfinished).map {
+      WorkItemIds.forVidLabeler(it.name)
+    }
+  }
+
+  private suspend fun listVidLabelingJobs(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): List<VidLabelingJob> {
+    val jobs = mutableListOf<VidLabelingJob>()
     var pageToken = ""
     do {
       val response =
@@ -341,14 +549,14 @@ class FailedDispatchRetrier(
             }
           )
         }
-      response.vidLabelingJobsList.forEach { names.add(it.name) }
+      jobs.addAll(response.vidLabelingJobsList)
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
-    return names
+    return jobs
   }
 
   private suspend fun listRankerJobNames(uploadName: String, cmmsModelLine: String): List<String> {
-    val names = mutableListOf<String>()
+    val jobs = mutableListOf<RankerJob>()
     var pageToken = ""
     do {
       val response =
@@ -361,10 +569,11 @@ class FailedDispatchRetrier(
             }
           )
         }
-      response.rankerJobsList.forEach { names.add(it.name) }
+      jobs += response.rankerJobsList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
-    return names
+    val unfinished = jobs.filter { it.state != RankerJob.State.SUCCEEDED }
+    return (if (unfinished.isEmpty()) jobs.take(1) else unfinished).map { it.name }
   }
 
   private suspend fun listPoolAssignmentJobShards(
@@ -520,4 +729,10 @@ class FailedDispatchRetrier(
     val phase: RawImpressionUploadModelLine.State,
     val workItemIds: List<String>,
   )
+
+  private enum class RetryLineage {
+    MISSING,
+    ACTIVE_OR_SUCCEEDED,
+    FAILED,
+  }
 }

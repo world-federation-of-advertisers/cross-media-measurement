@@ -33,17 +33,22 @@ jobs:
           owner: world-federation-of-advertisers
           permission-members: read
 
-      - name: Check team membership
+      - name: Check whether PR needs notification
         id: team-membership
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           script: |
+            const username = context.payload.pull_request.user.login;
+            if (username === "renovate[bot]") {
+              console.log("Skipping notification for Renovate");
+              return true;
+            }
             try {
               await github.rest.teams.getMembershipForUserInOrg({
                 org: "world-federation-of-advertisers",
                 team_slug: "haloengineering",
-                username: context.payload.pull_request.user.login,
+                username: username,
               });
               return true;
             } catch (error) {
@@ -54,9 +59,6 @@ jobs:
                 `Could not check team membership. Status: ${error.status}. Message: ${error.message}`
               );
             }
-
-      - name: Print result
-        run: echo "Is member of target team? ${{ steps.team-membership.outputs.result }}"
 
       - name: Post message to the Slack channel
         if: steps.team-membership.outputs.result == 'false'

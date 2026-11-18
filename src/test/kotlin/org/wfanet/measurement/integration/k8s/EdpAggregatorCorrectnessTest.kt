@@ -16,16 +16,16 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.api.client.http.javanet.NetHttpTransport
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.nio.file.Paths
 import java.time.Duration
 import java.time.LocalDate
@@ -33,6 +33,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.UUID
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -41,15 +43,18 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.ClassRule
+import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaCorrectnessTestConfig
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
+import org.measurement.integration.k8s.testing.copy
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
@@ -59,11 +64,15 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -73,7 +82,9 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.integration.testing.RequisitionFetcherClient
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
+import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
@@ -89,6 +100,73 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
   override val EVENT_GROUP_FILTERING_LAMBDA_CROSS_PUB: (CmmsEventGroup) -> Boolean = {
     it.eventGroupReferenceId in setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, EDPA_META_EVENT_GROUP_REF_ID)
+  }
+
+  @Test
+  fun `data availability sync publishes EventGroup activity`() = runBlocking {
+    val modelLine = checkNotNull(provisionModelResources.nonMemoizedModelLine)
+    val modelLineId = checkNotNull(ModelLineKey.fromName(modelLine)).modelLineId
+    val doneBlobKey = "$EDP7_IMPRESSION_PATH/model-line/$modelLineId/$ACTIVITY_START_DATE/done"
+    val storageClient = StorageOptions.getDefaultInstance().service
+
+    withTimeout(DATA_AVAILABILITY_PUBLICATION_TIMEOUT) {
+      while (true) {
+        val metadata = storageClient.get(TEST_CONFIG.storageBucket, doneBlobKey)?.metadata.orEmpty()
+        val syncId = metadata[DATA_AVAILABILITY_SYNC_ID_METADATA_KEY]
+        if (
+          syncId != null && metadata[DATA_AVAILABILITY_PUBLISHED_SYNC_ID_METADATA_KEY] == syncId
+        ) {
+          break
+        }
+        delay(EVENT_GROUP_ACTIVITY_POLLING_INTERVAL)
+      }
+    }
+
+    val eventGroup =
+      withTimeout(EVENT_GROUP_ACTIVITY_TIMEOUT) {
+        var eventGroupWithActivity: CmmsEventGroup?
+        do {
+          eventGroupWithActivity = findEventGroupWithActivity()
+          if (eventGroupWithActivity == null) {
+            delay(EVENT_GROUP_ACTIVITY_POLLING_INTERVAL)
+          }
+        } while (eventGroupWithActivity == null)
+        eventGroupWithActivity
+      }
+
+    assertThat(eventGroup.aggregatedActivitiesList).isNotEmpty()
+  }
+
+  private suspend fun findEventGroupWithActivity(): CmmsEventGroup? {
+    var pageToken = ""
+    do {
+      val response =
+        measurementSystem.publicEventGroupsStub
+          .withAuthenticationKey(measurementSystem.apiAuthenticationKey)
+          .listEventGroups(
+            listEventGroupsRequest {
+              parent = measurementSystem.measurementConsumerName
+              pageSize = 500
+              this.pageToken = pageToken
+              view = CmmsEventGroup.View.WITH_ACTIVITY_SUMMARY
+              filter =
+                ListEventGroupsRequestKt.filter {
+                  dataProviderIn += measurementSystem.dataProviderNames.first()
+                  entityTypeIn += "creative-id"
+                }
+            }
+          )
+      val eventGroup =
+        response.eventGroupsList.firstOrNull {
+          it.eventGroupReferenceId == ACTIVITY_EVENT_GROUP_REF_ID &&
+            it.aggregatedActivitiesCount > 0
+        }
+      if (eventGroup != null) {
+        return eventGroup
+      }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return null
   }
 
   private class UploadEventGroup : TestRule {
@@ -113,8 +191,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           objectKey = "edp7/event-groups/edp7-event-group.binpb",
           blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           eventGroupReferenceIds =
-            setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
-              MULTI_CREATIVE_REF_IDS,
+            setOf(
+              EDP7_DIRECT_EVENT_GROUP_REF_ID,
+              CREATIVE_ID_EVENT_GROUP_REF_ID,
+              ACTIVITY_EVENT_GROUP_REF_ID,
+            ) + MULTI_CREATIVE_REF_IDS,
         ),
         EdpStorage(
           objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
@@ -189,13 +270,14 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             )
           is EventGroupConfig.MultiEntityKey ->
             config.entityKeySpecs.flatMap { entityKeySpec ->
-              buildEventGroupsFromSpec(
-                eventGroupReferenceId =
-                  "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}",
-                spec = entityKeySpec.spec,
-                dataEntityKey = entityKeySpec.entityKey,
-                entityMetadata = entityKeySpec.entityMetadata,
-              )
+              entityKeySpec.entityKeys.flatMap { entityKey ->
+                buildEventGroupsFromSpec(
+                  eventGroupReferenceId = "${entityKey.entityType}-${entityKey.entityId}",
+                  spec = entityKeySpec.spec,
+                  dataEntityKey = entityKey,
+                  entityMetadata = entityKeySpec.entityMetadata,
+                )
+              }
             }
         }
       }
@@ -214,11 +296,9 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             .atStartOfDay(ZONE_ID)
             .toInstant()
         val endTime =
-          LocalDate.of(
-              dateRange.endExclusive.year,
-              dateRange.endExclusive.month,
-              dateRange.endExclusive.day - 1,
-            )
+          dateRange.endExclusive
+            .toLocalDate()
+            .minusDays(1)
             .atTime(23, 59, 59)
             .atZone(ZONE_ID)
             .toInstant()
@@ -329,10 +409,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       // drops an edp7 `done` for them too.
       private val EDP7_PIPELINED_DATES: Set<LocalDate> = Edp7PipelinedDates.DATES
 
-      // Per-EDP folder segment for VID-labeled impressions. MUST match each EDP's
-      // `output_base_path` (impression_test_data_config.textproto), the `edp_impression_path` in
-      // the deployed VidLabeling dispatcher/monitor + DataAvailabilitySync configs, and the
-      // data-watcher `data-availability` regex.
+      // External fixture paths match GenerateSyntheticData, DataAvailabilitySync's external
+      // configuration, and DataWatcher. The deployed VidLabeler uses its separate internal path.
       private const val EDP7_IMPRESSION_PATH = "edp/edp7"
       private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
 
@@ -362,7 +440,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private val storageClient = StorageOptions.getDefaultInstance().service
     private val bucket = TEST_CONFIG.storageBucket
-    private val edp_requisitions_prefix = "edp7/requisitions/"
+    private val directRequisitionStoragePrefix = "edp7/requisitions-v2/"
 
     private lateinit var _mcSimulator: MeasurementConsumerSimulator
 
@@ -374,6 +452,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
+    override val dataProviderNames: List<String> = EDPA_DATA_PROVIDERS
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -388,44 +467,39 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
+    private val requisitionFetcherClient: RequisitionFetcherClient by lazy {
+      RequisitionFetcherClient(
+        endpoint = URI.create(TEST_CONFIG.requisitionFetcherEndpoint),
+        credentials = GoogleCredentials.getApplicationDefault(),
+        transport = NetHttpTransport(),
+      )
+    }
+
     private fun triggerRequisitionFetcher() {
+      val client = requisitionFetcherClient
 
-      // Delete existing requisitions from storage bucket
-      val blobs = storageClient.list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+      // Snapshot existing direct-dispatch blobs so the readiness check observes this test's group
+      // without deleting inputs that another WorkItem may still need.
+      val existingBlobNames =
+        storageClient
+          .list(bucket, Storage.BlobListOption.prefix(directRequisitionStoragePrefix))
+          .iterateAll()
+          .map { it.name }
+          .toSet()
 
-      blobs.iterateAll().forEach { blob ->
-        storageClient.delete(bucket, blob.name)
-        logger.info("Deleted: ${blob.name}")
-      }
-
-      // Wait until requisitions for EDP have status == UNFULFILLED before triggering
-      // `RequisitionFetcher`.
+      // Trigger RequisitionFetcher until it writes the direct-dispatch group for this test.
       runBlocking {
         withTimeoutOrNull(REQUISITIONS_SYNC_TIMEOUT) {
           var areRequisitionsReady: Boolean
 
           do {
-            val jwt = TEST_CONFIG.authIdToken
-            val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
+            client.trigger()
 
-            val client = HttpClient.newHttpClient()
-            val request =
-              HttpRequest.newBuilder()
-                .uri(URI.create(requisitionFetcherEndpoint))
-                .timeout(Duration.ofSeconds(120))
-                .header("Authorization", "Bearer $jwt")
-                .GET()
-                .build()
-            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-            check(response.statusCode() == 200)
-
-            val blobCount =
+            areRequisitionsReady =
               storageClient
-                .list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+                .list(bucket, Storage.BlobListOption.prefix(directRequisitionStoragePrefix))
                 .iterateAll()
-                .count()
-
-            areRequisitionsReady = blobCount > 0
+                .any { it.name !in existingBlobNames }
 
             if (!areRequisitionsReady) {
               logger.info("Waiting for requisitions to appear...")
@@ -463,16 +537,15 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         reportName,
         provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
+        listEventGroupsDataProviders = EDPA_DATA_PROVIDERS,
+        kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
-        // Compute the expected reach/frequency from the VIDs the deployed non-memoized model
-        // assigns (not the raw synthetic VIDs), matching the pre-staged and pipelined labeled data.
-        vidLabeler = { impression ->
-          val event = impression.message as TestEvent
-          nonMemoizedVidLabeler.assignVid(
-            impression.vid,
-            event.common.gender.name,
-            event.common.ageGroup.name,
-            impression.timestamp,
+        // Compute the expected reach/frequency from the VIDs and population attributes the deployed
+        // non-memoized model assigns (not the raw synthetic ones), matching the pre-staged and
+        // pipelined labeled data.
+        eventRelabeler = { impression ->
+          nonMemoizedVidLabeler.relabel(
+            LabeledEvent(impression.timestamp, impression.vid, impression.message as TestEvent)
           )
         },
       )
@@ -512,6 +585,17 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
+    // Allow a full nine-minute sync request plus completion-marker delivery.
+    private val DATA_AVAILABILITY_PUBLICATION_TIMEOUT = 10.minutes
+    private val EVENT_GROUP_ACTIVITY_TIMEOUT = 5.minutes
+    private val EVENT_GROUP_ACTIVITY_POLLING_INTERVAL = 3.seconds
+    private const val ACTIVITY_START_DATE = "2021-03-15"
+    private val ACTIVITY_ENTITY_ID = "activity-${UUID.randomUUID()}"
+    private val ACTIVITY_EVENT_GROUP_REF_ID = "creative-id-$ACTIVITY_ENTITY_ID"
+    private const val EDP7_IMPRESSION_PATH = "edp/edp7"
+    private const val DATA_AVAILABILITY_SYNC_ID_METADATA_KEY = "data-availability-sync-id"
+    private const val DATA_AVAILABILITY_PUBLISHED_SYNC_ID_METADATA_KEY =
+      "data-availability-published-sync-id"
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "edpa_correctness_test_config.textproto"
@@ -519,14 +603,40 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       val configFile = getRuntimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
       parseTextProto(configFile, EdpaCorrectnessTestConfig.getDefaultInstance())
     }
+    private val EDPA_DATA_PROVIDERS: List<String> =
+      checkNotNull(System.getenv("EDPA_DATA_PROVIDERS")) {
+          "EDPA_DATA_PROVIDERS environment variable is not set"
+        }
+        .split(',')
+        .filter(String::isNotBlank)
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
       TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
+    /**
+     * `PopulationSpec` matching the pools of the compiled hash-only model at
+     * `NON_MEMOIZED_MODEL_BLOB_URI`. Must stay in sync with the `population_spec_blob_uri` the
+     * deployed `VidLabelingConfig` points the same model line at, or the pre-staged days and the
+     * expected results will disagree with the pipelined day.
+     */
+    private const val MODEL_POPULATION_SPEC_RESOURCE_NAME =
+      "hashonly_model_population_spec.textproto"
+
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =
         getRuntimePath(CONFIG_PATH.resolve("impression_test_data_config.textproto"))!!.toFile()
-      parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+      val config = parseTextProto(configFile, ImpressionTestDataConfig.getDefaultInstance())
+      // A fresh entity key prevents historical activity from satisfying this run's assertion.
+      val template = config.eventGroupsList.first { it.edpName == "edp7" }
+      val activityEventGroup =
+        template.copy {
+          eventGroupReferenceId = ACTIVITY_EVENT_GROUP_REF_ID
+          outputKey = ACTIVITY_ENTITY_ID
+          entityKeySpecs.clear()
+          entityKeySpecs +=
+            template.entityKeySpecsList.single().copy { entityId = ACTIVITY_ENTITY_ID }
+        }
+      config.copy { eventGroups += activityEventGroup }
     }
 
     val populationSpec: PopulationSpec by lazy {
@@ -534,6 +644,24 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         ImpressionTestDataConfigs.resolveSpecPath(
           IMPRESSION_TEST_DATA_CONFIG.populationSpecResourcePath
         ),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
+      )
+    }
+
+    /**
+     * The `PopulationSpec` describing the VID pools of the deployed non-memoized model, i.e. the
+     * blob the pipeline reads as `population_spec_blob_uri`.
+     *
+     * Distinct from [populationSpec], which describes the *synthetic* VIDs (1..99999) the generator
+     * draws declared demographics from. This one describes the VIDs the model *assigns*
+     * (10000..10599) and therefore the demographics the labeled output carries. The two cannot be
+     * the same file: [populationSpec] buckets VIDs 10000..19999 into a single subpopulation, which
+     * would collapse all six model pools into one demo.
+     */
+    private val modelPopulationSpec: PopulationSpec by lazy {
+      parseTextProto(
+        ImpressionTestDataConfigs.resolveSpecPath(MODEL_POPULATION_SPEC_RESOURCE_NAME),
         PopulationSpec.getDefaultInstance(),
         POPULATION_SPEC_TYPE_REGISTRY,
       )
@@ -583,12 +711,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           gcsProjectId =
             System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set"),
           labelerInputFieldMapping = provisionModelResources.labelerInputFieldMapping,
+          populationSpec = modelPopulationSpec,
         )
       }
     }
     private val uploadEventGroup = UploadEventGroup()
     private val seedRawImpressions = SeedRawImpressionsRule(populationSpec, edp7EventGroupConfigs)
-    private val awaitVidLabeling = AwaitVidLabelingRule()
+    private val awaitVidLabeling = AwaitVidLabelingRule { seedRawImpressions.doneBlobGenerations }
     // Writes pre-labeled impressions stamped with the non-memoized model line for the dates the
     // pipeline does not produce, so the `done` blobs dropped by createDoneBlobs register them under
     // that line. Each impression is relabeled with the non-memoized labeler so its VID matches what

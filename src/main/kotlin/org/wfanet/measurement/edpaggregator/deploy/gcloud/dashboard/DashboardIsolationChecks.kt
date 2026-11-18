@@ -411,6 +411,7 @@ class DashboardIsolationChecks(
             "EntityTypes",
             "EntityIds",
             "ReportState",
+            "CmmsMeasurementConsumer",
           ),
         "mc_details" to
           setOf(
@@ -438,6 +439,7 @@ class DashboardIsolationChecks(
             "BrandNames",
             "EdpCount",
             "ReportState",
+            "CmmsMeasurementConsumer",
           ),
       )
     try {

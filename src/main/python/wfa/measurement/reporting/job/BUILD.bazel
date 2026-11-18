@@ -14,6 +14,7 @@ py_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_py_pb2_grpc",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_py_pb2_grpc",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_py_pb2_grpc",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/noiseninja",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_result",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:potential_direct_result_minimum_thresholds",
     ],

@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.integration.crypto.testing.ThrowingKmsClient
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
@@ -100,6 +101,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         inProcessCmmsComponents.eventQuery,
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        kingdomApiThrottler = FakeThrottler(),
       )
   }
 

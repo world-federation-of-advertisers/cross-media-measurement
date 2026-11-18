@@ -17,8 +17,8 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import io.grpc.ManagedChannel
+import java.io.File
 import java.time.Duration
-import java.time.Instant
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -29,7 +29,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
@@ -62,14 +61,15 @@ import picocli.CommandLine.Option
       MarkFailedCommand::class,
       RetryFailedCommand::class,
       BackfillModelLineCommand::class,
-      EvictUploadsCommand::class,
+      ListCorrectionCandidatesCommand::class,
+      GetCorrectionCandidateCommand::class,
+      ListCorrectionPlansCommand::class,
+      GetCorrectionPlanCommand::class,
+      ApproveCorrectionPlanCommand::class,
+      RetryCorrectionPlanCommand::class,
       RedeliverDlqCommand::class,
       // TODO(world-federation-of-advertisers/cross-media-measurement#4223): add
-      // HealRankIndexCommand
-      // to rebuild a corrupted cumulative rank-index SNAPSHOT from retained inputs. A COMPLETED
-      // model
-      // line is terminal today, so this needs a reopen-for-re-rank transition or a ranker TEE heal
-      // mode — see the issue.
+      // HealRankIndexCommand after terminal model lines can be reopened for re-ranking.
       CommandLine.HelpCommand::class,
     ],
 )
@@ -123,6 +123,24 @@ abstract class EdpaApiCommand : Runnable {
   }
 }
 
+private class ControlPlaneTlsFlags {
+  @Option(names = ["--control-plane-tls-cert-file"], required = true)
+  lateinit var certFile: File
+    private set
+
+  @Option(names = ["--control-plane-tls-key-file"], required = true)
+  lateinit var privateKeyFile: File
+    private set
+
+  @Option(names = ["--control-plane-cert-collection-file"], required = true)
+  lateinit var certCollectionFile: File
+    private set
+
+  val signingCerts: SigningCerts by lazy {
+    SigningCerts.fromPemFiles(certFile, privateKeyFile, certCollectionFile)
+  }
+}
+
 /**
  * Force-fails a stuck or hanging `RawImpressionUpload`, unblocking subsequent uploads.
  *
@@ -154,11 +172,15 @@ class MarkFailedCommand : EdpaApiCommand() {
   private lateinit var reason: String
 
   override fun run() {
-    val channel: ManagedChannel = buildEdpaChannel()
+    val channel = buildEdpaChannel()
     try {
       runBlocking {
-        val failer = DispatchFailer(RawImpressionUploadModelLineServiceCoroutineStub(channel))
-        val failed = failer.failUpload(rawImpressionUpload, reason)
+        val failed =
+          DispatchFailer(
+              RawImpressionUploadServiceCoroutineStub(channel),
+              RawImpressionUploadModelLineServiceCoroutineStub(channel),
+            )
+            .failUpload(rawImpressionUpload, reason)
         println("Marked ${failed.size} model line(s) FAILED under $rawImpressionUpload.")
       }
     } finally {
@@ -191,6 +213,8 @@ class MarkFailedCommand : EdpaApiCommand() {
   mixinStandardHelpOptions = true,
 )
 class RetryFailedCommand : EdpaApiCommand() {
+  @Mixin private lateinit var controlPlaneTlsFlags: ControlPlaneTlsFlags
+
   @Option(
     names = ["--metadata-read-rpc-min-interval"],
     description = ["Minimum interval between outbound metadata read RPCs."],
@@ -225,7 +249,6 @@ class RetryFailedCommand : EdpaApiCommand() {
   @Option(
     names = ["--control-plane-api-cert-host"],
     description = ["Expected hostname in the control-plane API TLS certificate, if it differs."],
-    required = false,
   )
   private var controlPlaneApiCertHost: String? = null
 
@@ -249,32 +272,36 @@ class RetryFailedCommand : EdpaApiCommand() {
     description =
       [
         "Override the phase to re-trigger from (POOL_ASSIGNING, RANKING, or LABELING). Default: " +
-          "the furthest phase the model line reached, auto-detected from existing job rows."
+          "the furthest phase reached."
       ],
-    required = false,
   )
   private var fromPhase: RawImpressionUploadModelLine.State? = null
 
   override fun run() {
-    val edpaChannel: ManagedChannel = buildEdpaChannel()
-    val controlPlaneChannel: ManagedChannel =
-      buildChannel(controlPlaneApiTarget, controlPlaneApiCertHost)
+    val edpaChannel = buildEdpaChannel()
+    val controlPlaneChannel =
+      buildMutualTlsChannel(
+        controlPlaneApiTarget,
+        controlPlaneTlsFlags.signingCerts,
+        controlPlaneApiCertHost,
+      )
     try {
       runBlocking {
-        val retrier =
+        val result =
           FailedDispatchRetrier(
-            RawImpressionUploadModelLineServiceCoroutineStub(edpaChannel),
-            PoolAssignmentJobServiceCoroutineStub(edpaChannel),
-            RankerJobServiceCoroutineStub(edpaChannel),
-            VidLabelingJobServiceCoroutineStub(edpaChannel),
-            WorkItemsCoroutineStub(controlPlaneChannel),
-            VidLabelingRpcThrottlers.fromMinimumIntervals(
-              metadataRead = metadataReadRpcMinInterval,
-              metadataWrite = metadataWriteRpcMinInterval,
-              controlPlane = controlPlaneRpcMinInterval,
-            ),
-          )
-        val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
+              RawImpressionUploadModelLineServiceCoroutineStub(edpaChannel),
+              PoolAssignmentJobServiceCoroutineStub(edpaChannel),
+              RankerJobServiceCoroutineStub(edpaChannel),
+              VidLabelingJobServiceCoroutineStub(edpaChannel),
+              WorkItemsCoroutineStub(controlPlaneChannel),
+              VidLabelingRpcThrottlers.fromMinimumIntervals(
+                metadataRead = metadataReadRpcMinInterval,
+                metadataWrite = metadataWriteRpcMinInterval,
+                controlPlane = controlPlaneRpcMinInterval,
+              ),
+              RawImpressionUploadServiceCoroutineStub(edpaChannel),
+            )
+            .retryFailed(rawImpressionUpload, modelLine, fromPhase)
         if (result.wasAlreadyStarted) {
           println(
             "Retry for ${result.modelLineName} was already started; current state is " +
@@ -330,19 +357,14 @@ class RedeliverDlqCommand : Runnable {
 
   @Option(
     names = ["--idle-timeout-millis"],
-    description = ["Stop after this many milliseconds elapse with no new message (queue drained)."],
+    description = ["Stop after this many milliseconds elapse with no new message."],
     defaultValue = "10000",
   )
   private var idleTimeoutMillis: Long = 10000
 
   @Option(
     names = ["--topic-override"],
-    description =
-      [
-        "Republish every message to this topic instead of the origin queue recorded on the " +
-          "WorkItem. Only needed when the WorkItem does not carry its queue."
-      ],
-    required = false,
+    description = ["Republish every message to this topic instead of its recorded queue."],
   )
   private var topicOverride: String? = null
 
@@ -363,7 +385,7 @@ class RedeliverDlqCommand : Runnable {
   }
 
   companion object {
-    /** Messages pulled per Pub/Sub request; the total is bounded by --max-messages. */
+    /** Messages pulled per Pub/Sub request; the total is bounded by `--max-messages`. */
     private const val PULL_BATCH_SIZE = 10
   }
 }
@@ -389,11 +411,7 @@ class BackfillModelLineCommand : EdpaApiCommand() {
 
   @Option(
     names = ["--raw-impression-uploads"],
-    description =
-      [
-        "Comma-separated RawImpressionUpload resource names " +
-          "(dataProviders/{dp}/rawImpressionUploads/{upload}) to backfill the model line onto."
-      ],
+    description = ["Comma-separated RawImpressionUpload resource names to backfill."],
     required = true,
     split = ",",
   )
@@ -407,12 +425,12 @@ class BackfillModelLineCommand : EdpaApiCommand() {
     require(rawImpressionUploads.all { it.isNotBlank() }) {
       "--raw-impression-uploads entries must be non-blank RawImpressionUpload resource names."
     }
-    val channel: ManagedChannel = buildEdpaChannel()
+    val channel = buildEdpaChannel()
     try {
       runBlocking {
-        val backfiller =
+        val result =
           ModelLineBackfiller(RawImpressionUploadModelLineServiceCoroutineStub(channel))
-        val result = backfiller.backfill(modelLine, rawImpressionUploads)
+            .backfill(modelLine, rawImpressionUploads)
         println(
           "Backfilled $modelLine: created ${result.createdModelLines.size} model line(s) " +
             "(creating a model line reactivates its COMPLETED parent upload)."
@@ -423,130 +441,6 @@ class BackfillModelLineCommand : EdpaApiCommand() {
       channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
     }
   }
-}
-
-/**
- * Evicts uploads that carry bad data for a model line. Marks the bad upload and every later upload
- * for the model line FAILED and soft-deletes their cumulative SNAPSHOT rank-index blobs, so Phase-1
- * falls back to the last good snapshot when the affected uploads are re-triggered. Confined to the
- * retention window. Prints the cascade and prompts the operator to confirm before mutating
- * anything.
- *
- * The resulting `FAILED` model lines represent invalidated completed work. They must be replaced by
- * new uploads and must not be passed to `retry-failed`.
- *
- * Confirmation is interactive (type `yes`), by design, not a `--confirm` flag: the printed cascade
- * often includes uploads the operator did not name explicitly (later uploads that cascade from the
- * earliest bad one), so making the operator visually review that cascade before typing `yes` is the
- * whole safety property — a `--confirm` flag baked into a runbook or shell history would bypass it.
- * It also fails closed: a non-interactive invocation (no TTY / EOF) reads null and declines, so
- * cron/CI cannot silently mutate (see [isAffirmative]).
- */
-@Command(
-  name = "evict-uploads",
-  description =
-    ["Evicts a bad upload and all later uploads for a model line (rebuild-from-last-good)."],
-  mixinStandardHelpOptions = true,
-)
-class EvictUploadsCommand : EdpaApiCommand() {
-  @Option(
-    names = ["--model-line"],
-    description = ["CMMS ModelLine resource name whose uploads are being evicted."],
-    required = true,
-  )
-  private lateinit var modelLine: String
-
-  @Option(
-    names = ["--bad-uploads"],
-    description =
-      [
-        "Comma-separated bad RawImpressionUpload resource names " +
-          "(dataProviders/{dp}/rawImpressionUploads/{upload}); the earliest anchors the cascade."
-      ],
-    required = true,
-    split = ",",
-  )
-  private lateinit var badUploads: List<String>
-
-  @Option(
-    names = ["--retention-days"],
-    description = ["Retention window in days; uploads created before now-retention are rejected."],
-    required = true,
-  )
-  private var retentionDays: Int = 0
-
-  @Option(
-    names = ["--reason"],
-    description = ["Operator diagnosis, recorded as each evicted model line's error_message."],
-    required = true,
-  )
-  private lateinit var reason: String
-
-  override fun run() {
-    require(ModelLineKey.fromName(modelLine) != null) {
-      "--model-line must be a valid CMMS ModelLine resource name " +
-        "(modelProviders/.../modelSuites/.../modelLines/...); got '$modelLine'"
-    }
-    require(badUploads.all { it.isNotBlank() }) {
-      "--bad-uploads entries must be non-blank RawImpressionUpload resource names."
-    }
-    require(retentionDays > 0) { "--retention-days must be positive; got $retentionDays" }
-    val channel: ManagedChannel = buildEdpaChannel()
-    try {
-      runBlocking {
-        val evictUploader =
-          EvictUploader(
-            RawImpressionUploadServiceCoroutineStub(channel),
-            RawImpressionUploadModelLineServiceCoroutineStub(channel),
-            RankIndexBlobServiceCoroutineStub(channel),
-          )
-        val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
-        val plan = evictUploader.plan(modelLine, badUploads, cutoffTime)
-
-        println(
-          "Eviction cascade for $modelLine (${plan.cascade.size} upload(s)): " +
-            plan.cascade.map { it.uploadName }
-        )
-        if (plan.extraUploads.isNotEmpty()) {
-          println(
-            "NOTE: uploads created after the bad one(s) will also be evicted: ${plan.extraUploads}"
-          )
-        }
-
-        // Require explicit operator confirmation before any mutation.
-        print(
-          "This marks the ${plan.cascade.size} model line(s) above FAILED and soft-deletes their " +
-            "cumulative snapshots. Type 'yes' to proceed: "
-        )
-        System.out.flush()
-        if (!isAffirmative(readLine())) {
-          println("Aborted; nothing was changed.")
-          return@runBlocking
-        }
-
-        val result = evictUploader.evict(modelLine, plan, reason)
-        println(
-          "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
-            "${result.deletedSnapshots} snapshot(s). Re-trigger the affected uploads (re-upload " +
-            "their done blobs) to rebuild from the last good snapshot. Do not use retry-failed " +
-            "for these model lines."
-        )
-      }
-    } finally {
-      channel.shutdown()
-      channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-    }
-  }
-}
-
-/**
- * Returns true iff [answer] is an affirmative confirmation — "y" or "yes" (case-insensitive,
- * surrounding whitespace trimmed). A null answer (no stdin / EOF) is treated as a decline, so the
- * `evict-uploads` prompt fails closed when the command is run without an interactive terminal.
- */
-fun isAffirmative(answer: String?): Boolean {
-  val normalized: String? = answer?.trim()?.lowercase()
-  return normalized == "y" || normalized == "yes"
 }
 
 fun main(args: Array<String>) = commandLineMain(VidLabelingHeal(), args)

@@ -85,11 +85,13 @@ import org.wfanet.measurement.common.k8s.KubernetesClientImpl
 import org.wfanet.measurement.common.k8s.testing.PortForwarder
 import org.wfanet.measurement.common.k8s.testing.Processes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
+import org.wfanet.measurement.integration.common.PopulationSetup
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
@@ -353,6 +355,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         buildEventQuery(resourceInfo.dataProviders.values.map { it.name }),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
+        kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
       )
     }
 
@@ -403,7 +406,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private fun buildKingdomPublicApiChannel(target: String, clientCerts: SigningCerts): Channel {
-      return buildMutualTlsChannel(target, clientCerts).also { channels.add(it) }
+      return buildMutualTlsChannel(
+          target,
+          clientCerts,
+          defaultServiceConfig = PopulationSetup.SERVICE_CONFIG,
+        )
+        .also { channels.add(it) }
     }
 
     private suspend fun createReportingUserSimulator(

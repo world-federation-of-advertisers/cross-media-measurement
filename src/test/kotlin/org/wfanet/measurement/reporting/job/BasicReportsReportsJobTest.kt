@@ -25,11 +25,21 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -46,8 +56,10 @@ import org.mockito.kotlin.whenever
 import org.mockito.stubbing.Answer
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
@@ -56,6 +68,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpec
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
@@ -78,6 +91,8 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
@@ -89,7 +104,6 @@ import org.wfanet.measurement.internal.reporting.v2.impressionQualificationFilte
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
-import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
@@ -98,6 +112,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
@@ -127,15 +142,22 @@ class BasicReportsReportsJobTest {
   }
 
   private val metricCalculationSpecsMock: MetricCalculationSpecsCoroutineImplBase = mockService {
-    onBlocking { listMetricCalculationSpecs(any()) }
-      .thenReturn(
-        listMetricCalculationSpecsResponse {
-          metricCalculationSpecs += NON_CUMULATIVE_METRIC_CALCULATION_SPEC
-          metricCalculationSpecs += CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC
-          metricCalculationSpecs += TOTAL_METRIC_CALCULATION_SPEC
-          metricCalculationSpecs += POPULATION_METRIC_CALCULATION_SPEC
+    onBlocking { batchGetMetricCalculationSpecs(any()) }
+      .thenAnswer { invocation ->
+        val request: BatchGetMetricCalculationSpecsRequest = invocation.getArgument(0)
+        val requestedIds = request.externalMetricCalculationSpecIdsList.toSet()
+        batchGetMetricCalculationSpecsResponse {
+          metricCalculationSpecs +=
+            listOf(
+                NON_CUMULATIVE_METRIC_CALCULATION_SPEC,
+                CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC,
+                TOTAL_METRIC_CALCULATION_SPEC,
+                POPULATION_METRIC_CALCULATION_SPEC,
+              )
+              .filter { it.externalMetricCalculationSpecId in requestedIds }
+              .reversed()
         }
-      )
+      }
   }
 
   private val reportResultsMock: ReportResultsCoroutineImplBase = mockService {
@@ -158,9 +180,37 @@ class BasicReportsReportsJobTest {
   }
 
   private lateinit var job: BasicReportsReportsJob
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
+  private val traceLogRecords = CopyOnWriteArrayList<LogRecord>()
+  private val traceLogHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        if ("xmm.lifecycle.stage=" in record.message) {
+          traceLogRecords += record
+        }
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   @Before
   fun initJob() {
+    traceLogRecords.clear()
+    Logger.getLogger(BasicReportsReportsJob::class.java.name).addHandler(traceLogHandler)
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     job =
       BasicReportsReportsJob(
         MEASUREMENT_CONSUMER_CONFIGS,
@@ -173,6 +223,22 @@ class BasicReportsReportsJobTest {
         MAX_CREATED_BASIC_REPORT_AGE,
       )
   }
+
+  @After
+  fun cleanupTelemetry() {
+    Logger.getLogger(BasicReportsReportsJob::class.java.name).removeHandler(traceLogHandler)
+    openTelemetry.close()
+  }
+
+  private fun reportAssemblyLog(): String =
+    traceLogRecords
+      .single { it.message.contains("xmm.lifecycle.stage=report_result_assembly") }
+      .message
+
+  private fun failureWritebackLogs(): List<String> =
+    traceLogRecords
+      .filter { it.message.contains("xmm.lifecycle.stage=basic_report_failure_writeback") }
+      .map { it.message }
 
   /** Stubs `listBasicReports` to return [response] for the REPORT_CREATED filter. */
   private suspend fun stubListBasicReports(response: ListBasicReportsResponse) {
@@ -192,6 +258,30 @@ class BasicReportsReportsJobTest {
           }
         }
       )
+  }
+
+  private fun assertReportAssemblySpan(
+    basicReport: BasicReport,
+    expectedOutcome: String,
+    expectedErrorType: String?,
+    expectedErrorCode: String?,
+  ) {
+    val span =
+      spanExporter.finishedSpanItems.single { it.name == "reporting.basic_report.assemble_results" }
+    assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo(
+        BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
+          .toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo(
+        ReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("report_result_assembly")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo(expectedOutcome)
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isEqualTo(expectedErrorType)
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo(expectedErrorCode)
   }
 
   /** Asserts that the first page of BasicReports in state REPORT_CREATED was requested. */
@@ -824,6 +914,97 @@ class BasicReportsReportsJobTest {
             }
           }
         )
+
+      val traceLog = reportAssemblyLog()
+      assertThat(traceLog).contains("event=reporting.basic_report.assemble_results")
+      assertThat(traceLog).contains("xmm.report.state=SUCCEEDED")
+      assertThat(traceLog).contains("xmm.outcome=succeeded")
+    }
+
+  @Test
+  fun `execute assembles results from bounded calculation specification batches`(): Unit =
+    runBlocking {
+      val specIds = (0..1000).map { "referenced-spec-$it" }
+      val report =
+        REPORT.copy {
+          metricCalculationResults +=
+            specIds.map { specId ->
+              ReportKt.metricCalculationResult {
+                metricCalculationSpec =
+                  MetricCalculationSpecKey(CMMS_MEASUREMENT_CONSUMER_ID, specId).toName()
+                reportingSet = COMPOSITE_REPORTING_SET_NAME
+                resultAttributes +=
+                  ReportKt.MetricCalculationResultKt.resultAttribute {
+                    filter = "banner_ad != null && banner_ad.viewable == true"
+                    metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                    timeInterval = interval {
+                      startTime = timestamp { seconds = 1736150400 }
+                      endTime = timestamp { seconds = 1736755200 }
+                    }
+                    metricResult = metricResult {
+                      reach = MetricResultKt.reachResult { value = 1L }
+                    }
+                  }
+              }
+            }
+          metricCalculationResults += metricCalculationResults.first()
+        }
+      whenever(reportsMock.getReport(any())).thenReturn(report)
+      whenever(metricCalculationSpecsMock.batchGetMetricCalculationSpecs(any())).thenAnswer {
+        invocation ->
+        val request: BatchGetMetricCalculationSpecsRequest = invocation.getArgument(0)
+        batchGetMetricCalculationSpecsResponse {
+          metricCalculationSpecs +=
+            request.externalMetricCalculationSpecIdsList.reversed().map { specId ->
+              CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.copy {
+                externalMetricCalculationSpecId = specId
+              }
+            }
+        }
+      }
+
+      job.execute()
+
+      val specCaptor = argumentCaptor<BatchGetMetricCalculationSpecsRequest>()
+      verifyBlocking(metricCalculationSpecsMock, times(2)) {
+        batchGetMetricCalculationSpecs(specCaptor.capture())
+      }
+      assertThat(specCaptor.allValues.map { it.externalMetricCalculationSpecIdsCount })
+        .containsExactly(1000, 1)
+        .inOrder()
+      assertThat(specCaptor.allValues.flatMap { it.externalMetricCalculationSpecIdsList })
+        .containsExactlyElementsIn(specIds)
+        .inOrder()
+      assertThat(specCaptor.allValues.map { it.cmmsMeasurementConsumerId }.toSet())
+        .containsExactly(CMMS_MEASUREMENT_CONSUMER_ID)
+      verify(metricCalculationSpecsMock, times(0)).listMetricCalculationSpecs(any())
+      verify(basicReportsMock, times(0)).failBasicReport(any())
+      val resultCaptor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
+      verifyBlocking(reportResultsMock, times(1)) {
+        batchCreateReportingSetResults(resultCaptor.capture())
+      }
+      assertThat(
+          resultCaptor.firstValue.requestsList
+            .single()
+            .reportingSetResult
+            .dimension
+            .metricFrequencySpec
+        )
+        .isEqualTo(metricFrequencySpec { weekly = DayOfWeek.MONDAY })
+    }
+
+  @Test
+  fun `execute skips calculation specification lookup when report has no results`(): Unit =
+    runBlocking {
+      val basicReport = INTERNAL_BASIC_REPORT.copy { externalBasicReportId = "empty-results" }
+      stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+
+      job.execute()
+
+      verify(metricCalculationSpecsMock, times(0)).batchGetMetricCalculationSpecs(any())
+      verify(metricCalculationSpecsMock, times(0)).listMetricCalculationSpecs(any())
+      verify(reportResultsMock, times(1)).createReportResult(any())
+      assertReportAssemblySpan(basicReport, "succeeded", null, null)
     }
 
   @Test
@@ -1384,11 +1565,25 @@ class BasicReportsReportsJobTest {
                   metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
                 }
             }
+          metricCalculationResults += metricCalculationResults.single()
         }
 
       whenever(reportsMock.getReport(any())).thenReturn(report)
 
       job.execute()
+
+      verifyProtoArgument(
+          metricCalculationSpecsMock,
+          MetricCalculationSpecsCoroutineImplBase::batchGetMetricCalculationSpecs,
+        )
+        .isEqualTo(
+          batchGetMetricCalculationSpecsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalMetricCalculationSpecIds +=
+              CUMULATIVE_WEEKLY_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId
+          }
+        )
+      verify(metricCalculationSpecsMock, times(0)).listMetricCalculationSpecs(any())
 
       val requestCaptor = argumentCaptor<BatchCreateReportingSetResultsRequest>()
       verifyBlocking(reportResultsMock, times(1)) {
@@ -2435,11 +2630,20 @@ class BasicReportsReportsJobTest {
       )
 
     verify(basicReportsMock, times(0)).failBasicReport(any())
+    val traceLog = reportAssemblyLog()
+    assertThat(traceLog).contains("xmm.report.state=RUNNING")
+    assertThat(traceLog).contains("xmm.outcome=in_progress")
   }
 
   @Test
   fun `execute sets basic report to FAILED when report for basic report is FAILED`(): Unit =
     runBlocking {
+      val basicReport =
+        INTERNAL_BASIC_REPORT.copy {
+          externalBasicReportId = "report-failed-basic-report"
+          state = BasicReport.State.REPORT_CREATED
+        }
+      stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
       whenever(reportsMock.getReport(any())).thenReturn(REPORT.copy { state = Report.State.FAILED })
 
       job.execute()
@@ -2459,10 +2663,181 @@ class BasicReportsReportsJobTest {
         .isEqualTo(
           failBasicReportRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalBasicReportId = INTERNAL_BASIC_REPORT.externalBasicReportId
+            externalBasicReportId = basicReport.externalBasicReportId
           }
         )
+      assertReportAssemblySpan(
+        basicReport = basicReport,
+        expectedOutcome = "report_failed",
+        expectedErrorType = null,
+        expectedErrorCode = null,
+      )
+      val traceLog = reportAssemblyLog()
+      assertThat(traceLog).contains("xmm.report.state=FAILED")
+      assertThat(traceLog).contains("xmm.outcome=report_failed")
+      val failureWritebackLogs = failureWritebackLogs()
+      assertThat(failureWritebackLogs).hasSize(2)
+      assertThat(failureWritebackLogs[0]).contains("xmm.outcome=started")
+      assertThat(failureWritebackLogs[1]).contains("xmm.outcome=succeeded")
+      val basicReportName =
+        BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
+          .toName()
+      for (log in failureWritebackLogs) {
+        assertThat(log).contains(basicReportName)
+      }
     }
+
+  @Test
+  fun `execute traces invalid BasicReport result transformation`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "invalid-result-transformation"
+        state = BasicReport.State.REPORT_CREATED
+        details =
+          INTERNAL_BASIC_REPORT.details.copy { effectiveImpressionQualificationFilters.clear() }
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(
+        REPORT.copy {
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec =
+                MetricCalculationSpecKey(
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    NON_CUMULATIVE_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                  )
+                  .toName()
+              reportingSet =
+                ReportingSetKey(
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    COMPOSITE_REPORTING_SET.externalReportingSetId,
+                  )
+                  .toName()
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  filter = "banner_ad != null && banner_ad.viewable == true"
+                  metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 1736150400 }
+                    endTime = timestamp { seconds = 1736755200 }
+                  }
+                  metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
+                }
+            }
+        }
+      )
+
+    job.execute()
+
+    verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::failBasicReport)
+      .isEqualTo(
+        failBasicReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalBasicReportId = basicReport.externalBasicReportId
+        }
+      )
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "InvalidBasicReportException",
+      expectedErrorCode = null,
+    )
+  }
+
+  @Test
+  fun `execute traces GetReport failure`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "get-report-failure"
+        state = BasicReport.State.REPORT_CREATED
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportsMock.getReport(any())).thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    job.execute()
+
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "StatusException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
+    )
+    val traceLog = reportAssemblyLog()
+    assertThat(traceLog).contains("xmm.outcome=failed")
+    assertThat(traceLog).contains("xmm.error.type=StatusException")
+    assertThat(traceLog).contains("xmm.error.code=grpc.UNAVAILABLE")
+    assertThat(traceLog).doesNotContain("\n")
+  }
+
+  @Test
+  fun `execute traces CreateReportResult failure`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "create-result-failure"
+        state = BasicReport.State.REPORT_CREATED
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportResultsMock.createReportResult(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    job.execute()
+
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "StatusException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
+    )
+  }
+
+  @Test
+  fun `execute traces BatchCreateReportingSetResults failure`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "batch-create-results-failure"
+        state = BasicReport.State.REPORT_CREATED
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportResultsMock.batchCreateReportingSetResults(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    job.execute()
+
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "StatusException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
+    )
+  }
+
+  @Test
+  fun `execute traces failure writing report-failed BasicReport state`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "failure-writeback"
+        state = BasicReport.State.REPORT_CREATED
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportsMock.getReport(any())).thenReturn(REPORT.copy { state = Report.State.FAILED })
+    whenever(basicReportsMock.failBasicReport(any()))
+      .thenThrow(Status.FAILED_PRECONDITION.asRuntimeException())
+
+    job.execute()
+
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "StatusException",
+      expectedErrorCode = "grpc.FAILED_PRECONDITION",
+    )
+    val failureWritebackLogs = failureWritebackLogs()
+    assertThat(failureWritebackLogs).hasSize(2)
+    assertThat(failureWritebackLogs[0]).contains("xmm.outcome=started")
+    assertThat(failureWritebackLogs[1]).contains("xmm.outcome=failed")
+    assertThat(failureWritebackLogs[1]).contains("xmm.error.code=grpc.FAILED_PRECONDITION")
+  }
 
   @Test
   fun `execute gets report for basic report when attempt fails for a previous basic report`():
@@ -2616,6 +2991,7 @@ class BasicReportsReportsJobTest {
   fun `execute fails basic report stuck in CREATED`(): Unit = runBlocking {
     val stuckBasicReport =
       INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "br-stuck-01"
         state = BasicReport.State.CREATED
         clearExternalReportId()
         createTime = STUCK_CREATE_TIME
@@ -2631,6 +3007,22 @@ class BasicReportsReportsJobTest {
           externalBasicReportId = stuckBasicReport.externalBasicReportId
         }
       )
+    val span =
+      spanExporter.finishedSpanItems.single {
+        it.name == "reporting.basic_reports.watchdog_timeout"
+      }
+    assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo(
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, stuckBasicReport.externalBasicReportId)
+          .toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("basic_report_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .contains("BasicReportCreationTimeout")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("BasicReportCreationTimeout")
   }
 
   @Test
@@ -2667,6 +3059,21 @@ class BasicReportsReportsJobTest {
     job.execute()
 
     verify(basicReportsMock, times(2)).failBasicReport(any())
+    val failureSpans =
+      spanExporter.finishedSpanItems.filter {
+        it.name == "reporting.basic_reports.watchdog_writeback"
+      }
+    assertThat(failureSpans).hasSize(1)
+    assertThat(failureSpans.single().attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("basic_report_failure_writeback")
+    assertThat(failureSpans.single().attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.FAILED_PRECONDITION")
+    assertThat(
+        spanExporter.finishedSpanItems.count {
+          it.name == "reporting.basic_reports.watchdog_timeout"
+        }
+      )
+      .isEqualTo(1)
   }
 
   companion object {

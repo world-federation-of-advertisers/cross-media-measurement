@@ -51,7 +51,7 @@ class PostgresBackingStoreTest : AbstractPrivacyBudgetLedgerStoreTest() {
   }
 
   companion object {
-    private const val POSTGRES_IMAGE_NAME = "postgres:15"
+    private const val POSTGRES_IMAGE_NAME = "postgres:16"
 
     private val SCHEMA by lazy { POSTGRES_LEDGER_SCHEMA_FILE.readText() }
 

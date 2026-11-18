@@ -32,6 +32,12 @@ Key resources include:
         to avoid common conflicts.
 *   Secret Manager secrets.
 
+Enable these Google Cloud APIs in the project that runs the TrusTEE mill:
+
+*   Cloud Logging API (`logging.googleapis.com`).
+*   Cloud Monitoring API (`monitoring.googleapis.com`).
+*   Cloud Trace API (`cloudtrace.googleapis.com`).
+
 ### 2. Run TrusTEE Mills
 
 The TrusTEE mills run in a Managed Instance Group (MIG) using Confidential
@@ -54,6 +60,36 @@ Key parameters include:
 *   `replicas`: The number of instances. This can be the same or fewer than the
     number of Honest Majority Share Shuffle (HMSS) mills, as TrusTEE is more
     efficient.
+
+Each mill processes one work item at a time and immediately claims the next
+available item. Initialization has priority so EDPs can begin fulfilling
+requisitions. Ready computations are selected when no initialization work is
+available. `--polling-interval` controls the wait after an empty claim or an
+exception escaping the claim/processing call.
+Handled computation failures retain their existing retry scheduling.
+
+`duchy_aggregator_trustee_replicas` sets the MIG size and defaults to one; dev
+uses two. Each instance has a distinct mill ID and shares the existing work
+locks. Increasing the count adds VM cost and service load; compare queue waits,
+completion time, and worker utilization before increasing it further.
+
+The reference Terraform module also sets the following environment variables
+through Confidential Space instance metadata. Custom infrastructure must set
+equivalent values for telemetry export:
+
+*   `OTEL_SERVICE_NAME`: A stable, unique service name, such as
+    `duchy.<duchy-name>.trustee-mill`.
+*   `OTEL_METRICS_EXPORTER=google_cloud_monitoring`.
+*   `OTEL_TRACES_EXPORTER=google_cloud_trace`.
+*   `OTEL_LOGS_EXPORTER=logging`.
+*   `OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID`: The Google Cloud project receiving
+    the telemetry.
+*   `OTEL_METRIC_EXPORT_INTERVAL=60000`: The metrics export interval in
+    milliseconds.
+
+When using the repository's Confidential Space launcher, provide these as
+`tee-env-OTEL_*` instance metadata keys; the launcher removes the `tee-env-`
+prefix before starting the workload container.
 
 #### Service Account and IAM
 

@@ -23,6 +23,10 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.util.JsonFormat
+import io.grpc.Status
+import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
@@ -31,6 +35,7 @@ import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -42,6 +47,7 @@ import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
@@ -49,12 +55,19 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguratio
 import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
@@ -81,7 +94,6 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `MODEL_LINES_TARGET`: Required. Target endpoint for the VID Repository ModelLines service.
  * - `MODEL_LINES_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_ROLLOUTS_TARGET`: Required. Target endpoint for the VID Repository ModelRollouts
- *   service.
  * - `MODEL_ROLLOUTS_CERT_HOST`: Optional. Overrides TLS authority for testing.
  * - `MODEL_SHARDS_TARGET`: Required. Target endpoint for the VID Repository ModelShards service.
  * - `MODEL_SHARDS_CERT_HOST`: Optional. Overrides TLS authority for testing.
@@ -100,6 +112,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   throttlers.
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
+ * - `VID_LABELING_DISPATCHER_FOOTER_READ_CONCURRENCY`: Optional. Maximum concurrent Parquet footer
+ *   reads (default: 12).
  *
  * ## Request Headers
  * - `X-DataWatcher-Path`: Required. Full storage URI of the "done" blob.
@@ -107,6 +121,10 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `X-Override-Model-Lines`: Optional. Comma-separated list of model line resource names to use
  *   instead of querying the VID Repository API. Supports backfilling past data where the model line
  *   may no longer be in the active window.
+ * - `X-Recovery-Source-Upload`: Optional. Evicted source upload that authorizes an override
+ *   forwarded from done-object recovery metadata.
+ * - `X-Eviction-Operation-Id`: Optional. Eviction operation that authorizes the recovery. Required
+ *   together with `X-Recovery-Source-Upload`.
  */
 class VidLabelingDispatcherFunction : HttpFunction {
   init {
@@ -140,6 +158,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
           .getFirstHeader(OVERRIDE_MODEL_LINES_HEADER)
           .map { header -> header.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
           .orElse(emptyList())
+      val recoverySourceUpload = request.getFirstHeader(RECOVERY_SOURCE_UPLOAD_HEADER).orElse(null)
+      val evictionOperationId = request.getFirstHeader(EVICTION_OPERATION_ID_HEADER).orElse(null)
 
       val config: VidLabelingConfig =
         vidLabelingConfigsByDataProvider[dispatcherParams.dataProvider]
@@ -197,9 +217,17 @@ class VidLabelingDispatcherFunction : HttpFunction {
         RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
           rawImpressionUploadChannel
         )
-
       val rawImpressionUploadModelLineStub =
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
+          rawImpressionUploadChannel
+        )
+      val correctionCandidateStub =
+        RawImpressionUploadCorrectionCandidateServiceGrpcKt
+          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawImpressionUploadChannel)
+      val rankIndexBlobStub =
+        RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
+      val uploadHealingOperationStub =
+        UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
           rawImpressionUploadChannel
         )
       // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
@@ -234,6 +262,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatchSequencer(
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+          rankIndexBlobStub = rankIndexBlobStub,
+          uploadHealingOperationStub = uploadHealingOperationStub,
           workItemsStub = workItemsStub,
           poolAssignmentJobStub = poolAssignmentJobStub,
           modelRolloutsStub = modelRolloutsStub,
@@ -258,30 +288,80 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatcher(
           storageClient = storageClient,
           readEventDate = { blobUri ->
-            val blobPath =
+            val parquetBlobPath =
               if (fileSystemPath.isNullOrEmpty()) {
                 blobUri
               } else {
                 SelectedStorageClient.parseBlobUri(blobUri).key
               }
-            readEventDateFromFooter(parquetStorageClient, blobPath)
+            readEventDateFromFooter(parquetStorageClient, parquetBlobPath)
           },
           readBlobMetadata = readBlobMetadata,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+          correctionDetectionStub = correctionCandidateStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+          rankIndexBlobStub = rankIndexBlobStub,
           modelLinesStub = modelLinesStub,
           dispatchSequencer = dispatchSequencer,
           dataProviderName = config.dataProvider,
           modelSuiteName = config.modelSuite,
           overrideModelLines = overrideModelLines,
+          recoverySourceUpload = recoverySourceUpload,
+          recoveryOperationId = evictionOperationId,
           modelLineConfigs = modelLineConfigs,
+          footerReadConcurrency =
+            VidLabelingDispatcher.resolveFooterReadConcurrency(
+              System.getenv(VidLabelingDispatcher.FOOTER_READ_CONCURRENCY_ENV)
+            ),
           rpcThrottlers = rpcThrottlers,
+          getHealingOperation = { name ->
+            try {
+              uploadHealingOperationStub.getUploadHealingOperation(
+                getUploadHealingOperationRequest { this.name = name }
+              )
+            } catch (e: StatusException) {
+              if (e.status.code == Status.Code.NOT_FOUND) null else throw e
+            }
+          },
+          readBlobVersionMetadata = createBlobVersionMetadataReader(doneBlobPath, readBlobMetadata),
+          getCorrectionCandidate = { name ->
+            correctionCandidateStub.getRawImpressionUploadCorrectionCandidate(
+              getRawImpressionUploadCorrectionCandidateRequest { this.name = name }
+            )
+          },
         )
 
       Tracing.withW3CTraceContext(request) {
-        runBlocking(Context.current().asContextElement()) {
-          dispatcher.upload(doneBlobPath, doneBlobGeneration)
+        val doneBlobPathHash = VidLabelingTraceLogging.sha256(doneBlobPath)
+        Tracing.trace(
+          spanName = "edpa.vid_labeling.upload.register",
+          attributes =
+            Attributes.builder()
+              .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, config.dataProvider)
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, doneBlobPathHash)
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, doneBlobGeneration)
+              .put(XmmTraceAttributes.LIFECYCLE_STAGE, "upload_registration")
+              .put(XmmTraceAttributes.OUTCOME, "started")
+              .build(),
+        ) {
+          try {
+            val outcome =
+              runBlocking(Context.current().asContextElement()) {
+                dispatcher.upload(doneBlobPath, doneBlobGeneration)
+              }
+            Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.telemetryValue)
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            Span.current()
+              .setAttribute(XmmTraceAttributes.OUTCOME, "failed")
+              .setAttribute(XmmTraceAttributes.ERROR_TYPE, XmmTraceAttributes.errorType(e))
+            XmmTraceAttributes.errorCode(e)?.let {
+              Span.current().setAttribute(XmmTraceAttributes.ERROR_CODE, it)
+            }
+            throw e
+          }
         }
       }
     } catch (e: IllegalArgumentException) {
@@ -300,6 +380,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
+    private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
+    private const val EVICTION_OPERATION_ID_HEADER: String = "X-Eviction-Operation-Id"
     private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
     private val modelLinesTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_LINES_TARGET")
@@ -425,6 +507,42 @@ class VidLabelingDispatcherFunction : HttpFunction {
             generation = blob.generation,
             sizeBytes = blob.size,
             createTime = blob.createTimeOffsetDateTime.toInstant(),
+          )
+        }
+      }
+    }
+
+    private fun createBlobVersionMetadataReader(
+      doneBlobPath: String,
+      currentReader: suspend (String) -> RawImpressionBlobMetadata,
+    ): suspend (String, Long) -> RawImpressionBlobMetadata {
+      if (!fileSystemPath.isNullOrEmpty()) {
+        return { key, generation ->
+          currentReader(key).also {
+            check(it.generation == generation) { "The retained raw-object version is unavailable" }
+          }
+        }
+      }
+      val doneBlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
+      val storage =
+        StorageOptions.newBuilder()
+          .also { builder ->
+            System.getenv(GOOGLE_PROJECT_ID_ENV)
+              ?.takeIf { it.isNotEmpty() }
+              ?.let { builder.setProjectId(it) }
+          }
+          .build()
+          .service
+      return { key, generation ->
+        withContext(Dispatchers.IO) {
+          val blob =
+            checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, key, generation))) {
+              "The retained raw-object version is unavailable"
+            }
+          RawImpressionBlobMetadata(
+            blob.generation,
+            blob.size,
+            blob.createTimeOffsetDateTime.toInstant(),
           )
         }
       }

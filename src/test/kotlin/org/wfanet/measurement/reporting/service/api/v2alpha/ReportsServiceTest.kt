@@ -28,6 +28,11 @@ import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.nio.file.Paths
 import java.time.Duration
 import java.time.Instant
@@ -35,6 +40,7 @@ import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -69,12 +75,14 @@ import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
@@ -257,9 +265,22 @@ class ReportsServiceTest {
   }
 
   private lateinit var service: ReportsService
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun initService() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     randomMock.stub {
       on { nextInt(any()) } doReturn RANDOM_OUTPUT_INT
       on { nextLong() } doReturn RANDOM_OUTPUT_LONG
@@ -274,6 +295,11 @@ class ReportsServiceTest {
         Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         randomMock,
       )
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
   }
 
   @Test
@@ -316,6 +342,46 @@ class ReportsServiceTest {
       )
 
     assertThat(result).isEqualTo(PENDING_REACH_REPORT)
+  }
+
+  @Test
+  fun `createReport rejects BasicReport from another MeasurementConsumer`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+          basicReport = "measurementConsumers/different/basicReports/basic-report"
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createReport(request) } }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createReport rejects whitespace BasicReport name`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+          basicReport = " "
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createReport(request) } }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test
@@ -576,6 +642,10 @@ class ReportsServiceTest {
           metric {
             reportingSet = targetReportingSet.name
             this.timeInterval = timeInterval
+            reportInterval = interval {
+              startTime = timeIntervalsList.first().startTime
+              endTime = timeIntervalsList.last().endTime
+            }
             metricSpec = REACH_METRIC_SPEC
             containingReport = internalPendingReport.resourceName
           }
@@ -1411,6 +1481,7 @@ class ReportsServiceTest {
         metric {
           reportingSet = targetReportingSet.name
           this.timeInterval = timeInterval
+          reportInterval = timeInterval
           metricSpec = REACH_METRIC_SPEC
           this.filters += groupingPredicates
           this.filters += filter
@@ -1564,6 +1635,7 @@ class ReportsServiceTest {
           metric {
             reportingSet = targetReportingSet.name
             this.timeInterval = timeInterval
+            reportInterval = timeInterval
             this.metricSpec = metricSpec
             containingReport = internalPendingReport.resourceName
           }
@@ -1784,6 +1856,10 @@ class ReportsServiceTest {
           metric {
             reportingSet = metricConfig.reportingSet
             timeInterval = metricConfig.timeInterval
+            reportInterval = interval {
+              startTime = timeIntervalsList.first().startTime
+              endTime = timeIntervalsList.last().endTime
+            }
             metricSpec = metricConfig.metricSpec
             filters += metricConfig.filters
             filters += filter
@@ -1991,6 +2067,7 @@ class ReportsServiceTest {
           metric {
             this.reportingSet = reportingSet.name
             this.timeInterval = timeInterval
+            reportInterval = timeInterval
             metricSpec = REACH_METRIC_SPEC
             containingReport = internalPendingReport.resourceName
           }
@@ -2214,6 +2291,7 @@ class ReportsServiceTest {
           metric {
             reportingSet = targetReportingSet.name
             this.timeInterval = timeInterval
+            reportInterval = timeInterval
             metricSpec = REACH_METRIC_SPEC
             containingReport = internalPendingReport.resourceName
           }
@@ -3182,6 +3260,16 @@ class ReportsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createReport(request) } }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val span = spanExporter.finishedSpanItems.single { it.name == "reporting.report.create" }
+    assertThat(span.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo(
+        ReportKey(MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId, "report-id").toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("report_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test
@@ -3337,6 +3425,14 @@ class ReportsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.message).contains("ReportSchedule")
+    val span = spanExporter.finishedSpanItems.single { it.name == "reporting.report.create" }
+    assertThat(span.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo(ReportKey(measurementConsumerKey, request.reportId).toName())
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("report_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test
@@ -4456,6 +4552,10 @@ class ReportsServiceTest {
               this.filters += predicate
               this.filters += filter
               containingReport = internalPendingReport.resourceName
+              reportInterval = interval {
+                startTime = timeIntervals.minBy { it.startTime.seconds }.startTime
+                endTime = timeIntervals.maxBy { it.endTime.seconds }.endTime
+              }
             }
           }
         }
@@ -5018,6 +5118,7 @@ class ReportsServiceTest {
         startTime = START_TIME
         endTime = END_TIME
       }
+      reportInterval = timeInterval
       metricSpec = REACH_METRIC_SPEC
     }
 

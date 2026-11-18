@@ -586,17 +586,69 @@ cue_dump(
     ],
 )
 
+config_setting(
+    name = "dead_letter_processing_disabled",
+    define_values = {"dead_letter_processing_enabled": "false"},
+)
+
+config_setting(
+    name = "publication_and_dead_letter_processing_disabled",
+    define_values = {
+        "dead_letter_processing_enabled": "false",
+        "work_item_publication_enabled": "false",
+    },
+)
+
+config_setting(
+    name = "work_item_publication_disabled",
+    define_values = {"work_item_publication_enabled": "false"},
+)
+
 cue_dump(
     name = "secure_computation_gke",
     srcs = ["secure_computation_gke.cue"],
-    cue_tags = {
-        "secret_name": SIGNING_SECRET_NAME,
-        "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
-        "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
-        "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
-        "google_cloud_project": GCLOUD_SETTINGS.project,
-        "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
-    },
+    cue_tags = select({
+        ":publication_and_dead_letter_processing_disabled": {
+            "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+            "dead_letter_processing_enabled": "false",
+            "google_cloud_project": GCLOUD_SETTINGS.project,
+            "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+            "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+            "secret_name": SIGNING_SECRET_NAME,
+            "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+            "work_item_publication_enabled": "false",
+        },
+        ":dead_letter_processing_disabled": {
+            "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+            "dead_letter_processing_enabled": "false",
+            "google_cloud_project": GCLOUD_SETTINGS.project,
+            "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+            "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+            "secret_name": SIGNING_SECRET_NAME,
+            "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+            "work_item_publication_enabled": "true",
+        },
+        ":work_item_publication_disabled": {
+            "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+            "dead_letter_processing_enabled": "true",
+            "google_cloud_project": GCLOUD_SETTINGS.project,
+            "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+            "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+            "secret_name": SIGNING_SECRET_NAME,
+            "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+            "work_item_publication_enabled": "false",
+        },
+        "//conditions:default": {
+            "container_registry": IMAGE_REPOSITORY_SETTINGS.container_registry,
+            "dead_letter_processing_enabled": "true",
+            "google_cloud_project": GCLOUD_SETTINGS.project,
+            "image_repo_prefix": IMAGE_REPOSITORY_SETTINGS.repository_prefix,
+            "image_tag": IMAGE_REPOSITORY_SETTINGS.image_tag,
+            "secret_name": SIGNING_SECRET_NAME,
+            "spanner_instance": GCLOUD_SETTINGS.spanner_instance,
+            "work_item_publication_enabled": "true",
+        },
+    }),
     tags = ["manual"],
     deps = [
         ":base_gke",

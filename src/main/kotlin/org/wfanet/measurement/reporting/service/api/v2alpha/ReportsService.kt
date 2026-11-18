@@ -26,6 +26,8 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.Period
@@ -57,7 +59,10 @@ import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
@@ -235,6 +240,17 @@ class ReportsService(
       }
     val parent: String = reportKey.parentKey.toName()
 
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REPORT_NAME, request.name)
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "report_result_assembly")
+      .addEvent(
+        "reporting.report.fetch_started",
+        io.opentelemetry.api.common.Attributes.of(
+          ReportTraceAttributes.LIFECYCLE_STAGE,
+          "report_result_assembly",
+        ),
+      )
+
     authorization.check(listOf(request.name, parent), Permission.GET)
 
     val internalReport =
@@ -256,6 +272,22 @@ class ReportsService(
           .withDescription("Unable to get Report.")
           .asRuntimeException()
       }
+
+    Span.current().also { span ->
+      if (internalReport.details.basicReport.isNotBlank()) {
+        span.setAttribute(
+          ReportTraceAttributes.BASIC_REPORT_NAME,
+          internalReport.details.basicReport,
+        )
+      }
+      span.addEvent(
+        "reporting.report.loaded",
+        io.opentelemetry.api.common.Attributes.builder()
+          .put(ReportTraceAttributes.REPORT_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "report_result_assembly")
+          .build(),
+      )
+    }
 
     // Get metrics.
     val metricNames: Flow<String> = flow {
@@ -288,6 +320,14 @@ class ReportsService(
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(parent, items)
     }
+    Span.current()
+      .addEvent(
+        "reporting.metrics.fetch_started",
+        io.opentelemetry.api.common.Attributes.of(
+          ReportTraceAttributes.LIFECYCLE_STAGE,
+          "metric_result_sync",
+        ),
+      )
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc, concurrency = 3) { response
           ->
@@ -301,7 +341,33 @@ class ReportsService(
     }
 
     // Convert the internal report to public and return.
-    return convertInternalReportToPublic(internalReport, externalIdToMetricMap)
+    val report = convertInternalReportToPublic(internalReport, externalIdToMetricMap)
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REPORT_STATE, report.state.name)
+      .setAttribute(
+        ReportTraceAttributes.OUTCOME,
+        when (report.state) {
+          Report.State.SUCCEEDED -> "succeeded"
+          Report.State.FAILED -> "failed"
+          else -> "in_progress"
+        },
+      )
+      .addEvent(
+        "reporting.report.returned",
+        io.opentelemetry.api.common.Attributes.builder()
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "report_result_assembly")
+          .put(ReportTraceAttributes.REPORT_STATE, report.state.name)
+          .put(
+            ReportTraceAttributes.OUTCOME,
+            when (report.state) {
+              Report.State.SUCCEEDED -> "succeeded"
+              Report.State.FAILED -> "failed"
+              else -> "in_progress"
+            },
+          )
+          .build(),
+      )
+    return report
   }
 
   private suspend fun batchGetMetrics(
@@ -338,7 +404,41 @@ class ReportsService(
 
     grpcRequire(request.hasReport()) { "Report is not specified." }
     grpcRequire(request.reportId.matches(RESOURCE_ID_REGEX)) { "Report ID is invalid." }
+    if (request.report.basicReport.isNotEmpty()) {
+      val basicReportKey =
+        grpcRequireNotNull(BasicReportKey.fromName(request.report.basicReport)) {
+          "report.basic_report is invalid"
+        }
+      grpcRequire(basicReportKey.parentKey == parentKey) {
+        "report.basic_report has incorrect parent"
+      }
+    }
 
+    return ReportTracing.traceSuspending(
+      spanName = "reporting.report.create",
+      attributes =
+        Attributes.builder()
+          .put(
+            ReportTraceAttributes.REPORT_NAME,
+            ReportKey(parentKey.measurementConsumerId, request.reportId).toName(),
+          )
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "report_creation")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .also { builder ->
+            if (request.report.basicReport.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, request.report.basicReport)
+            }
+          }
+          .build(),
+    ) {
+      createReportInternal(request, parentKey)
+    }
+  }
+
+  private suspend fun createReportInternal(
+    request: CreateReportRequest,
+    parentKey: MeasurementConsumerKey,
+  ): Report {
     grpcRequire(request.report.reportingMetricEntriesList.isNotEmpty()) {
       "No ReportingMetricEntry is specified."
     }
@@ -409,6 +509,20 @@ class ReportsService(
       }
 
     // Create metrics.
+    Span.current()
+      .setAttribute(
+        ReportTraceAttributes.REPORT_NAME,
+        ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
+          .toName(),
+      )
+      .also { span ->
+        if (internalReport.details.basicReport.isNotBlank()) {
+          span.setAttribute(
+            ReportTraceAttributes.BASIC_REPORT_NAME,
+            internalReport.details.basicReport,
+          )
+        }
+      }
     val createMetricRequests: Flow<CreateMetricRequest> =
       @OptIn(ExperimentalCoroutinesApi::class)
       internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
@@ -427,6 +541,8 @@ class ReportsService(
               containingReportResourceName =
                 ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
                   .toName(),
+              basicReportResourceName = internalReport.details.basicReport,
+              reportInterval = internalReport.reportInterval(),
             )
           }
         }
@@ -471,7 +587,11 @@ class ReportsService(
       }
 
     // Convert the internal report to public and return.
-    return convertInternalReportToPublic(updatedInternalReport, externalIdToMetricMap)
+    val report = convertInternalReportToPublic(updatedInternalReport, externalIdToMetricMap)
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REPORT_STATE, report.state.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+    return report
   }
 
   /** Returns a map of external IDs to [InternalMetricCalculationSpec]. */
@@ -517,6 +637,7 @@ class ReportsService(
           .toName()
 
       tags.putAll(internalReport.details.tagsMap)
+      basicReport = internalReport.details.basicReport
 
       reportingMetricEntries +=
         internalReport.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
@@ -669,6 +790,7 @@ class ReportsService(
         details =
           InternalReportKt.details {
             tags.putAll(request.report.tagsMap)
+            basicReport = request.report.basicReport
             when (request.report.timeCase) {
               Report.TimeCase.TIME_INTERVALS -> {
                 timeIntervals = request.report.timeIntervals.toInternal()
@@ -1006,6 +1128,31 @@ private fun Date.isBefore(other: Date): Boolean {
   return LocalDate.of(this.year, this.month, this.day)
     .isBefore(LocalDate.of(other.year, other.month, other.day))
 }
+
+private fun InternalReport.reportInterval(): Interval? {
+  if (details.hasTimeIntervals()) {
+    val intervals = details.timeIntervals.timeIntervalsList
+    if (intervals.isEmpty()) return null
+    return interval {
+      startTime = intervals.minWith(TIMESTAMP_INTERVAL_START_COMPARATOR).startTime
+      endTime = intervals.maxWith(TIMESTAMP_INTERVAL_END_COMPARATOR).endTime
+    }
+  }
+  if (!details.hasReportingInterval()) return null
+  val reportingInterval = details.reportingInterval
+  if (
+    reportingInterval.reportStart.timeOffsetCase ==
+      com.google.type.DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET
+  ) {
+    return null
+  }
+  return generateTimeIntervals(reportingInterval.toReportingInterval(), null).single()
+}
+
+private val TIMESTAMP_INTERVAL_START_COMPARATOR =
+  compareBy<Interval>({ it.startTime.seconds }, { it.startTime.nanos })
+private val TIMESTAMP_INTERVAL_END_COMPARATOR =
+  compareBy<Interval>({ it.endTime.seconds }, { it.endTime.nanos })
 
 /**
  * Generate a list of time intervals using the [Report.ReportingInterval], the

@@ -19,15 +19,17 @@ import io.cloudevents.CloudEvent
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind
-import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.propagation.TextMapGetter
 import io.opentelemetry.context.propagation.TextMapPropagator
+import io.opentelemetry.context.propagation.TextMapSetter
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.telemetry.XmmTracing
 
 object Tracing {
   private val w3cPropagator: TextMapPropagator = W3CTraceContextPropagator.getInstance()
@@ -78,6 +80,22 @@ object Tracing {
     }
   }
 
+  /** Installs W3C trace context from a string carrier for synchronous work. */
+  fun <T> withW3CTraceContext(carrier: Map<String, String>, block: () -> T): T {
+    val parentContext = w3cPropagator.extract(Context.current(), carrier, StringMapGetter)
+    val scope = parentContext.makeCurrent()
+    return try {
+      block()
+    } finally {
+      scope.close()
+    }
+  }
+
+  /** Returns the current W3C trace context as propagation headers. */
+  fun currentW3CTraceContext(): Map<String, String> = buildMap {
+    w3cPropagator.inject(Context.current(), this, StringMapSetter)
+  }
+
   @PublishedApi
   internal fun extractW3CContext(request: HttpRequest): Context {
     return w3cPropagator.extract(Context.current(), request, CloudFunctionsHttpRequestGetter)
@@ -125,12 +143,11 @@ object Tracing {
     val span = spanBuilder.startSpan()
     val scope = span.makeCurrent()
     try {
-      val result = block()
-      span.setStatus(StatusCode.OK)
-      return result
+      return block()
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
-      span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
-      span.recordException(e)
+      recordFailure(span, e)
       throw e
     } finally {
       scope.close()
@@ -174,19 +191,35 @@ object Tracing {
     spanBuilder.setAllAttributes(attributes)
 
     val span = spanBuilder.startSpan()
-    val scope = span.makeCurrent()
+    val context = Context.current().with(span)
     return try {
-      val result = withContext(Context.current().asContextElement()) { block() }
-      span.setStatus(StatusCode.OK)
-      result
+      withContext(context.asContextElement()) { block() }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
-      span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
-      span.recordException(e)
+      recordFailure(span, e)
       throw e
     } finally {
-      scope.close()
       span.end()
     }
+  }
+
+  /** Records a failed operation whose work was shared by multiple correlated resources. */
+  fun recordFailure(spanName: String, attributes: Attributes, error: Throwable) {
+    val span =
+      Instrumentation.openTelemetry
+        .getTracer("edpa-instrumentation")
+        .spanBuilder(spanName)
+        .setSpanKind(SpanKind.INTERNAL)
+        .setAllAttributes(attributes)
+        .startSpan()
+    recordFailure(span, error)
+    span.end()
+  }
+
+  @PublishedApi
+  internal fun recordFailure(span: Span, error: Throwable) {
+    XmmTracing.recordFailure(span, error)
   }
 
   private object CloudFunctionsHttpRequestGetter : TextMapGetter<HttpRequest> {
@@ -222,6 +255,18 @@ object Tracing {
     override fun get(carrier: CloudEvent?, key: String): String? {
       if (carrier == null) return null
       return carrier.getExtension(key)?.toString()
+    }
+  }
+
+  private object StringMapGetter : TextMapGetter<Map<String, String>> {
+    override fun keys(carrier: Map<String, String>): Iterable<String> = carrier.keys
+
+    override fun get(carrier: Map<String, String>?, key: String): String? = carrier?.get(key)
+  }
+
+  private object StringMapSetter : TextMapSetter<MutableMap<String, String>> {
+    override fun set(carrier: MutableMap<String, String>?, key: String, value: String) {
+      carrier?.put(key, value)
     }
   }
 }

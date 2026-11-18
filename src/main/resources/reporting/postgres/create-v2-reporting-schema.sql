@@ -350,7 +350,7 @@ CREATE TABLE Reports (
     ON DELETE CASCADE
 );
 
--- changeset tristanvuong2021:add-report-create-time-index dbms:postgresl
+-- changeset tristanvuong2021:add-report-create-time-index dbms:postgresql
 CREATE INDEX report_create_time
   ON REPORTS (MeasurementConsumerId, CreateTime DESC, ExternalReportId);
 

@@ -92,6 +92,11 @@ object ReachAndFrequencyComputations {
    * Computes the frequency distribution among VIDs with non-zero frequencies, applying differential
    * privacy noise if parameters are provided.
    *
+   * When [resultMinimumThresholds] is set, each returned rate uses the noised active-register count
+   * before small-cell suppression as its denominator. If suppression removes the 1+ bucket, the
+   * returned rates are not renormalized and can sum to less than 1; the missing mass represents the
+   * suppressed share of reached VIDs.
+   *
    * @param rawHistogram A histogram of counts for frequencies 1 to `maxFrequency`.
    * @param maxFrequency The maximum frequency to reveal in the distribution. The input
    *   `rawHistogram` must have this size.
@@ -113,19 +118,15 @@ object ReachAndFrequencyComputations {
     }
     val noisedHistogram =
       LongArray(maxFrequency) { index -> noiser.noiseFrequencyBucket(index, rawHistogram[index]) }
-    if (noisedHistogram.sum() == 0L) {
+    val numNoisedActiveRegisters = noisedHistogram.sum()
+    if (numNoisedActiveRegisters == 0L) {
       return (1..maxFrequency).associate { it.toLong() to 0.0 }
     }
 
     if (resultMinimumThresholds == null) {
-      val numNoisedActiveRegisters = noisedHistogram.sum()
       return noisedHistogram.withIndex().associate { (index, count) ->
         val frequency = index + 1L
-        if (numNoisedActiveRegisters === 0L) {
-          frequency to 0.0
-        } else {
-          frequency to count.toDouble() / numNoisedActiveRegisters
-        }
+        frequency to count.toDouble() / numNoisedActiveRegisters
       }
     }
 
@@ -148,14 +149,10 @@ object ReachAndFrequencyComputations {
         }
       }
     }
-    val numThresholdedActiveRegisters = thresholdedHistogram.sum()
+    // Keep the pre-threshold denominator so suppressing 1+ does not redistribute its users.
     return thresholdedHistogram.withIndex().associate { (index, count) ->
       val frequency = index + 1L
-      if (numThresholdedActiveRegisters === 0L) {
-        frequency to 0.0
-      } else {
-        frequency to count.toDouble() / numThresholdedActiveRegisters
-      }
+      frequency to count.toDouble() / numNoisedActiveRegisters
     }
   }
 }

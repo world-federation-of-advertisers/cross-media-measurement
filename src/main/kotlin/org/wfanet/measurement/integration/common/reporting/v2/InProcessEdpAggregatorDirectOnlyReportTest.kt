@@ -19,7 +19,14 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup as EdpaEventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey as edpaEntityKey
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.copy
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -27,6 +34,7 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -56,7 +64,346 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
     duchyNames,
     hmssEnabled,
     trusTeeEnabled,
+    mixedIdentifierHistoryEnabled = true,
   ) {
+
+  @Test
+  fun `reports match across metadata-only legacy and entity-key blob history`() = runBlocking {
+    assertMixedHistoryBlobContents()
+    val eventGroups = prepareMixedHistoryEventGroups()
+    val referenceIdOnlyEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID }
+    val entityKeyOnlyEventGroup =
+      eventGroups.single { it.entityKey.entityId == MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID }
+    val dualIdentifierEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID }
+
+    assertThat(
+        listOf(referenceIdOnlyEventGroup, entityKeyOnlyEventGroup, dualIdentifierEventGroup)
+          .map { it.name }
+          .toSet()
+      )
+      .hasSize(3)
+    assertThat(referenceIdOnlyEventGroup.entityKey.entityId).isEmpty()
+    assertThat(entityKeyOnlyEventGroup.eventGroupReferenceId).isEmpty()
+    assertThat(dualIdentifierEventGroup.entityKey.entityId)
+      .isEqualTo(MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID)
+
+    val completedBasicReports =
+      listOf(
+        runBasicReport(referenceIdOnlyEventGroup, "mixed-history-reference-only"),
+        runBasicReport(entityKeyOnlyEventGroup, "mixed-history-entity-only"),
+        runBasicReport(dualIdentifierEventGroup, "mixed-history-dual-identifier"),
+      )
+    completedBasicReports.forEach { completedBasicReport ->
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(completedBasicReport)
+      assertSingleEdpNoNoiseResults(
+        completedBasicReport,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
+      )
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
+
+    val cumulativeResults =
+      completedBasicReports.map { basicReport ->
+        basicReport.resultGroupsList
+          .single()
+          .resultsList
+          .single {
+            it.metadata.metricFrequency.selectorCase == MetricFrequencySpec.SelectorCase.TOTAL
+          }
+          .metricSet
+          .reportingUnit
+          .cumulative
+      }
+    cumulativeResults.drop(1).forEach { assertThat(it).isEqualTo(cumulativeResults.first()) }
+  }
+
+  @Test
+  fun `basic report with dual and entity-key-only event groups in one requisition succeeds`() =
+    runBlocking {
+      val eventGroups = prepareMixedHistoryEventGroups()
+      val entityKeyOnlyEventGroup =
+        eventGroups.single { it.entityKey.entityId == MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID }
+      val dualIdentifierEventGroup =
+        eventGroups.single {
+          it.eventGroupReferenceId == MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID
+        }
+
+      val completedBasicReport =
+        runBasicReport(
+          listOf(dualIdentifierEventGroup, entityKeyOnlyEventGroup),
+          "mixed-history-two-event-groups",
+        )
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(completedBasicReport)
+      assertSingleEdpNoNoiseResults(
+        completedBasicReport,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH,
+      )
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
+
+  @Test
+  fun `campaign and exhaustive lower-level selectors return identical report results`() =
+    runBlocking {
+      assertThat(wholeBlobEntityTypes).containsExactly("campaign")
+      val eventGroups = listReportingEventGroups()
+      val campaignEventGroup =
+        eventGroups.single { it.entityKey.entityId == HIERARCHY_CAMPAIGN_ENTITY_ID }
+      val hierarchyEventGroups =
+        eventGroups.filter {
+          it.entityKey.entityId == HIERARCHY_CAMPAIGN_ENTITY_ID ||
+            it.entityKey.entityId in HIERARCHY_LOWER_ENTITY_IDS.values.flatten()
+        }
+      assertThat(hierarchyEventGroups.map { it.name }.toSet()).hasSize(7)
+      assertHierarchyBlobContents()
+
+      val campaignReport = runBasicReport(campaignEventGroup, "hierarchy-campaign")
+      assertThat(campaignReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(campaignReport)
+      assertSingleEdpNoNoiseResults(
+        campaignReport,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH,
+      )
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(campaignReport.name))
+
+      for ((entityType, entityIds) in HIERARCHY_LOWER_ENTITY_IDS) {
+        assertThat(wholeBlobEntityTypes).doesNotContain(entityType)
+        val lowerEventGroups = hierarchyEventGroups.filter { it.entityKey.entityType == entityType }
+        assertThat(lowerEventGroups.map { it.entityKey.entityId })
+          .containsExactlyElementsIn(entityIds)
+
+        val lowerReport = runBasicReport(lowerEventGroups, "hierarchy-$entityType-all")
+        assertThat(lowerReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+        assertStructuralResults(lowerReport)
+        assertSingleEdpNoNoiseResults(
+          lowerReport,
+          expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+          expectedImpressions = EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS,
+          expectedKPlusReach = EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH,
+        )
+        assertThat(lowerReport.resultGroupsList.single().resultsList.map { it.metricSet })
+          .containsExactlyElementsIn(
+            campaignReport.resultGroupsList.single().resultsList.map { it.metricSet }
+          )
+          .inOrder()
+        assertExpectedProtocolUsed(getMeasurementsForBasicReport(lowerReport.name))
+
+        // A partial selection must filter individual impressions, not accept the whole blob.
+        val partialReport =
+          runBasicReport(lowerEventGroups.first(), "hierarchy-$entityType-partial")
+        assertThat(partialReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+        assertStructuralResults(partialReport)
+        assertSingleEdpNoNoiseResults(
+          partialReport,
+          expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+          expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+          expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
+        )
+        assertExpectedProtocolUsed(getMeasurementsForBasicReport(partialReport.name))
+      }
+    }
+
+  private suspend fun assertMixedHistoryBlobContents() {
+    val metadata = listImpressionMetadata("edp1")
+    for ((referenceId, entityId) in
+      listOf(
+        MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID to MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID,
+        MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID to MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID,
+        MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID to MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID,
+      )) {
+      val blobs =
+        metadata
+          .filter { "/event-group-reference-id/$referenceId/" in it.blobUri }
+          .map { readImpressionBlob(it) }
+      val legacyBlobs = blobs.filter { it.blobDetails.entityKeysCount == 0 }
+      val keyedBlobs = blobs.filter { it.blobDetails.entityKeysCount > 0 }
+      assertThat(legacyBlobs).isNotEmpty()
+      assertThat(keyedBlobs).isNotEmpty()
+
+      for ((details, impressions) in legacyBlobs) {
+        assertThat(details.eventGroupReferenceId).isEqualTo(referenceId)
+        assertThat(impressions).isNotEmpty()
+        for (impression in impressions) {
+          assertThat(impression.eventGroupReferenceId).isEmpty()
+          assertThat(impression.entityKeysList).isEmpty()
+        }
+      }
+      for ((details, impressions) in keyedBlobs) {
+        assertThat(details.eventGroupReferenceId).isEmpty()
+        val campaignKeys = details.entityKeysList.single()
+        assertThat(campaignKeys.entityType).isEqualTo("campaign")
+        assertThat(campaignKeys.entityIdsList).containsExactly(entityId)
+        assertThat(impressions).isNotEmpty()
+        for (impression in impressions) {
+          assertThat(impression.eventGroupReferenceId).isEmpty()
+          val entityKey = impression.entityKeysList.single()
+          assertThat(entityKey.entityType).isEqualTo("campaign")
+          assertThat(entityKey.entityId).isEqualTo(entityId)
+        }
+      }
+    }
+  }
+
+  private suspend fun assertHierarchyBlobContents() {
+    val metadata =
+      listImpressionMetadata("edp1").filter {
+        "/event-group-reference-id/$HIERARCHY_BLOB_REFERENCE_ID/" in it.blobUri
+      }
+    assertThat(metadata).isNotEmpty()
+    for (entry in metadata) {
+      val (details, impressions) = readImpressionBlob(entry)
+      // This reference ID does not match any selector; campaign uses the configured shortcut.
+      assertThat(details.eventGroupReferenceId).isEqualTo(HIERARCHY_BLOB_REFERENCE_ID)
+      val groupsByType = details.entityKeysList.associateBy { it.entityType }
+      assertThat(groupsByType.keys)
+        .containsExactlyElementsIn(HIERARCHY_LOWER_ENTITY_IDS.keys + "campaign")
+      assertThat(groupsByType.getValue("campaign").entityIdsList)
+        .containsExactly(HIERARCHY_CAMPAIGN_ENTITY_ID)
+      for ((entityType, entityIds) in HIERARCHY_LOWER_ENTITY_IDS) {
+        assertThat(groupsByType.getValue(entityType).entityIdsList)
+          .containsExactlyElementsIn(entityIds)
+      }
+      assertThat(impressions).isNotEmpty()
+      for (impression in impressions) {
+        assertThat(impression.eventGroupReferenceId).isEmpty()
+        val keysByType = impression.entityKeysList.associateBy { it.entityType }
+        assertThat(impression.entityKeysList).hasSize(4)
+        assertThat(keysByType.keys).containsExactlyElementsIn(groupsByType.keys)
+        assertThat(keysByType.getValue("campaign").entityId).isEqualTo(HIERARCHY_CAMPAIGN_ENTITY_ID)
+        for ((entityType, entityIds) in HIERARCHY_LOWER_ENTITY_IDS) {
+          assertThat(entityIds).contains(keysByType.getValue(entityType).entityId)
+        }
+      }
+    }
+  }
+
+  private suspend fun prepareMixedHistoryEventGroups(): List<EventGroup> {
+    val eventGroups = listCmmsEventGroups("edp1", listOf("campaign"))
+    val referenceIdOnlyEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID }
+    val entityKeyOnlyEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID }
+    val dualIdentifierEventGroup =
+      eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID }
+    assertThat(
+        listOf(referenceIdOnlyEventGroup, entityKeyOnlyEventGroup, dualIdentifierEventGroup)
+          .map { it.name }
+          .toSet()
+      )
+      .hasSize(3)
+    assertThat(referenceIdOnlyEventGroup.entityKey.entityId).isEmpty()
+    assertThat(entityKeyOnlyEventGroup.entityKey.entityId).isEmpty()
+    assertThat(dualIdentifierEventGroup.entityKey.entityId).isEmpty()
+
+    val sources = mixedHistoryUpgradeSources()
+    val mapped =
+      syncEventGroups(
+        "edp1",
+        listOf(
+          sources.getValue(MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID),
+          sources.getValue(MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID),
+        ),
+        entityKeyTypes = listOf("campaign"),
+      )
+    assertThat(mapped.map { it.eventGroupResource })
+      .containsExactly(entityKeyOnlyEventGroup.name, dualIdentifierEventGroup.name)
+    val afterSync = listCmmsEventGroups("edp1", listOf("campaign"))
+    assertThat(afterSync.map { it.name }).containsExactlyElementsIn(eventGroups.map { it.name })
+    val upgradedEntityKeyOnlyEventGroup =
+      afterSync.single { it.name == entityKeyOnlyEventGroup.name }
+    val updatedEntityKeyOnlyEventGroup =
+      updateCmmsEventGroup(upgradedEntityKeyOnlyEventGroup.copy { eventGroupReferenceId = "" })
+    assertThat(updatedEntityKeyOnlyEventGroup.name).isEqualTo(entityKeyOnlyEventGroup.name)
+    return listReportingEventGroups()
+  }
+
+  private suspend fun mixedHistoryUpgradeSources(): Map<String, EdpaEventGroup> {
+    val sources = readEventGroups(exportEventGroups(setOf("edp1")).getValue("edp1"))
+    return listOf(
+        MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID to MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID,
+        MIXED_HISTORY_ENTITY_ONLY_REFERENCE_ID to MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID,
+        MIXED_HISTORY_DUAL_IDENTIFIER_REFERENCE_ID to MIXED_HISTORY_DUAL_IDENTIFIER_ENTITY_ID,
+      )
+      .associate { (referenceId, entityId) ->
+        val source = sources.single { it.eventGroupReferenceId == referenceId }
+        assertThat(source.hasEntityKey()).isFalse()
+        referenceId to
+          source.copy {
+            entityKey = edpaEntityKey {
+              entityType = "campaign"
+              this.entityId = entityId
+            }
+          }
+      }
+  }
+
+  @Test
+  fun `sync upgrades a legacy EventGroup in place without changing report results`() = runBlocking {
+    val entityTypes = listOf("campaign", CREATIVE_ID_ENTITY_TYPE, "adset-id", "ad-id")
+    val beforeEventGroups = listCmmsEventGroups("edp1", entityTypes)
+    val legacyEventGroup =
+      beforeEventGroups.single {
+        it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID
+      }
+    assertThat(legacyEventGroup.entityKey.entityId).isEmpty()
+    val beforeReportingEventGroup =
+      listReportingEventGroups().single { it.cmmsEventGroup == legacyEventGroup.name }
+    assertThat(beforeReportingEventGroup.entityKey.entityId).isEmpty()
+    val beforeReport = runBasicReport(beforeReportingEventGroup, "before-legacy-upgrade")
+
+    val source = mixedHistoryUpgradeSources().getValue(MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID)
+    val firstSync = syncEventGroups("edp1", listOf(source), entityTypes)
+    assertThat(firstSync.single().eventGroupResource).isEqualTo(legacyEventGroup.name)
+    val afterEventGroups = listCmmsEventGroups("edp1", entityTypes)
+    assertThat(afterEventGroups.map { it.name })
+      .containsExactlyElementsIn(beforeEventGroups.map { it.name })
+    val upgradedEventGroup = afterEventGroups.single { it.name == legacyEventGroup.name }
+    assertThat(upgradedEventGroup.eventGroupReferenceId)
+      .isEqualTo(MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID)
+    assertThat(upgradedEventGroup.entityKey.entityType).isEqualTo("campaign")
+    assertThat(upgradedEventGroup.entityKey.entityId)
+      .isEqualTo(MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID)
+
+    // Repeating the migration must not create another resource.
+    val secondSync = syncEventGroups("edp1", listOf(source), entityTypes)
+    assertThat(secondSync.single()).isEqualTo(firstSync.single())
+    assertThat(listCmmsEventGroups("edp1", entityTypes).map { it.name })
+      .containsExactlyElementsIn(beforeEventGroups.map { it.name })
+
+    val afterReportingEventGroup =
+      listReportingEventGroups().single { it.cmmsEventGroup == legacyEventGroup.name }
+    assertThat(afterReportingEventGroup.name).isEqualTo(beforeReportingEventGroup.name)
+    assertThat(afterReportingEventGroup.entityKey.entityId)
+      .isEqualTo(MIXED_HISTORY_REFERENCE_ONLY_ENTITY_ID)
+    val afterReport = runBasicReport(afterReportingEventGroup, "after-legacy-upgrade")
+
+    for (report in listOf(beforeReport, afterReport)) {
+      assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(report)
+      assertSingleEdpNoNoiseResults(
+        report,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
+      )
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(report.name))
+    }
+    assertThat(afterReport.resultGroupsList.single().resultsList.map { it.metricSet })
+      .containsExactlyElementsIn(
+        beforeReport.resultGroupsList.single().resultsList.map { it.metricSet }
+      )
+      .inOrder()
+  }
 
   @Test
   fun `basic report with reference-id-only event groups succeeds`() = runBlocking {
@@ -77,7 +424,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -92,16 +439,21 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
       expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
     )
-    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    val measurements = getMeasurementsForBasicReport(completedBasicReport.name)
+    assertThat(
+        measurements
+          .map { it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.basicReport }
+          .toSet()
+      )
+      .containsExactly(createdBasicReport.name)
+    assertExpectedProtocolUsed(measurements)
   }
 
   @Test
   fun `basic report with single-edp creative-id event group succeeds`() = runBlocking {
     val allEventGroups = listReportingEventGroups()
     val singleCreativeIdEventGroup =
-      allEventGroups.filter {
-        it.eventGroupReferenceId == "$CREATIVE_ID_ENTITY_TYPE/$EDP1_CREATIVE_EVENT_GROUP_REF_ID"
-      }
+      allEventGroups.filter { it.eventGroupReferenceId == EDP1_CREATIVE_EVENT_GROUP_REF_ID }
     check(singleCreativeIdEventGroup.isNotEmpty()) {
       "No single creative-id event group found for edp1"
     }
@@ -120,7 +472,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -139,32 +491,74 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
   }
 
   @Test
-  fun `basic report with mixed reference-id and entity-key event groups fails`() = runBlocking {
-    val mixedEventGroups = getMixedEntityKeyEventGroups()
+  fun `basic report refuses mixed selectors for an unmapped EDP and succeeds for a mapped EDP`() =
+    runBlocking {
+      assertMixedHistoryBlobContents()
+      val unmappedCmmsEventGroups = listCmmsEventGroups("edp2", listOf("campaign")).take(2)
+      assertThat(unmappedCmmsEventGroups).hasSize(2)
+      val unmappedReferenceOnly =
+        updateCmmsEventGroup(unmappedCmmsEventGroups.first().copy { clearEntityKey() })
+      val unmappedEntityOnly =
+        updateCmmsEventGroup(unmappedCmmsEventGroups.last().copy { eventGroupReferenceId = "" })
+      assertThat(unmappedReferenceOnly.entityKey.entityId).isEmpty()
+      assertThat(unmappedReferenceOnly.eventGroupReferenceId).isNotEmpty()
+      assertThat(unmappedEntityOnly.entityKey.entityId).isNotEmpty()
+      assertThat(unmappedEntityOnly.eventGroupReferenceId).isEmpty()
+      val unmappedNames = setOf(unmappedReferenceOnly.name, unmappedEntityOnly.name)
+      val unmappedReportingEventGroups =
+        listReportingEventGroups().filter { it.cmmsEventGroup in unmappedNames }
+      assertThat(unmappedReportingEventGroups).hasSize(2)
+      val createdUnmappedReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .createBasicReport(
+            buildCreateBasicReportRequest(
+              unmappedReportingEventGroups,
+              "unmapped-mixed-selectors-campaign",
+              "unmapped-mixed-selectors-basicreport",
+              includeIqfFilter = false,
+            )
+          )
+      executeBasicReportsReportsJob(createdUnmappedReport.name)
+      val failedReport =
+        reportingBasicReportsClient
+          .withCallCredentials(credentials)
+          .getBasicReport(getBasicReportRequest { name = createdUnmappedReport.name })
+      assertThat(failedReport.state).isEqualTo(BasicReport.State.FAILED)
+      val unmappedDataProvider = unmappedReportingEventGroups.first().cmmsDataProvider
+      val refusedMeasurements =
+        getMeasurementsForBasicReport(failedReport.name).filter {
+          it.dataProvidersList.any { entry -> entry.key == unmappedDataProvider }
+        }
+      assertThat(refusedMeasurements).isNotEmpty()
+      for (measurement in refusedMeasurements) {
+        assertThat(measurement.state).isEqualTo(Measurement.State.FAILED)
+        assertThat(measurement.failure.reason)
+          .isEqualTo(Measurement.Failure.Reason.REQUISITION_REFUSED)
+      }
 
-    val createBasicReportRequest =
-      buildCreateBasicReportRequest(
-        mixedEventGroups,
-        "mixed-selectors-campaign",
-        "mixed-selectors-basicreport",
-        includeIqfFilter = false,
+      val eventGroups = prepareMixedHistoryEventGroups()
+      val referenceIdOnlyEventGroup =
+        eventGroups.single { it.eventGroupReferenceId == MIXED_HISTORY_REFERENCE_ONLY_REFERENCE_ID }
+      val entityKeyOnlyEventGroup =
+        eventGroups.single { it.entityKey.entityId == MIXED_HISTORY_ENTITY_ONLY_ENTITY_ID }
+
+      val completedBasicReport =
+        runBasicReport(
+          listOf(referenceIdOnlyEventGroup, entityKeyOnlyEventGroup),
+          "mixed-history-reference-and-entity",
+        )
+
+      assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertStructuralResults(completedBasicReport)
+      assertSingleEdpNoNoiseResults(
+        completedBasicReport,
+        expectedReach = EXPECTED_SINGLE_EDP_SPEC2_REACH,
+        expectedImpressions = EXPECTED_TWO_ENTITY_KEY_IMPRESSIONS,
+        expectedKPlusReach = EXPECTED_TWO_ENTITY_KEY_K_PLUS_REACH,
       )
-
-    val createdBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .createBasicReport(createBasicReportRequest)
-
-    executeBasicReportsReportsJob(createdBasicReport.name)
-
-    val completedBasicReport =
-      reportingBasicReportsClient
-        .withCallCredentials(credentials)
-        .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
-
-    assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.FAILED)
-    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
-  }
+      assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    }
 
   @Test
   fun `basic report with multi-entity-key blob filtering to one entity key succeeds`() =
@@ -189,7 +583,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
           .createBasicReport(createBasicReportRequest)
 
       executeBasicReportsReportsJob(createdBasicReport.name)
-      executeReportProcessorJob()
+      executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
       val completedBasicReport =
         reportingBasicReportsClient
@@ -231,7 +625,7 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient
@@ -263,5 +657,29 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       .that(totalResult.metricSet.componentsCount)
       .isEqualTo(1)
     assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+  }
+
+  private suspend fun runBasicReport(eventGroup: EventGroup, id: String): BasicReport =
+    runBasicReport(listOf(eventGroup), id)
+
+  private suspend fun runBasicReport(eventGroups: List<EventGroup>, id: String): BasicReport {
+    val createBasicReportRequest =
+      buildCreateBasicReportRequest(
+        eventGroups,
+        "$id-campaign",
+        "$id-basicreport",
+        includeIqfFilter = false,
+      )
+    val createdBasicReport =
+      reportingBasicReportsClient
+        .withCallCredentials(credentials)
+        .createBasicReport(createBasicReportRequest)
+
+    executeBasicReportsReportsJob(createdBasicReport.name)
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
+
+    return reportingBasicReportsClient
+      .withCallCredentials(credentials)
+      .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
   }
 }

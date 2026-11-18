@@ -35,6 +35,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   run-tests:
@@ -42,6 +43,24 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).GKE_CONFIG_SERVICE_ACCOUNT }}
+
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
+      with:
+        cluster_name: reporting-v2
+        location: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
 
     - name: Write auth.bazelrc
       env:
@@ -51,40 +70,9 @@ jobs:
         build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
         EOF
 
-    - name: Read simulator EDP config
-      id: simulator-edps
-      env:
-        CONFIG_PATH: .github/env-configs/${{ inputs.environment }}/simulator_edps.json
-      run: |
-        for key in edp1_name edp2_name edp3_name edp4_name edp5_name edp6_name; do
-          value=$(jq -r --arg k "$key" '.[$k]' "$CONFIG_PATH")
-          if [ -z "$value" ] || [ "$value" = "null" ]; then
-            echo "Missing key '$key' in $CONFIG_PATH" >&2
-            exit 1
-          fi
-          echo "${key}=${value}" >> "$GITHUB_OUTPUT"
-        done
-
     - name: Write ~/.bazelrc
       env:
-        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
-        MC_NAME: ${{ vars.MC_NAME }}
         MC_API_KEY: ${{ secrets.MC_API_KEY }}
-        GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
-        REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
-        REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
-        ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
-        REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
-
-        EDP1_NAME: ${{ steps.simulator-edps.outputs.edp1_name }}
-        EDP2_NAME: ${{ steps.simulator-edps.outputs.edp2_name }}
-        EDP3_NAME: ${{ steps.simulator-edps.outputs.edp3_name }}
-        EDP4_NAME: ${{ steps.simulator-edps.outputs.edp4_name }}
-        EDP5_NAME: ${{ steps.simulator-edps.outputs.edp5_name }}
-        EDP6_NAME: ${{ steps.simulator-edps.outputs.edp6_name }}
-        PDP_NAME: ${{ vars.PDP_NAME }}
-        MP_NAME: ${{ vars.MP_NAME }}
-        MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -95,6 +83,7 @@ jobs:
         build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
         build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
         build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
+        build --define "mcp_host=$MCP_HOST"
         build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
         build --define basic_reports_enabled=true
         build --define "edp1_name=$EDP1_NAME"
@@ -110,17 +99,119 @@ jobs:
         test --test_timeout=3600
         EOF
 
+    - name: Wait for Kingdom public API
+      uses: ./.github/actions/wait-for-kingdom
+      with:
+        kingdom-public-api-target: ${{ fromJSON(steps.cmms-config.outputs.config).KINGDOM_PUBLIC_API_TARGET }}
+        kingdom-public-api-cert-host: localhost
+        model-line-name: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
+
     # Reduce chance of disconnection from the Build Event Service.
     - name: Set TCP keepalive
       run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
-    - name: Run tests
-      id: run-tests
-      run: >
-        bazelisk test
-        //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
+    - name: Run correctness tests
+      id: run-correctness-test
+      run: |
+        bazelisk test \
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
+
+    - name: Run reporting MCP smoke test through the in-cluster Service
+      id: run-mcp-smoke-test
+      if: ${{ !cancelled() && steps.run-correctness-test.outcome != 'skipped' }}
+      env:
+        MCP_ENDPOINT: http://127.0.0.1:18080
+        MCP_PROXY_POD: reporting-mcp-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      run: |
+        MCP_PORT_FORWARD_LOG="$RUNNER_TEMP/reporting-mcp-port-forward.log"
+        cleanup() {
+          exit_code=$?
+          if [[ "$exit_code" -ne 0 ]]; then
+            cat "$MCP_PORT_FORWARD_LOG" || true
+            kubectl describe pod "$MCP_PROXY_POD" || true
+            kubectl logs "$MCP_PROXY_POD" || true
+          fi
+          if [[ -n "${MCP_PORT_FORWARD_PID:-}" ]] && kill -0 "$MCP_PORT_FORWARD_PID" 2>/dev/null; then
+            kill "$MCP_PORT_FORWARD_PID" 2>/dev/null || true
+          fi
+          kubectl delete pod "$MCP_PROXY_POD" --ignore-not-found --wait=false || true
+          kubectl delete networkpolicy "$MCP_PROXY_POD" --ignore-not-found || true
+        }
+        trap cleanup EXIT
+
+        kubectl apply -f - <<EOF
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: $MCP_PROXY_POD
+        spec:
+          podSelector:
+            matchLabels:
+              app: $MCP_PROXY_POD
+          policyTypes:
+          - Ingress
+          - Egress
+          ingress:
+          - ports:
+            - protocol: TCP
+              port: 8080
+          egress:
+          - to:
+            - podSelector:
+                matchLabels:
+                  app: reporting-mcp-server-app
+            ports:
+            - protocol: TCP
+              port: 8080
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: $MCP_PROXY_POD
+          labels:
+            app: $MCP_PROXY_POD
+        spec:
+          activeDeadlineSeconds: 7200
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: proxy
+            image: registry.k8s.io/busybox:1.27
+            command: ["sh", "-c", "nc -ll -p 8080 -e nc reporting-mcp-server 8080"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+        EOF
+
+        kubectl wait --for=condition=Ready "pod/$MCP_PROXY_POD" --timeout=60s
+        kubectl port-forward "pod/$MCP_PROXY_POD" 18080:8080 \
+          >"$MCP_PORT_FORWARD_LOG" 2>&1 &
+        MCP_PORT_FORWARD_PID=$!
+        for attempt in {1..30}; do
+          if ! kill -0 "$MCP_PORT_FORWARD_PID" 2>/dev/null; then
+            echo "MCP port-forward exited before the endpoint became ready" >&2
+            exit 1
+          fi
+          if curl --fail --silent "$MCP_ENDPOINT/healthz" >/dev/null; then
+            break
+          fi
+          if [[ "$attempt" == 30 ]]; then
+            echo "MCP endpoint did not become ready" >&2
+            exit 1
+          fi
+          sleep 1
+        done
+
+        bazelisk test \
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingMcpSmokeTest
 
     - name: Upload Bazel testlogs
       continue-on-error: true
       uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-      if: failure() && steps.run-tests.outcome == 'failure'
+      if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-mcp-smoke-test.outcome == 'failure')

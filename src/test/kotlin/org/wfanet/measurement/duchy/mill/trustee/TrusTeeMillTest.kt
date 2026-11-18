@@ -26,11 +26,24 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.Status
+import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.ByteArrayOutputStream
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.io.path.Path
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -47,7 +60,9 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -61,6 +76,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -257,6 +273,64 @@ class TrusTeeMillTest {
     requisitionStore.write(requisitionBlobContext3, RAW_DATA_3.toByteString())
   }
 
+  private suspend fun captureReportTraceLifecycleFields(
+    block: suspend () -> Unit
+  ): List<Map<String, String>> {
+    val messages = CopyOnWriteArrayList<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          messages += record.message
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(handler)
+    try {
+      block()
+    } finally {
+      rootLogger.removeHandler(handler)
+    }
+    return messages
+      .filter { it.contains("xmm.lifecycle.stage=duchy_stage_attempt") }
+      .map { message ->
+        message.split(' ').associate { field ->
+          field.substringBefore('=') to field.substringAfter('=')
+        }
+      }
+  }
+
+  private fun expectedReportTraceLifecycleFields(
+    outcome: String,
+    errorType: String?,
+    errorCode: String?,
+    errorRetryable: Boolean?,
+  ): Map<String, String> = buildMap {
+    put("event", "duchy.mill.process_computation")
+    put(ReportTraceAttributes.BASIC_REPORT_NAME_STRING, BASIC_REPORT_NAME)
+    put(ReportTraceAttributes.COMPUTATION_NAME_STRING, "computations/$GLOBAL_ID")
+    put(ReportTraceAttributes.COMPUTATION_STAGE_STRING, Stage.COMPUTING.name)
+    put(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING, "1")
+    put(ReportTraceAttributes.DUCHY_ID_STRING, DUCHY_ID)
+    put(ReportTraceAttributes.LIFECYCLE_STAGE_STRING, "duchy_stage_attempt")
+    put(ReportTraceAttributes.MEASUREMENT_NAME_STRING, MEASUREMENT_NAME)
+    put(ReportTraceAttributes.METRIC_NAME_STRING, METRIC_NAME)
+    put(ReportTraceAttributes.OUTCOME_STRING, outcome)
+    put(ReportTraceAttributes.REPORT_NAME_STRING, REPORT_NAME)
+    if (errorType != null) {
+      put(ReportTraceAttributes.ERROR_TYPE_STRING, errorType)
+    }
+    if (errorCode != null) {
+      put(ReportTraceAttributes.ERROR_CODE_STRING, errorCode)
+    }
+    if (errorRetryable != null) {
+      put(ReportTraceAttributes.ERROR_RETRYABLE_STRING, errorRetryable.toString())
+    }
+  }
+
   @Test
   fun `initialized phase has higher priority to be claimed`() = runBlocking {
     fakeComputationDb.addComputation(
@@ -278,6 +352,43 @@ class TrusTeeMillTest {
     assertThat(fakeComputationDb[2]!!.computationStage)
       .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
     assertThat(fakeComputationDb[1]!!.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+  }
+
+  @Test
+  fun `claimAndProcessWork initializes all queued work before ready computation`() = runBlocking {
+    writeRequisitionData()
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = REQUISITIONS,
+    )
+    for (localId in 1L..6L) {
+      fakeComputationDb.addComputation(
+        localId,
+        Stage.INITIALIZED.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = REQUISITIONS,
+      )
+    }
+    val mill = createMill()
+
+    repeat(6) {
+      assertThat(mill.claimAndProcessWork()).isTrue()
+      assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+        .isEqualTo(Stage.COMPUTING.toProtocolStage())
+    }
+    for (localId in 1L..6L) {
+      assertThat(fakeComputationDb[localId]!!.computationStage)
+        .isEqualTo(Stage.WAIT_TO_START.toProtocolStage())
+    }
+
+    assertThat(mill.claimAndProcessWork()).isTrue()
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationStage)
+      .isEqualTo(Stage.COMPLETE.toProtocolStage())
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
   }
 
   @Test
@@ -379,35 +490,85 @@ class TrusTeeMillTest {
     whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
     whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
 
-    val mill = createMill()
-    mill.claimAndProcessWork()
+    val spanExporter = InMemorySpanExporter.create()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    val openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+    try {
+      val mill = createMill()
+      val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
 
-    val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      val finalToken = fakeComputationDb[LOCAL_ID]!!
+      assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+      assertThat(finalToken.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
 
-    val vectorCaptor = argumentCaptor<ByteArray>()
-    verify(mockProcessor, times(3)).addFrequencyVector(vectorCaptor.capture())
-    verify(mockProcessor, times(1)).computeResult()
-    val capturedVectors = vectorCaptor.allValues
-    assertThat(capturedVectors).hasSize(3)
-    assertThat(capturedVectors[0]).isEqualTo(RAW_DATA_1)
-    assertThat(capturedVectors[1]).isEqualTo(RAW_DATA_2)
-    assertThat(capturedVectors[2]).isEqualTo(RAW_DATA_3)
+      val vectorCaptor = argumentCaptor<ByteArray>()
+      verify(mockProcessor, times(3)).addFrequencyVector(vectorCaptor.capture())
+      verify(mockProcessor, times(1)).computeResult()
+      val capturedVectors = vectorCaptor.allValues
+      assertThat(capturedVectors).hasSize(3)
+      assertThat(capturedVectors[0]).isEqualTo(RAW_DATA_1)
+      assertThat(capturedVectors[1]).isEqualTo(RAW_DATA_2)
+      assertThat(capturedVectors[2]).isEqualTo(RAW_DATA_3)
 
-    verifyProtoArgument(
-        mockSystemComputations,
-        SystemComputationsCoroutineImplBase::setComputationResult,
-      )
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        setComputationResultRequest {
-          name = "computations/${GLOBAL_ID}"
-          aggregatorCertificate = DUCHY_CERT_NAME
-          resultPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toByteString()
-        }
-      )
+      verifyProtoArgument(
+          mockSystemComputations,
+          SystemComputationsCoroutineImplBase::setComputationResult,
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          setComputationResultRequest {
+            name = "computations/${GLOBAL_ID}"
+            aggregatorCertificate = DUCHY_CERT_NAME
+            resultPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toByteString()
+          }
+        )
+      assertThat(lifecycleFields)
+        .containsExactly(
+          expectedReportTraceLifecycleFields(
+            outcome = "started",
+            errorType = null,
+            errorCode = null,
+            errorRetryable = null,
+          ),
+          expectedReportTraceLifecycleFields(
+            outcome = "succeeded",
+            errorType = null,
+            errorCode = null,
+            errorRetryable = null,
+          ),
+        )
+        .inOrder()
+
+      val span =
+        spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+      val succeededLog =
+        lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "succeeded" }
+      assertThat(succeededLog[ReportTraceAttributes.BASIC_REPORT_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.REPORT_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.METRIC_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.METRIC_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.MEASUREMENT_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.COMPUTATION_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.DUCHY_ID_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.DUCHY_ID))
+    } finally {
+      openTelemetry.close()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+    }
   }
 
   @Test
@@ -431,6 +592,68 @@ class TrusTeeMillTest {
     assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
     verify(mockConfidentialSpaceToAwsKmsClientFactory).getKmsClient(any())
     verify(mockGcloudToAwsKmsClientFactory, never()).getKmsClient(any())
+  }
+
+  @Test
+  fun `computingPhase reuses refreshable Confidential Space credentials across computations`():
+    Unit = runBlocking {
+    writeRequisitionData()
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+    val mill = createMill()
+
+    for (localId in listOf(LOCAL_ID, LOCAL_ID + 1)) {
+      fakeComputationDb.addComputation(
+        localId,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
+      )
+
+      mill.claimAndProcessWork()
+
+      assertThat(fakeComputationDb[localId]!!.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      fakeComputationDb.deleteComputation(localId)
+    }
+
+    verify(mockConfidentialSpaceToAwsKmsClientFactory, times(1)).getKmsClient(any())
+    verify(mockSystemComputations, times(2)).setComputationResult(any())
+  }
+
+  @Test
+  fun `computingPhase keeps different Confidential Space audiences separate`(): Unit = runBlocking {
+    writeRequisitionData()
+    val otherAudienceRequisition =
+      REQUISITION_2.copy {
+        details =
+          REQUISITION_CONFIDENTIAL_SPACE.details.copy {
+            protocol =
+              protocol.copy {
+                trusTee =
+                  trusTee.copy {
+                    encryptedDekCiphertext = DEK_KEYSET_HANDLE_2.toEncryptedByteString(KEK_AEAD_2)
+                    kmsKekUri = KEK_URI_2
+                    awsKmsParams = awsKmsParams.copy { audience = "https://other.example.com" }
+                  }
+              }
+          }
+      }
+    fakeComputationDb.addComputation(
+      LOCAL_ID,
+      Stage.COMPUTING.toProtocolStage(),
+      computationDetails = COMPUTATION_DETAILS,
+      requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE, otherAudienceRequisition),
+    )
+    whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
+
+    createMill().claimAndProcessWork()
+
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+    val credentials = argumentCaptor<ConfidentialSpaceToAwsWifCredentials>()
+    verify(mockConfidentialSpaceToAwsKmsClientFactory, times(2)).getKmsClient(credentials.capture())
+    assertThat(credentials.allValues.map { it.audience })
+      .containsExactly("https://example.com", "https://other.example.com")
   }
 
   @Test
@@ -657,21 +880,127 @@ class TrusTeeMillTest {
     )
 
     whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+    val spanExporter = InMemorySpanExporter.create()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    val openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     whenever(mockProcessor.computeResult())
-      .thenThrow(IllegalArgumentException("Test cryptor failure during result computation"))
+      .thenThrow(
+        IllegalArgumentException(
+          "Test cryptor failure during result computation",
+          StatusException(Status.UNAVAILABLE),
+        )
+      )
 
-    val mill = createMill()
-    mill.claimAndProcessWork()
+    try {
+      val mill = createMill()
+      val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
 
-    val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+      val finalToken = fakeComputationDb[LOCAL_ID]!!
+      assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+      assertThat(finalToken.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVector(any())
-    verify(mockProcessor, times(1)).computeResult()
-    verify(mockSystemComputations, never()).setComputationResult(any())
+      verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVector(any())
+      verify(mockProcessor, times(1)).computeResult()
+      verify(mockSystemComputations, never()).setComputationResult(any())
+      val span =
+        spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+      assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+        .isEqualTo("IllegalArgumentException")
+      assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+        .isEqualTo("grpc.UNAVAILABLE")
+      assertThat(lifecycleFields)
+        .containsExactly(
+          expectedReportTraceLifecycleFields(
+            outcome = "started",
+            errorType = null,
+            errorCode = null,
+            errorRetryable = null,
+          ),
+          expectedReportTraceLifecycleFields(
+            outcome = "failed",
+            errorType = "IllegalArgumentException",
+            errorCode = "grpc.UNAVAILABLE",
+            errorRetryable = null,
+          ),
+          expectedReportTraceLifecycleFields(
+            outcome = "permanent_failure",
+            errorType = "IllegalArgumentException",
+            errorCode = "grpc.UNAVAILABLE",
+            errorRetryable = false,
+          ),
+        )
+        .inOrder()
+    } finally {
+      openTelemetry.close()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+    }
   }
+
+  @Test
+  fun `computingPhase cancellation does not fail computation or emit failure evidence`(): Unit =
+    runBlocking {
+      writeRequisitionData()
+      fakeComputationDb.addComputation(
+        LOCAL_ID,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = REQUISITIONS,
+      )
+      whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+      whenever(mockProcessor.computeResult()).thenThrow(CancellationException("mill is stopping"))
+      val spanExporter = InMemorySpanExporter.create()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+      val openTelemetry =
+        OpenTelemetrySdk.builder()
+          .setTracerProvider(
+            SdkTracerProvider.builder()
+              .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+              .build()
+          )
+          .buildAndRegisterGlobal()
+      try {
+        val mill = createMill()
+
+        val lifecycleFields = captureReportTraceLifecycleFields {
+          assertFailsWith<CancellationException> { mill.claimAndProcessWork() }
+        }
+
+        val finalToken = fakeComputationDb[LOCAL_ID]!!
+        assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+        assertThat(finalToken.computationDetails.endingState)
+          .isNotEqualTo(ComputationDetails.CompletedReason.FAILED)
+        verify(mockSystemComputations, never()).setComputationResult(any())
+        val span =
+          spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+        assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isNull()
+        assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
+        assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isNull()
+        assertThat(lifecycleFields)
+          .containsExactly(
+            expectedReportTraceLifecycleFields(
+              outcome = "started",
+              errorType = null,
+              errorCode = null,
+              errorRetryable = null,
+            )
+          )
+      } finally {
+        openTelemetry.close()
+        GlobalOpenTelemetry.resetForTest()
+        Instrumentation.resetForTest()
+      }
+    }
 
   @Test
   fun `computingPhase fails when resultMinimumThresholds has zero minUsers`(): Unit = runBlocking {
@@ -801,6 +1130,10 @@ class TrusTeeMillTest {
 
     private const val LOCAL_ID = 1234L
     private const val GLOBAL_ID = LOCAL_ID.toString()
+    private const val BASIC_REPORT_NAME = "measurementConsumers/123/basicReports/456"
+    private const val REPORT_NAME = "measurementConsumers/123/reports/789"
+    private const val METRIC_NAME = "measurementConsumers/123/metrics/012"
+    private const val MEASUREMENT_NAME = "measurementConsumers/123/measurements/$GLOBAL_ID"
 
     private const val DUCHY_CERT_NAME = "cert 1"
     private val DUCHY_CERT_DER = TestData.FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
@@ -826,6 +1159,11 @@ class TrusTeeMillTest {
       nonceHashes += TEST_REQUISITION_3.nonceHash
       reachAndFrequency = MeasurementSpec.ReachAndFrequency.getDefaultInstance()
       vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 0.5f }
+      reportingMetadata = reportingMetadata {
+        basicReport = BASIC_REPORT_NAME
+        report = REPORT_NAME
+        metric = METRIC_NAME
+      }
     }
 
     private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
@@ -962,6 +1300,7 @@ class TrusTeeMillTest {
         ComputationDetailsKt.kingdomComputationDetails {
           publicApiVersion = PUBLIC_API_VERSION
           measurementPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+          measurement = MEASUREMENT_NAME
           measurementSpec = SERIALIZED_MEASUREMENT_SPEC
           participantCount = 1
         }

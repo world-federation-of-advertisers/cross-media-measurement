@@ -1,0 +1,8 @@
+load("@rules_python//python:defs.bzl", "py_test")
+
+py_test(
+    name = "aws_web_identity_test",
+    size = "small",
+    srcs = ["aws_web_identity_test.py"],
+    deps = ["//src/main/python/wfa/measurement/tools:aws_web_identity"],
+)

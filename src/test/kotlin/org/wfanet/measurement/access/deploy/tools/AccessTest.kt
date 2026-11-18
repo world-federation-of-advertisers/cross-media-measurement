@@ -486,6 +486,34 @@ class AccessTest {
   }
 
   @Test
+  fun `policies create calls CreatePolicy with root protected resource when flag is omitted`() {
+    val args =
+      commonArgs +
+        arrayOf(
+          "policies",
+          "create",
+          "--binding-role=$READER_ROLE_NAME",
+          "--binding-member=$OWNER_PRINCIPAL_NAME",
+          "--binding-member=$EDITOR_PRINCIPAL_NAME",
+          "--binding-member=$MEMBER_PRINCIPAL_NAME",
+          "--policy-id=$POLICY_ID",
+        )
+
+    callCli(args)
+
+    val request: CreatePolicyRequest = captureFirst {
+      runBlocking { verify(policiesServiceMock).createPolicy(capture()) }
+    }
+    assertThat(request)
+      .isEqualTo(
+        createPolicyRequest {
+          policy = policy { bindings += READER_BINDING }
+          policyId = POLICY_ID
+        }
+      )
+  }
+
+  @Test
   fun `policies lookup calls LookupPolicy with valid request`() {
     val args = commonArgs + arrayOf("policies", "lookup", "--protected-resource=$SHELF_RESOURCE")
     val output = callCli(args)

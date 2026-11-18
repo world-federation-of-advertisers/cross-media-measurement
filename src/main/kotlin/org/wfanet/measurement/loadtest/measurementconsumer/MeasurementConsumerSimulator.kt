@@ -25,6 +25,7 @@ import java.security.SignatureException
 import java.security.cert.CertPathValidatorException
 import java.security.cert.X509Certificate
 import java.time.Duration
+import java.util.concurrent.TimeoutException
 import java.util.logging.Logger
 import kotlin.math.log2
 import kotlin.math.max
@@ -34,6 +35,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
+import kotlinx.coroutines.withTimeoutOrNull
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.CustomDirectMethodologyKt
@@ -100,6 +102,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -152,6 +155,7 @@ abstract class MeasurementConsumerSimulator(
   private val certificatesClient: CertificatesCoroutineStub,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
+  private val kingdomApiThrottler: Throttler,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
   private val reportName: String =
@@ -162,6 +166,7 @@ abstract class MeasurementConsumerSimulator(
       .toName(),
   private val modelLineName: String = "some-model-line",
   private val listEventGroupsEntityTypes: List<String> = emptyList(),
+  private val listEventGroupsDataProviders: List<String> = emptyList(),
   private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */
@@ -598,7 +603,11 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving an impression measurement. */
-  suspend fun testImpression(runId: String, eventGroupFilter: ((EventGroup) -> Boolean)? = null) {
+  suspend fun testImpression(
+    runId: String,
+    resultPollingTimeout: Duration,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  ) {
     logger.info { "Creating impression Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -616,9 +625,8 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    val impressionResults: List<Measurement.ResultOutput> = pollForResults {
-      getImpressionResults(measurementName)
-    }
+    val impressionResults: List<Measurement.ResultOutput> =
+      pollForResults(resultPollingTimeout) { getImpressionResults(measurementName) }
     logger.info("Got impression result from Kingdom: $impressionResults")
 
     val protocol = measurementInfo.measurement.protocolConfig.protocolsList.first()
@@ -643,7 +651,11 @@ abstract class MeasurementConsumerSimulator(
   }
 
   /** A sequence of operations done in the simulator involving a duration measurement. */
-  suspend fun testDuration(runId: String, eventGroupFilter: ((EventGroup) -> Boolean)? = null) {
+  suspend fun testDuration(
+    runId: String,
+    resultPollingTimeout: Duration,
+    eventGroupFilter: ((EventGroup) -> Boolean)? = null,
+  ) {
     logger.info { "Creating duration Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
     val measurementConsumer = getMeasurementConsumer(measurementConsumerData.name)
@@ -661,7 +673,8 @@ abstract class MeasurementConsumerSimulator(
 
     onMeasurementsCreated?.invoke()
 
-    val durationResults = pollForResults { getDurationResults(measurementName) }
+    val durationResults =
+      pollForResults(resultPollingTimeout) { getDurationResults(measurementName) }
 
     durationResults.forEach {
       val result = parseAndVerifyResult(it)
@@ -984,9 +997,11 @@ abstract class MeasurementConsumerSimulator(
     }
     val measurement: Measurement =
       try {
-        measurementsClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .createMeasurement(request)
+        kingdomApiThrottler.onReady {
+          measurementsClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .createMeasurement(request)
+        }
       } catch (e: StatusException) {
         throw Exception("Error creating Measurement", e)
       }
@@ -1054,9 +1069,11 @@ abstract class MeasurementConsumerSimulator(
   private suspend fun getMeasurement(measurementName: String): Measurement {
     val measurement: Measurement =
       try {
-        measurementsClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getMeasurement(getMeasurementRequest { name = measurementName })
+        kingdomApiThrottler.onReady {
+          measurementsClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .getMeasurement(getMeasurementRequest { name = measurementName })
+        }
       } catch (e: StatusException) {
         throw Exception("Error fetching measurement $measurementName", e)
       }
@@ -1096,9 +1113,11 @@ abstract class MeasurementConsumerSimulator(
     val certificate =
       certificateCache.getOrPut(resultOutput.certificate) {
         try {
-          certificatesClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .getCertificate(getCertificateRequest { name = resultOutput.certificate })
+          kingdomApiThrottler.onReady {
+            certificatesClient
+              .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+              .getCertificate(getCertificateRequest { name = resultOutput.certificate })
+          }
         } catch (e: StatusException) {
           throw Exception("Error fetching certificate ${resultOutput.certificate}", e)
         }
@@ -1204,9 +1223,11 @@ abstract class MeasurementConsumerSimulator(
   protected suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
     val request = getMeasurementConsumerRequest { this.name = name }
     try {
-      return measurementConsumersClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getMeasurementConsumer(request)
+      return kingdomApiThrottler.onReady {
+        measurementConsumersClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getMeasurementConsumer(request)
+      }
     } catch (e: StatusException) {
       throw Exception("Error getting MC $name", e)
     }
@@ -1333,21 +1354,31 @@ abstract class MeasurementConsumerSimulator(
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun listEventGroups(measurementConsumer: String): Flow<EventGroup> {
-    return eventGroupsClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+    val client =
+      eventGroupsClient.withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+    return client
       .listResources { pageToken: String ->
         val response =
           try {
-            listEventGroups(
-              listEventGroupsRequest {
-                parent = measurementConsumer
-                this.pageToken = pageToken
-                if (listEventGroupsEntityTypes.isNotEmpty()) {
-                  filter =
-                    ListEventGroupsRequestKt.filter { entityTypeIn += listEventGroupsEntityTypes }
+            kingdomApiThrottler.onReady {
+              client.listEventGroups(
+                listEventGroupsRequest {
+                  parent = measurementConsumer
+                  this.pageToken = pageToken
+                  pageSize = EVENT_GROUP_PAGE_SIZE
+                  if (
+                    listEventGroupsEntityTypes.isNotEmpty() ||
+                      listEventGroupsDataProviders.isNotEmpty()
+                  ) {
+                    filter =
+                      ListEventGroupsRequestKt.filter {
+                        entityTypeIn += listEventGroupsEntityTypes
+                        dataProviderIn += listEventGroupsDataProviders
+                      }
+                  }
                 }
-              }
-            )
+              )
+            }
           } catch (e: StatusException) {
             throw Exception("Error listing event groups for MC $measurementConsumer", e)
           }
@@ -1364,9 +1395,11 @@ abstract class MeasurementConsumerSimulator(
   private suspend fun getDataProvider(name: String): DataProvider {
     val request = GetDataProviderRequest.newBuilder().also { it.name = name }.build()
     try {
-      return dataProvidersClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getDataProvider(request)
+      return kingdomApiThrottler.onReady {
+        dataProvidersClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getDataProvider(request)
+      }
     } catch (e: StatusException) {
       throw Exception("Error fetching DataProvider $name", e)
     }
@@ -1417,15 +1450,34 @@ abstract class MeasurementConsumerSimulator(
     }
   }
 
-  private suspend inline fun pollForResult(getResult: () -> Result?): Result {
+  private suspend fun pollForResult(getResult: suspend () -> Result?): Result {
     return pollForResult(getResult) { it != null }!!
   }
 
-  private suspend inline fun <T> pollForResults(getResults: () -> List<T>): List<T> {
-    return pollForResult(getResults) { it.isNotEmpty() }
+  private suspend fun <T> pollForResults(
+    resultPollingTimeout: Duration,
+    getResults: suspend () -> List<T>,
+  ): List<T> {
+    val results =
+      withTimeoutOrNull(resultPollingTimeout.toMillis()) {
+        pollForResult(getResults) { it.isNotEmpty() }
+      }
+    if (results != null) {
+      return results
+    }
+
+    val finalResults =
+      withTimeoutOrNull(FINAL_RESULT_READ_TIMEOUT.toMillis()) { getResults() }
+        ?: throw TimeoutException(
+          "Final result read did not complete within $FINAL_RESULT_READ_TIMEOUT"
+        )
+    if (finalResults.isNotEmpty()) {
+      return finalResults
+    }
+    throw TimeoutException("Result not available within $resultPollingTimeout")
   }
 
-  private suspend inline fun <T> pollForResult(getResult: () -> T, done: (T) -> Boolean): T {
+  private suspend fun <T> pollForResult(getResult: suspend () -> T, done: (T) -> Boolean): T {
     val backoff =
       ExponentialBackoff(initialDelay = initialResultPollingDelay, randomnessFactor = 0.0)
     var attempt = 1
@@ -1446,10 +1498,14 @@ abstract class MeasurementConsumerSimulator(
   companion object {
     // For a 99.9999% Confidence Interval.
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 5.0
+    private val FINAL_RESULT_READ_TIMEOUT = Duration.ofSeconds(10)
     private val DEFAULT_VID_SAMPLING_INTERVAL = vidSamplingInterval {
       start = 0.2f
       width = 0.5f
     }
+    /** Page size for ListEventGroups requests. */
+    private const val EVENT_GROUP_PAGE_SIZE = 500 // Use max page size to minimize the RPC count.
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.integration.testing.ManagedDoneBlobCleanup
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
@@ -70,8 +71,8 @@ import org.wfanet.measurement.storage.parquetValue
  * KMS client both do. PME encryption happens during the local write (via the Tink [KmsClient]); the
  * uploaded bytes are the finished encrypted file, which the TEE reads and decrypts unchanged.
  *
- * Idempotent across runs: existing blobs under the prefix are deleted first, and each `done` marker
- * is rewritten (a new GCS generation yields a fresh `RawImpressionUpload` request id).
+ * Idempotent across runs: raw inputs and managed done markers for the pipelined dates are cleared
+ * before resetting their upload owners. Rewritten raw `done` markers have fresh GCS generations.
  *
  * Env-provided inputs (wired by the cloud-test workflow); the rule is a **no-op** unless both
  * [RAW_IMPRESSIONS_BUCKET] and [EDP7_KEK_URI] are resolvable, so unrelated runs are unaffected:
@@ -85,19 +86,22 @@ import org.wfanet.measurement.storage.parquetValue
  * @property eventGroupConfigs edp7's event-group configs keyed by the flattened id (legacy groups
  *   by `event_group_reference_id`; entity-key groups split so each entity key spec is its own
  *   entry, keyed `"${entityType}-${entityId}"`), edpa_meta excluded. One PME Parquet file is
- *   written per (entry, date). Each entry contributes exactly one entity key, matching the real
- *   entity key of the event group as written by the out-of-band days-15-20 data
- *   ([WriteReusedLabeledImpressionsRule]), so the pipelined day's output matches the fulfiller's
- *   per-event-group query.
+ *   written per (entry, date). All keys in an entry's synthetic stream are attached to each
+ *   impression, alongside the per-person key used by the VID model.
  */
 class SeedRawImpressionsRule(
   private val populationSpec: PopulationSpec,
   private val eventGroupConfigs: Map<String, EventGroupConfig>,
 ) : TestRule {
 
+  /** Exact done-blob versions written by this rule, keyed by GCS URI. */
+  var doneBlobGenerations: Map<String, Long> = emptyMap()
+    private set
+
   override fun apply(base: Statement, description: Description): Statement {
     return object : Statement() {
       override fun evaluate() {
+        doneBlobGenerations = emptyMap()
         if (RAW_IMPRESSIONS_BUCKET.isEmpty() || EDP7_KEK_URI.isEmpty()) {
           logger.warning(
             "RAW_IMPRESSIONS_BUCKET/EDP7_KEK_URI unresolved; skipping edp7 raw-impression seeding."
@@ -119,6 +123,13 @@ class SeedRawImpressionsRule(
     val rootPath = Path(localRoot.toURI())
 
     deleteExistingRawImpressions(storage)
+    ManagedDoneBlobCleanup(
+        storage,
+        RAW_IMPRESSIONS_BUCKET,
+        LABELED_IMPRESSIONS_PREFIX,
+        PIPELINED_DATES,
+      )
+      .delete()
     deleteExistingRawImpressionUploads()
 
     val datesWritten = sortedSetOf<String>()
@@ -157,12 +168,16 @@ class SeedRawImpressionsRule(
       )
     }
 
-    for (date in datesWritten) {
-      val doneKey = "$RAW_IMPRESSIONS_PREFIX/$date/done"
-      storage.create(
-        BlobInfo.newBuilder(BlobId.of(RAW_IMPRESSIONS_BUCKET, doneKey)).build(),
-        ByteArray(0),
-      )
+    doneBlobGenerations = buildMap {
+      for (date in datesWritten) {
+        val doneKey = "$RAW_IMPRESSIONS_PREFIX/$date/done"
+        val blob =
+          storage.create(
+            BlobInfo.newBuilder(BlobId.of(RAW_IMPRESSIONS_BUCKET, doneKey)).build(),
+            ByteArray(0),
+          )
+        put("gs://$RAW_IMPRESSIONS_BUCKET/$doneKey", checkNotNull(blob.generation))
+      }
     }
     logger.info(
       "Seeded edp7 raw impressions for ${datesWritten.size} date(s); done markers written."
@@ -184,41 +199,20 @@ class SeedRawImpressionsRule(
       is EventGroupConfig.MultiEntityKey -> config.entityKeySpecs.single().spec
     }
 
-  /**
-   * The entity-key columns the writer emits per impression for this event group entry
-   * (`entity_type` -> Parquet column). Every file carries the `person` -> `person_id` column:
-   * `person_id` doubles as the model identity (`profile_info...user_id`, a required labeler-input
-   * column present on every file) and a `person` entity key. Entity-key groups additionally carry
-   * the `creative-id` -> `creative_id` column so the results-fulfiller can match those impressions
-   * to the event group by its `{creative-id, entity_id}` key. The legacy group carries only the
-   * `person` key, which the fulfiller ignores (it matches legacy groups by
-   * `event_group_reference_id`) but which satisfies the reader's requirement that every impression
-   * carry >=1 entity key.
-   */
-  private fun entityKeyColumnsFor(config: EventGroupConfig): Map<String, String> =
-    when (config) {
-      is EventGroupConfig.LegacySpec ->
-        mapOf(RawImpressionColumns.ENTITY_TYPE_PERSON to RawImpressionColumns.PERSON_ID)
-      is EventGroupConfig.MultiEntityKey ->
-        mapOf(
-          RawImpressionColumns.ENTITY_TYPE_PERSON to RawImpressionColumns.PERSON_ID,
-          config.entityKeySpecs.single().entityKey.entityType to RawImpressionColumns.CREATIVE_ID,
+  /** Maps all keys in this entry's stream to columns, including the model's person identity. */
+  private fun entityKeyColumnsFor(config: EventGroupConfig): Map<String, String> = buildMap {
+    put(RawImpressionColumns.ENTITY_TYPE_PERSON, RawImpressionColumns.PERSON_ID)
+    if (config is EventGroupConfig.MultiEntityKey) {
+      for (entityKey in config.entityKeySpecs.single().entityKeys) {
+        put(
+          entityKey.entityType,
+          RawImpressionColumns.ENTITY_KEY_COLUMNS.getValue(entityKey.entityType),
         )
+      }
     }
+  }
 
-  /**
-   * Keys each impression with this event group entry's entity keys, matching the out-of-band
-   * days-15-20 data ([WriteReusedLabeledImpressionsRule]) for the fulfiller-relevant keys:
-   * * entity-key group -> the group's own `{entity_type, entity_id}` (e.g. `{creative-id,
-   *   edpa-eg-creative-id-1}`), so the fulfiller matches the pipelined impressions to the event
-   *   group by that key, PLUS a per-person `{person, person-<vid>}` key that carries the model
-   *   identity column and never matches any event group (harmless).
-   * * legacy group -> only the per-person `{person, person-<vid>}` key; the fulfiller matches
-   *   legacy groups by `event_group_reference_id`, so its value is ignored downstream.
-   *
-   * The pipeline re-assigns the VID from the model; the direct-path expected VID and this one match
-   * only when the model reproduces the synthetic assignment (validated by an end-to-end run).
-   */
+  /** Preserves every configured key on each impression before the pipeline assigns its VID. */
   private fun LabeledEventDateShard<TestEvent>.toEntityKeyed(
     config: EventGroupConfig
   ): EntityKeyedLabeledEventDateShard<TestEvent> =
@@ -239,7 +233,7 @@ class SeedRawImpressionsRule(
     return when (config) {
       is EventGroupConfig.LegacySpec -> listOf(personKey)
       is EventGroupConfig.MultiEntityKey ->
-        listOf(personKey, config.entityKeySpecs.single().entityKey)
+        listOf(personKey) + config.entityKeySpecs.single().entityKeys
     }
   }
 
@@ -339,6 +333,8 @@ class SeedRawImpressionsRule(
     private val KEK_URI_BY_PROJECT: Map<String, String> = Edp7StorageKek.BY_PROJECT
     private val EDP7_KEK_URI: String =
       env("EDP7_KEK_URI").ifEmpty { KEK_URI_BY_PROJECT[PROJECT_ID].orEmpty() }
+
+    private const val LABELED_IMPRESSIONS_PREFIX = "vid-labeled-impressions/edp/edp7"
 
     private val RAW_IMPRESSIONS_BUCKET: String = env("RAW_IMPRESSIONS_BUCKET")
     private val RAW_IMPRESSIONS_PREFIX: String =

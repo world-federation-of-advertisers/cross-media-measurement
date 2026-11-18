@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset tristanvuong2021:add-reporting-sets-campaign-group-id-index dbms:postgresl
+-- changeset tristanvuong2021:add-reporting-sets-campaign-group-id-index dbms:postgresql
 -- comment: index is finding reporting sets by campaign group id
 CREATE INDEX reporting_sets_campaign_group_id_index
   ON ReportingSets (MeasurementConsumerId, CampaignGroupId);

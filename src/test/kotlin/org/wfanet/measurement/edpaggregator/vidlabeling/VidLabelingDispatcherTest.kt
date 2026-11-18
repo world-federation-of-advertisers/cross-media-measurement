@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import io.grpc.Status
@@ -32,12 +33,24 @@ import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.yield
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
@@ -64,35 +77,87 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
+import org.wfanet.measurement.edpaggregator.service.v1alpha.RawImpressionUploadCorrectionCandidateService
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt as PublicCandidateGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.internal.edpaggregator.ActivateQuarantinedRawImpressionUploadRequest
+import org.wfanet.measurement.internal.edpaggregator.CreateQuarantinedRawImpressionUploadRequest
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate as InternalCandidate
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCandidateGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RegisterDetectedRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.internal.edpaggregator.ResolveDetectedRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.internal.edpaggregator.copy
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate as internalCandidate
+import org.wfanet.measurement.internal.edpaggregator.registerDetectedRawImpressionUploadCorrectionCandidateResponse
+import org.wfanet.measurement.internal.edpaggregator.resolveDetectedRawImpressionUploadCorrectionCandidateResponse
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 @RunWith(JUnit4::class)
 class VidLabelingDispatcherTest {
+  private val logRecords = mutableListOf<LogRecord>()
+  private val rootLogger = Logger.getLogger("")
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
+
+  @Before
+  fun initLogging() {
+    logRecords.clear()
+    rootLogger.addHandler(logHandler)
+  }
+
+  @After
+  fun cleanupLogging() {
+    rootLogger.removeHandler(logHandler)
+  }
 
   private val modelLinesService: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService()
   private val modelRolloutsService: ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase =
@@ -104,8 +169,17 @@ class VidLabelingDispatcherTest {
   private val rawImpressionUploadFileService:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
     mockService()
+  private val correctionCandidateService:
+    InternalCandidateGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase =
+    mockService()
   private val rawImpressionUploadModelLineService:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase =
+    mockService()
+  private val rankIndexBlobService:
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase =
+    mockService()
+  private val uploadHealingOperationService:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase =
     mockService()
   private val workItemsService: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService()
   private val poolAssignmentJobService:
@@ -116,18 +190,31 @@ class VidLabelingDispatcherTest {
     mockService()
   private val storageClient: StorageClient = mock()
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
+  private val grpcTestServerRule = GrpcTestServerRule {
     addService(modelLinesService)
     addService(modelRolloutsService)
     addService(modelShardsService)
     addService(rawImpressionUploadService)
     addService(rawImpressionUploadFileService)
+    addService(correctionCandidateService)
     addService(rawImpressionUploadModelLineService)
+    addService(rankIndexBlobService)
+    addService(uploadHealingOperationService)
     addService(workItemsService)
     addService(poolAssignmentJobService)
     addService(vidLabelingJobService)
   }
+
+  private val publicCandidateServer = GrpcTestServerRule {
+    addService(
+      RawImpressionUploadCorrectionCandidateService(
+        InternalCandidateGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub(
+          grpcTestServerRule.channel
+        )
+      )
+    )
+  }
+  @get:Rule val rpcServers = RuleChain.outerRule(grpcTestServerRule).around(publicCandidateServer)
 
   private val poolAssignmentJobStub by lazy {
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(grpcTestServerRule.channel)
@@ -157,8 +244,24 @@ class VidLabelingDispatcherTest {
     )
   }
 
+  private val correctionCandidateStub by lazy {
+    PublicCandidateGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub(
+      publicCandidateServer.channel
+    )
+  }
+
   private val rawImpressionUploadModelLineStub by lazy {
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
+  }
+
+  private val rankIndexBlobStub by lazy {
+    RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+
+  private val uploadHealingOperationStub by lazy {
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
       grpcTestServerRule.channel
     )
   }
@@ -210,6 +313,8 @@ class VidLabelingDispatcherTest {
     return VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      rankIndexBlobStub = rankIndexBlobStub,
+      uploadHealingOperationStub = uploadHealingOperationStub,
       workItemsStub = workItemsStub,
       poolAssignmentJobStub = poolAssignmentJobStub,
       modelRolloutsStub = modelRolloutsStub,
@@ -231,6 +336,8 @@ class VidLabelingDispatcherTest {
 
   private fun createDispatcher(
     overrideModelLines: List<String> = emptyList(),
+    recoverySourceUpload: String? = null,
+    recoveryOperationId: String? = null,
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
     readEventDate: suspend (String) -> LocalDate = { EVENT_DATE },
     readBlobMetadata: suspend (String) -> RawImpressionBlobMetadata = {
@@ -241,17 +348,27 @@ class VidLabelingDispatcherTest {
     },
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    footerReadConcurrency: Int = VidLabelingDispatcher.DEFAULT_FOOTER_READ_CONCURRENCY,
+    getHealingOperation:
+      suspend (String) -> org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation? =
+      {
+        null
+      },
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+      correctionDetectionStub = correctionCandidateStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      rankIndexBlobStub = rankIndexBlobStub,
       modelLinesStub = modelLinesStub,
       dispatchSequencer = createSequencer(modelLineConfigs, rpcThrottlers),
       dataProviderName = DATA_PROVIDER_NAME,
       modelSuiteName = MODEL_SUITE_NAME,
       overrideModelLines = overrideModelLines,
+      recoverySourceUpload = recoverySourceUpload,
+      recoveryOperationId = recoveryOperationId,
       modelLineConfigs = modelLineConfigs,
       readEventDate = readEventDate,
       readBlobMetadata = { blobKey ->
@@ -262,8 +379,10 @@ class VidLabelingDispatcherTest {
         }
       },
       rpcThrottlers = rpcThrottlers,
+      footerReadConcurrency = footerReadConcurrency,
       clock = fixedClock,
       metrics = metrics,
+      getHealingOperation = getHealingOperation,
     )
   }
 
@@ -274,12 +393,157 @@ class VidLabelingDispatcherTest {
     return blob
   }
 
+  private fun previousUpload(
+    generation: Long = 100L,
+    nameSuffix: String = "previous",
+  ): RawImpressionUpload = rawImpressionUpload {
+    name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$nameSuffix"
+    state = RawImpressionUpload.State.COMPLETED
+    doneBlobUri = DONE_BLOB_PATH
+    doneBlobGeneration = generation
+    doneBlobCreateTime =
+      DONE_BLOB_CREATE_TIME.minusSeconds(DONE_BLOB_GENERATION - generation).toProtoTime()
+    registrationComplete = true
+  }
+
+  private fun manifestFile(
+    uploadName: String,
+    blobUri: String,
+    generation: Long,
+  ): RawImpressionUploadFile = rawImpressionUploadFile {
+    name = "$uploadName/files/${generation}"
+    this.blobUri = blobUri
+    blobGeneration = generation
+    eventDate = date {
+      year = EVENT_DATE.year
+      month = EVENT_DATE.monthValue
+      day = EVENT_DATE.dayOfMonth
+    }
+  }
+
   private class RecordingThrottler : Throttler {
     var onReadyCalls = 0
+    var inOnReady = false
+      private set
 
     override suspend fun <T> onReady(block: suspend () -> T): T {
       onReadyCalls++
-      return block()
+      inOnReady = true
+      return try {
+        block()
+      } finally {
+        inOnReady = false
+      }
+    }
+  }
+
+  private suspend fun stubRecoverySource(
+    source: RawImpressionUpload,
+    latestSourceRevision: RawImpressionUpload = source,
+    intermediateSourceRevisions: List<RawImpressionUpload> = emptyList(),
+    predecessorModelLineState: RawImpressionUploadModelLine.State =
+      RawImpressionUploadModelLine.State.COMPLETED,
+    recoveryPredecessorUpload: String = RECOVERY_PREDECESSOR_UPLOAD,
+    recoveryAction: RawImpressionUploadModelLine.RecoveryAction =
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+    metadataReadThrottler: RecordingThrottler? = null,
+    paginateRecoveryReads: Boolean = false,
+  ) {
+    val predecessor = rawImpressionUpload {
+      name = RECOVERY_PREDECESSOR_UPLOAD
+      doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 2
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(3).toProtoTime()
+    }
+    val predecessorReplacement = rawImpressionUpload {
+      name = RECOVERY_PREDECESSOR_REPLACEMENT
+      doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      replacesRawImpressionUpload = predecessor.name
+    }
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      check(metadataReadThrottler == null || metadataReadThrottler.inOnReady)
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
+        >(
+          0
+        )
+      when (request.name) {
+        source.name -> source
+        predecessor.name -> predecessor
+        else -> error("Unexpected upload: ${request.name}")
+      }
+    }
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+      listRawImpressionUploadsResponse {
+        if (request.filter.doneBlobUri == predecessor.doneBlobUri) {
+          rawImpressionUploads += predecessor
+          rawImpressionUploads += predecessorReplacement
+        } else {
+          rawImpressionUploads += intermediateSourceRevisions
+          rawImpressionUploads += latestSourceRevision
+        }
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenAnswer { invocation ->
+        check(metadataReadThrottler == null || metadataReadThrottler.inOnReady)
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+          >(
+            0
+          )
+        listRawImpressionUploadModelLinesResponse {
+          if (request.pageToken.isEmpty())
+            when (request.parent) {
+              source.name -> rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                  name = "${source.name}/rawImpressionUploadModelLines/rml1"
+                  cmmsModelLine = MODEL_LINE_1
+                  state = RawImpressionUploadModelLine.State.FAILED
+                  failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+                  this.recoveryAction = recoveryAction
+                  evictionOperationId = EVICTION_OPERATION_ID
+                  if (recoveryPredecessorUpload.isNotEmpty()) {
+                    recoveryPredecessorRawImpressionUpload = recoveryPredecessorUpload
+                  }
+                }
+              predecessorReplacement.name -> rawImpressionUploadModelLines +=
+                  rawImpressionUploadModelLine {
+                    name = "${predecessorReplacement.name}/rawImpressionUploadModelLines/rml1"
+                    cmmsModelLine = MODEL_LINE_1
+                    state = predecessorModelLineState
+                  }
+            }
+          if (paginateRecoveryReads && request.pageToken.isEmpty()) {
+            nextPageToken = "next"
+          }
+        }
+      }
+    whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      check(metadataReadThrottler == null || metadataReadThrottler.inOnReady)
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+        >(
+          0
+        )
+      listRankIndexBlobsResponse {
+        if (request.pageToken.isEmpty()) {
+          rankIndexBlobs += rankIndexBlob {
+            name = "${request.parent}/rankIndexBlobs/snapshot"
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            cmmsModelLine = MODEL_LINE_1
+            if (request.parent == source.name) deleteTime = Timestamp.getDefaultInstance()
+          }
+          if (paginateRecoveryReads && request.showDeleted) {
+            nextPageToken = "next"
+          }
+        }
+      }
     }
   }
 
@@ -294,6 +558,8 @@ class VidLabelingDispatcherTest {
       )
     whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
       .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
     whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
       .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
     whenever(
@@ -312,6 +578,44 @@ class VidLabelingDispatcherTest {
     // a test overrides this.
     whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
       .thenReturn(listRawImpressionUploadsResponse {})
+  }
+
+  private suspend fun stubCorrectionCandidateRegistration() {
+    whenever(correctionCandidateService.createQuarantinedRawImpressionUpload(any()))
+      .thenReturn(
+        internalRawImpressionUpload {
+          state =
+            org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+              .RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+          dataProviderResourceId = DATA_PROVIDER_NAME.substringAfter("dataProviders/")
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_ID
+          etag = UPLOAD_ETAG
+        }
+      )
+    whenever(
+        correctionCandidateService.registerDetectedRawImpressionUploadCorrectionCandidate(any())
+      )
+      .thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>(0)
+        registerDetectedRawImpressionUploadCorrectionCandidateResponse {
+          rawImpressionUploadCorrectionCandidate = internalCandidate {
+            dataProviderResourceId = request.dataProviderResourceId
+            rawImpressionUploadCorrectionCandidateId =
+              request.rawImpressionUploadCorrectionCandidateId
+            rawImpressionUploadResourceId =
+              request.rawImpressionUploadCorrectionCandidate.rawImpressionUploadResourceId
+            classification = request.rawImpressionUploadCorrectionCandidate.classification
+          }
+          newlyCreated = true
+        }
+      }
+    whenever(
+        correctionCandidateService.resolveDetectedRawImpressionUploadCorrectionCandidate(any())
+      )
+      .thenReturn(
+        resolveDetectedRawImpressionUploadCorrectionCandidateResponse { newlyResolved = true }
+      )
   }
 
   private suspend fun stubFullResolutionChain(vararg modelLineNames: String) {
@@ -376,14 +680,600 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `upload with empty directory creates no upload and resolves no model lines`() = runBlocking {
+  fun `initial upload rejects an empty directory`() = runBlocking {
     whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
 
-    val dispatcher = createDispatcher()
-    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      }
 
+    assertThat(error).hasMessageThat().contains("cannot be empty")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
     verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `upload lists only the done marker directory`() = runBlocking {
+    whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
+
+    assertFailsWith<IllegalArgumentException> {
+      createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+    }
+
+    verify(storageClient)
+      .listBlobs(
+        SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH).key.substringBeforeLast("/") + "/"
+      )
+    Unit
+  }
+
+  @Test
+  fun `upload bounds one thousand footer reads at configured concurrency`() = runBlocking {
+    val blobs = List(1_000) { index -> createMockBlob("$FOLDER_PREFIX/file-$index.parquet") }
+    whenever(storageClient.listBlobs(any())).thenReturn(blobs.asFlow())
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1)
+    val activeReads = AtomicInteger()
+    val peakReads = AtomicInteger()
+    val totalReads = AtomicInteger()
+    val expectedReadsStarted = CompletableDeferred<Unit>()
+    val releaseReads = CompletableDeferred<Unit>()
+    val concurrency = VidLabelingDispatcher.DEFAULT_FOOTER_READ_CONCURRENCY
+    assertThat(concurrency).isEqualTo(12)
+    val dispatcher =
+      createDispatcher(
+        readEventDate = {
+          val active = activeReads.incrementAndGet()
+          peakReads.updateAndGet { previous -> maxOf(previous, active) }
+          totalReads.incrementAndGet()
+          if (active == concurrency) expectedReadsStarted.complete(Unit)
+          try {
+            releaseReads.await()
+            EVENT_DATE
+          } finally {
+            activeReads.decrementAndGet()
+          }
+        }
+      )
+
+    val upload = async { dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION) }
+    expectedReadsStarted.await()
+    yield()
+
+    assertThat(activeReads.get()).isEqualTo(concurrency)
+    assertThat(peakReads.get()).isEqualTo(concurrency)
+
+    releaseReads.complete(Unit)
+    val outcome = upload.await()
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.SUCCEEDED)
+    assertThat(totalReads.get()).isEqualTo(blobs.size)
+  }
+
+  @Test
+  fun `dispatcher rejects nonpositive footer concurrency`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> { createDispatcher(footerReadConcurrency = 0) }
+
+    assertThat(error).hasMessageThat().contains("footerReadConcurrency must be positive")
+  }
+
+  @Test
+  fun `footer read concurrency defaults to twelve and accepts an environment override`() {
+    assertThat(VidLabelingDispatcher.resolveFooterReadConcurrency(null)).isEqualTo(12)
+    assertThat(VidLabelingDispatcher.resolveFooterReadConcurrency("7")).isEqualTo(7)
+  }
+
+  @Test
+  fun `footer read concurrency rejects invalid environment overrides`() {
+    val zero =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingDispatcher.resolveFooterReadConcurrency("0")
+      }
+    val malformed =
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingDispatcher.resolveFooterReadConcurrency("many")
+      }
+
+    assertThat(zero).hasMessageThat().contains("must be a positive integer")
+    assertThat(malformed).hasMessageThat().contains("must be a positive integer")
+  }
+
+  @Test
+  fun `edited manifest is quarantined without model-line work`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val previous = previousUpload()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += manifestFile(previous.name, blobUri, 10L)
+        }
+      )
+
+    val outcome =
+      createDispatcher(
+          readBlobMetadata = { RawImpressionBlobMetadata(20L, 100L, RAW_BLOB_CREATE_TIME) }
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.CORRECTION_REQUIRED)
+    assertThat(
+        logRecords
+          .single { it.message.contains("event=edpa.vid_labeling.upload_registered ") }
+          .message
+      )
+      .contains("xmm.outcome=correction_required")
+    val uploadRequest = argumentCaptor<CreateQuarantinedRawImpressionUploadRequest>()
+    verifyBlocking(correctionCandidateService) {
+      createQuarantinedRawImpressionUpload(uploadRequest.capture())
+    }
+    assertThat(uploadRequest.firstValue.rawImpressionUploadCorrectionCandidateId).isNotEmpty()
+    val candidate = argumentCaptor<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(candidate.capture())
+    }
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.classification)
+      .isEqualTo(InternalCandidate.Classification.CLASSIFICATION_EDITED)
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.priorManifestDigest)
+      .isNotEqualTo(
+        candidate.firstValue.rawImpressionUploadCorrectionCandidate.currentManifestDigest
+      )
+    val manifestComparison =
+      candidate.firstValue.rawImpressionUploadCorrectionCandidate.manifestComparison
+    assertThat(
+        manifestComparison.priorManifestList.single().outputSourceRawImpressionUploadResourceId
+      )
+      .isEqualTo("previous")
+    assertThat(
+        manifestComparison.currentManifestList.single().outputSourceRawImpressionUploadResourceId
+      )
+      .isEqualTo(RAW_IMPRESSION_UPLOAD_ID)
+    assertThat(manifestComparison.currentManifestList.single().eventDate)
+      .isEqualTo(EVENT_DATE_PROTO)
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.currentManifestDigest)
+      .isEqualTo(
+        RawImpressionUploadManifestClassifier()
+          .digest(
+            listOf(RawImpressionUploadManifestClassifier.File(blobUri, 20L, EVENT_DATE_PROTO))
+          )
+      )
+    assertThat(manifestComparison.differencesList.single().type)
+      .isEqualTo(InternalCandidate.ManifestDifference.Type.TYPE_EDITED)
+    verifyBlocking(rawImpressionUploadService, never()) {
+      markRawImpressionUploadRegistrationComplete(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `event date move uses the dated mixed classification`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val previous = previousUpload()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += manifestFile(previous.name, blobUri, 10L)
+        }
+      )
+    val movedDate = EVENT_DATE.plusDays(1)
+
+    createDispatcher(
+        readEventDate = { movedDate },
+        readBlobMetadata = { RawImpressionBlobMetadata(20L, 100L, RAW_BLOB_CREATE_TIME) },
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val candidate = argumentCaptor<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(candidate.capture())
+    }
+    val registered = candidate.firstValue.rawImpressionUploadCorrectionCandidate
+    assertThat(registered.classification)
+      .isEqualTo(InternalCandidate.Classification.CLASSIFICATION_MIXED)
+    assertThat(registered.manifestComparison.differencesList.single().type)
+      .isEqualTo(InternalCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED)
+    assertThat(registered.manifestComparison.currentManifestList.single().eventDate)
+      .isEqualTo(
+        date {
+          year = movedDate.year
+          month = movedDate.monthValue
+          day = movedDate.dayOfMonth
+        }
+      )
+  }
+
+  @Test
+  fun `non-additive manifest acquires fence before footer failure`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val previous = previousUpload()
+    var fenceAcquired = false
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubCorrectionCandidateRegistration()
+    whenever(correctionCandidateService.createQuarantinedRawImpressionUpload(any())).thenAnswer {
+      fenceAcquired = true
+      internalRawImpressionUpload {
+        state =
+          org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+            .RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+        dataProviderResourceId = DATA_PROVIDER_NAME.substringAfter("dataProviders/")
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_ID
+        etag = UPLOAD_ETAG
+      }
+    }
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += manifestFile(previous.name, blobUri, 10L)
+        }
+      )
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        createDispatcher(
+            readEventDate = {
+              check(fenceAcquired)
+              error("invalid footer")
+            },
+            readBlobMetadata = { RawImpressionBlobMetadata(20L, 100L, RAW_BLOB_CREATE_TIME) },
+          )
+          .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      }
+
+    assertThat(error).hasMessageThat().contains("invalid footer")
+    verifyBlocking(correctionCandidateService) { createQuarantinedRawImpressionUpload(any()) }
+    verifyBlocking(correctionCandidateService, never()) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(any())
+    }
+  }
+
+  @Test
+  fun `empty replacement manifest is quarantined as removed`() = runBlocking {
+    val previous = previousUpload()
+    val blobUri = "file:///test-bucket/$FOLDER_PREFIX/file.parquet"
+    whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
+    stubRawImpressionUploadCreation()
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += manifestFile(previous.name, blobUri, 10L)
+        }
+      )
+
+    createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val candidate = argumentCaptor<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(candidate.capture())
+    }
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.classification)
+      .isEqualTo(InternalCandidate.Classification.CLASSIFICATION_REMOVED)
+    assertThat(
+        candidate.firstValue.rawImpressionUploadCorrectionCandidate.manifestComparison
+          .currentManifestList
+      )
+      .isEmpty()
+    assertThat(
+        candidate.firstValue.rawImpressionUploadCorrectionCandidate.manifestComparison
+          .differencesList
+          .single()
+          .type
+      )
+      .isEqualTo(InternalCandidate.ManifestDifference.Type.TYPE_REMOVED)
+    verifyBlocking(rawImpressionUploadFileService, never()) {
+      batchCreateRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+  }
+
+  @Test
+  fun `rewrite after complete no-replacement deletion uses the empty boundary`() = runBlocking {
+    val old = previousUpload(generation = 90L, nameSuffix = "old")
+    val removed =
+      previousUpload(generation = 100L, nameSuffix = "removed").copy {
+        state = RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
+        replacesRawImpressionUpload = old.name
+      }
+    val oldBlobUri = "file:///test-bucket/$FOLDER_PREFIX/file.parquet"
+    whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += old
+          rawImpressionUploads += removed
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        if (parent == old.name) {
+          rawImpressionUploadFiles += manifestFile(old.name, oldBlobUri, 10L)
+        }
+      }
+    }
+
+    val outcome = createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.NO_WORK)
+    verifyBlocking(correctionCandidateService, never()) {
+      createQuarantinedRawImpressionUpload(any())
+    }
+    verifyBlocking(correctionCandidateService, never()) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(any())
+    }
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `mixed manifest stores the complete current snapshot`() = runBlocking {
+    val edited = createMockBlob("$FOLDER_PREFIX/edited.parquet")
+    val added = createMockBlob("$FOLDER_PREFIX/added.parquet")
+    val doneUri = SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH)
+    val editedUri = BlobUris.buildUri(doneUri, edited.blobKey)
+    val addedUri = BlobUris.buildUri(doneUri, added.blobKey)
+    val removedUri = "file:///test-bucket/$FOLDER_PREFIX/removed.parquet"
+    val previous = previousUpload()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(edited, added))
+    stubRawImpressionUploadCreation()
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += manifestFile(previous.name, editedUri, 10L)
+          rawImpressionUploadFiles += manifestFile(previous.name, removedUri, 11L)
+        }
+      )
+    val generations = mapOf(edited.blobKey to 20L, added.blobKey to 30L)
+
+    createDispatcher(
+        readBlobMetadata = {
+          RawImpressionBlobMetadata(generations.getValue(it), 100L, RAW_BLOB_CREATE_TIME)
+        }
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val candidate = argumentCaptor<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(candidate.capture())
+    }
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.classification)
+      .isEqualTo(InternalCandidate.Classification.CLASSIFICATION_MIXED)
+    assertThat(
+        candidate.firstValue.rawImpressionUploadCorrectionCandidate.manifestComparison
+          .currentManifestList
+          .map { it.blobUri }
+      )
+      .containsExactly(editedUri, addedUri)
+    val files = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileService) {
+      batchCreateRawImpressionUploadFiles(files.capture())
+    }
+    assertThat(files.firstValue.requestsList.map { it.rawImpressionUploadFile.blobUri })
+      .containsExactly(editedUri, addedUri)
+    Unit
+  }
+
+  @Test
+  fun `newer correction supersedes the previous candidate`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val healthy = previousUpload(generation = 90L, nameSuffix = "healthy")
+    val quarantined =
+      previousUpload(generation = 100L, nameSuffix = "quarantined").copy {
+        state = RawImpressionUpload.State.CORRECTION_REQUIRED
+        replacesRawImpressionUpload = healthy.name
+      }
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += healthy
+          rawImpressionUploads += quarantined
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        rawImpressionUploadFiles +=
+          manifestFile(parent, blobUri, if (parent == healthy.name) 10L else 20L)
+      }
+    }
+
+    createDispatcher(
+        readBlobMetadata = { RawImpressionBlobMetadata(30L, 100L, RAW_BLOB_CREATE_TIME) }
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val candidate = argumentCaptor<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(candidate.capture())
+    }
+    assertThat(candidate.firstValue.supersededRawImpressionUploadCorrectionCandidateId)
+      .isEqualTo(
+        RequestIds.forRawImpressionUploadCorrectionCandidate(
+          quarantined.doneBlobUri,
+          quarantined.doneBlobGeneration,
+        )
+      )
+  }
+
+  @Test
+  fun `healthy no-op revision resolves the pending correction`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val healthy = previousUpload(generation = 90L, nameSuffix = "healthy")
+    val quarantined =
+      previousUpload(generation = 100L, nameSuffix = "quarantined").copy {
+        state = RawImpressionUpload.State.CORRECTION_REQUIRED
+        replacesRawImpressionUpload = healthy.name
+      }
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += healthy
+          rawImpressionUploads += quarantined
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        rawImpressionUploadFiles +=
+          manifestFile(parent, blobUri, if (parent == healthy.name) 10L else 20L)
+      }
+    }
+
+    createDispatcher(
+        readBlobMetadata = { RawImpressionBlobMetadata(10L, 100L, RAW_BLOB_CREATE_TIME) }
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val request = argumentCaptor<ResolveDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      resolveDetectedRawImpressionUploadCorrectionCandidate(request.capture())
+    }
+    assertThat(request.firstValue.rawImpressionUploadCorrectionCandidateId)
+      .isEqualTo(
+        RequestIds.forRawImpressionUploadCorrectionCandidate(
+          quarantined.doneBlobUri,
+          quarantined.doneBlobGeneration,
+        )
+      )
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `healthy append resolves the pending correction and registers only additions`() =
+    runBlocking<Unit> {
+      val retained = createMockBlob("$FOLDER_PREFIX/retained.parquet")
+      val added = createMockBlob("$FOLDER_PREFIX/added.parquet")
+      val doneUri = SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH)
+      val retainedUri = BlobUris.buildUri(doneUri, retained.blobKey)
+      val addedUri = BlobUris.buildUri(doneUri, added.blobKey)
+      val healthy = previousUpload(generation = 90L, nameSuffix = "healthy")
+      val quarantined =
+        previousUpload(generation = 100L, nameSuffix = "quarantined").copy {
+          state = RawImpressionUpload.State.CORRECTION_REQUIRED
+          replacesRawImpressionUpload = healthy.name
+        }
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(retained, added))
+      stubRawImpressionUploadCreation()
+      stubCorrectionCandidateRegistration()
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += healthy
+            rawImpressionUploads += quarantined
+          },
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += healthy
+            rawImpressionUploads += quarantined
+          },
+        )
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+        invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles +=
+            when (request.parent) {
+              healthy.name -> listOf(manifestFile(healthy.name, retainedUri, 10L))
+              quarantined.name ->
+                listOf(
+                  manifestFile(quarantined.name, retainedUri, 20L),
+                  manifestFile(quarantined.name, addedUri, 30L),
+                )
+              "$DATA_PROVIDER_NAME/rawImpressionUploads/-" ->
+                listOf(
+                  manifestFile(healthy.name, retainedUri, 10L),
+                  manifestFile(quarantined.name, retainedUri, 20L),
+                  manifestFile(quarantined.name, addedUri, 30L),
+                )
+              else -> emptyList()
+            }
+        }
+      }
+      whenever(modelLinesService.listModelLines(any())).thenReturn(listModelLinesResponse {})
+      val generations = mapOf(retained.blobKey to 10L, added.blobKey to 30L)
+
+      createDispatcher(
+          readBlobMetadata = {
+            RawImpressionBlobMetadata(generations.getValue(it), 100L, RAW_BLOB_CREATE_TIME)
+          }
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      verifyBlocking(correctionCandidateService) {
+        resolveDetectedRawImpressionUploadCorrectionCandidate(any())
+      }
+      val files = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+      verifyBlocking(rawImpressionUploadFileService) {
+        batchCreateRawImpressionUploadFiles(files.capture())
+      }
+      assertThat(files.firstValue.requestsList.map { it.rawImpressionUploadFile.blobUri })
+        .containsExactly(addedUri)
+    }
+
+  @Test
+  fun `fast path does not dispatch an upload deferred by a correction fence`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      .thenReturn(
+        rawImpressionUpload {
+          name = "$DATA_PROVIDER_NAME/rawImpressionUploads/deferred"
+          doneBlobUri = DONE_BLOB_PATH
+          doneBlobGeneration = DONE_BLOB_GENERATION
+          etag = UPLOAD_ETAG
+          processingDeferred = true
+        }
+      )
+    stubFullResolutionChain(MODEL_LINE_1)
+
+    createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val requests = argumentCaptor<ListRawImpressionUploadsRequest>()
+    verifyBlocking(rawImpressionUploadService, times(2)) {
+      listRawImpressionUploads(requests.capture())
+    }
+    assertThat(requests.allValues.all { it.filter.stateInList.isEmpty() }).isTrue()
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
@@ -409,8 +1299,9 @@ class VidLabelingDispatcherTest {
             )
           }
         )
-      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val outcome = dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.SUCCEEDED)
       val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
       verifyBlocking(rawImpressionUploadFileService) {
         batchCreateRawImpressionUploadFiles(requestCaptor.capture())
@@ -442,6 +1333,122 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `upload rejects a new URI created after the done object`() = runBlocking {
+    val earlyBlob = createMockBlob("$FOLDER_PREFIX/early.parquet")
+    val lateBlob = createMockBlob("$FOLDER_PREFIX/late.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(earlyBlob, lateBlob))
+    stubRawImpressionUploadCreation()
+
+    val outcome =
+      createDispatcher(
+          readBlobMetadata = { blobKey ->
+            RawImpressionBlobMetadata(
+              generation = RAW_BLOB_GENERATION,
+              sizeBytes = 100L,
+              createTime =
+                if (blobKey == lateBlob.blobKey) {
+                  DONE_BLOB_CREATE_TIME.plusSeconds(1)
+                } else {
+                  RAW_BLOB_CREATE_TIME
+                },
+            )
+          }
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.INVALID_DONE_MARKER)
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    verifyBlocking(rawImpressionUploadFileService, never()) {
+      batchCreateRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `upload rejects a same URI overwrite created after the done object`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val previousUpload = rawImpressionUpload {
+      name = "$DATA_PROVIDER_NAME/rawImpressionUploads/previous"
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      state = RawImpressionUpload.State.COMPLETED
+      registrationComplete = true
+    }
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previousUpload })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "${previousUpload.name}/files/file"
+            this.blobUri = blobUri
+            blobGeneration = RAW_BLOB_GENERATION - 1
+          }
+        }
+      )
+
+    val outcome =
+      createDispatcher(
+          readBlobMetadata = {
+            RawImpressionBlobMetadata(
+              generation = RAW_BLOB_GENERATION,
+              sizeBytes = 100L,
+              createTime = DONE_BLOB_CREATE_TIME.plusSeconds(1),
+            )
+          }
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.INVALID_DONE_MARKER)
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    verifyBlocking(rawImpressionUploadFileService, never()) { listRawImpressionUploadFiles(any()) }
+    verifyBlocking(rawImpressionUploadFileService, never()) {
+      batchCreateRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `upload rejects files with different footer event dates before creating file resources`() =
+    runBlocking<Unit> {
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
+      stubRawImpressionUploadCreation()
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createDispatcher(
+              readEventDate = { blobUri ->
+                if (blobUri.contains("file1.parquet")) EVENT_DATE else EVENT_DATE.plusDays(1)
+              }
+            )
+            .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("contains files with multiple footer event dates")
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadService, never()) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
+    }
+
+  @Test
   fun `upload routes Kingdom and metadata RPCs through their throttlers`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
@@ -465,6 +1472,120 @@ class VidLabelingDispatcherTest {
     assertThat(kingdom.onReadyCalls).isGreaterThan(0)
     assertThat(metadataRead.onReadyCalls).isGreaterThan(0)
     assertThat(metadataWrite.onReadyCalls).isGreaterThan(0)
+  }
+
+  @Test
+  fun `classification avoids global registered-file scans`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val currentUpload =
+      RawImpressionUpload.newBuilder()
+        .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
+        .setDoneBlobUri(DONE_BLOB_PATH)
+        .setDoneBlobGeneration(DONE_BLOB_GENERATION)
+        .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
+        .setState(RawImpressionUpload.State.CREATED)
+        .setEtag(UPLOAD_ETAG)
+        .build()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += currentUpload })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+      if (request.parent.endsWith("/-")) {
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$DATA_PROVIDER_NAME/rawImpressionUploads/historical/files/file"
+            this.blobUri = blobUri
+            blobGeneration = RAW_BLOB_GENERATION
+          }
+        }
+      } else {
+        listRawImpressionUploadFilesResponse {}
+      }
+    }
+    val metadataRead = RecordingThrottler()
+
+    createDispatcher(
+        rpcThrottlers =
+          VidLabelingRpcThrottlers(
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().kingdom,
+            metadataRead,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().metadataWrite,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().controlPlane,
+          )
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(metadataRead.onReadyCalls).isEqualTo(2)
+    verifyBlocking(rawImpressionUploadFileService, never()) { listRawImpressionUploadFiles(any()) }
+  }
+
+  @Test
+  fun `upload throttles every page of chunked historical-file lookups`() = runBlocking {
+    val blobs = (1..101).map { createMockBlob("$FOLDER_PREFIX/file$it.parquet") }
+    val previousUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/previous"
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(*blobs.toTypedArray()))
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            RawImpressionUpload.newBuilder()
+              .setName(previousUploadName)
+              .setDoneBlobUri(DONE_BLOB_PATH)
+              .setDoneBlobGeneration(100L)
+              .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime())
+              .setState(RawImpressionUpload.State.COMPLETED)
+              .setRegistrationComplete(true)
+              .build()
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+      if (request.pageToken.isEmpty()) {
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles +=
+            blobs.mapIndexed { index, blob ->
+              rawImpressionUploadFile {
+                name = "$previousUploadName/files/file-$index"
+                blobUri =
+                  BlobUris.buildUri(
+                    SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH),
+                    blob.blobKey,
+                  )
+                blobGeneration = RAW_BLOB_GENERATION
+              }
+            }
+          nextPageToken = "next"
+        }
+      } else {
+        listRawImpressionUploadFilesResponse {}
+      }
+    }
+    val metadataRead = RecordingThrottler()
+
+    createDispatcher(
+        rpcThrottlers =
+          VidLabelingRpcThrottlers(
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().kingdom,
+            metadataRead,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().metadataWrite,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().controlPlane,
+          )
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(metadataRead.onReadyCalls).isEqualTo(3)
+    val requestCaptor = argumentCaptor<ListRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileService, times(2)) {
+      listRawImpressionUploadFiles(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.allValues.map { it.pageToken }).containsExactly("", "next").inOrder()
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
   @Test
@@ -516,6 +1637,1093 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload accepts recovery override for latest failed memoized source`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val metadataRead = RecordingThrottler()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRecoverySource(source, metadataReadThrottler = metadataRead, paginateRecoveryReads = true)
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      .thenReturn(
+        rawImpressionUpload {
+          name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+          doneBlobUri = DONE_BLOB_PATH
+          doneBlobGeneration = DONE_BLOB_GENERATION
+          doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+        }
+      )
+    whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
+      .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+    whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+      .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+    stubOverrideResolutionChain()
+
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+        rpcThrottlers =
+          VidLabelingRpcThrottlers(
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().kingdom,
+            metadataRead,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().metadataWrite,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().controlPlane,
+          ),
+      )
+    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+    verifyBlocking(rawImpressionUploadService) {
+      createRawImpressionUpload(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.rawImpressionUpload.uploadHealingOperation)
+      .isEqualTo("$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID")
+    assertThat(metadataRead.onReadyCalls).isGreaterThan(0)
+  }
+
+  @Test
+  fun `upload activates the persisted quarantined manifest without relisting files`() =
+    runBlocking {
+      val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+      val source = rawImpressionUpload {
+        name = sourceUploadName
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 100
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+      }
+      val candidate = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/candidate-upload"
+        state = RawImpressionUpload.State.CORRECTION_REQUIRED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+        replacesRawImpressionUpload = source.name
+        registrationComplete = true
+      }
+      stubRecoverySource(
+        source,
+        latestSourceRevision = candidate,
+        recoveryPredecessorUpload = "",
+        recoveryAction = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+      )
+      whenever(correctionCandidateService.activateQuarantinedRawImpressionUpload(any()))
+        .thenReturn(
+          internalRawImpressionUpload {
+            dataProviderResourceId = "edp123"
+            rawImpressionUploadResourceId = "candidate-upload"
+            state =
+              org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+                .RAW_IMPRESSION_UPLOAD_STATE_CREATED
+            doneBlobUri = DONE_BLOB_PATH
+            doneBlobGeneration = DONE_BLOB_GENERATION
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+            registrationComplete = false
+            etag = UPLOAD_ETAG
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        )
+      whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+        .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+      stubOverrideResolutionChain()
+
+      createDispatcher(
+          overrideModelLines = listOf(MODEL_LINE_1),
+          recoverySourceUpload = sourceUploadName,
+          recoveryOperationId = EVICTION_OPERATION_ID,
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      val request = argumentCaptor<ActivateQuarantinedRawImpressionUploadRequest>()
+      verifyBlocking(correctionCandidateService) {
+        activateQuarantinedRawImpressionUpload(request.capture())
+      }
+      assertThat(request.firstValue.rawImpressionUploadResourceId).isEqualTo("candidate-upload")
+      assertThat(request.firstValue.sourceRawImpressionUploadResourceId).isEqualTo("source-upload")
+      assertThat(request.firstValue.requestId)
+        .isEqualTo(
+          RequestIds.forActivateQuarantinedRawImpressionUpload(
+            candidate.name,
+            EVICTION_OPERATION_ID,
+          )
+        )
+      verify(storageClient, never()).listBlobs(any())
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+    }
+
+  @Test
+  fun `upload activates an approved correction descended from its historical source`() =
+    runBlocking {
+      val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+      val source = rawImpressionUpload {
+        name = sourceUploadName
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 100
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      }
+      val intermediate = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/intermediate-upload"
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 101
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+        replacesRawImpressionUpload = source.name
+        registrationComplete = true
+      }
+      val candidate = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/candidate-upload"
+        state = RawImpressionUpload.State.CORRECTION_REQUIRED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+        replacesRawImpressionUpload = intermediate.name
+        registrationComplete = true
+      }
+      stubRecoverySource(
+        source,
+        latestSourceRevision = candidate,
+        intermediateSourceRevisions = listOf(intermediate),
+        recoveryPredecessorUpload = "",
+        recoveryAction = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+      )
+      whenever(correctionCandidateService.activateQuarantinedRawImpressionUpload(any()))
+        .thenReturn(
+          internalRawImpressionUpload {
+            dataProviderResourceId = "edp123"
+            rawImpressionUploadResourceId = "candidate-upload"
+            state =
+              org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+                .RAW_IMPRESSION_UPLOAD_STATE_CREATED
+            doneBlobUri = DONE_BLOB_PATH
+            doneBlobGeneration = DONE_BLOB_GENERATION
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+            etag = UPLOAD_ETAG
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        )
+      whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+        .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+      stubOverrideResolutionChain()
+
+      createDispatcher(
+          overrideModelLines = listOf(MODEL_LINE_1),
+          recoverySourceUpload = sourceUploadName,
+          recoveryOperationId = EVICTION_OPERATION_ID,
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      val request = argumentCaptor<ActivateQuarantinedRawImpressionUploadRequest>()
+      verifyBlocking(correctionCandidateService) {
+        activateQuarantinedRawImpressionUpload(request.capture())
+      }
+      assertThat(request.firstValue.rawImpressionUploadResourceId).isEqualTo("candidate-upload")
+      assertThat(request.firstValue.sourceRawImpressionUploadResourceId).isEqualTo("source-upload")
+    }
+
+  @Test
+  fun `committed recovery rejects mismatched scope and checkpoint before registration`() =
+    runBlocking {
+      val source = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 100
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+      }
+      val deferred = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/deferred"
+        state = RawImpressionUpload.State.CREATED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 1
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+        processingDeferred = true
+        replacesRawImpressionUpload = source.name
+      }
+      stubRecoverySource(
+        source,
+        latestSourceRevision = deferred,
+        intermediateSourceRevisions = listOf(source),
+        recoveryPredecessorUpload = "",
+      )
+      val operation =
+        org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+          name = "$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID"
+          state =
+            org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+          rawImpressionUploadCorrectionCandidates +=
+            "$DATA_PROVIDER_NAME/rawImpressionUploadCorrectionCandidates/approved"
+          steps +=
+            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+              sourceRawImpressionUpload = source.name
+              rawImpressionUploadModelLine = "${source.name}/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = MODEL_LINE_1
+              recoveryTarget = true
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              state =
+                org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+                  .RECOVERY_STARTED
+              recoveryDoneBlobGeneration = DONE_BLOB_GENERATION
+            }
+        }
+      for (invalidScope in
+        listOf(
+          "source",
+          "operation",
+          "provider",
+          "empty-models",
+          "extra-model",
+          "duplicate-model",
+        )) {
+        val suppliedOperation =
+          operation
+            .toBuilder()
+            .apply {
+              if (invalidScope == "operation")
+                name = "$DATA_PROVIDER_NAME/uploadHealingOperations/other"
+              if (invalidScope == "provider")
+                name = "dataProviders/other/uploadHealingOperations/$EVICTION_OPERATION_ID"
+            }
+            .build()
+        val models =
+          when (invalidScope) {
+            "empty-models" -> emptyList()
+            "extra-model" -> listOf(MODEL_LINE_1, MODEL_LINE_2)
+            "duplicate-model" -> listOf(MODEL_LINE_1, MODEL_LINE_1)
+            else -> listOf(MODEL_LINE_1)
+          }
+        assertFailsWith<IllegalArgumentException> {
+          createDispatcher(
+              overrideModelLines = models,
+              recoverySourceUpload =
+                if (invalidScope == "source") "$DATA_PROVIDER_NAME/rawImpressionUploads/other"
+                else source.name,
+              recoveryOperationId = EVICTION_OPERATION_ID,
+              getHealingOperation = { suppliedOperation },
+            )
+            .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+      }
+      for (invalidCheckpoint in listOf("generation", "unrecorded", "action")) {
+        val suppliedOperation =
+          operation
+            .toBuilder()
+            .apply {
+              if (invalidCheckpoint == "unrecorded")
+                setSteps(
+                  0,
+                  stepsList
+                    .single()
+                    .toBuilder()
+                    .setState(
+                      org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+                        .WAITING_FOR_REPLACEMENT
+                    ),
+                )
+              if (invalidCheckpoint == "action")
+                setSteps(
+                  0,
+                  stepsList
+                    .single()
+                    .toBuilder()
+                    .setRecoveryAction(
+                      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+                    ),
+                )
+            }
+            .build()
+        val error =
+          assertFailsWith<java.io.IOException> {
+            createDispatcher(
+                overrideModelLines = listOf(MODEL_LINE_1),
+                recoverySourceUpload = source.name,
+                recoveryOperationId = EVICTION_OPERATION_ID,
+                getHealingOperation = { suppliedOperation },
+              )
+              .upload(
+                DONE_BLOB_PATH,
+                DONE_BLOB_GENERATION + if (invalidCheckpoint == "generation") 1L else 0L,
+              )
+          }
+        assertThat(error).hasMessageThat().contains("checkpoint is not ready")
+      }
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+      verifyBlocking(correctionCandidateService, never()) {
+        activateQuarantinedRawImpressionUpload(any())
+      }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `upload accepts root recovery when no predecessor remains`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRecoverySource(source, recoveryPredecessorUpload = "")
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      .thenReturn(
+        rawImpressionUpload {
+          name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+          doneBlobUri = DONE_BLOB_PATH
+          doneBlobGeneration = DONE_BLOB_GENERATION
+          doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+        }
+      )
+    whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
+      .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+    whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+      .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+    stubOverrideResolutionChain()
+
+    createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+    verifyBlocking(rawImpressionUploadService) {
+      createRawImpressionUpload(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.rawImpressionUpload.uploadHealingOperation)
+      .isEqualTo("$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID")
+  }
+
+  @Test
+  fun `upload rejects historical AS predecessor when approved target is not memoized`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(memoized = false)
+    }
+
+  @Test
+  fun `upload rejects historical AS predecessor whose model row is missing`(): Unit = runBlocking {
+    verifyHistoricalPredecessorRejection(missingPredecessor = true)
+  }
+
+  @Test
+  fun `upload rejects historical AS predecessor newer than paginated original source checkpoints`():
+    Unit = runBlocking { verifyHistoricalPredecessorRejection(newer = true, paginated = true) }
+
+  @Test
+  fun `upload accepts exact historical AS predecessor under its active recovery target`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(expectRejected = false)
+    }
+
+  @Test
+  fun `upload historical proof filters unrelated model target and recovery action`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(expectRejected = false, scopeDecoys = true)
+    }
+
+  @Test
+  fun `upload accepts pending historical predecessor from its completed operation`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        expectRejected = false,
+        foreignPredecessor = true,
+        priorOperation = completedHistoricalOperation(),
+      )
+    }
+
+  @Test
+  fun `upload rejects pending historical predecessor with missing operation`(): Unit = runBlocking {
+    verifyHistoricalPredecessorRejection(foreignPredecessor = true)
+  }
+
+  @Test
+  fun `upload rejects pending historical predecessor with mismatched operation identity`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperation =
+          completedHistoricalOperation()
+            .toBuilder()
+            .setName("$DATA_PROVIDER_NAME/uploadHealingOperations/wrong")
+            .build(),
+      )
+    }
+
+  @Test
+  fun `upload rejects pending historical predecessor from unfinished operation`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperation =
+          completedHistoricalOperation()
+            .toBuilder()
+            .setState(
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+            )
+            .build(),
+      )
+    }
+
+  @Test
+  fun `upload rejects newer snapshot from completed historical operation`(): Unit = runBlocking {
+    verifyHistoricalPredecessorRejection(
+      foreignPredecessor = true,
+      priorOperation = completedHistoricalOperation(),
+      newer = true,
+    )
+  }
+
+  private fun completedHistoricalOperation() =
+    org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+      name = "$DATA_PROVIDER_NAME/uploadHealingOperations/prior"
+      state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.COMPLETE
+    }
+
+  @Test
+  fun `upload does not register replacement when prior operation lookup is unavailable`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperationFailure = Status.UNAVAILABLE,
+      )
+    }
+
+  @Test
+  fun `upload does not register replacement when prior operation lookup is cancelled`(): Unit =
+    runBlocking {
+      verifyHistoricalPredecessorRejection(
+        foreignPredecessor = true,
+        priorOperationFailure = Status.CANCELLED,
+      )
+    }
+
+  private suspend fun verifyHistoricalPredecessorRejection(
+    memoized: Boolean = true,
+    missingPredecessor: Boolean = false,
+    newer: Boolean = false,
+    paginated: Boolean = false,
+    expectRejected: Boolean = true,
+    scopeDecoys: Boolean = false,
+    foreignPredecessor: Boolean = false,
+    priorOperation: org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation? = null,
+    priorOperationFailure: Status? = null,
+  ) {
+    val source = rawImpressionUpload {
+      name = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-historical"
+      state = RawImpressionUpload.State.FAILED
+      registrationComplete = true
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+      createTime = DONE_BLOB_CREATE_TIME.minusSeconds(10).toProtoTime()
+    }
+    val predecessor = rawImpressionUpload {
+      name = RECOVERY_PREDECESSOR_UPLOAD
+      if (foreignPredecessor)
+        uploadHealingOperation = "$DATA_PROVIDER_NAME/uploadHealingOperations/prior"
+      state = RawImpressionUpload.State.ACTIVE
+      registrationComplete = true
+      doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 2
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      createTime = DONE_BLOB_CREATE_TIME.minusSeconds(20).toProtoTime()
+    }
+    if (!expectRejected) {
+      stubRawImpressionUploadCreation()
+      stubOverrideResolutionChain()
+      val inputBlob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(inputBlob))
+    }
+    stubRecoverySource(source)
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
+        >(
+          0
+        )
+      if (request.name == source.name) source else predecessor
+    }
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads +=
+          if (request.filter.doneBlobUri == DONE_BLOB_PATH) source else predecessor
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+          >(
+            0
+          )
+        listRawImpressionUploadModelLinesResponse {
+          if (request.parent == source.name)
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "${source.name}/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = MODEL_LINE_1
+              state = RawImpressionUploadModelLine.State.FAILED
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              evictionOperationId = EVICTION_OPERATION_ID
+              recoveryPredecessorRawImpressionUpload = predecessor.name
+            }
+          else if (!missingPredecessor)
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "${predecessor.name}/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = MODEL_LINE_1
+              state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+            }
+        }
+      }
+    whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+        >(
+          0
+        )
+      listRankIndexBlobsResponse {
+        rankIndexBlobs += rankIndexBlob {
+          name = "${request.parent}/rankIndexBlobs/${request.pageToken.ifEmpty { "first" }}"
+          blobType = RankIndexBlob.BlobType.SNAPSHOT
+          cmmsModelLine = MODEL_LINE_1
+          poolOffset = if (request.pageToken.isEmpty()) 0L else 1L
+          createTime =
+            DONE_BLOB_CREATE_TIME.plusSeconds(
+                if (request.parent == source.name) 10 else if (newer) 15 else -5
+              )
+              .toProtoTime()
+          if (request.parent == source.name)
+            deleteTime = DONE_BLOB_CREATE_TIME.plusSeconds(20).toProtoTime()
+        }
+        if (paginated && request.pageSize != 1 && request.pageToken.isEmpty())
+          nextPageToken = "second"
+      }
+    }
+    val operation =
+      org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+        name = "$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID"
+        state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+        if (scopeDecoys) {
+          for (kind in listOf("model", "target", "action")) steps +=
+            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+              sourceRawImpressionUpload = "$DATA_PROVIDER_NAME/rawImpressionUploads/decoy-$kind"
+              rawImpressionUploadModelLine = "${source.name}/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = if (kind == "model") MODEL_LINE_2 else MODEL_LINE_1
+              recoveryTarget = kind != "target"
+              this.memoized = true
+              recoveryAction =
+                if (kind == "action")
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+                else RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            }
+        }
+        steps +=
+          org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+            sourceRawImpressionUpload = source.name
+            rawImpressionUploadModelLine = "${source.name}/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            recoveryTarget = true
+            this.memoized = memoized
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            state =
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+                .WAITING_FOR_REPLACEMENT
+          }
+      }
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = source.name,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+        getHealingOperation = { name ->
+          if (name == operation.name) operation
+          else {
+            if (priorOperationFailure != null) throw priorOperationFailure.asException()
+            priorOperation
+          }
+        },
+      )
+    if (priorOperationFailure != null) {
+      val failure =
+        assertFailsWith<io.grpc.StatusException> {
+          dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+      assertThat(failure.status.code).isEqualTo(priorOperationFailure.code)
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    } else if (expectRejected) {
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+      assertThat(failure).hasMessageThat().contains("No upload revision")
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    } else {
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val request = argumentCaptor<CreateRawImpressionUploadRequest>()
+      verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(request.capture()) }
+      assertThat(request.firstValue.rawImpressionUpload.uploadHealingOperation)
+        .isEqualTo(operation.name)
+      assertThat(request.firstValue.rawImpressionUpload.replacesRawImpressionUpload).isEmpty()
+      assertThat(request.firstValue.requestId)
+        .isEqualTo(
+          RequestIds.forRawImpressionUploadRecovery(
+            DONE_BLOB_PATH,
+            DONE_BLOB_GENERATION,
+            EVICTION_OPERATION_ID,
+          )
+        )
+      assertThat(request.firstValue.rawImpressionUpload.doneBlobUri).isEqualTo(DONE_BLOB_PATH)
+      assertThat(request.firstValue.rawImpressionUpload.doneBlobGeneration)
+        .isEqualTo(DONE_BLOB_GENERATION)
+      val sourceReads =
+        argumentCaptor<org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest>()
+      verifyBlocking(rawImpressionUploadService, org.mockito.kotlin.atLeastOnce()) {
+        getRawImpressionUpload(sourceReads.capture())
+      }
+      assertThat(sourceReads.allValues.map { it.name })
+        .containsAtLeast(source.name, predecessor.name)
+    }
+  }
+
+  @Test
+  fun `upload rejects recovery until predecessor replacement completes`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    stubRecoverySource(
+      source,
+      predecessorModelLineState = RawImpressionUploadModelLine.State.RANKING,
+    )
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+      )
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      }
+
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `upload rejects EDP correction until its predecessor recovery completes`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val predecessor = rawImpressionUpload {
+      name = RECOVERY_PREDECESSOR_UPLOAD
+      doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 2
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(3).toProtoTime()
+    }
+    val predecessorRecovery = rawImpressionUpload {
+      name = RECOVERY_PREDECESSOR_REPLACEMENT
+      doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      replacesRawImpressionUpload = predecessor.name
+    }
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(predecessor)
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+      listRawImpressionUploadsResponse {
+        if (request.filter.doneBlobUri == RECOVERY_PREDECESSOR_DONE_BLOB_PATH) {
+          rawImpressionUploads += predecessor
+          rawImpressionUploads += predecessorRecovery
+        } else {
+          rawImpressionUploads += source
+        }
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+          >(
+            0
+          )
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "${request.parent}/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state =
+              if (request.parent == source.name) RawImpressionUploadModelLine.State.FAILED
+              else RawImpressionUploadModelLine.State.RANKING
+            if (request.parent == source.name) {
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+              evictionOperationId = EVICTION_OPERATION_ID
+              recoveryPredecessorRawImpressionUpload = predecessor.name
+            }
+          }
+        }
+      }
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      }
+
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `upload authorizes an EDP correction with its eviction operation`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += source })
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$sourceUploadName/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        }
+      )
+    stubFullResolutionChain(MODEL_LINE_1)
+
+    createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+    verifyBlocking(rawImpressionUploadService) {
+      createRawImpressionUpload(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.rawImpressionUpload.uploadHealingOperation)
+      .isEqualTo("$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID")
+  }
+
+  @Test
+  fun `EDP correction retains evicted model lines after their active windows end`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+      listRawImpressionUploadsResponse {
+        if (request.filter.doneBlobUri == DONE_BLOB_PATH) rawImpressionUploads += source
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          for ((id, modelLine) in listOf("rml1" to MODEL_LINE_1, "rml2" to MODEL_LINE_2)) {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "$sourceUploadName/rawImpressionUploadModelLines/$id"
+              cmmsModelLine = modelLine
+              state = RawImpressionUploadModelLine.State.FAILED
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+              evictionOperationId = EVICTION_OPERATION_ID
+            }
+          }
+        }
+      )
+    // No ListModelLines response is configured: the replacement must use the persisted evicted
+    // rows even though those model lines are no longer returned as active by the VID Repository.
+    stubOverrideResolutionChain()
+
+    createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadModelLinesRequest>()
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      batchCreateRawImpressionUploadModelLines(requestCaptor.capture())
+    }
+    assertThat(
+        requestCaptor.firstValue.requestsList.map { it.rawImpressionUploadModelLine.cmmsModelLine }
+      )
+      .containsExactly(MODEL_LINE_1, MODEL_LINE_2)
+      .inOrder()
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `EDP upload cannot replace a permanently removed upload`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += source })
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$sourceUploadName/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        }
+      )
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      }
+
+    assertThat(error).hasMessageThat().contains("permanently removed")
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `upload resumes an already registered recovery generation`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val registeredRecovery = rawImpressionUpload {
+      name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+      replacesRawImpressionUpload = sourceUploadName
+      uploadHealingOperation = "$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID"
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRecoverySource(source, registeredRecovery)
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
+      throw StatusException(Status.ALREADY_EXISTS)
+    }
+    whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
+      .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+    whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+      .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+    stubOverrideResolutionChain()
+
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+      )
+    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+  }
+
+  @Test
+  fun `upload accepts newer recovery after prior recovery stopped after upload creation`() =
+    runBlocking {
+      val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+      val source = rawImpressionUpload {
+        name = sourceUploadName
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 200
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      }
+      val incompleteRecovery = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/incomplete-recovery"
+        state = RawImpressionUpload.State.CREATED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 100
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+        replacesRawImpressionUpload = sourceUploadName
+        registrationComplete = false
+      }
+      val newRecovery = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+        state = RawImpressionUpload.State.CREATED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+        replacesRawImpressionUpload = incompleteRecovery.name
+        etag = UPLOAD_ETAG
+      }
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubRecoverySource(source, incompleteRecovery)
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenReturn(newRecovery)
+      stubOverrideResolutionChain()
+
+      createDispatcher(
+          overrideModelLines = listOf(MODEL_LINE_1),
+          recoverySourceUpload = sourceUploadName,
+          recoveryOperationId = EVICTION_OPERATION_ID,
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      val createCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+      verifyBlocking(rawImpressionUploadService) {
+        createRawImpressionUpload(createCaptor.capture())
+      }
+      assertThat(createCaptor.firstValue.rawImpressionUpload.doneBlobGeneration)
+        .isEqualTo(DONE_BLOB_GENERATION)
+      verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+      verifyBlocking(rawImpressionUploadService) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
+    }
+
+  @Test
+  fun `upload ignores stale recovery event after newer generation is registered`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val newerRecovery = rawImpressionUpload {
+      name = "$DATA_PROVIDER_NAME/rawImpressionUploads/newer-recovery"
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION - 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+      replacesRawImpressionUpload = sourceUploadName
+    }
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(source)
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += newerRecovery })
+
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+      )
+    dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    verifyBlocking(storageClient, never()) { listBlobs(any()) }
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `upload rejects recovery override when source row is not failed`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.COMPLETED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(source)
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += source })
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$sourceUploadName/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+      )
+    val dispatcher =
+      createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+      )
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      }
+
+    assertThat(error).hasMessageThat().contains("FAILED source model-line rows")
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
   fun `upload with no active model lines creates upload and files but no model lines`() =
     runBlocking {
       val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
@@ -529,7 +2737,7 @@ class VidLabelingDispatcherTest {
           rpcThrottlers =
             VidLabelingRpcThrottlersTestHelper.alwaysReady().copy(metadataWrite = metadataWrite)
         )
-      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val outcome = dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
       verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
       verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
@@ -539,6 +2747,7 @@ class VidLabelingDispatcherTest {
       verifyBlocking(rawImpressionUploadService) {
         markRawImpressionUploadRegistrationComplete(any())
       }
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.NO_WORK)
       assertThat(metadataWrite.onReadyCalls).isEqualTo(3)
     }
 
@@ -625,56 +2834,48 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `upload with same generation succeeds when registration is already complete`() =
+  fun `redelivery of complete same-generation upload skips file inspection`() =
     runBlocking<Unit> {
       val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-      stubRawImpressionUploadCreation()
-      stubFullResolutionChain(MODEL_LINE_1)
       val uploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
-      whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
         .thenReturn(
-          RawImpressionUpload.newBuilder()
-            .setName(uploadName)
-            .setDoneBlobUri(DONE_BLOB_PATH)
-            .setDoneBlobGeneration(123L)
-            .setEtag(UPLOAD_ETAG)
-            .build(),
-          RawImpressionUpload.newBuilder()
-            .setName(uploadName)
-            .setDoneBlobUri(DONE_BLOB_PATH)
-            .setDoneBlobGeneration(123L)
-            .setRegistrationComplete(true)
-            .setEtag("completed-$UPLOAD_ETAG")
-            .build(),
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              RawImpressionUpload.newBuilder()
+                .setName(uploadName)
+                .setDoneBlobUri(DONE_BLOB_PATH)
+                .setDoneBlobGeneration(DONE_BLOB_GENERATION)
+                .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
+                .setRegistrationComplete(true)
+                .setEtag("completed-$UPLOAD_ETAG")
+                .build()
+          }
         )
 
+      var rawBlobMetadataReads = 0
       val dispatcher =
         createDispatcher(
-          readDoneBlobMetadata = { RawImpressionBlobMetadata(123L, 0L, DONE_BLOB_CREATE_TIME) }
+          readBlobMetadata = {
+            rawBlobMetadataReads++
+            RawImpressionBlobMetadata(RAW_BLOB_GENERATION, 100L, RAW_BLOB_CREATE_TIME)
+          }
         )
-      dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
-      // DataWatcher redelivers the same done-object generation after the first invocation has
-      // completed registration.
-      dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
-      val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
-      verifyBlocking(rawImpressionUploadService, times(2)) {
-        createRawImpressionUpload(requestCaptor.capture())
+      assertThat(rawBlobMetadataReads).isEqualTo(0)
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        listRawImpressionUploadFiles(any())
       }
-      assertThat(requestCaptor.allValues[0].requestId)
-        .isEqualTo(requestCaptor.allValues[1].requestId)
-      assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobGeneration })
-        .containsExactly(123L, 123L)
-      assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobCreateTime })
-        .containsExactly(DONE_BLOB_CREATE_TIME.toProtoTime(), DONE_BLOB_CREATE_TIME.toProtoTime())
-      verifyBlocking(rawImpressionUploadFileService, times(1)) {
+      verifyBlocking(rawImpressionUploadFileService, never()) {
         batchCreateRawImpressionUploadFiles(any())
       }
-      verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
         batchCreateRawImpressionUploadModelLines(any())
       }
-      verifyBlocking(rawImpressionUploadService, times(1)) {
+      verifyBlocking(rawImpressionUploadService, never()) {
         markRawImpressionUploadRegistrationComplete(any())
       }
     }
@@ -711,6 +2912,410 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `additive replacement registers only added object versions`() =
+    runBlocking<Unit> {
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+      val blob3 = createMockBlob("$FOLDER_PREFIX/file3.parquet")
+      val doneBlobUri = SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH)
+      val blob1Uri = BlobUris.buildUri(doneBlobUri, blob1.blobKey)
+      val blob2Uri = BlobUris.buildUri(doneBlobUri, blob2.blobKey)
+      val blob3Uri = BlobUris.buildUri(doneBlobUri, blob3.blobKey)
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2, blob3))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation
+        ->
+        val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+        if (request.filter.doneBlobUri == DONE_BLOB_PATH) {
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              RawImpressionUpload.newBuilder()
+                .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/previous")
+                .setDoneBlobUri(DONE_BLOB_PATH)
+                .setDoneBlobGeneration(100L)
+                .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime())
+                .setState(RawImpressionUpload.State.COMPLETED)
+                .setRegistrationComplete(true)
+                .build()
+          }
+        } else {
+          listRawImpressionUploadsResponse {}
+        }
+      }
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "$DATA_PROVIDER_NAME/rawImpressionUploads/previous/files/file1"
+              blobUri = blob1Uri
+              blobGeneration = 10L
+            }
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "$DATA_PROVIDER_NAME/rawImpressionUploads/previous/files/file2"
+              blobUri = blob2Uri
+              blobGeneration = 15L
+            }
+          }
+        )
+
+      val generations = mapOf(blob1.blobKey to 10L, blob2.blobKey to 15L, blob3.blobKey to 30L)
+      createDispatcher(
+          readBlobMetadata = {
+            RawImpressionBlobMetadata(
+              generations.getValue(it),
+              sizeBytes = 100L,
+              createTime = RAW_BLOB_CREATE_TIME,
+            )
+          },
+          readDoneBlobMetadata = { RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME) },
+        )
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+
+      val createRequest = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+      verifyBlocking(rawImpressionUploadFileService) {
+        batchCreateRawImpressionUploadFiles(createRequest.capture())
+      }
+      assertThat(createRequest.firstValue.requestsList.map { it.rawImpressionUploadFile.blobUri })
+        .containsExactly(blob3Uri)
+      assertThat(
+          createRequest.firstValue.requestsList.map { it.rawImpressionUploadFile.blobGeneration }
+        )
+        .containsExactly(30L)
+
+      val listRequest = argumentCaptor<ListRawImpressionUploadFilesRequest>()
+      verifyBlocking(rawImpressionUploadFileService) {
+        listRawImpressionUploadFiles(listRequest.capture())
+      }
+      assertThat(listRequest.firstValue.parent)
+        .isEqualTo("$DATA_PROVIDER_NAME/rawImpressionUploads/previous")
+    }
+
+  @Test
+  fun `replacement upload with no new object versions is ignored`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            RawImpressionUpload.newBuilder()
+              .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/previous")
+              .setDoneBlobUri(DONE_BLOB_PATH)
+              .setDoneBlobGeneration(100L)
+              .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime())
+              .setState(RawImpressionUpload.State.COMPLETED)
+              .setRegistrationComplete(true)
+              .build()
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$DATA_PROVIDER_NAME/rawImpressionUploads/previous/files/file1"
+            this.blobUri = blobUri
+            blobGeneration = RAW_BLOB_GENERATION
+          }
+        }
+      )
+
+    createDispatcher(
+        readDoneBlobMetadata = { RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME) }
+      )
+      .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+  }
+
+  @Test
+  fun `new generation supersedes an incomplete predecessor even when its file was registered`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blobUri =
+        BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+      val previous =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/previous")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(900L)
+          .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime())
+          .setState(RawImpressionUpload.State.CREATED)
+          .build()
+      val current =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/current")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(120L)
+          .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
+          .setReplacesRawImpressionUpload(previous.name)
+          .setState(RawImpressionUpload.State.CREATED)
+          .setEtag(UPLOAD_ETAG)
+          .build()
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenReturn(current)
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse { rawImpressionUploads += previous },
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              previous.toBuilder().setState(RawImpressionUpload.State.FAILED).build()
+            rawImpressionUploads += current
+          },
+        )
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "${previous.name}/files/file1"
+              this.blobUri = blobUri
+              blobGeneration = RAW_BLOB_GENERATION
+            }
+          }
+        )
+
+      createDispatcher(
+          readDoneBlobMetadata = { RawImpressionBlobMetadata(120L, 0L, DONE_BLOB_CREATE_TIME) }
+        )
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 120L)
+
+      verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
+    }
+
+  @Test
+  fun `refreshed no-op delta creates no work`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blobUri =
+        BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+      val previous =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/previous")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(900L)
+          .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime())
+          .setState(RawImpressionUpload.State.COMPLETED)
+          .setRegistrationComplete(true)
+          .build()
+      val current =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/current")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(120L)
+          .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
+          .setReplacesRawImpressionUpload(previous.name)
+          .setState(RawImpressionUpload.State.CREATED)
+          .setEtag(UPLOAD_ETAG)
+          .build()
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenReturn(current)
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse { rawImpressionUploads += previous },
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += previous
+            rawImpressionUploads += current
+          },
+        )
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "${previous.name}/files/file1"
+              this.blobUri = blobUri
+              blobGeneration = RAW_BLOB_GENERATION
+            }
+          }
+        )
+
+      createDispatcher(
+          readDoneBlobMetadata = { RawImpressionBlobMetadata(120L, 0L, DONE_BLOB_CREATE_TIME) }
+        )
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 120L)
+
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadService, never()) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+    }
+
+  @Test
+  fun `redelivery excludes the current upload from registered object versions`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blobUri =
+        BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+      val currentUpload =
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/current")
+          .setDoneBlobUri(DONE_BLOB_PATH)
+          .setDoneBlobGeneration(DONE_BLOB_GENERATION)
+          .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
+          .setState(RawImpressionUpload.State.CREATED)
+          .build()
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
+        throw StatusException(Status.ALREADY_EXISTS.withDescription("upload exists"))
+      }
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += currentUpload })
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "${currentUpload.name}/files/file1"
+              this.blobUri = blobUri
+              blobGeneration = RAW_BLOB_GENERATION
+            }
+          }
+        )
+
+      createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+    }
+
+  @Test
+  fun `legacy generationless registration is quarantined as edited`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            RawImpressionUpload.newBuilder()
+              .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/legacy")
+              .setDoneBlobUri(DONE_BLOB_PATH)
+              .setDoneBlobGeneration(100L)
+              .setState(RawImpressionUpload.State.COMPLETED)
+              .setRegistrationComplete(true)
+              .build()
+        }
+      )
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$DATA_PROVIDER_NAME/rawImpressionUploads/legacy/files/file1"
+            this.blobUri = blobUri
+            blobGeneration = 0L
+          }
+        }
+      )
+
+    createDispatcher(
+        readDoneBlobMetadata = { RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME) }
+      )
+      .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+
+    val candidate = argumentCaptor<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(candidate.capture())
+    }
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.classification)
+      .isEqualTo(InternalCandidate.Classification.CLASSIFICATION_EDITED)
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `replacement after failed upload registers the complete current directory`() =
+    runBlocking<Unit> {
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
+      stubRawImpressionUploadCreation()
+      stubFullResolutionChain(MODEL_LINE_1)
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation
+        ->
+        val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+        if (request.filter.doneBlobUri == DONE_BLOB_PATH) {
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              RawImpressionUpload.newBuilder()
+                .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/failed")
+                .setDoneBlobUri(DONE_BLOB_PATH)
+                .setDoneBlobGeneration(100L)
+                .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime())
+                .setState(RawImpressionUpload.State.FAILED)
+                .build()
+          }
+        } else {
+          listRawImpressionUploadsResponse {}
+        }
+      }
+
+      createDispatcher(
+          readDoneBlobMetadata = { RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME) }
+        )
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 200L)
+
+      val createRequest = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+      verifyBlocking(rawImpressionUploadFileService) {
+        batchCreateRawImpressionUploadFiles(createRequest.capture())
+      }
+      assertThat(createRequest.firstValue.requestsList.map { it.rawImpressionUploadFile.blobUri })
+        .containsExactly(
+          BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob1.blobKey),
+          BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob2.blobKey),
+        )
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        listRawImpressionUploadFiles(any())
+      }
+    }
+
+  @Test
+  fun `newer registered creation time wins regardless of generation number`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              RawImpressionUpload.newBuilder()
+                .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/newer")
+                .setDoneBlobUri(DONE_BLOB_PATH)
+                .setDoneBlobGeneration(120L)
+                .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime())
+                .setState(RawImpressionUpload.State.COMPLETED)
+                .build()
+          }
+        )
+
+      val outcome =
+        createDispatcher(
+            readDoneBlobMetadata = { RawImpressionBlobMetadata(900L, 0L, DONE_BLOB_CREATE_TIME) }
+          )
+          .upload(DONE_BLOB_PATH, doneBlobGeneration = 900L)
+
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.SUPERSEDED)
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+    }
+
+  @Test
   fun `upload ignores stale done event before listing files`() =
     runBlocking<Unit> {
       val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
@@ -718,15 +3323,43 @@ class VidLabelingDispatcherTest {
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
 
-      createDispatcher(
-          readDoneBlobMetadata = {
-            RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
-          }
-        )
-        .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
+      val outcome =
+        createDispatcher(
+            readDoneBlobMetadata = {
+              RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
+            }
+          )
+          .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
 
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.STALE)
+      val lifecycleLog =
+        logRecords.single { it.message.contains("event=edpa.vid_labeling.upload_registered ") }
+      assertThat(lifecycleLog.message).contains("xmm.lifecycle.stage=upload_registration")
+      assertThat(lifecycleLog.message).contains("xmm.outcome=stale")
+      assertThat(lifecycleLog.message)
+        .contains("xmm.gcs.object.path_hash=" + VidLabelingTraceLogging.sha256(DONE_BLOB_PATH))
+      assertThat(lifecycleLog.message).doesNotContain(DONE_BLOB_PATH)
       verify(storageClient, never()).listBlobs(any())
       verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    }
+
+  @Test
+  fun `upload rethrows cancellation without recording application failure`() =
+    runBlocking<Unit> {
+      val dispatcher =
+        createDispatcher(readDoneBlobMetadata = { throw CancellationException("cancelled") })
+
+      assertFailsWith<CancellationException> {
+        dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = DONE_BLOB_GENERATION)
+      }
+
+      assertThat(
+          logRecords.none {
+            it.message.contains("event=edpa.vid_labeling.upload_registered ") &&
+              it.message.contains("xmm.outcome=failed")
+          }
+        )
+        .isTrue()
     }
 
   @Test
@@ -736,18 +3369,20 @@ class VidLabelingDispatcherTest {
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
       var metadataReadCount = 0
 
-      createDispatcher(
-          readDoneBlobMetadata = {
-            metadataReadCount++
-            if (metadataReadCount == 1) {
-              RawImpressionBlobMetadata(150L, 0L, DONE_BLOB_CREATE_TIME)
-            } else {
-              RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
+      val outcome =
+        createDispatcher(
+            readDoneBlobMetadata = {
+              metadataReadCount++
+              if (metadataReadCount == 1) {
+                RawImpressionBlobMetadata(150L, 0L, DONE_BLOB_CREATE_TIME)
+              } else {
+                RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
+              }
             }
-          }
-        )
-        .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
+          )
+          .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
 
+      assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.STALE)
       verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
     }
 
@@ -856,6 +3491,7 @@ class VidLabelingDispatcherTest {
                 .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
                 .setDoneBlobUri(DONE_BLOB_PATH)
                 .setDoneBlobGeneration(DONE_BLOB_GENERATION)
+                .setState(RawImpressionUpload.State.CREATED)
                 .setEtag(UPLOAD_ETAG)
                 .build()
           }
@@ -908,7 +3544,8 @@ class VidLabelingDispatcherTest {
       verifyBlocking(rawImpressionUploadFileService, never()) {
         batchCreateRawImpressionUploadFiles(any())
       }
-      assertThat(metadataRead.onReadyCalls).isEqualTo(2)
+      // Initial revision discovery and exact/latest ALREADY_EXISTS recovery.
+      assertThat(metadataRead.onReadyCalls).isEqualTo(3)
     }
 
   @Test
@@ -1005,6 +3642,67 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload emits correction candidate classification`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val previous = previousUpload()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubCorrectionCandidateRegistration()
+    val registrationCalls = AtomicInteger()
+    whenever(
+        correctionCandidateService.registerDetectedRawImpressionUploadCorrectionCandidate(any())
+      )
+      .thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>(0)
+        registerDetectedRawImpressionUploadCorrectionCandidateResponse {
+          rawImpressionUploadCorrectionCandidate =
+            request.rawImpressionUploadCorrectionCandidate.copy {
+              dataProviderResourceId = request.dataProviderResourceId
+              rawImpressionUploadCorrectionCandidateId =
+                request.rawImpressionUploadCorrectionCandidateId
+              state = InternalCandidate.State.STATE_PENDING
+            }
+          newlyCreated = registrationCalls.getAndIncrement() == 0
+        }
+      }
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += manifestFile(previous.name, blobUri, 10L)
+        }
+      )
+    val metricsEnv = createMetricsEnvironment()
+    try {
+      val dispatcher =
+        createDispatcher(
+          readBlobMetadata = { RawImpressionBlobMetadata(20L, 100L, RAW_BLOB_CREATE_TIME) },
+          metrics = metricsEnv.metrics,
+        )
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      metricsEnv.metricReader.forceFlush()
+      val point =
+        metricsEnv.metricExporter.finishedMetricItems
+          .associateBy { it.name }
+          .getValue("edpa.vid_labeling_dispatcher.correction_candidates")
+          .longSumData
+          .points
+          .single()
+      assertThat(point.value).isEqualTo(1)
+      assertThat(point.attributes.get(DATA_PROVIDER_ATTR)).isEqualTo(DATA_PROVIDER_NAME)
+      assertThat(point.attributes.get(CORRECTION_CLASSIFICATION_ATTR)).isEqualTo("EDITED")
+    } finally {
+      metricsEnv.close()
+    }
+  }
+
+  @Test
   fun `upload records upload duration on failure`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
@@ -1046,6 +3744,13 @@ class VidLabelingDispatcherTest {
     private const val DONE_BLOB_PATH = "file://$FOLDER_PREFIX/done"
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-abc123"
     private const val UPLOAD_ETAG = "upload-etag"
+    private const val RECOVERY_PREDECESSOR_UPLOAD =
+      "$DATA_PROVIDER_NAME/rawImpressionUploads/predecessor"
+    private const val RECOVERY_PREDECESSOR_REPLACEMENT =
+      "$DATA_PROVIDER_NAME/rawImpressionUploads/predecessor-replacement"
+    private const val RECOVERY_PREDECESSOR_DONE_BLOB_PATH =
+      "file:///test-bucket/edp1/2024-01-14/done"
+    private const val EVICTION_OPERATION_ID = "123e4567-e89b-42d3-a456-426614174000"
     private const val DONE_BLOB_GENERATION = 12345L
     private const val RAW_BLOB_GENERATION = 67890L
     private const val NUMBER_OF_SHARDS = 2
@@ -1067,6 +3772,8 @@ class VidLabelingDispatcherTest {
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.data_provider")
     private val UPLOAD_STATUS_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.vid_labeling_dispatcher.dispatch_status")
+    private val CORRECTION_CLASSIFICATION_ATTR: AttributeKey<String> =
+      AttributeKey.stringKey("edpa.vid_labeling_dispatcher.correction_classification")
 
     private val DEFAULT_MODEL_LINE_CONFIGS: Map<String, VidLabelerParams.ModelLineConfig> =
       mapOf(

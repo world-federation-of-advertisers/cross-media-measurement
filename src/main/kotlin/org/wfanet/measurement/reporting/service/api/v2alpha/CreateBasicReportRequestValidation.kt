@@ -532,9 +532,11 @@ object CreateBasicReportRequestValidation {
         }
 
       EventTemplateField.FieldValue.SelectorCase.FLOAT_VALUE -> {
-        throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath
-          ->
-          "Incorrect value type specified for template field $eventTemplateFieldPath"
+        if (eventTemplateFieldInfo.type != Descriptors.FieldDescriptor.Type.FLOAT) {
+          throw EventTemplateFieldInvalidException(eventTemplateField.path) { eventTemplateFieldPath
+            ->
+            "Incorrect value type specified for template field $eventTemplateFieldPath"
+          }
         }
       }
 

@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.kotlin.unpack
+import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -38,7 +39,9 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffl
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TrusTeeV2Config
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
+import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorSampling
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
 
 /**
@@ -115,33 +118,6 @@ data class TrusTeeConfig(
 internal const val UNCAPPED = 127
 
 /**
- * Throws if [configuredCap] and [impressionCapMode] disagree.
- *
- * Only [ImpressionCapMode.CUSTOM_CAP] reads `impression_max_frequency_per_user`, and it requires a
- * positive value. Every other explicit mode carries the choice itself, so a configured cap there is
- * an operator setting a value that would be silently ignored. [ImpressionCapMode.UNSPECIFIED] is
- * exempt: reading the field is what it is for.
- */
-fun requireCapMatchesMode(impressionCapMode: ImpressionCapMode, configuredCap: Int) {
-  when (impressionCapMode) {
-    ImpressionCapMode.CUSTOM_CAP ->
-      require(configuredCap > 0) {
-        "impression_max_frequency_per_user must be greater than zero under CUSTOM_CAP, got " +
-          "$configuredCap"
-      }
-    ImpressionCapMode.UNCAPPED,
-    ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP,
-    ImpressionCapMode.DYNAMIC ->
-      require(configuredCap == 0) {
-        "impression_max_frequency_per_user is ignored under $impressionCapMode and must be unset, " +
-          "got $configuredCap"
-      }
-    ImpressionCapMode.UNSPECIFIED,
-    ImpressionCapMode.UNRECOGNIZED -> {}
-  }
-}
-
-/**
  * Returns the per-user cap to build the frequency vector with, for [impressionCapMode].
  *
  * [ImpressionCapMode.DYNAMIC] derives its clip from the frequency distribution, so it needs the raw
@@ -162,8 +138,9 @@ internal fun frequencyVectorCap(
     ImpressionCapMode.UNCAPPED,
     ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP -> null
     ImpressionCapMode.CUSTOM_CAP,
-    ImpressionCapMode.UNSPECIFIED,
-    ImpressionCapMode.UNRECOGNIZED -> overrideImpressionMaxFrequencyPerUser
+    ImpressionCapMode.UNSPECIFIED -> overrideImpressionMaxFrequencyPerUser
+    ImpressionCapMode.UNRECOGNIZED ->
+      throw IllegalArgumentException("Unrecognized impression_cap_mode")
   }
 
 /**
@@ -180,14 +157,22 @@ internal fun frequencyVectorCap(
  * @param noiserSelector strategy for selecting differential privacy mechanisms
  * @param resultMinimumThresholds optional small-cell suppression thresholds; null disables
  *   suppression
+ * @param disableMultiPartyFrequencyVectorSuppression whether to skip result-minimum suppression for
+ *   HMSS and TrusTee v1 multi-publisher frequency-vector contributions. Direct and TrusTeeV2
+ *   results are unaffected.
  * @param impressionCapMode how the per-user impression cap is chosen.
  * @param overrideImpressionMaxFrequencyPerUser optional frequency cap override; null or -1 means no
  *   capping and uses totalUncappedImpressions instead
  * @param supportedMultiPartyNoiseMechanisms set of [NoiseMechanism] values this EDP supports for
  *   multi-party protocols (HMSS, TrusTee). When non-empty, any HMSS or TrusTee requisition whose
  *   protocol noise mechanism is not in this set will be refused. When empty, no multi-party noise
- *   validation is performed.
+ *   validation is performed. TrusTeeV2 is not covered: its `ProtocolConfig` carries no mechanism,
+ *   because the noise is fixed in the attested image.
  * @param trusTeeConfig configuration for TrusTee protocol; null disables TrusTee
+ * @param trusTeeV2ImpressionCountMode how a TrusTeeV2 fulfillment builds the impression count it
+ *   carries alongside the frequency vector; UNSPECIFIED sends no count, leaving the TEE to derive
+ *   one from the vector
+ * @param trusTeeV2MaxFrequencyPerUser the per-user clip under NOISED; null clips dynamically
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -199,11 +184,14 @@ class DefaultFulfillerSelector(
   private val dataProviderSigningKeyHandle: SigningKeyHandle,
   private val noiserSelector: NoiserSelector,
   private val resultMinimumThresholds: ResultMinimumThresholds?,
+  private val disableMultiPartyFrequencyVectorSuppression: Boolean,
   private val overrideImpressionMaxFrequencyPerUser: Int?,
   private val impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
+  private val trusTeeV2ImpressionCountMode: TrusTeeV2Config.ImpressionCountMode,
+  private val trusTeeV2MaxFrequencyPerUser: Int?,
 ) : FulfillerSelector {
 
   init {
@@ -240,16 +228,24 @@ class DefaultFulfillerSelector(
 
     val frequencyDataBytes = frequencyVector.getByteArray()
 
-    val vec =
-      FrequencyVectorBuilder(
-        populationSpec = populationSpec,
-        measurementSpec = measurementSpec,
-        frequencyDataBytes = frequencyDataBytes,
-        strict = false,
-        resultMinimumThresholds = resultMinimumThresholds,
-        overrideImpressionMaxFrequencyPerUser =
+    val protocols = requisition.protocolConfig.protocolsList
+    // Direct takes precedence over multi-publisher options and retains its threshold behavior.
+    val selectedProtocolIsMultiPub = protocols.none { it.hasDirect() }
+    val resultMinimumThresholdsForFrequencyVector =
+      if (disableMultiPartyFrequencyVectorSuppression && selectedProtocolIsMultiPub) {
+        null
+      } else {
+        resultMinimumThresholds
+      }
+
+    fun sampledFrequencyData(): ByteArray =
+      FrequencyVectorSampling(
+          populationSpec,
+          measurementSpec,
+          resultMinimumThresholdsForFrequencyVector,
           frequencyVectorCap(impressionCapMode, overrideImpressionMaxFrequencyPerUser),
-      )
+        )
+        .sample(frequencyDataBytes)
 
     return if (requisition.protocolConfig.protocolsList.any { it.hasDirect() }) {
       val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
@@ -258,42 +254,51 @@ class DefaultFulfillerSelector(
         measurementSpec = measurementSpec,
         requisitionSpec = requisitionSpec,
         maxPopulation = null,
-        frequencyData = vec.frequencyDataArray,
+        frequencyData = sampledFrequencyData(),
         resultMinimumThresholds = resultMinimumThresholds,
         totalUncappedImpressions = totalUncappedImpressions,
+      )
+    } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTeeV2() }) {
+      // `ProtocolConfig.TrusTeeV2` carries no fields. The noise mechanism and the result minimum
+      // thresholds are fixed in the attested image, so there is nothing to validate here and the
+      // TEE applies the thresholds after noising rather than this EDP applying them first.
+      if (resultMinimumThresholds != null) {
+        logger.warning(
+          "Configured result minimum thresholds do not apply to ${requisition.name}: a TrusTeeV2 " +
+            "fulfillment is thresholded in the attested image, which carries its own values."
+        )
+      }
+      TrusTeeMeasurementFulfiller(
+        requisition,
+        requisitionSpec.nonce,
+        sampledFrequencyData(),
+        requisitionFulfillmentStubMap,
+        requisitionsStub,
+        requisitionsThrottler,
+        buildTrusTeeEncryptionParams(kekUri, frequencyVector),
+        if (trusTeeV2ImpressionCountMode == TrusTeeV2Config.ImpressionCountMode.UNSPECIFIED) {
+          null
+        } else {
+          TrusTeeV2ImpressionCount.buildFulfillmentDetails(
+            trusTeeV2ImpressionCountMode,
+            trusTeeV2MaxFrequencyPerUser,
+            frequencyDataBytes,
+            frequencyVector.getTotalUncappedImpressions(),
+          )
+        },
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
       val trusTeeProtocolConfig =
         requisition.protocolConfig.protocolsList.first { it.hasTrusTee() }.trusTee
       validateMultiPartyNoiseMechanism(trusTeeProtocolConfig.noiseMechanism)
 
-      // Build TrusTee encryption params dynamically using the kekUri from BlobDetails.
-      // If kekUri is not null, trusTeeConfig must be provided.
-      // If kekUri is null, it implies there were no input blobs; verify no impressions exist.
-      val trusTeeEncryptionParams =
-        if (kekUri != null) {
-          requireNotNull(trusTeeConfig) {
-            "TrusTee protocol selected but trusTeeConfig is null. " +
-              "TrusTeeConfig must be provided when impression data sources are available."
-          }
-          trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
-        } else {
-          val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
-          require(
-            totalUncappedImpressions == 0L
-          ) { // if no kekUri, then we don't know a valid project id to encrypt with so can only
-            // fulfill an empty vector
-            "TrusTee protocol selected with null kekUri but totalUncappedImpressions is $totalUncappedImpressions. " +
-              "Expected 0 impressions when no data sources are available."
-          }
-          null
-        }
+      val trusTeeEncryptionParams = buildTrusTeeEncryptionParams(kekUri, frequencyVector)
 
-      if (resultMinimumThresholds == null) {
+      if (resultMinimumThresholdsForFrequencyVector == null) {
         TrusTeeMeasurementFulfiller(
           requisition,
           requisitionSpec.nonce,
-          vec.build(),
+          sampledFrequencyData(),
           requisitionFulfillmentStubMap,
           requisitionsStub,
           requisitionsThrottler,
@@ -310,12 +315,11 @@ class DefaultFulfillerSelector(
           requisition,
           requisitionSpec.nonce,
           measurementSpec,
-          populationSpec,
-          vec,
+          sampledFrequencyData(),
           requisitionFulfillmentStubMap,
           requisitionsStub,
           requisitionsThrottler,
-          resultMinimumThresholds,
+          resultMinimumThresholdsForFrequencyVector,
           protocolMinUsers,
           protocolMinImpressions,
           maxPopulation = null,
@@ -325,6 +329,17 @@ class DefaultFulfillerSelector(
     } else if (
       requisition.protocolConfig.protocolsList.any { it.hasHonestMajorityShareShuffle() }
     ) {
+      val vec =
+        FrequencyVectorBuilder(
+          populationSpec = populationSpec,
+          measurementSpec = measurementSpec,
+          frequencyDataBytes = frequencyDataBytes,
+          strict = false,
+          resultMinimumThresholds = resultMinimumThresholdsForFrequencyVector,
+          overrideImpressionMaxFrequencyPerUser =
+            frequencyVectorCap(impressionCapMode, overrideImpressionMaxFrequencyPerUser),
+        )
+
       val hmssNoiseMechanism =
         requisition.protocolConfig.protocolsList
           .first { it.hasHonestMajorityShareShuffle() }
@@ -332,7 +347,7 @@ class DefaultFulfillerSelector(
           .noiseMechanism
       validateMultiPartyNoiseMechanism(hmssNoiseMechanism)
 
-      if (resultMinimumThresholds == null) {
+      if (resultMinimumThresholdsForFrequencyVector == null) {
         HMShuffleMeasurementFulfiller(
           requisition,
           requisitionSpec.nonce,
@@ -355,13 +370,39 @@ class DefaultFulfillerSelector(
           requisitionFulfillmentStubMap,
           requisitionsStub,
           requisitionsThrottler,
-          resultMinimumThresholds,
+          resultMinimumThresholdsForFrequencyVector,
           maxPopulation = null,
         )
       }
     } else {
       throw IllegalArgumentException("Protocol not supported for ${requisition.name}")
     }
+  }
+
+  /**
+   * Builds the envelope encryption params for a TrusTEE fulfillment from the [kekUri] on the
+   * `BlobDetails`.
+   *
+   * Returns null when there is no [kekUri], which means there were no input blobs. Only an empty
+   * vector can be fulfilled then, since no project is known to encrypt with.
+   */
+  private fun buildTrusTeeEncryptionParams(
+    kekUri: String?,
+    frequencyVector: StripedByteFrequencyVector,
+  ): TrusteeFulfillRequisitionRequestBuilder.EncryptionParams? {
+    if (kekUri == null) {
+      val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
+      require(totalUncappedImpressions == 0L) {
+        "TrusTee or TrusTeeV2 protocol selected with null kekUri but totalUncappedImpressions " +
+          "is $totalUncappedImpressions. Expected 0 impressions when no data sources are available."
+      }
+      return null
+    }
+    requireNotNull(trusTeeConfig) {
+      "TrusTee or TrusTeeV2 protocol selected but trusTeeConfig is null. " +
+        "TrusTeeConfig must be provided when impression data sources are available."
+    }
+    return trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
   }
 
   /**
@@ -388,7 +429,7 @@ class DefaultFulfillerSelector(
     measurementSpec: MeasurementSpec,
     requisitionSpec: RequisitionSpec,
     maxPopulation: Int?,
-    frequencyData: IntArray,
+    frequencyData: ByteArray,
     resultMinimumThresholds: ResultMinimumThresholds?,
     totalUncappedImpressions: Long,
   ): DirectMeasurementFulfiller {
@@ -425,5 +466,9 @@ class DefaultFulfillerSelector(
       requisitionsThrottler,
       kingdomThrottler,
     )
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

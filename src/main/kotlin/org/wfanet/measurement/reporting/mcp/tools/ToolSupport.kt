@@ -59,7 +59,9 @@ object ToolSupport {
               "Re-authenticate and retry."
           Status.Code.PERMISSION_DENIED ->
             "Access denied: the authenticated principal does not have permission for this " +
-              "operation. Check that the MeasurementConsumer has granted access."
+              "operation. Check that it has been granted a role on the resource being accessed: " +
+              "the MeasurementConsumer for its child resources, or the root of the Reporting API " +
+              "for top-level resources such as ImpressionQualificationFilters."
           else -> "gRPC error: ${e.status.code}: ${e.status.description}"
         }
       CallToolResult(content = listOf(TextContent(message)), isError = true)

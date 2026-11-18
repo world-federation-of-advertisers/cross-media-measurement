@@ -467,6 +467,11 @@ resource "google_bigquery_table" "report_detail" {
     "name": "ReportState",
     "type": "STRING",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsMeasurementConsumer",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -522,6 +527,11 @@ resource "google_bigquery_table" "report_detail_edp" {
   },
   {
     "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsMeasurementConsumer",
     "type": "STRING",
     "mode": "NULLABLE"
   }
@@ -1222,7 +1232,6 @@ module "dashboard_compliance_cloud_scheduler" {
 # grant it; monitoring.metricWriter is the minimal role that does -- the same role
 # the function's runtime SA gets to export these metrics at runtime.
 resource "google_project_iam_member" "terraform_metric_writer" {
-  count   = local.deploy_dashboard_compliance_scheduler ? 1 : 0
   project = data.google_client_config.default.project
   role    = "roles/monitoring.metricWriter"
   member  = "serviceAccount:${var.terraform_service_account}"

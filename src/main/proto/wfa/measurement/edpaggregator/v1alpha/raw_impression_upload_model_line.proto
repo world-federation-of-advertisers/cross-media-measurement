@@ -56,6 +56,9 @@ message RawImpressionUploadModelLine {
     // processing attempts may be retried; invalidated output requires a
     // replacement upload.
     FAILED = 6;
+    // VID labeling has finished, but availability is still being synchronized
+    // for one or more event dates.
+    AVAILABILITY_SYNCING = 7;
   }
 
   // Reason that the model line entered the `FAILED` state.
@@ -66,6 +69,18 @@ message RawImpressionUploadModelLine {
     PROCESSING_FAILURE = 1;
     // Output was invalidated by an operator and must be replaced, not retried.
     EVICTED_OUTPUT = 2;
+  }
+
+  // Action required to replace output invalidated by an eviction.
+  enum RecoveryAction {
+    // No recovery action is specified.
+    RECOVERY_ACTION_UNSPECIFIED = 0;
+    // The EDP must correct the raw input and create a replacement upload.
+    RECOVERY_ACTION_EDP_CORRECTION = 1;
+    // Operator recovery of an evicted upload for the memoized path only.
+    RECOVERY_ACTION_OPERATOR_RECOVERY = 2;
+    // The invalid upload is intentionally removed and has no replacement.
+    RECOVERY_ACTION_NO_REPLACEMENT = 3;
   }
 
   // Resource name.
@@ -120,6 +135,9 @@ message RawImpressionUploadModelLine {
   // `VidRankBuilderParams.encrypted_subpool_maps_dek` — stays consistent with
   // the already-written merged blobs instead of diverging on a freshly
   // generated DEK.
+  // (-- api-linter: core::0215::foreign-type-reference=disabled
+  //     aip.dev/not-precedent: Shared encryption key schema used by
+  //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek
       encrypted_merged_dek = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 
@@ -131,4 +149,26 @@ message RawImpressionUploadModelLine {
   // Reason for the most recent transition to `FAILED`. Remains set until a
   // later failure replaces it.
   FailureReason failure_reason = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Identifier shared by all model-line rows in one eviction operation.
+  string eviction_operation_id = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Action required to replace output invalidated by the eviction.
+  RecoveryAction recovery_action = 14
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Upload whose completed replacement must exist before recovery can start.
+  // Empty when recovery starts a new memoized chain after its first upload was
+  // permanently removed.
+  string recovery_predecessor_raw_impression_upload = 15 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Event dates whose VID-labeled output has not yet been synchronized into
+  // ImpressionMetadata and the Kingdom.
+  repeated google.type.Date pending_availability_dates = 16
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

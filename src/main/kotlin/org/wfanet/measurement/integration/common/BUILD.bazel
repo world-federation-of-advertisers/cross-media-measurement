@@ -8,6 +8,7 @@ package(
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/loadtest:__subpackages__",
         "//src/test/kotlin/org/wfanet/panelmatch/integration:__subpackages__",
@@ -152,7 +153,6 @@ kt_jvm_library(
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/common:duchy_ids",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "//src/main/kotlin/org/wfanet/measurement/populationdataprovider:population_requisition_fulfiller",
@@ -165,6 +165,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/securecomputation:queues_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_lease_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
@@ -311,6 +312,7 @@ kt_jvm_library(
     ],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     deps = [
@@ -346,6 +348,29 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "high_overlap_data_availability",
+    srcs = ["HighOverlapDataAvailability.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)
+
+kt_jvm_library(
+    name = "high_overlap_dataset",
+    srcs = ["HighOverlapDataset.kt"],
+    data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
+    deps = [
+        ":impression_test_data_configs",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "impression_test_data_configs",
     srcs = ["ImpressionTestDataConfigs.kt"],
     data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
@@ -374,13 +399,19 @@ kt_jvm_library(
         ":in_process_kingdom",
         ":in_process_secure_computation_public_api",
         ":synthetic_generation_specs",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:event_group_reference_id_entity_key_mapping",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/client:labeled_impression_writer",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_lease_runner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/eventgroups:event_group_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_grouper_by_report_id",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_work_item_dispatcher",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_app",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/testing:test_requisition_stub_factory",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/kotlin/org/wfanet/measurement/integration/deploy/gcloud:secure_computation_services_provider_rule",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_generator_event_query",
@@ -390,20 +421,25 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:services",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher/testing",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/testing:test_id_token_provider",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:queue_mapping",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:services",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/securecomputation:queues_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_lease_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeled_impression_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -414,6 +450,9 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:subscriber",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub/testing:google_pub_sub_emulator_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
 
@@ -464,6 +503,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler/testing",
     ],
 )
 
@@ -496,6 +536,7 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
@@ -539,6 +580,7 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler/testing",
     ],
 )
 
@@ -634,5 +676,21 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_library(
+    name = "population_setup",
+    srcs = ["PopulationSetup.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:populations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//imports/kotlin/io/grpc/service_config:service_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],
 )

@@ -17,9 +17,11 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_failure_reason.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_recovery_action.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -68,6 +70,16 @@ service RawImpressionUploadModelLineService {
   // if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineLabeling(
       MarkRawImpressionUploadModelLineLabelingRequest)
+      returns (RawImpressionUploadModelLine);
+
+  // Marks a model line as availability-syncing and records pending dates.
+  rpc MarkRawImpressionUploadModelLineAvailabilitySyncing(
+      MarkRawImpressionUploadModelLineAvailabilitySyncingRequest)
+      returns (RawImpressionUploadModelLine);
+
+  // Removes one synchronized date and completes the row when none remain.
+  rpc MarkRawImpressionUploadModelLineAvailabilitySynchronized(
+      MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest)
       returns (RawImpressionUploadModelLine);
 
   // Marks a `RawImpressionUploadModelLine` as `COMPLETED`. Throws
@@ -256,6 +268,25 @@ message MarkRawImpressionUploadModelLineCompletedRequest {
   string request_id = 5;
 }
 
+// Request message for MarkRawImpressionUploadModelLineAvailabilitySyncing.
+message MarkRawImpressionUploadModelLineAvailabilitySyncingRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string raw_impression_upload_model_line_resource_id = 3;
+  string etag = 4;
+  repeated google.type.Date pending_availability_dates = 5;
+  string request_id = 6;
+}
+
+// Request message for MarkRawImpressionUploadModelLineAvailabilitySynchronized.
+message MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string raw_impression_upload_model_line_resource_id = 3;
+  google.type.Date event_date = 4;
+  string request_id = 5;
+}
+
 // Request message for MarkRawImpressionUploadModelLineFailed.
 message MarkRawImpressionUploadModelLineFailedRequest {
   // Resource ID of the DataProvider.
@@ -280,4 +311,15 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   //
   // Defaults to PROCESSING_FAILURE when unspecified.
   RawImpressionUploadModelLineFailureReason failure_reason = 7;
+
+  // Identifier shared by all rows in this eviction operation.
+  string eviction_operation_id = 8;
+
+  // Action required to replace output invalidated by the eviction.
+  RawImpressionUploadModelLineRecoveryAction recovery_action = 9;
+
+  // Resource ID of the upload whose completed replacement is required. Empty
+  // when recovery starts a new memoized chain after its first upload was
+  // permanently removed.
+  string recovery_predecessor_raw_impression_upload_resource_id = 10;
 }

@@ -20,29 +20,39 @@ import io.grpc.BindableService
 import io.grpc.Channel
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
+import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseServiceGrpcKt as InternalDataAvailabilitySyncLeaseServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt as InternalImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt as InternalPoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt as InternalRankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt as InternalRankerJobServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt as InternalRawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt as InternalRawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt as InternalRawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt as InternalRequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalUploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt as InternalVidLabelingJobServiceGrpcKt
 
 data class Services(
+  val dataAvailabilitySyncLease: DataAvailabilitySyncLeaseServiceCoroutineImplBase,
   val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata: ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionUpload: RawImpressionUploadServiceCoroutineImplBase,
+  val rawImpressionUploadCorrectionCandidate:
+    RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase,
+  val uploadHealingOperation: UploadHealingOperationServiceCoroutineImplBase,
   val rawImpressionUploadFile: RawImpressionUploadFileServiceCoroutineImplBase,
   val rawImpressionUploadModelLine: RawImpressionUploadModelLineServiceCoroutineImplBase,
   val vidLabelingJob: VidLabelingJobServiceCoroutineImplBase,
@@ -52,9 +62,12 @@ data class Services(
 ) {
   fun toList(): List<BindableService> =
     listOf(
+      dataAvailabilitySyncLease,
       requisitionMetadata,
       impressionMetadata,
       rawImpressionUpload,
+      rawImpressionUploadCorrectionCandidate,
+      uploadHealingOperation,
       rawImpressionUploadFile,
       rawImpressionUploadModelLine,
       vidLabelingJob,
@@ -68,6 +81,9 @@ data class Services(
       internalApiChannel: Channel,
       coroutineContext: CoroutineContext = EmptyCoroutineContext,
     ): Services {
+      val internalDataAvailabilitySyncLeaseStub =
+        InternalDataAvailabilitySyncLeaseServiceGrpcKt
+          .DataAvailabilitySyncLeaseServiceCoroutineStub(internalApiChannel)
       val internalRequisitionMetadataStub =
         InternalRequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(
           internalApiChannel
@@ -78,6 +94,13 @@ data class Services(
         )
       val internalUploadStub =
         InternalRawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
+          internalApiChannel
+        )
+      val internalCandidateStub =
+        InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
+          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalApiChannel)
+      val internalUploadHealingOperationStub =
+        InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
           internalApiChannel
         )
       val internalUploadFileStub =
@@ -99,9 +122,12 @@ data class Services(
         )
 
       return Services(
+        DataAvailabilitySyncLeaseService(internalDataAvailabilitySyncLeaseStub, coroutineContext),
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
         ImpressionMetadataService(internalImpressionMetadataStub, coroutineContext),
         RawImpressionUploadService(internalUploadStub, coroutineContext),
+        RawImpressionUploadCorrectionCandidateService(internalCandidateStub, coroutineContext),
+        UploadHealingOperationService(internalUploadHealingOperationStub, coroutineContext),
         RawImpressionUploadFileService(internalUploadFileStub, coroutineContext),
         RawImpressionUploadModelLineService(internalModelLineStub, coroutineContext),
         VidLabelingJobService(internalVidLabelingJobStub, coroutineContext),

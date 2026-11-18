@@ -51,4 +51,3 @@ resource "google_compute_address" "api_server" {
   name    = "secure-computation-public"
   address = var.secure_computation_api_server_ip_address
 }
-

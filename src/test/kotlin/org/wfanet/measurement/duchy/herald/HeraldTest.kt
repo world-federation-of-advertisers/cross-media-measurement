@@ -24,14 +24,24 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Empty
 import com.google.protobuf.kotlin.toByteStringUtf8
 import io.grpc.Status
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import kotlin.test.assertNotNull
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -41,6 +51,7 @@ import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
@@ -55,6 +66,7 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams as cmmsDiffe
 import org.wfanet.measurement.api.v2alpha.elGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.tink.TinkKeyId
 import org.wfanet.measurement.common.crypto.tink.TinkKeyStorageProvider
@@ -64,6 +76,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -85,6 +98,7 @@ import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoro
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub as InternalComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineImplBase
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
+import org.wfanet.measurement.internal.duchy.CreateComputationResponse
 import org.wfanet.measurement.internal.duchy.DeleteComputationRequest
 import org.wfanet.measurement.internal.duchy.ElGamalKeyPair
 import org.wfanet.measurement.internal.duchy.EncryptionKeyPair
@@ -154,6 +168,8 @@ import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
 private const val PUBLIC_API_VERSION = "v2alpha"
+private const val PUBLIC_MEASUREMENT_NAME =
+  "measurementConsumers/measurement-consumer/measurements/measurement"
 private const val DUCHY_ONE = "BOHEMIA"
 private const val DUCHY_TWO = "SALZBURG"
 private const val DUCHY_THREE = "AUSTRIA"
@@ -494,6 +510,8 @@ class HeraldTest {
 
   private lateinit var aggregatorHerald: Herald
   private lateinit var nonAggregatorHerald: Herald
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @get:Rule
   val ruleChain =
@@ -501,6 +519,17 @@ class HeraldTest {
 
   @Before
   fun initHerald() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     aggregatorHerald =
       Herald(
         heraldId = AGGREGATOR_HERALD_ID,
@@ -527,6 +556,13 @@ class HeraldTest {
       )
   }
 
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+  }
+
   @Test
   fun `syncStatuses on empty stream retains same computation token`() = runTest {
     mockStreamActiveComputationsToReturn() // No items in stream.
@@ -551,10 +587,11 @@ class HeraldTest {
       REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
     val confirmingUnknown =
       buildComputationAtKingdom(
-        "2",
-        Computation.State.PENDING_REQUISITION_PARAMS,
-        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
-      )
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        )
+        .copy { measurement = PUBLIC_MEASUREMENT_NAME }
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
     fakeComputationDatabase.addComputation(
@@ -596,6 +633,7 @@ class HeraldTest {
           blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID/2"
           kingdomComputation = kingdomComputationDetails {
             publicApiVersion = PUBLIC_API_VERSION
+            measurement = PUBLIC_MEASUREMENT_NAME
             measurementSpec = SERIALIZED_MEASUREMENT_SPEC
             measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
             participantCount = 3
@@ -1801,10 +1839,11 @@ class HeraldTest {
   fun `syncStatuses starts computations with retries`() = runBlocking {
     val computation =
       buildComputationAtKingdom(
-        COMPUTATION_GLOBAL_ID,
-        Computation.State.PENDING_COMPUTATION,
-        mpcProtocolConfig = HMSS_MPC_PROTOCOL_CONFIG,
-      )
+          COMPUTATION_GLOBAL_ID,
+          Computation.State.PENDING_COMPUTATION,
+          mpcProtocolConfig = HMSS_MPC_PROTOCOL_CONFIG,
+        )
+        .copy { measurement = PUBLIC_MEASUREMENT_NAME }
     val streamActiveComputationsJob = Job()
     systemComputations.stub {
       onBlocking { streamActiveComputations(any()) }
@@ -1856,6 +1895,69 @@ class HeraldTest {
       assertNotNull(fakeComputationDatabase[computation.key.computationId.toLong()])
     assertThat(finalComputation.computationStage)
       .isEqualTo(LiquidLegionsSketchAggregationV2.Stage.SETUP_PHASE.toProtocolStage())
+    val attemptSpans =
+      spanExporter.finishedSpanItems.filter { it.name == "duchy.herald.process_computation" }
+    assertThat(attemptSpans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) })
+      .containsExactly("in_progress")
+    assertThat(
+        attemptSpans.map { it.attributes.get(ReportTraceAttributes.COMPUTATION_NAME) }.toSet()
+      )
+      .containsExactly(computation.name)
+    assertThat(
+        attemptSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }.toSet()
+      )
+      .containsExactly(PUBLIC_MEASUREMENT_NAME)
+    assertThat(attemptSpans.map { it.attributes.get(ReportTraceAttributes.DUCHY_ID) }.toSet())
+      .containsExactly(NON_AGGREGATOR_DUCHY_ID)
+    Unit
+  }
+
+  @Test
+  fun `syncStatuses retains transient failure before successful retry`() = runTest {
+    internalComputationsMock.stub {
+      onBlocking { createComputation(any()) }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+        .thenReturn(CreateComputationResponse.getDefaultInstance())
+    }
+    val herald =
+      Herald(
+        heraldId = AGGREGATOR_HERALD_ID,
+        duchyId = AGGREGATOR_DUCHY_ID,
+        internalComputationsClient = mockBasedInternalComputationsStub,
+        systemComputationsClient = systemComputationsStub,
+        systemComputationParticipantClient = systemComputationParticipantsStub,
+        privateKeyStore = privateKeyStore,
+        continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
+        protocolsSetupConfig = AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        clock = Clock.systemUTC(),
+      )
+    val computation =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_REQUISITION_PARAMS)
+        .copy { measurement = PUBLIC_MEASUREMENT_NAME }
+    mockStreamActiveComputationsToReturn(computation)
+
+    herald.syncStatuses()
+
+    val attemptSpans =
+      spanExporter.finishedSpanItems.filter { it.name == "duchy.herald.process_computation" }
+    assertThat(attemptSpans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) })
+      .containsExactly("failed", "in_progress")
+      .inOrder()
+    assertThat(attemptSpans.first().attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusException")
+    assertThat(attemptSpans.first().attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAVAILABLE")
+    assertThat(attemptSpans.last().attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
+    assertThat(
+        attemptSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }.toSet()
+      )
+      .containsExactly(PUBLIC_MEASUREMENT_NAME)
+    assertThat(
+        attemptSpans.map { it.attributes.get(ReportTraceAttributes.COMPUTATION_NAME) }.toSet()
+      )
+      .containsExactly(computation.name)
+    assertThat(attemptSpans.map { it.attributes.get(ReportTraceAttributes.DUCHY_ID) }.toSet())
+      .containsExactly(AGGREGATOR_DUCHY_ID)
   }
 
   @Test
@@ -1913,7 +2015,10 @@ class HeraldTest {
     // Build an invalid computation which causes non-transient error at Herald
     val invalidComputation =
       buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_REQUISITION_PARAMS)
-        .copy { measurementSpec = "".toByteStringUtf8() }
+        .copy {
+          measurement = PUBLIC_MEASUREMENT_NAME
+          measurementSpec = "".toByteStringUtf8()
+        }
     mockStreamActiveComputationsToReturn(invalidComputation)
 
     nonAggregatorHerald.syncStatuses()
@@ -1927,6 +2032,57 @@ class HeraldTest {
           .toName()
       )
     assertThat(failRequest.failure.errorMessage).contains("1 attempts")
+    val failureSpan =
+      spanExporter.finishedSpanItems.single { it.name == "duchy.herald.process_computation" }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("duchy_computation")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo(invalidComputation.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(PUBLIC_MEASUREMENT_NAME)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID))
+      .isEqualTo(NON_AGGREGATOR_DUCHY_ID)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .contains("InvalidProtocolBufferException")
+  }
+
+  @Test
+  fun `syncStatuses cancellation does not emit failure evidence`() = runTest {
+    val rpcStarted = CompletableDeferred<Unit>()
+    internalComputationsMock.stub {
+      onBlocking { createComputation(any()) } doSuspendableAnswer
+        {
+          rpcStarted.complete(Unit)
+          awaitCancellation()
+        }
+    }
+    val herald =
+      Herald(
+        heraldId = AGGREGATOR_HERALD_ID,
+        duchyId = AGGREGATOR_DUCHY_ID,
+        internalComputationsClient = mockBasedInternalComputationsStub,
+        systemComputationsClient = systemComputationsStub,
+        systemComputationParticipantClient = systemComputationParticipantsStub,
+        privateKeyStore = privateKeyStore,
+        continuationTokenManager = ContinuationTokenManager(continuationTokensStub),
+        protocolsSetupConfig = AGGREGATOR_PROTOCOLS_SETUP_CONFIG,
+        clock = Clock.systemUTC(),
+      )
+    val computation =
+      buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_REQUISITION_PARAMS)
+    mockStreamActiveComputationsToReturn(computation)
+
+    val job = launch { herald.syncStatuses() }
+    rpcStarted.await()
+    job.cancelAndJoin()
+
+    val span =
+      spanExporter.finishedSpanItems.single { it.name == "duchy.herald.process_computation" }
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isNotEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isNull()
+    verifyBlocking(systemComputationParticipants, never()) { failComputationParticipant(any()) }
   }
 
   @Test
@@ -2003,6 +2159,7 @@ class HeraldTest {
 
     val computation =
       buildComputationAtKingdom(COMPUTATION_GLOBAL_ID, Computation.State.PENDING_REQUISITION_PARAMS)
+        .copy { measurement = PUBLIC_MEASUREMENT_NAME }
     mockStreamActiveComputationsToReturn(computation)
 
     herald.syncStatuses()
@@ -2015,6 +2172,24 @@ class HeraldTest {
         ComputationParticipantKey(computation.key.computationId, AGGREGATOR_DUCHY_ID).toName()
       )
     assertThat(failRequest.failure.errorMessage).contains("3 attempts")
+    val failureSpans =
+      spanExporter.finishedSpanItems.filter { it.name == "duchy.herald.process_computation" }
+    assertThat(failureSpans).hasSize(3)
+    assertThat(failureSpans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet())
+      .containsExactly("failed")
+    assertThat(failureSpans.map { it.attributes.get(ReportTraceAttributes.ERROR_CODE) }.toSet())
+      .containsExactly("grpc.UNKNOWN")
+    assertThat(
+        failureSpans.map { it.attributes.get(ReportTraceAttributes.COMPUTATION_NAME) }.toSet()
+      )
+      .containsExactly(computation.name)
+    assertThat(
+        failureSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }.toSet()
+      )
+      .containsExactly(PUBLIC_MEASUREMENT_NAME)
+    assertThat(failureSpans.map { it.attributes.get(ReportTraceAttributes.DUCHY_ID) }.toSet())
+      .containsExactly(AGGREGATOR_DUCHY_ID)
+    Unit
   }
 
   @Test
@@ -2066,7 +2241,10 @@ class HeraldTest {
     }
     // The Herald deletes SUCCEEDED and FAILED Computations as configured.
     val computation1 = buildComputationAtKingdom("1", Computation.State.SUCCEEDED)
-    val computation2 = buildComputationAtKingdom("2", Computation.State.FAILED)
+    val computation2 =
+      buildComputationAtKingdom("2", Computation.State.FAILED).copy {
+        measurement = PUBLIC_MEASUREMENT_NAME
+      }
     val computation3 = buildComputationAtKingdom("3", Computation.State.CANCELLED)
     mockStreamActiveComputationsToReturn(computation1, computation2, computation3)
 
@@ -2089,6 +2267,18 @@ class HeraldTest {
         deleteComputationRequest { localComputationId = 1L },
         deleteComputationRequest { localComputationId = 2L },
       )
+    val failedSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "duchy.herald.process_computation" &&
+          it.attributes.get(ReportTraceAttributes.COMPUTATION_NAME) == computation2.name
+      }
+    assertThat(failedSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("duchy_computation")
+    assertThat(failedSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(PUBLIC_MEASUREMENT_NAME)
+    assertThat(failedSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failedSpan.attributes.get(ReportTraceAttributes.DUCHY_ID))
+      .isEqualTo(AGGREGATOR_DUCHY_ID)
   }
 
   @Test

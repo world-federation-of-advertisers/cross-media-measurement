@@ -19,6 +19,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "google/type/date.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_model_line.proto";
 
@@ -69,6 +70,18 @@ service RawImpressionUploadModelLineService {
   // `FAILED_PRECONDITION` if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineLabeling(
       MarkRawImpressionUploadModelLineLabelingRequest)
+      returns (RawImpressionUploadModelLine) {}
+
+  // Marks a model line as `AVAILABILITY_SYNCING` and records the event dates
+  // that must be synchronized.
+  rpc MarkRawImpressionUploadModelLineAvailabilitySyncing(
+      MarkRawImpressionUploadModelLineAvailabilitySyncingRequest)
+      returns (RawImpressionUploadModelLine) {}
+
+  // Records one event date as synchronized. The last pending date transitions
+  // the model line to `COMPLETED`.
+  rpc MarkRawImpressionUploadModelLineAvailabilitySynchronized(
+      MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest)
       returns (RawImpressionUploadModelLine) {}
 
   // Marks a `RawImpressionUploadModelLine` as `COMPLETED`. Throws
@@ -359,6 +372,52 @@ message MarkRawImpressionUploadModelLineCompletedRequest {
 }
 
 // Request message for the
+// `MarkRawImpressionUploadModelLineAvailabilitySyncing` method.
+message MarkRawImpressionUploadModelLineAvailabilitySyncingRequest {
+  // The resource name of the model line.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // The etag of the `RawImpressionUploadModelLine` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // Event dates whose availability must be synchronized. Must not be empty.
+  repeated google.type.Date pending_availability_dates = 3
+      [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency on retry.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
+// `MarkRawImpressionUploadModelLineAvailabilitySynchronized` method.
+message MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+  // The resource name of the model line.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // The event date whose availability was synchronized.
+  google.type.Date event_date = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A request ID provided by the client to ensure idempotency on retry.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for the
 // `MarkRawImpressionUploadModelLineFailed` method.
 message MarkRawImpressionUploadModelLineFailedRequest {
   // The resource name of the model line.
@@ -401,4 +460,24 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   // Defaults to `PROCESSING_FAILURE` when unspecified.
   RawImpressionUploadModelLine.FailureReason failure_reason = 5
       [(google.api.field_behavior) = OPTIONAL];
+
+  // Identifier shared by all rows in this eviction operation.
+  string eviction_operation_id = 6 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+
+  // Action required to replace output invalidated by the eviction.
+  RawImpressionUploadModelLine.RecoveryAction recovery_action = 7
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Upload whose completed replacement must exist before recovery can start.
+  // Empty when recovery starts a new memoized chain after its first upload was
+  // permanently removed.
+  string recovery_predecessor_raw_impression_upload = 8 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
 }

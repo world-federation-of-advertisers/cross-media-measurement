@@ -18,7 +18,6 @@ import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 
 /**
@@ -41,15 +40,17 @@ val PopulationSpec.size: Long
  * [PopulationSpec] and that it is being used to determine indexes provided to the [increment] and
  * [incrementAll] methods.
  *
- * The [MeasurementSpec] is used in several ways. First, it must specify either a Reach or
- * ReachAndFrequency measurement. In the case of Reach, the FrequencyVectorBuilder will clamp all
- * frequency values at maximum of 1. In the case of a ReachAndFrequency measurement, the max
- * frequency parameter is used to clamp the frequency value. In both cases the vidSamplingInterval
- * is used to appropriately size the output vector and if the client does not do its own filtering,
- * filter the inputs to [increment] and [incrementAll].
+ * The [MeasurementSpec] is used in several ways. First, it must specify a Reach, ReachAndFrequency,
+ * or Multi measurement. In the case of Reach, the FrequencyVectorBuilder will clamp all frequency
+ * values at maximum of 1. In the case of a ReachAndFrequency measurement, the max frequency
+ * parameter is used to clamp the frequency value. A Multi measurement carries no frequency cap of
+ * its own, so values saturate at the largest signed 8-bit value the wire format holds. In every
+ * case the vidSamplingInterval is used to appropriately size the output vector and if the client
+ * does not do its own filtering, filter the inputs to [increment] and [incrementAll].
  *
  * @param populationSpec specification of the population being measured
- * @param measurementSpec a [MeasurementSpec] that specifies a Reach or ReachAndFrequency
+ * @param measurementSpec a [MeasurementSpec] that specifies a Reach, ReachAndFrequency, or Multi
+ *   measurement
  * @param strict If false the various increment methods ignore indexes that are out of bounds. If
  *   true, an out of bounds index will result in an exception being thrown. It is normal for indexes
  *   to be out of bounds of a given vid interval.
@@ -65,98 +66,25 @@ class FrequencyVectorBuilder(
   overrideImpressionMaxFrequencyPerUser: Int?,
 ) {
 
-  /** The maximum frequency allowed in the output frequency vector. */
+  private val sampling =
+    FrequencyVectorSampling(
+      populationSpec,
+      measurementSpec,
+      resultMinimumThresholds,
+      overrideImpressionMaxFrequencyPerUser,
+    )
+
   private val maxFrequency: Int
+    get() = sampling.maxFrequency
 
-  init {
-
-    if (measurementSpec.hasReachAndFrequency()) {
-      require(measurementSpec.reachAndFrequency.maximumFrequency >= 1) {
-        "measurementSpec.reachAndFrequency.maximumFrequency must be >= 1"
-      }
-    }
-
-    if (measurementSpec.hasImpression()) {
-      require(measurementSpec.impression.maximumFrequencyPerUser >= 1) {
-        "measurementSpec.impression.maximumFrequencyPerUser must be >= 1"
-      }
-    }
-
-    if (measurementSpec.hasReach() && resultMinimumThresholds != null) {
-      require(resultMinimumThresholds.reachMaxFrequencyPerUser >= 1) {
-        "resultMinimumThresholds.maxFrequencyPerUser must be >= 1 for reach measurements with small-cell suppression"
-      }
-    }
-
-    if (overrideImpressionMaxFrequencyPerUser != null) {
-      require(
-        overrideImpressionMaxFrequencyPerUser >= 1 || overrideImpressionMaxFrequencyPerUser == -1
-      ) {
-        "overrideImpressionMaxFrequencyPerUser must be >= 1 or -1 (uncapped)"
-      }
-    }
-
-    maxFrequency =
-      if (
-        measurementSpec.hasImpression() &&
-          overrideImpressionMaxFrequencyPerUser != null &&
-          overrideImpressionMaxFrequencyPerUser != -1
-      ) {
-        overrideImpressionMaxFrequencyPerUser
-      } else if (measurementSpec.hasReachAndFrequency()) {
-        measurementSpec.reachAndFrequency.maximumFrequency
-      } else if (measurementSpec.hasImpression()) {
-        measurementSpec.impression.maximumFrequencyPerUser
-      } else if (measurementSpec.hasReach()) {
-        resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1
-      } else {
-        1
-      }
-  }
-
-  /**
-   * For a non-wrapping sampling interval this is the entire range of indexes in the VidIndexMap
-   * that correspond to the sampling interval [start, start+width) For a wrapping sampling interval
-   * this is the range of indexes that correspond to the sub-interval [start, 1.0)
-   */
   private val primaryRange: IntRange
+    get() = sampling.primaryRange
 
   private val primaryRangeCount: Int
+    get() = sampling.primaryRangeCount
 
-  /**
-   * For a wrapping VidSamplingInterval this is the part of the range than spans [0, width-start)
-   */
   private val wrappedRange: IntRange
-
-  init {
-    val vidSamplingInterval = measurementSpec.vidSamplingInterval
-    require(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
-      "MeasurementSpec.VidSamplingInterval.width must be > 0 and <= 1"
-    }
-    require(vidSamplingInterval.start in 0.0..1.0) {
-      "MeasurementSpec.VidSamplingInterval.start must be >= 0 and <= 1"
-    }
-
-    validateVidRangesList(populationSpec).getOrThrow()
-    val populationSizeLong = populationSpec.size
-    require(populationSizeLong > 0 && populationSizeLong < Int.MAX_VALUE) {
-      "population size must be > 0 and < Int.MAX_VALUE"
-    }
-    val populationSize = populationSizeLong.toInt()
-
-    // If we have a wrapping interval globalEndIndex will be larger than the populationSize
-    val globalStartIndex = (populationSize * vidSamplingInterval.start).toInt()
-    val globalEndIndex =
-      (populationSize * (vidSamplingInterval.start + vidSamplingInterval.width)).toInt() - 1
-    primaryRange = globalStartIndex..minOf(globalEndIndex, populationSize - 1)
-    primaryRangeCount = primaryRange.count()
-    wrappedRange =
-      if (globalEndIndex >= populationSize) {
-        0..(globalEndIndex - populationSize)
-      } else {
-        IntRange.EMPTY
-      }
-  }
+    get() = sampling.wrappedRange
 
   /** The accumulated frequency data */
   private val frequencyData: IntArray
@@ -234,27 +162,18 @@ class FrequencyVectorBuilder(
     resultMinimumThresholds,
     overrideImpressionMaxFrequencyPerUser,
   ) {
-    // Batch copy primary range
-    var destIndex = 0
-    for (sourceIndex in primaryRange) {
-      if (sourceIndex < frequencyDataBytes.size) {
-        val frequency = frequencyDataBytes[sourceIndex].toInt() and 0xFF
-        frequencyData[destIndex] = minOf(frequency, maxFrequency)
-      }
-      destIndex++
-    }
-
-    // Batch copy wrapped range if it exists
-    if (!wrappedRange.isEmpty()) {
-      for (sourceIndex in wrappedRange) {
-        if (sourceIndex < frequencyDataBytes.size) {
-          val frequency = frequencyDataBytes[sourceIndex].toInt() and 0xFF
-          frequencyData[destIndex] = minOf(frequency, maxFrequency)
-        }
-        destIndex++
-      }
+    for (index in frequencyData.indices) {
+      frequencyData[index] = sampling.frequencyAt(frequencyDataBytes, index)
     }
   }
+
+  /** Builds a byte payload, rejecting frequencies that cannot be represented as unsigned bytes. */
+  fun buildBytes(): ByteArray =
+    ByteArray(size) { index ->
+      val frequency = frequencyData[index]
+      require(frequency in 0..255) { "FrequencyVector value must be between 0 and 255" }
+      frequency.toByte()
+    }
 
   /** Build a FrequencyVector. */
   fun build(): FrequencyVector = frequencyVector { data += frequencyData.asList() }

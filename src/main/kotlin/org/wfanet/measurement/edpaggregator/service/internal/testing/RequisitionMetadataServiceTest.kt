@@ -21,11 +21,19 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
+import com.google.type.copy
+import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -58,7 +66,10 @@ import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRe
 import org.wfanet.measurement.internal.edpaggregator.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.registerQueuedRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.reportRoutingDecision
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
+import org.wfanet.measurement.internal.edpaggregator.resolveReportRoutingDecisionRequest
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest
 
 @RunWith(JUnit4::class)
@@ -344,6 +355,70 @@ abstract class RequisitionMetadataServiceTest {
         }
       )
     assertThat(response.requisitionMetadataList.all { it.hasCreateTime() }).isTrue()
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata atomically creates queued metadata`() = runBlocking {
+    val request1 = createRequisitionMetadataRequest {
+      requisitionMetadata = REQUISITION_METADATA
+      requestId = UUID.randomUUID().toString()
+    }
+    val request2 = createRequisitionMetadataRequest {
+      requisitionMetadata = REQUISITION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val response =
+      service.registerQueuedRequisitionMetadata(
+        registerQueuedRequisitionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += request1
+          requests += request2
+          workItem = WORK_ITEM
+        }
+      )
+
+    assertThat(response.requisitionMetadataList).hasSize(2)
+    assertThat(response.requisitionMetadataList.map { it.state }.toSet())
+      .containsExactly(State.REQUISITION_METADATA_STATE_QUEUED)
+    assertThat(response.requisitionMetadataList.map { it.workItem }.toSet())
+      .containsExactly(WORK_ITEM)
+    assertThat(response.requisitionMetadataList.all { it.hasCreateTime() }).isTrue()
+  }
+
+  @Test
+  fun `legacy and direct metadata registration have one winner`() = runBlocking {
+    service.registerQueuedRequisitionMetadata(
+      registerQueuedRequisitionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        requests += createRequisitionMetadataRequest {
+          requisitionMetadata = REQUISITION_METADATA
+          requestId = UUID.randomUUID().toString()
+        }
+        workItem = WORK_ITEM
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createRequisitionMetadataRequest {
+              requisitionMetadata =
+                REQUISITION_METADATA.copy {
+                  blobUri = "gs://bucket/requisitions/legacy-group"
+                  groupId = "legacy-group"
+                }
+              requestId = UUID.randomUUID().toString()
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION.name)
   }
 
   @Test
@@ -1620,6 +1695,144 @@ abstract class RequisitionMetadataServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "page_size"
         }
       )
+  }
+
+  @Test
+  fun `resolveReportRoutingDecision concurrent first batches share one selection`() = runBlocking {
+    val historical = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+    val replacement = "modelProviders/provider/modelSuites/suite/modelLines/replacement"
+    val candidate = reportRoutingDecision {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      report = REPORT
+      reportInterval = interval {
+        startTime = timestamp { seconds = 100 }
+        endTime = timestamp { seconds = 150 }
+      }
+      externalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/external"
+      selectedModelLine = historical
+      cutoverTime = timestamp { seconds = 200 }
+    }
+    val results = coroutineScope {
+      val ready = Channel<Unit>(2)
+      val release = CompletableDeferred<Unit>()
+      val requests =
+        listOf(historical, replacement).map { selected ->
+          async(Dispatchers.Default) {
+            ready.send(Unit)
+            release.await()
+            service.resolveReportRoutingDecision(
+              resolveReportRoutingDecisionRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                this.candidate = candidate.copy { selectedModelLine = selected }
+              }
+            )
+          }
+        }
+      repeat(2) { ready.receive() }
+      release.complete(Unit)
+      requests.awaitAll()
+    }
+    val first = results.single { it.created }
+    assertThat(first.reportRoutingDecision.selectedModelLine).isAnyOf(historical, replacement)
+    for (result in results) {
+      assertThat(result.reportRoutingDecision.selectedModelLine)
+        .isEqualTo(first.reportRoutingDecision.selectedModelLine)
+      assertThat(result.reportRoutingDecision.reportInterval).isEqualTo(candidate.reportInterval)
+      assertThat(result.reportRoutingDecision.externalModelLine)
+        .isEqualTo(candidate.externalModelLine)
+    }
+  }
+
+  @Test
+  fun `resolveReportRoutingDecision preserves first selection`() = runBlocking {
+    val historical = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+    val replacement = "modelProviders/provider/modelSuites/suite/modelLines/replacement"
+    val candidate = reportRoutingDecision {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      report = REPORT
+      reportInterval = interval {
+        startTime = timestamp { seconds = 100 }
+        endTime = timestamp { seconds = 150 }
+      }
+      externalModelLine = historical
+      selectedModelLine = historical
+      cutoverTime = timestamp { seconds = 200 }
+    }
+
+    val first =
+      service.resolveReportRoutingDecision(
+        resolveReportRoutingDecisionRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          this.candidate = candidate
+        }
+      )
+    val second =
+      service.resolveReportRoutingDecision(
+        resolveReportRoutingDecisionRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          this.candidate = candidate.copy { selectedModelLine = replacement }
+        }
+      )
+
+    assertThat(first.created).isTrue()
+    assertThat(second.created).isFalse()
+    assertThat(second.reportRoutingDecision.selectedModelLine).isEqualTo(historical)
+  }
+
+  @Test
+  fun `resolveReportRoutingDecision rejects interval without end`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.resolveReportRoutingDecision(
+          resolveReportRoutingDecisionRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            candidate = reportRoutingDecision {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              report = REPORT
+              reportInterval = interval { startTime = timestamp { seconds = 100 } }
+              externalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/external"
+              selectedModelLine = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `resolveReportRoutingDecision rejects conflicting report interval`() = runBlocking {
+    val candidate = reportRoutingDecision {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      report = REPORT
+      reportInterval = interval {
+        startTime = timestamp { seconds = 100 }
+        endTime = timestamp { seconds = 150 }
+      }
+      externalModelLine = "modelProviders/provider/modelSuites/suite/modelLines/external"
+      selectedModelLine = "modelProviders/provider/modelSuites/suite/modelLines/historical"
+    }
+    service.resolveReportRoutingDecision(
+      resolveReportRoutingDecisionRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        this.candidate = candidate
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.resolveReportRoutingDecision(
+          resolveReportRoutingDecisionRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            this.candidate =
+              candidate.copy {
+                reportInterval = reportInterval.copy { endTime = timestamp { seconds = 151 } }
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   private suspend fun createRequisitionMetadata(

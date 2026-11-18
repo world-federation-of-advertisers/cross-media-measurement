@@ -32,6 +32,7 @@ kt_jvm_library(
     deps = [
         "continuation_token_manager",
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/utils:computation_conversions",
@@ -46,6 +47,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/system/v1alpha:differential_privacy_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
     ],

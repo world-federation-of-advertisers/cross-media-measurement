@@ -20,6 +20,11 @@ package k8s
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
+	// Allows aggregate report-result values to be written to application logs.
+	// Enable only where log access and retention policy permit it.
+	_logNoiseCorrectionValues:      bool | *false
+	_reportResultValidationEnabled: bool | *true
+	_reportResultCorrectionEnabled: bool | *true
 	// These values are conservative upper bounds across all policies that could have produced a
 	// pending result, not necessarily the thresholds currently used by any one EDP. An empty EDP
 	// list and zero threshold settings disable potential Direct threshold correction.
@@ -377,6 +382,9 @@ package k8s
 			_container: {
 				args: [
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+					"--log-noise-correction-values=\(_logNoiseCorrectionValues)",
+					"--enable-validation=\(_reportResultValidationEnabled)",
+					"--enable-correction=\(_reportResultCorrectionEnabled)",
 					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
 					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
 				] + [ for edp in _potentialDirectThresholdingEdps {
@@ -461,10 +469,8 @@ package k8s
 			// Egress: calls the Reporting public API.
 			_destinationMatchLabels: ["reporting-v2alpha-public-api-server-app"]
 			// Ingress: intentionally open to any in-cluster pod on 8080. There is no
-			// dedicated in-cluster client in this phase (the server is reached via
-			// kubectl port-forward for testing and by the planned cloud integration
-			// test), so no `_sourceMatchLabels` restriction is applied yet. External
-			// exposure is tracked in
+			// dedicated in-cluster client, so no `_sourceMatchLabels` restriction is
+			// applied. External exposure is tracked in
 			// TODO(world-federation-of-advertisers/cross-media-measurement#3938).
 			_ingresses: {
 				http: {

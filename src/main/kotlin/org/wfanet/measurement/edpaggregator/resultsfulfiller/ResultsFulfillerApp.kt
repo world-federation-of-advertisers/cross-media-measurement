@@ -32,7 +32,9 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -112,6 +114,7 @@ class ResultsFulfillerApp(
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
     val fulfillerParams = workItemParams.appParams.unpack(ResultsFulfillerParams::class.java)
+    ResultsFulfillerParamsValidator.validate(fulfillerParams)
     val requisitionsBlobUri = workItemParams.dataPathParams.dataPath
 
     val storageParams = fulfillerParams.storageParams
@@ -161,6 +164,15 @@ class ResultsFulfillerApp(
         impressionMetadataStub = impressionMetadataStub,
         dataProvider = fulfillerParams.dataProvider,
         impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
+        modelLineDataSources =
+          fulfillerParams.modelLineDataSourcesMap.mapValues { (_, source) ->
+            ModelLineDataSource(
+              blobUriPrefix = source.blobUriPrefix,
+              validStartDate =
+                source.validStartDate.takeIf { source.hasValidStartDate() }?.toLocalDate(),
+              validEndDate = source.validEndDate.takeIf { source.hasValidEndDate() }?.toLocalDate(),
+            )
+          },
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
@@ -172,15 +184,6 @@ class ResultsFulfillerApp(
 
     val resultMinimumThresholds: ResultMinimumThresholds? =
       if (fulfillerParams.hasKAnonymityParams()) {
-        require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "Result minimum thresholds minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
-        }
-        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "Result minimum thresholds minImpressions must be greater than 0, got ${fulfillerParams.kAnonymityParams.minImpressions}"
-        }
-        require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "Result minimum thresholds reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
-        }
         ResultMinimumThresholds(
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
           minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
@@ -189,18 +192,6 @@ class ResultsFulfillerApp(
       } else {
         null
       }
-
-    require(
-      fulfillerParams.impressionMaxFrequencyPerUser >= -1 &&
-        fulfillerParams.impressionMaxFrequencyPerUser <= Byte.MAX_VALUE
-    ) {
-      "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
-    }
-
-    requireCapMatchesMode(
-      fulfillerParams.impressionCapMode,
-      fulfillerParams.impressionMaxFrequencyPerUser,
-    )
 
     // Get TrusTeeConfig for this data provider if available
     val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]
@@ -230,6 +221,8 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         resultMinimumThresholds = resultMinimumThresholds,
+        disableMultiPartyFrequencyVectorSuppression =
+          fulfillerParams.kAnonymityParams.disableMultiPartyFrequencyVectorSuppression,
         // Read under UNSPECIFIED and CUSTOM_CAP. -1 means no cap, 0 or unset means the
         // MeasurementSpec's value. The explicit modes carry the choice themselves.
         overrideImpressionMaxFrequencyPerUser =
@@ -242,6 +235,8 @@ class ResultsFulfillerApp(
         supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
+        trusTeeV2ImpressionCountMode = fulfillerParams.trusTeeV2Config.impressionCountMode,
+        trusTeeV2MaxFrequencyPerUser = fulfillerParams.trusTeeV2Config.maxFrequencyPerUserOrNull,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {
@@ -255,6 +250,18 @@ class ResultsFulfillerApp(
             modelLineInfo.copy(localAlias = mappedValue)
           }
         }
+      }
+    val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? =
+      if (fulfillerParams.hasEventGroupReferenceIdEntityKeyMapping()) {
+        fulfillerParams.eventGroupReferenceIdEntityKeyMapping.let { params ->
+          EventGroupReferenceIdEntityKeyMapping(
+            entityType = params.entityType,
+            eventGroupReferenceIdPrefix = params.eventGroupReferenceIdPrefix,
+            entityIdPrefix = params.entityIdPrefix,
+          )
+        }
+      } else {
+        null
       }
 
     ResultsFulfiller(
@@ -271,6 +278,8 @@ class ResultsFulfillerApp(
         impressionsStorageConfig = impressionsStorageConfig,
         kmsClient = kmsClient,
         fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = fulfillerParams.wholeBlobEntityTypesList.toSet(),
+        eventGroupReferenceIdEntityKeyMapping = eventGroupReferenceIdEntityKeyMapping,
         metrics = metrics,
       )
       .fulfillRequisitions()

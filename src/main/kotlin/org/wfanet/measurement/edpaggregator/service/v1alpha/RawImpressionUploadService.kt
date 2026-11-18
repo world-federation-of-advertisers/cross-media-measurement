@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.io.IOException
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
@@ -29,7 +30,12 @@ import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
@@ -37,6 +43,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsResp
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken as InternalListUploadsPageToken
@@ -45,11 +56,14 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRes
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload as InternalRawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub as InternalUploadServiceStub
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest as internalAcquireEvictionFenceRequest
+import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadEvictionFenceRequest as internalAdvanceEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest as internalCreateUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest as internalGetUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest as internalListUploadsRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadRegistrationCompleteRequest as internalMarkRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.releaseRawImpressionUploadEvictionFenceRequest as internalReleaseEvictionFenceRequest
 
 class RawImpressionUploadService(
   private val internalUploadStub: InternalUploadServiceStub,
@@ -104,6 +118,20 @@ class RawImpressionUploadService(
       throw InvalidFieldValueException("request_id", e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val uploadHealingOperationKey =
+      request.rawImpressionUpload.uploadHealingOperation
+        .takeIf { it.isNotEmpty() }
+        ?.let {
+          UploadHealingOperationKey.fromName(it)
+            ?: throw InvalidFieldValueException("raw_impression_upload.upload_healing_operation")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+    if (
+      uploadHealingOperationKey != null && uploadHealingOperationKey.parentKey != dataProviderKey
+    ) {
+      throw InvalidFieldValueException("raw_impression_upload.upload_healing_operation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val internalResponse: InternalRawImpressionUpload =
       try {
@@ -118,6 +146,7 @@ class RawImpressionUploadService(
               }
             }
             requestId = request.requestId
+            evictionOperationId = uploadHealingOperationKey?.uploadHealingOperationId.orEmpty()
           }
         )
       } catch (e: StatusException) {
@@ -152,7 +181,12 @@ class RawImpressionUploadService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          null ->
+            if (e.status.code == Status.Code.FAILED_PRECONDITION) {
+              e.status.withCause(e).asRuntimeException()
+            } else {
+              Status.INTERNAL.withCause(e).asRuntimeException()
+            }
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
             Status.NOT_FOUND.withDescription("RawImpressionUpload not found")
               .withCause(e)
@@ -164,6 +198,179 @@ class RawImpressionUploadService(
 
     return internalResponse.toPublic()
   }
+
+  override suspend fun acquireRawImpressionUploadEvictionFence(
+    request: AcquireRawImpressionUploadEvictionFenceRequest
+  ): AcquireRawImpressionUploadEvictionFenceResponse {
+    val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
+    validateUuid(request.requestId, "request_id")
+    if (
+      request.state !=
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING &&
+        request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+    ) {
+      throw InvalidFieldValueException("state")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val internalResponse =
+      try {
+        internalUploadStub.acquireRawImpressionUploadEvictionFence(
+          internalAcquireEvictionFenceRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            evictionOperationId = request.evictionOperationId
+            state = request.state.toInternal()
+            requestId = request.requestId
+          }
+        )
+      } catch (e: StatusException) {
+        throw translateFenceError(e)
+      }
+
+    return acquireRawImpressionUploadEvictionFenceResponse {
+      newlyAcquired = internalResponse.newlyAcquired
+      state = internalResponse.state.toPublic()
+      etag = internalResponse.etag
+    }
+  }
+
+  override suspend fun advanceRawImpressionUploadEvictionFence(
+    request: AdvanceRawImpressionUploadEvictionFenceRequest
+  ): AdvanceRawImpressionUploadEvictionFenceResponse {
+    val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
+    requireField(request.etag, "etag")
+    validateUuid(request.requestId, "request_id")
+    if (
+      request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING &&
+        request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+    ) {
+      throw InvalidFieldValueException("state")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val internalResponse =
+      try {
+        internalUploadStub.advanceRawImpressionUploadEvictionFence(
+          internalAdvanceEvictionFenceRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            evictionOperationId = request.evictionOperationId
+            state = request.state.toInternal()
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+      } catch (e: StatusException) {
+        throw translateFenceError(e)
+      }
+    return advanceRawImpressionUploadEvictionFenceResponse { etag = internalResponse.etag }
+  }
+
+  override suspend fun releaseRawImpressionUploadEvictionFence(
+    request: ReleaseRawImpressionUploadEvictionFenceRequest
+  ): ReleaseRawImpressionUploadEvictionFenceResponse {
+    val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
+    requireField(request.etag, "etag")
+    validateUuid(request.requestId, "request_id")
+    try {
+      internalUploadStub.releaseRawImpressionUploadEvictionFence(
+        internalReleaseEvictionFenceRequest {
+          dataProviderResourceId = dataProviderKey.dataProviderId
+          evictionOperationId = request.evictionOperationId
+          etag = request.etag
+          requestId = request.requestId
+        }
+      )
+    } catch (e: StatusException) {
+      throw translateFenceError(e)
+    }
+    return ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
+  }
+
+  private fun validateEvictionFenceRequest(
+    parent: String,
+    evictionOperationId: String,
+  ): DataProviderKey {
+    if (parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val dataProviderKey =
+      DataProviderKey.fromName(parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    validateUuid(evictionOperationId, "eviction_operation_id")
+    return dataProviderKey
+  }
+
+  private fun translateFenceError(e: StatusException): StatusRuntimeException =
+    when (e.status.code) {
+      Status.Code.INVALID_ARGUMENT,
+      Status.Code.FAILED_PRECONDITION,
+      Status.Code.ABORTED,
+      Status.Code.ALREADY_EXISTS,
+      Status.Code.UNAVAILABLE -> e.status.withCause(e).asRuntimeException()
+      else -> Status.INTERNAL.withCause(e).asRuntimeException()
+    }
+
+  private fun requireField(value: String, field: String) {
+    if (value.isEmpty()) {
+      throw RequiredFieldNotSetException(field)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun validateUuid(value: String, field: String) {
+    requireField(value, field)
+    try {
+      val uuid = UUID.fromString(value)
+      if (
+        uuid.version() != 4 ||
+          uuid.variant() != 2 ||
+          !uuid.toString().equals(value, ignoreCase = true)
+      ) {
+        throw IllegalArgumentException("$field must be a UUID4")
+      }
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException(field, e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun VidLabelingEvictionFenceState.toInternal():
+    org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState =
+    when (this) {
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED ->
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING ->
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING ->
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING ->
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      VidLabelingEvictionFenceState.UNRECOGNIZED ->
+        throw InvalidFieldValueException("state")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+  private fun org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+    .toPublic(): VidLabelingEvictionFenceState =
+    when (this) {
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_DRAINING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_EVICTING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED,
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState.UNRECOGNIZED ->
+        error("Unrecognized fence state")
+    }
 
   override suspend fun getRawImpressionUpload(
     request: GetRawImpressionUploadRequest
@@ -423,6 +630,12 @@ fun InternalRawImpressionUpload.toPublic(): RawImpressionUpload {
       doneBlobCreateTime = source.doneBlobCreateTime
     }
     registrationComplete = source.registrationComplete
+    processingDeferred = source.processingDeferred
+    if (source.evictionOperationId.isNotEmpty()) {
+      uploadHealingOperation =
+        UploadHealingOperationKey(source.dataProviderResourceId, source.evictionOperationId)
+          .toName()
+    }
     if (source.replacesRawImpressionUploadResourceId.isNotEmpty()) {
       replacesRawImpressionUpload =
         RawImpressionUploadKey(
@@ -446,6 +659,10 @@ internal fun RawImpressionUploadState.toPublic(): RawImpressionUpload.State {
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED ->
       RawImpressionUpload.State.COMPLETED
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED -> RawImpressionUpload.State.FAILED
+    RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ->
+      RawImpressionUpload.State.CORRECTION_REQUIRED
+    RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT ->
+      RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
     RawImpressionUploadState.UNRECOGNIZED,
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_UNSPECIFIED -> error("Unrecognized state")
   }
@@ -460,6 +677,10 @@ internal fun RawImpressionUpload.State.toInternal(): RawImpressionUploadState {
     RawImpressionUpload.State.COMPLETED ->
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED
     RawImpressionUpload.State.FAILED -> RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED
+    RawImpressionUpload.State.CORRECTION_REQUIRED ->
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+    RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT ->
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT
     RawImpressionUpload.State.UNRECOGNIZED,
     RawImpressionUpload.State.STATE_UNSPECIFIED -> error("Unrecognized state")
   }

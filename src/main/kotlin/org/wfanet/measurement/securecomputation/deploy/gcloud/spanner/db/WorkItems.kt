@@ -21,10 +21,13 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Any
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -36,7 +39,20 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
-data class WorkItemResult(val workItemId: Long, val workItem: WorkItem)
+data class WorkItemResult(
+  val workItemId: Long,
+  val workItem: WorkItem,
+  val publicationScheduledGeneration: Long?,
+  val sourceObject: WorkItemSourceObject?,
+)
+
+data class WorkItemSourceObject(
+  val dataPath: String,
+  val generation: Long,
+  val createTime: Instant,
+)
+
+private const val INITIAL_WORK_ITEM_GENERATION = 1L
 
 /** @return whether a [WorkItem] with the specified [workItemId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.workItemIdExists(workItemId: Long): Boolean {
@@ -55,6 +71,36 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
     set("State").to(state)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  deleteWorkItemPublication(workItemId)
+  return state
+}
+
+/** Buffers the state and outbox mutations needed to retry a failed WorkItem immediately. */
+suspend fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
+  workItemId: Long,
+  generation: Long,
+): WorkItem.State {
+  return retryWorkItem(workItemId, generation, Instant.now())
+}
+
+/**
+ * Buffers the state and outbox mutations needed to retry a failed WorkItem at [nextAttemptTime].
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
+  workItemId: Long,
+  generation: Long,
+  nextAttemptTime: Instant,
+): WorkItem.State {
+  val state = WorkItem.State.QUEUED
+  val nextGeneration = generation + 1L
+  bufferUpdateMutation("WorkItems") {
+    set("WorkItemId").to(workItemId)
+    set("State").to(state)
+    set("Generation").to(nextGeneration)
+    set("PublicationScheduledGeneration").to(nextGeneration)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+  scheduleWorkItemPublication(workItemId, nextAttemptTime)
   return state
 }
 
@@ -68,18 +114,151 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
   workItemResourceId: String,
   queueId: Long,
   workItemParams: Any,
+  serializationKey: String,
+  sourceObject: WorkItemSourceObject? = null,
+  state: WorkItem.State = WorkItem.State.QUEUED,
 ): WorkItem.State {
-  val state = WorkItem.State.QUEUED
   bufferInsertMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
     set("WorkItemResourceId").to(workItemResourceId)
     set("QueueId").to(queueId)
     set("State").to(state)
+    set("Generation").to(INITIAL_WORK_ITEM_GENERATION)
+    if (state == WorkItem.State.QUEUED) {
+      set("PublicationScheduledGeneration").to(INITIAL_WORK_ITEM_GENERATION)
+    }
     set("WorkItemParams").to(workItemParams)
+    if (serializationKey.isNotEmpty()) {
+      set("SerializationKey").to(serializationKey)
+    }
+    if (sourceObject != null) {
+      set("SourceDataPath").to(sourceObject.dataPath)
+      set("SourceObjectGeneration").to(sourceObject.generation)
+      set("SourceObjectCreateTime").to(sourceObject.createTime.toGcloudTimestamp())
+    }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   return state
+}
+
+/**
+ * Supersedes queued older versions of [sourceObject].
+ *
+ * @return whether [sourceObject] is the newest known version and should be published.
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.prepareSourceObjectWorkItem(
+  queueId: Long,
+  sourceObject: WorkItemSourceObject,
+): Boolean {
+  val rows =
+    executeQuery(
+        statement(
+          """
+          SELECT WorkItemId, State, SourceObjectGeneration, SourceObjectCreateTime
+          FROM WorkItems@{
+            FORCE_INDEX=WorkItemsBySourceObject,
+            spanner_emulator.disable_query_null_filtered_index_check=true
+          }
+          WHERE QueueId = @queueId
+            AND SourceDataPath = @sourceDataPath
+            AND SourceObjectCreateTime IS NOT NULL
+            AND SourceObjectGeneration IS NOT NULL
+          ORDER BY SourceObjectCreateTime DESC, SourceObjectGeneration DESC, WorkItemId DESC
+          """
+            .trimIndent()
+        ) {
+          bind("queueId").to(queueId)
+          bind("sourceDataPath").to(sourceObject.dataPath)
+        },
+        Options.tag("action=prepareSourceObjectWorkItem"),
+      )
+      .toList()
+
+  if (rows.any { it.isSameOrNewerThan(sourceObject) }) {
+    return false
+  }
+
+  for (row in rows) {
+    if (WorkItem.State.forNumber(row.getLong("State").toInt()) != WorkItem.State.QUEUED) {
+      continue
+    }
+    val workItemId = row.getLong("WorkItemId")
+    bufferUpdateMutation("WorkItems") {
+      set("WorkItemId").to(workItemId)
+      set("State").to(WorkItem.State.SUCCEEDED)
+      set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    }
+    deleteWorkItemPublication(workItemId)
+  }
+  return true
+}
+
+private fun Struct.isSameOrNewerThan(sourceObject: WorkItemSourceObject): Boolean {
+  val createTimeComparison =
+    getTimestamp("SourceObjectCreateTime").toInstant().compareTo(sourceObject.createTime)
+  return createTimeComparison > 0 ||
+    createTimeComparison == 0 && getLong("SourceObjectGeneration") >= sourceObject.generation
+}
+
+/** Ensures that [workItemId] has an outbox row for [generation]. */
+suspend fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemPublicationIfNeeded(
+  workItemId: Long,
+  generation: Long,
+  publicationScheduledGeneration: Long?,
+): Boolean {
+  if (publicationScheduledGeneration == generation) {
+    return false
+  }
+  if (!workItemPublicationExists(workItemId)) {
+    insertWorkItemPublication(workItemId)
+  }
+  bufferUpdateMutation("WorkItems") {
+    set("WorkItemId").to(workItemId)
+    set("PublicationScheduledGeneration").to(generation)
+  }
+  return true
+}
+
+/** Repairs legacy QUEUED WorkItems which were not transactionally added to the outbox. */
+suspend fun AsyncDatabaseClient.TransactionContext.reconcileWorkItemPublications(limit: Int): Int {
+  val rows =
+    executeQuery(
+        statement(
+          """
+          SELECT WorkItemId, COALESCE(Generation, @initialGeneration) AS EffectiveGeneration,
+            PublicationScheduledGeneration
+          FROM WorkItems@{FORCE_INDEX=WorkItemsByPublicationScheduling}
+          WHERE State = @queuedState
+            AND (
+              PublicationScheduledGeneration IS NULL
+              OR PublicationScheduledGeneration != COALESCE(Generation, @initialGeneration)
+            )
+          ORDER BY PublicationScheduledGeneration ASC, WorkItemId ASC
+          LIMIT @limit
+          """
+            .trimIndent()
+        ) {
+          bind("initialGeneration").to(INITIAL_WORK_ITEM_GENERATION)
+          bind("queuedState").to(WorkItem.State.QUEUED.number.toLong())
+          bind("limit").to(limit.toLong())
+        },
+        Options.tag("action=reconcileWorkItemPublications"),
+      )
+      .toList()
+  for (row in rows) {
+    scheduleWorkItemPublicationIfNeeded(
+      workItemId = row.getLong("WorkItemId"),
+      generation = row.getLong("EffectiveGeneration"),
+      publicationScheduledGeneration =
+        if (row.isNull("PublicationScheduledGeneration")) {
+          null
+        } else {
+          row.getLong("PublicationScheduledGeneration")
+        },
+    )
+  }
+  return rows.size
 }
 
 /**
@@ -149,7 +328,7 @@ fun AsyncDatabaseClient.ReadContext.readWorkItems(
   }
 }
 
-private object WorkItems {
+internal object WorkItems {
   val BASE_SQL =
     """
     SELECT
@@ -158,6 +337,12 @@ private object WorkItems {
       QueueId,
       State,
       WorkItemParams,
+      SerializationKey,
+      SourceDataPath,
+      SourceObjectGeneration,
+      SourceObjectCreateTime,
+      Generation,
+      PublicationScheduledGeneration,
       CreateTime,
       UpdateTime,
     FROM
@@ -173,8 +358,35 @@ private object WorkItems {
         queueResourceId = queue.queueResourceId
         state = row.getProtoEnum("State", WorkItem.State::forNumber)
         workItemParams = row.getProtoMessage("WorkItemParams", Any.getDefaultInstance())
+        if (!row.isNull("SerializationKey")) {
+          serializationKey = row.getString("SerializationKey")
+        }
+        generation =
+          if (row.isNull("Generation")) {
+            INITIAL_WORK_ITEM_GENERATION
+          } else {
+            row.getLong("Generation")
+          }
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
+      },
+      if (row.isNull("PublicationScheduledGeneration")) {
+        null
+      } else {
+        row.getLong("PublicationScheduledGeneration")
+      },
+      if (
+        row.isNull("SourceDataPath") ||
+          row.isNull("SourceObjectGeneration") ||
+          row.isNull("SourceObjectCreateTime")
+      ) {
+        null
+      } else {
+        WorkItemSourceObject(
+          row.getString("SourceDataPath"),
+          row.getLong("SourceObjectGeneration"),
+          row.getTimestamp("SourceObjectCreateTime").toInstant(),
+        )
       },
     )
   }

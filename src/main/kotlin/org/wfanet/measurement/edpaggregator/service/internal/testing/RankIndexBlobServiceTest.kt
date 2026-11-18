@@ -43,6 +43,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsResponse
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlob
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRankIndexBlobsRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteRankIndexBlobsRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -68,6 +69,14 @@ abstract class RankIndexBlobServiceTest {
   protected abstract suspend fun createParentUpload(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
+  )
+
+  /** Sets the state of the parent model line used by create tests. */
+  protected abstract suspend fun setParentModelLineState(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    cmmsModelLine: String,
+    state: RawImpressionUploadModelLineState,
   )
 
   @Before
@@ -158,6 +167,31 @@ abstract class RankIndexBlobServiceTest {
         )
 
       assertThat(blob2).isEqualTo(blob1)
+    }
+
+  @Test
+  fun `createRankIndexBlob rejects a new blob after its model line is failed`() =
+    runBlocking<Unit> {
+      setParentModelLineState(
+        DATA_PROVIDER_RESOURCE_ID,
+        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+        CMMS_MODEL_LINE,
+        RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRankIndexBlob(
+            createRankIndexBlobRequest {
+              requestId = UUID.randomUUID().toString()
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rankIndexBlob = newInternalBlob()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test

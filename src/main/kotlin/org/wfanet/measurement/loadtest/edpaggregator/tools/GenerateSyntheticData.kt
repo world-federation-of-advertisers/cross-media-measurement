@@ -51,6 +51,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateS
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
+import org.wfanet.measurement.loadtest.edpaggregator.testing.FixtureStorageClient
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine.ArgGroup
@@ -100,7 +101,7 @@ class GenerateSyntheticData : Runnable {
         [
           "Optional. Path to a Tink keyset file that backs the FAKE KEK identified by --kek-uri. " +
             "Only valid when --kms-type=FAKE. When set, on first run the generated fake KEK " +
-            "keyset is written here so that VerifySyntheticData (in a separate process) can load " +
+            "keyset is written here so that VerifyVidLabeledImpressions can load " +
             "the same keyset and decrypt the impressions. When the file already exists it is reused."
         ],
       required = false,
@@ -312,6 +313,7 @@ class GenerateSyntheticData : Runnable {
             storagePath,
             scheme,
             spec.outputKey,
+            includeEventGroupReferenceIdInImpressions = false,
           )
         impressionWriter.writeLabeledImpressionData(
           trackingShards,
@@ -324,7 +326,7 @@ class GenerateSyntheticData : Runnable {
         for (datePath in writtenDatePaths) {
           val doneKey = "$datePath/done"
           val doneUri = "$scheme$outputBucket/$doneKey"
-          val storageClient = SelectedStorageClient(doneUri, storagePath)
+          val storageClient = FixtureStorageClient(SelectedStorageClient(doneUri, storagePath))
           logger.info("Writing done blob: $doneKey")
           storageClient.writeBlob(doneKey, emptyFlow())
         }
@@ -516,7 +518,8 @@ class GenerateSyntheticData : Runnable {
         }
         KmsType.GCP_TO_AWS ->
           throw UnsupportedOperationException(
-            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. Use VerifySyntheticData."
+            "GCP_TO_AWS is not yet supported in GenerateSyntheticData. " +
+              "Use VerifyVidLabeledImpressions."
           )
       }
     }

@@ -168,10 +168,13 @@ class VidRankBuilderApp(
         subpoolFingerprintsStore = subpoolFingerprintsStore,
         rankIndexStore = rankIndexStore,
         rankIndexBlobsStub = rankIndexBlobsStub,
+        rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
         retention = retention,
         dataProvider = dataProvider,
         rawImpressionUpload = params.rawImpressionUpload,
         modelLine = params.modelLine,
+        allowedPriorSnapshotRawImpressionUploads =
+          params.allowedPriorSnapshotRawImpressionUploadsList.toSet(),
         vidRankMapBlobPrefix =
           SelectedStorageClient.parseBlobUri(params.vidRankMapStorageParams.blobPrefix).key,
         kekUri = params.encryptedSubpoolMapsDek.kekUri,
@@ -220,6 +223,11 @@ class VidRankBuilderApp(
       "vid_labeled_impressions_storage_params must be set"
     }
     require(params.hasModelStorageParams()) { "model_storage_params must be set" }
+    // Fail here rather than in the Phase-2 TEE: an unset value means a producer in the Phase-0 ->
+    // Phase-1 chain dropped the pass-through, which would otherwise surface only as a
+    // crash-looping VidLabeler nacking every fan-out WorkItem.
+    require(params.populationSpecBlobUri.isNotEmpty()) { "population_spec_blob_uri must be set" }
+    require(params.eventTemplateVersion > 0) { "event_template_version must be set" }
     return vidLabelerParams {
       dataProvider = params.dataProvider
       rawImpressionsStorageParams =
@@ -241,6 +249,10 @@ class VidRankBuilderApp(
           // (and its type) onto the memoized VidLabeler ModelLineConfig.
           eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
           eventTemplateType = params.eventTemplateType
+          // Phase-2 resolves each assigned VID's population attributes from this spec and rejects
+          // a WorkItem without it; stamp it alongside the descriptor.
+          populationSpecBlobUri = params.populationSpecBlobUri
+          eventTemplateVersion = params.eventTemplateVersion
           // Per-impression entity-key columns for Phase-2 (read per row from these columns).
           requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
           optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)

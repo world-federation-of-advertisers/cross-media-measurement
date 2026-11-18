@@ -144,6 +144,18 @@ variable "results_fulfiller_population_spec_file_path" {
   nullable    = false
 }
 
+variable "vid_labeler_population_spec_file_path" {
+  description = "Path to the VID Labeler population spec file. Describes the VID pools of the compiled model the pipeline labels with, so labeled impressions carry the demographics the model assigned rather than the ones the DataProvider declared. Resolved relative to the Terraform working directory."
+  type        = string
+  nullable    = false
+}
+
+variable "vid_labeler_population_spec_blob_uri" {
+  description = "Cloud Storage URI of the uploaded VID Labeler population spec. Not consumed by Terraform: it is the value each model line's `population_spec_blob_uri` must carry in the deployed VidLabelingConfig, and the EDPA cloud-test workflow reads it from here so the two cannot drift."
+  type        = string
+  nullable    = false
+}
+
 variable "kingdom_public_api_target" {
   description = "Kingdom public api target"
   type        = string
@@ -164,6 +176,24 @@ variable "image_tag" {
   type        = string
 }
 
+variable "tee_consumers_enabled" {
+  description = "Whether Secure Computation WorkItem TEE consumers may run."
+  type        = bool
+  default     = true
+}
+
+variable "requisition_fetcher_enabled" {
+  description = "Whether the RequisitionFetcher scheduler may start new invocations."
+  type        = bool
+  default     = true
+}
+
+variable "requisition_fetcher_scheduler_job_name" {
+  description = "RequisitionFetcher scheduler job name. Uses the module's existing name when unset."
+  type        = string
+  default     = null
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string
@@ -179,28 +209,13 @@ variable "requisition_fetcher_env_var" {
   type        = string
 }
 
-variable "requisition_fetcher_secret_mapping" {
-  description = "RequisitionFetcher secret mapping"
-  type        = string
-}
-
 variable "event_group_env_var" {
   description = "EventGroupSync extra env variables"
   type        = string
 }
 
-variable "event_group_secret_mapping" {
-  description = "EventGroupSync secret mapping"
-  type        = string
-}
-
 variable "data_availability_env_var" {
   description = "DataAvailabilitySync extra env variables"
-  type        = string
-}
-
-variable "data_availability_secret_mapping" {
-  description = "DataAvailabilitySync secret mapping"
   type        = string
 }
 
@@ -266,14 +281,9 @@ variable "results_fulfiller_event_template_type_name" {
   type        = string
 }
 
-variable "results_fulfiller_population_spec_blob_uri" {
-  description = "GCS blob uri of the Results Fulfiller population spec."
-  type        = string
-}
-
-variable "edpa_model_lines" {
-  description = "Model lines the Results Fulfiller should know how to fulfill measurements for."
-  type        = list(string)
+variable "edpa_model_line_population_spec_blob_uris" {
+  description = "GCS blob uri of the population spec by model line, for each model line the Results Fulfiller should fulfill measurements for."
+  type        = map(string)
 }
 
 variable "duchy_worker1_id" {
@@ -314,6 +324,18 @@ variable "results_fulfiller_trusted_root_ca_collection_file_path" {
 variable "duchy_aggregator_computations_service_target" {
   description = "Target of aggregator computations service."
   type        = string
+}
+
+variable "duchy_aggregator_trustee_replicas" {
+  description = "Number of TrusTEE mill instances for the aggregator duchy."
+  type        = number
+  default     = 1
+  nullable    = false
+
+  validation {
+    condition     = var.duchy_aggregator_trustee_replicas >= 1 && floor(var.duchy_aggregator_trustee_replicas) == var.duchy_aggregator_trustee_replicas
+    error_message = "TrusTEE replica count must be a positive integer."
+  }
 }
 
 variable "kingdom_system_api_target" {
@@ -362,6 +384,12 @@ variable "data_availability_monitor_uber_jar_path" {
   type        = string
 }
 
+variable "event_group_scale_data_provider" {
+  type        = string
+  nullable    = false
+  description = "DataProvider resource name for the EventGroupSync scale test"
+}
+
 variable "data_provider_resource_ids" {
   type        = map(string)
   nullable    = false
@@ -372,13 +400,49 @@ variable "reporting_operators" {
   type        = list(string)
   default     = []
   nullable    = false
-  description = "Users/groups granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
+  description = "IAM principals granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
+}
+
+variable "report_trace_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "IAM principals allowed to impersonate the read-only report-trace operator service account"
+}
+
+variable "cmms_operator_members" {
+  type        = map(string)
+  default     = {}
+  nullable    = false
+  sensitive   = true
+  description = "Human IAM principals allowed to impersonate the shared CMMS operator service account"
+}
+
+variable "report_trace_observability_projects" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Additional projects from which the report-trace operator may read logs and traces"
+}
+
+variable "vid_labeling_trace_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Users/groups allowed to impersonate the read-only VID-labeling trace operator service account"
+}
+
+variable "vid_labeling_trace_observability_projects" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Additional projects from which the VID-labeling trace operator may read logs and traces"
 }
 
 variable "dashboard_operators" {
   type        = list(string)
   nullable    = false
-  description = "Users/groups granted platform access to dashboard tables and EDP SA impersonation for testing"
+  description = "IAM principals granted platform access to dashboard tables and EDP SA impersonation for testing"
 }
 
 variable "dashboard_deletion_protection" {
@@ -463,6 +527,42 @@ variable "vid_labeling_monitor_config_file_path" {
   type        = string
 }
 
+variable "vid_labeling_healing_controller_uber_jar_path" {
+  description = "Path to the VidLabelingHealingController uber jar."
+  type        = string
+}
+
+variable "vid_labeling_healing_controller_env_var" {
+  description = "VidLabelingHealingController extra environment variables."
+  type        = string
+
+}
+
+variable "vid_labeling_healing_controller_secret_mapping" {
+  description = "VidLabelingHealingController secret mapping."
+  type        = string
+}
+
+variable "vid_labeling_healing_labeled_output_object_prefixes" {
+  description = "Object prefixes under which the healing controller may delete labeled output."
+  type        = list(string)
+  nullable    = false
+
+  validation {
+    condition = length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0 && alltrue([
+      for prefix in var.vid_labeling_healing_labeled_output_object_prefixes :
+      prefix != "" && !startswith(prefix, "/") && endswith(prefix, "/")
+    ])
+    error_message = "At least one bucket-relative labeled-output directory prefix ending in '/' is required."
+  }
+}
+
+variable "vid_labeling_healing_alert_notification_channels" {
+  description = "Monitoring notification channels for VID-labeling healing alerts."
+  type        = list(string)
+  default     = []
+}
+
 variable "dashboard_compliance_uber_jar_path" {
   description = "Path to the DashboardComplianceCheck Cloud Function uber jar. When unset, the scheduled compliance check (Cloud Function + Cloud Scheduler + alert policy) is not deployed."
   type        = string
@@ -474,4 +574,46 @@ variable "dashboard_alert_notification_channels" {
   description = "Cloud Monitoring notification channel IDs (Slack/PagerDuty) to notify on dashboard compliance check failures. Empty creates the policy without notifications."
   type        = list(string)
   default     = []
+}
+
+variable "event_group_sync_memory" {
+  description = "EventGroupSync function memory; retain the allocation required by the input size."
+  type        = string
+  nullable    = true
+  default     = null
+}
+
+variable "vid_labeling_availability_alert_thresholds" {
+  description = "VID-labeling availability alert thresholds; ages are in seconds."
+  type = object({
+    pending_age_seconds     = optional(number, 86400)
+    failed_executions       = optional(number, 3)
+    publication_age_seconds = optional(number, 3600)
+  })
+  default = {}
+
+  validation {
+    condition = (
+      var.vid_labeling_availability_alert_thresholds.pending_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.publication_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.failed_executions >= 1 &&
+      floor(var.vid_labeling_availability_alert_thresholds.failed_executions) == var.vid_labeling_availability_alert_thresholds.failed_executions
+    )
+    error_message = "Ages must be positive and failed_executions must be a positive integer."
+  }
+}
+
+variable "data_availability_publication_status_storage_roots" {
+  description = "Additional GCS buckets mapped to source output-root prefixes for publication status access."
+  type        = map(set(string))
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for bucket, prefixes in var.data_availability_publication_status_storage_roots :
+      bucket != "" && length(prefixes) > 0 &&
+      alltrue([for prefix in prefixes : !startswith(prefix, "/")])
+    ])
+    error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
+  }
 }

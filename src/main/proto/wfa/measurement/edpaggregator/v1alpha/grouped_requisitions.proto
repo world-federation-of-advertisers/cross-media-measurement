@@ -96,4 +96,30 @@ message GroupedRequisitions {
 
   // The ID for the group of requisitions this entry belongs to.
   string group_id = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // The Reporting `Report` that originated these requisitions.
+  string report = 5 [
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+  ];
+
+  // The `BasicReport` that originated these requisitions, if any.
+  string basic_report = 6 [(google.api.resource_reference) = {
+    type: "reporting.halo-cmm.org/BasicReport"
+  }];
+
+  // Internal model line selected once for the complete Report.
+  string selected_model_line = 7 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // Immutable closed-open bounding interval of the complete Report.
+  google.type.Interval report_interval = 8
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Whether fulfillment must verify every date in `report_interval` against
+  // the selected model line's configured validity window and completion
+  // markers.
+  bool require_model_line_finalization = 9
+      [(google.api.field_behavior) = OPTIONAL];
 }

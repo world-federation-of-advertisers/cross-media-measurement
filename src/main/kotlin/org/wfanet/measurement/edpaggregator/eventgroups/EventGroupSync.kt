@@ -72,6 +72,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt
@@ -111,8 +112,8 @@ data class EntityKeyId(
  * Pairing key used to match a `BatchCreateEventGroups` response row back to its request AND to
  * derive the request_id, keeping the two provably in lockstep. Prefers `entity_key` when populated
  * (the #4175 canonical identifier); otherwise falls back to `event_group_reference_id`.
- * `validateEventGroup` guarantees at least one is set on the source `EventGroup`, so [of] always
- * returns a well-formed key.
+ * [EventGroupValidator.validate] guarantees at least one is set on the source `EventGroup`, so [of]
+ * always returns a well-formed key.
  *
  * Using a sealed class rather than a compound `(refId, entityType, entityId, mc)` tuple keeps the
  * join robust if the kingdom ever stops echoing the "other" identifier: each side reads only the
@@ -202,6 +203,8 @@ private data class PendingWrite<T>(
   val request: T,
 )
 
+private class BatchSyncException(cause: Exception) : RuntimeException(cause)
+
 /** The write a queued EventGroup needs: a batched create, a batched update, or nothing. */
 private sealed interface WriteAction {
   data class Create(val request: CreateEventGroupRequest) : WriteAction
@@ -230,9 +233,18 @@ class EventGroupSync(
   private val throttler: Throttler,
   private val listEventGroupPageSize: Int,
   private val entityKeyTypes: List<String>,
+  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping?,
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),
 ) {
   private val metrics = EventGroupSyncMetrics(Instrumentation.meter)
+  private val listedEntityKeyTypes: List<String> =
+    if (eventGroupReferenceIdEntityKeyMapping == null) {
+      entityKeyTypes
+    } else {
+      (entityKeyTypes +
+          listOf(LEGACY_EVENT_GROUP_ENTITY_TYPE, eventGroupReferenceIdEntityKeyMapping.entityType))
+        .distinct()
+    }
 
   /**
    * Cache for ClientAccount lookups to avoid repeated API calls within a sync batch.
@@ -272,9 +284,58 @@ class EventGroupSync(
     val observed = mutableListOf<ObservedEventGroup>()
   }
 
+  private enum class InvalidEventGroupFailureReason(val attributeValue: String) {
+    ENTITY_ID_PREFIX_MISMATCH("entity_id_prefix_mismatch"),
+    REFERENCE_ID_MISSING("reference_id_missing"),
+    MAPPED_REFERENCE_ID_BLANK("mapped_reference_id_blank"),
+    REFERENCE_ID_MISMATCH("reference_id_mismatch"),
+    VALIDATION_FAILURE("validation_failure"),
+  }
+
+  private class MappedIdentifierValidationException(
+    val failureReason: InvalidEventGroupFailureReason,
+    message: String,
+  ) : IllegalArgumentException(message)
+
   /** Creates metric attributes with data provider name. */
   private fun metricAttributes() =
     Attributes.of(AttributeKey.stringKey("data_provider_name"), edpName)
+
+  private fun invalidEventGroupMetricAttributes(
+    failureReason: InvalidEventGroupFailureReason
+  ): Attributes =
+    Attributes.builder()
+      .putAll(metricAttributes())
+      .put(INVALID_EVENT_GROUP_FAILURE_REASON_ATTRIBUTE, failureReason.attributeValue)
+      .build()
+
+  /** Synchronizes input and returns the initial Kingdom mapping with successful changes applied. */
+  fun syncWithCompleteEventGroupMap(): Flow<MappedEventGroup> = flow {
+    var fetchedEventGroups: List<CmmsEventGroup> = emptyList()
+    val synchronizedByResource = mutableMapOf<String, MappedEventGroup>()
+    val deletedResources = mutableSetOf<String>()
+    syncEventGroups(
+        onEventGroupsFetched = { fetchedEventGroups = it },
+        onEventGroupDeleted = { deletedResources += it.name },
+        emitUnchangedMappings = false,
+      )
+      .collect { synchronizedByResource[it.eventGroupResource] = it }
+
+    for (eventGroup in fetchedEventGroups) {
+      val synchronized = synchronizedByResource.remove(eventGroup.name)
+      if (eventGroup.state == CmmsEventGroup.State.DELETED || eventGroup.name in deletedResources) {
+        continue
+      }
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4934): Define activity
+      // eligibility for retained groups as part of revisiting account-link provenance.
+      emit(synchronized ?: eventGroup.toMappedEventGroup())
+    }
+    for (synchronized in synchronizedByResource.values) {
+      if (synchronized.eventGroupResource !in deletedResources) {
+        emit(synchronized)
+      }
+    }
+  }
 
   /**
    * Synchronizes EventGroups with the CMMS Public API by creating, updating, or deleting as needed.
@@ -285,10 +346,24 @@ class EventGroupSync(
    * EventGroups with [EventGroup.State.DELETED] are deleted from CMMS if they exist. EventGroups
    * absent from the input flow are left unchanged.
    *
-   * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Failed syncs are
-   *   skipped and logged. Deleted EventGroups are not included.
+   * Failures attributable to individual EventGroups are skipped and logged. A batch-wide failure
+   * aborts synchronization by throwing an exception.
+   *
+   * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Deleted EventGroups
+   *   are not included.
    */
-  suspend fun sync(): Flow<MappedEventGroup> = flow {
+  suspend fun sync(): Flow<MappedEventGroup> =
+    syncEventGroups(
+      onEventGroupsFetched = {},
+      onEventGroupDeleted = {},
+      emitUnchangedMappings = true,
+    )
+
+  private fun syncEventGroups(
+    onEventGroupsFetched: (List<CmmsEventGroup>) -> Unit,
+    onEventGroupDeleted: (CmmsEventGroup) -> Unit,
+    emitUnchangedMappings: Boolean,
+  ): Flow<MappedEventGroup> = flow {
     withSpan(
       tracer,
       "EventGroupSync",
@@ -301,6 +376,7 @@ class EventGroupSync(
       errorMessage = "EventGroupSync failed",
     ) { _ ->
       val fetchedEventGroups = fetchEventGroups().toList()
+      onEventGroupsFetched(fetchedEventGroups)
 
       val cmmsEventGroups: Map<EventGroupKey, CmmsEventGroup> =
         fetchedEventGroups
@@ -327,7 +403,25 @@ class EventGroupSync(
 
       // Collect the EDP EventGroups as a stream rather than materializing the full decoded list.
       var observedEventGroupCount = 0
-      eventGroups.collect { eventGroup ->
+      eventGroups.collect { sourceEventGroup ->
+        val eventGroup: EventGroup =
+          try {
+            sourceEventGroup.validateMappedIdentifiers()
+          } catch (e: MappedIdentifierValidationException) {
+            logger.log(Level.SEVERE, e) {
+              "Skipping Event Group ${sourceEventGroup.eventGroupReferenceId}" +
+                (if (sourceEventGroup.hasEntityKey())
+                  " (entityType=${sourceEventGroup.entityKey.entityType}," +
+                    " entityId=${sourceEventGroup.entityKey.entityId})"
+                else "") +
+                ": Mapped identifiers are invalid"
+            }
+            metrics.invalidEventGroupFailure.add(
+              1,
+              invalidEventGroupMetricAttributes(e.failureReason),
+            )
+            return@collect
+          }
         if (eventGroup.state == EventGroup.State.DELETED) {
           // A delete acts on an entity-keyed EventGroup, and only needs to act as a barrier when a
           // queued create/update targets that same EventGroup: flushing first keeps the buffered
@@ -355,7 +449,7 @@ class EventGroupSync(
             }
           }
           try {
-            validateDeletedEventGroup(eventGroup)
+            EventGroupValidator.validate(eventGroup)
           } catch (e: Exception) {
             logger.log(Level.SEVERE, e) {
               "Skipping deleted Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -365,20 +459,29 @@ class EventGroupSync(
                 else "") +
                 ": Validation failed"
             }
-            metrics.invalidEventGroupFailure.add(1, metricAttributes())
+            metrics.invalidEventGroupFailure.add(
+              1,
+              invalidEventGroupMetricAttributes(InvalidEventGroupFailureReason.VALIDATION_FAILURE),
+            )
             return@collect
           }
 
           if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-            val entityKeyId =
-              EntityKeyId(
-                eventGroup.entityKey.entityType,
-                eventGroup.entityKey.entityId,
-                eventGroup.measurementConsumer,
-              )
-            val cmmsEventGroup = cmmsEventGroupsByEntityKey[entityKeyId]
+            val cmmsEventGroup =
+              if (eventGroup.hasMappedReferenceId()) {
+                findExistingEventGroup(eventGroup, cmmsEventGroups, cmmsEventGroupsByEntityKey)
+              } else {
+                val entityKeyId =
+                  EntityKeyId(
+                    eventGroup.entityKey.entityType,
+                    eventGroup.entityKey.entityId,
+                    eventGroup.measurementConsumer,
+                  )
+                cmmsEventGroupsByEntityKey[entityKeyId]
+              }
             if (cmmsEventGroup != null) {
               deleteCmmsEventGroup(cmmsEventGroup)
+              onEventGroupDeleted(cmmsEventGroup)
               metrics.syncDeleted.add(1, metricAttributes())
             }
           }
@@ -386,7 +489,7 @@ class EventGroupSync(
         }
 
         try {
-          validateEventGroup(eventGroup)
+          EventGroupValidator.validate(eventGroup)
         } catch (e: Exception) {
           logger.log(Level.SEVERE, e) {
             "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -396,7 +499,10 @@ class EventGroupSync(
               else "") +
               ": Validation failed"
           }
-          metrics.invalidEventGroupFailure.add(1, metricAttributes())
+          metrics.invalidEventGroupFailure.add(
+            1,
+            invalidEventGroupMetricAttributes(InvalidEventGroupFailureReason.VALIDATION_FAILURE),
+          )
           return@collect
         }
 
@@ -430,8 +536,10 @@ class EventGroupSync(
               cmmsEventGroupsByEntityKey,
               pendingCreates,
               pendingUpdates,
+              emitUnchangedMappings,
             )
           } catch (e: Exception) {
+            if (e is BatchSyncException) throw e
             if (e is CancellationException) throw e
             logger.log(Level.SEVERE, e) {
               "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -461,10 +569,9 @@ class EventGroupSync(
   /**
    * Queues a single resolved EventGroup for a batched create or update.
    *
-   * The create-vs-update decision is made against the precache via [findExistingEventGroup]. An
-   * EventGroup that needs no change is emitted immediately with no RPC. Otherwise the request is
-   * appended to the matching buffer, which is flushed as one batched RPC once it reaches
-   * [MAX_BATCH_SIZE].
+   * The create-vs-update decision is made against the precache via [findExistingEventGroup].
+   * Unchanged mappings are emitted only when requested. Writes are appended to the matching buffer,
+   * which is flushed as one batched RPC once it reaches [MAX_BATCH_SIZE].
    */
   private suspend fun FlowCollector<MappedEventGroup>.queueEventGroupItem(
     eventGroup: EventGroup,
@@ -472,6 +579,7 @@ class EventGroupSync(
     existingByEntityKey: Map<EntityKeyId, CmmsEventGroup>,
     pendingCreates: MutableList<PendingWrite<CreateEventGroupRequest>>,
     pendingUpdates: MutableList<PendingWrite<UpdateEventGroupRequest>>,
+    emitUnchangedMappings: Boolean,
   ) {
     val referenceId = eventGroup.eventGroupReferenceId
     val entityType = eventGroup.entityKey.entityType
@@ -504,21 +612,23 @@ class EventGroupSync(
         } else {
           val updatedEventGroup: CmmsEventGroup = updateEventGroup(existingEventGroup, eventGroup)
           if (updatedEventGroup == existingEventGroup) {
-            // Already up to date; emit the mapping without issuing a write RPC.
+            // Already up to date; no write RPC needed.
             metrics.syncSuccess.add(1, metricAttributes())
             metrics.syncLatency.record(
               itemStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
               metricAttributes(),
             )
-            emit(
-              mappedEventGroup {
-                eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
-                eventGroupResource = existingEventGroup.name
-                if (existingEventGroup.hasEntityKey()) {
-                  entityKey = existingEventGroup.entityKey.toEdpaEntityKey()
+            if (emitUnchangedMappings) {
+              emit(
+                mappedEventGroup {
+                  eventGroupReferenceId = existingEventGroup.eventGroupReferenceId
+                  eventGroupResource = existingEventGroup.name
+                  if (existingEventGroup.hasEntityKey()) {
+                    entityKey = existingEventGroup.entityKey.toEdpaEntityKey()
+                  }
                 }
-              }
-            )
+              )
+            }
             WriteAction.None
           } else {
             WriteAction.Update(updateEventGroupRequest { this.eventGroup = updatedEventGroup })
@@ -531,7 +641,7 @@ class EventGroupSync(
         // Two rows in one sync that share an entity_key OR share a reference_id (independently)
         // are malformed EDP input — the kingdom enforces uniqueness on BOTH identifiers per
         // (DataProvider, MeasurementConsumer). Skip the second row per the same
-        // "log SEVERE + invalidEventGroupFailure metric + continue" pattern that validateEventGroup
+        // "log SEVERE + invalidEventGroupFailure metric + continue" pattern that validation
         // failures already use, so one malformed row doesn't take down the whole sync.
         //
         // Two rows sharing the primary pairing key produce the same request_id under
@@ -552,7 +662,10 @@ class EventGroupSync(
               "${collision.request.eventGroup.eventGroupReferenceId}," +
               " entityKey=${collision.request.eventGroup.entityKey}"
           }
-          metrics.invalidEventGroupFailure.add(1, metricAttributes())
+          metrics.invalidEventGroupFailure.add(
+            1,
+            invalidEventGroupMetricAttributes(InvalidEventGroupFailureReason.VALIDATION_FAILURE),
+          )
           return
         }
         pendingCreates.add(
@@ -616,10 +729,11 @@ class EventGroupSync(
           // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
           flushCreatesIndividually(pendingCreates, e)
         } else {
-          // Transient / infra failure affects the whole batch, so fanning out per-item retries
-          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
-          // single batched failure and let the run's retry handle it.
+          // This failure cannot be attributed to one sub-request. Fail the run without publishing
+          // a partial mapping; the caller decides whether the status is retryable.
           recordBatchFailure(e, pendingCreates)
+          pendingCreates.clear()
+          throw BatchSyncException(e)
         }
         pendingCreates.clear()
         return
@@ -722,10 +836,11 @@ class EventGroupSync(
           // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
           flushUpdatesIndividually(pendingUpdates, e)
         } else {
-          // Transient / infra failure affects the whole batch, so fanning out per-item retries
-          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
-          // single batched failure and let the run's retry handle it.
+          // This failure cannot be attributed to one sub-request. Fail the run without publishing
+          // a partial mapping; the caller decides whether the status is retryable.
           recordBatchFailure(e, pendingUpdates)
+          pendingUpdates.clear()
+          throw BatchSyncException(e)
         }
         pendingUpdates.clear()
         return
@@ -821,8 +936,8 @@ class EventGroupSync(
         .build(),
     )
     logger.log(Level.SEVERE, e) {
-      "Batch of ${pending.size} Event Groups failed with a transient error (error_type=$errorType);" +
-        " leaving for retry"
+      "Batch of ${pending.size} Event Groups failed with a batch-wide error" +
+        " (error_type=$errorType); failing sync without publishing a partial map"
     }
   }
 
@@ -1256,27 +1371,103 @@ class EventGroupSync(
     syncedEventGroups: Map<EventGroupKey, CmmsEventGroup>,
     syncedEventGroupsByEntityKey: Map<EntityKeyId, CmmsEventGroup>,
   ): CmmsEventGroup? {
-    if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-      val entityKeyId =
-        EntityKeyId(
-          eventGroup.entityKey.entityType,
-          eventGroup.entityKey.entityId,
-          eventGroup.measurementConsumer,
+    val existingByEntityKey: CmmsEventGroup? =
+      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
+        syncedEventGroupsByEntityKey[
+          EntityKeyId(
+            eventGroup.entityKey.entityType,
+            eventGroup.entityKey.entityId,
+            eventGroup.measurementConsumer,
+          )]
+      } else {
+        null
+      }
+    val existingByReferenceId: CmmsEventGroup? =
+      if (eventGroup.eventGroupReferenceId.isNotBlank()) {
+        syncedEventGroups[
+          EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)]
+      } else {
+        null
+      }
+
+    if (eventGroup.hasMappedReferenceId()) {
+      require(
+        existingByEntityKey == null ||
+          existingByEntityKey.eventGroupReferenceId.isBlank() ||
+          existingByEntityKey.eventGroupReferenceId == eventGroup.eventGroupReferenceId
+      ) {
+        "Existing EventGroup ${existingByEntityKey?.name} has reference ID " +
+          "${existingByEntityKey?.eventGroupReferenceId}, expected " +
+          eventGroup.eventGroupReferenceId
+      }
+      require(
+        existingByReferenceId == null ||
+          !existingByReferenceId.hasEntityKey() ||
+          existingByReferenceId.entityKey.entityId.isBlank() ||
+          existingByReferenceId.entityKey.toEdpaEntityKey() == eventGroup.entityKey
+      ) {
+        "Existing EventGroup ${existingByReferenceId?.name} has entity key " +
+          "${existingByReferenceId?.entityKey}, expected ${eventGroup.entityKey}"
+      }
+      require(
+        existingByEntityKey == null ||
+          existingByReferenceId == null ||
+          existingByEntityKey.name == existingByReferenceId.name
+      ) {
+        "Entity key and reference ID resolve to different EventGroups: " +
+          "${existingByEntityKey?.name} and ${existingByReferenceId?.name}"
+      }
+    }
+
+    return existingByEntityKey ?: existingByReferenceId
+  }
+
+  /** Requires and validates both identifiers for a mappable entity key. */
+  private fun EventGroup.validateMappedIdentifiers(): EventGroup {
+    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return this
+    if (!hasEntityKey() || entityKey.entityId.isBlank()) {
+      return this
+    }
+    if (entityKey.entityType != mapping.entityType) {
+      return this
+    }
+    if (eventGroupReferenceId.isBlank()) {
+      throw MappedIdentifierValidationException(
+        InvalidEventGroupFailureReason.REFERENCE_ID_MISSING,
+        "EventGroup reference ID is required for mapped entity type ${mapping.entityType}",
+      )
+    }
+    if (!entityKey.entityId.startsWith(mapping.entityIdPrefix)) {
+      throw MappedIdentifierValidationException(
+        InvalidEventGroupFailureReason.ENTITY_ID_PREFIX_MISMATCH,
+        "Entity ID ${entityKey.entityId} does not start with configured prefix " +
+          "'${mapping.entityIdPrefix}'",
+      )
+    }
+    val mappedReferenceId =
+      mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId)
+        ?: throw MappedIdentifierValidationException(
+          InvalidEventGroupFailureReason.MAPPED_REFERENCE_ID_BLANK,
+          "Entity ID ${entityKey.entityId} maps to a blank event-group reference ID",
         )
-      syncedEventGroupsByEntityKey[entityKeyId]?.let {
-        return it
-      }
+    if (eventGroupReferenceId != mappedReferenceId) {
+      throw MappedIdentifierValidationException(
+        InvalidEventGroupFailureReason.REFERENCE_ID_MISMATCH,
+        "EventGroup reference ID $eventGroupReferenceId does not exactly match mapped reference " +
+          "ID $mappedReferenceId",
+      )
     }
+    return this
+  }
 
-    if (eventGroup.eventGroupReferenceId.isNotBlank()) {
-      val eventGroupKey =
-        EventGroupKey(eventGroup.eventGroupReferenceId, eventGroup.measurementConsumer)
-      syncedEventGroups[eventGroupKey]?.let {
-        return it
-      }
+  /** Whether both identifiers on this EventGroup are governed by the configured mapping. */
+  private fun EventGroup.hasMappedReferenceId(): Boolean {
+    val mapping = eventGroupReferenceIdEntityKeyMapping ?: return false
+    if (!hasEntityKey() || eventGroupReferenceId.isBlank()) {
+      return false
     }
-
-    return null
+    return mapping.toEventGroupReferenceId(entityKey.entityType, entityKey.entityId) ==
+      eventGroupReferenceId
   }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -1291,8 +1482,8 @@ class EventGroupSync(
                   parent = edpName
                   this.pageToken = pageToken
                   pageSize = listEventGroupPageSize
-                  if (entityKeyTypes.isNotEmpty()) {
-                    filter = listEventGroupsFilter { entityTypeIn += entityKeyTypes }
+                  if (listedEntityKeyTypes.isNotEmpty()) {
+                    filter = listEventGroupsFilter { entityTypeIn += listedEntityKeyTypes }
                   }
                 }
               )
@@ -1352,8 +1543,8 @@ class EventGroupSync(
   /**
    * Builds the [MappedEventGroup] emitted for a successfully-synced item. Populates whichever
    * identifiers were carried by the source `EventGroup`; the `MappedEventGroup` contract requires
-   * at least one of `event_group_reference_id` / `entity_key` to be set, which [validateEventGroup]
-   * guarantees upstream.
+   * at least one of `event_group_reference_id` / `entity_key` to be set, which
+   * [EventGroupValidator.validate] guarantees upstream.
    */
   private fun buildMappedEventGroup(item: PendingWrite<*>, resourceName: String): MappedEventGroup =
     mappedEventGroup {
@@ -1368,6 +1559,14 @@ class EventGroupSync(
       }
     }
 
+  private fun CmmsEventGroup.toMappedEventGroup(): MappedEventGroup = mappedEventGroup {
+    eventGroupReferenceId = this@toMappedEventGroup.eventGroupReferenceId
+    eventGroupResource = this@toMappedEventGroup.name
+    if (this@toMappedEventGroup.hasEntityKey()) {
+      entityKey = this@toMappedEventGroup.entityKey.toEdpaEntityKey()
+    }
+  }
+
   companion object {
     /** Maximum number of sub-requests per BatchCreate/BatchUpdate EventGroups RPC. */
     private const val MAX_BATCH_SIZE = 50
@@ -1378,10 +1577,16 @@ class EventGroupSync(
      */
     private const val MAX_UNLINKED_BATCH_SIZE = 1000
 
+    /** Entity type assigned by the Kingdom to legacy reference-ID-only EventGroups. */
+    private const val LEGACY_EVENT_GROUP_ENTITY_TYPE = "campaign"
+
+    private val INVALID_EVENT_GROUP_FAILURE_REASON_ATTRIBUTE =
+      AttributeKey.stringKey("failure_reason")
+
     /**
      * gRPC status codes for a failed batch RPC that are attributable to an individual sub-request
-     * (so retrying per item isolates the bad one). Anything else is treated as a transient/infra
-     * failure affecting the whole batch, which is recorded without a per-item retry fan-out.
+     * (so retrying per item isolates the bad one). Anything else aborts the run without a per-item
+     * retry fan-out.
      */
     private val PER_REQUEST_FAILURE_CODES =
       setOf(
@@ -1392,46 +1597,5 @@ class EventGroupSync(
       )
 
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    /*
-     * Validates that event groups fields are populated
-     * Throws exceptions for any invalid fields.
-     */
-    fun validateEventGroup(eventGroup: EventGroup) {
-      check(eventGroup.mediaTypesList.size > 0) { "At least one media type must be set" }
-      check(eventGroup.hasDataAvailabilityInterval()) { "Data availability must be set" }
-      check(eventGroup.hasEventGroupMetadata()) { "Event Group Metadata must be set" }
-      check(
-        eventGroup.eventGroupReferenceId.isNotBlank() ||
-          (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank())
-      ) {
-        "Either Event Group Reference Id or Entity Key with entity ID must be set"
-      }
-      if (eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-        check(eventGroup.entityKey.entityType.isNotBlank()) {
-          "EventGroup.entity_key.entity_type must be non-blank when entity_id is set"
-        }
-      }
-      if (eventGroup.measurementConsumer.isNotBlank()) {
-        val mcKey = MeasurementConsumerKey.fromName(eventGroup.measurementConsumer)
-        check(mcKey != null && mcKey.measurementConsumerId.isNotBlank()) {
-          "Malformed measurement_consumer: ${eventGroup.measurementConsumer}"
-        }
-      } else {
-        check(eventGroup.clientAccountReferenceId.isNotEmpty()) {
-          "Either Measurement Consumer or Client Account Reference ID must be set"
-        }
-      }
-    }
-
-    /** Validates minimum fields required to identify and delete an EventGroup. */
-    fun validateDeletedEventGroup(eventGroup: EventGroup) {
-      check(eventGroup.hasEntityKey() && eventGroup.entityKey.entityId.isNotBlank()) {
-        "Entity Key with entity ID must be set for deleted Event Groups"
-      }
-      check(eventGroup.measurementConsumer.isNotBlank()) {
-        "Measurement Consumer must be set for deleted Event Groups"
-      }
-    }
   }
 }

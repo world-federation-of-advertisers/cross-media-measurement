@@ -724,6 +724,7 @@ class ReportingMcpServerTest {
     assertThat(result.isError).isTrue()
     val text = (result.content[0] as TextContent).text
     assertThat(text).contains("Access denied")
+    assertThat(text).contains("root of the Reporting API")
 
     client.close()
   }

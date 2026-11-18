@@ -17,6 +17,8 @@ package org.wfanet.measurement.duchy.service.api.v2alpha
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -35,6 +37,8 @@ import org.wfanet.measurement.common.consumeFirst
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.consent.client.duchy.Requisition as ConsentSignalingRequisition
 import org.wfanet.measurement.consent.client.duchy.verifyRequisitionFulfillment
 import org.wfanet.measurement.duchy.storage.RequisitionBlobContext
@@ -90,97 +94,130 @@ class RequisitionFulfillmentService(
           grpcRequireNotNull(CanonicalRequisitionKey.fromName(header.name)) {
             "Resource name unspecified or invalid."
           }
-        grpcRequire(header.nonce != 0L) { "nonce unspecified" }
-
-        val authenticatedPrincipal = principalFromCurrentContext
-        if (key.parentKey != authenticatedPrincipal.resourceKey) {
-          throw Permission.FULFILL.deniedStatus(header.name).asRuntimeException()
-        }
-
         val externalRequisitionKey = externalRequisitionKey {
           externalRequisitionId = key.requisitionId
           requisitionFingerprint = header.requisitionFingerprint
         }
-        val computationToken = getComputationToken(externalRequisitionKey)
-        val requisitionMetadata =
-          verifyRequisitionFulfillment(computationToken, externalRequisitionKey, header.nonce)
+        val traceAttributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.REQUISITION_NAME, header.name)
+            .put(ReportTraceAttributes.DUCHY_ID, duchyId)
+            .build()
+        val computationToken =
+          ReportTracing.traceSuspending(
+            spanName = "duchy.requisition.acceptance",
+            attributes =
+              traceAttributes
+                .toBuilder()
+                .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_requisition_acceptance")
+                .put(ReportTraceAttributes.OUTCOME, "started")
+                .build(),
+          ) {
+            grpcRequire(header.nonce != 0L) { "nonce unspecified" }
 
-        // Only try writing to the blob store if it is not already marked fulfilled.
-        // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle the case that it
-        //  is already marked fulfilled locally.
-        if (requisitionMetadata.path.isBlank()) {
-          val blob =
-            requisitionStore.write(
-              RequisitionBlobContext(computationToken.globalComputationId, key.requisitionId),
-              consumed.remaining.map { it.bodyChunk.data },
-            )
-          when (computationToken.computationStage.stageCase) {
-            ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
-            ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> {
-              recordLlv2RequisitionLocally(computationToken, externalRequisitionKey, blob.blobKey)
+            val authenticatedPrincipal = principalFromCurrentContext
+            if (key.parentKey != authenticatedPrincipal.resourceKey) {
+              throw Permission.FULFILL.deniedStatus(header.name).asRuntimeException()
             }
-            ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
-              val hmss = header.honestMajorityShareShuffle
-              grpcRequire(hmss.hasSecretSeed()) { "Secret seed not specified for HMSS protocol." }
-              grpcRequire(hmss.dataProviderCertificate.isNotBlank()) {
-                "DataProviderCertificate not specified for HMSS protocol."
-              }
-              val fulfillingDuchyId = requisitionMetadata.details.externalFulfillingDuchyId
-              grpcRequire(fulfillingDuchyId == duchyId) {
-                "FulfillingDuchyId mismatch. fulfillingDuchyId=$fulfillingDuchyId, " +
-                  "currentDuchy=$duchyId"
-              }
 
-              val secretSeedCiphertext = hmss.secretSeed.ciphertext
+            val token = getComputationToken(externalRequisitionKey)
+            val requisitionMetadata =
+              verifyRequisitionFulfillment(token, externalRequisitionKey, header.nonce)
 
-              recordHmssRequisitionLocally(
-                token = computationToken,
-                key = externalRequisitionKey,
-                blobPath = blob.blobKey,
-                secretSeedCiphertext = secretSeedCiphertext,
-                registerCount = hmss.registerCount,
-                dataProviderCertificate = hmss.dataProviderCertificate,
-              )
-            }
-            ComputationStage.StageCase.TRUS_TEE -> {
-              val trusTee = header.trusTee
-              when (trusTee.dataFormat) {
-                Header.TrusTee.DataFormat.FREQUENCY_VECTOR -> {
-                  recordPlainTrusTeeRequisitionLocally(
-                    token = computationToken,
-                    key = externalRequisitionKey,
-                    blobPath = blob.blobKey,
-                    populationSpecFingerprint = trusTee.populationSpecFingerprint,
-                  )
+            // Only try writing to the blob store if it is not already marked fulfilled.
+            // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle
+            // the case that
+            //  it is already marked fulfilled locally.
+            if (requisitionMetadata.path.isBlank()) {
+              val blob =
+                requisitionStore.write(
+                  RequisitionBlobContext(token.globalComputationId, key.requisitionId),
+                  consumed.remaining.map { it.bodyChunk.data },
+                )
+              when (token.computationStage.stageCase) {
+                ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+                ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> {
+                  recordLlv2RequisitionLocally(token, externalRequisitionKey, blob.blobKey)
                 }
-                Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
-                  when (trusTee.envelopeEncryption.encryptedDek.format) {
-                    EncryptionKey.Format.TINK_ENCRYPTED_KEYSET -> {}
-                    EncryptionKey.Format.FORMAT_UNSPECIFIED,
-                    EncryptionKey.Format.UNRECOGNIZED -> failGrpc { "Invalid EncryptedDek format" }
+                ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> {
+                  val hmss = header.honestMajorityShareShuffle
+                  grpcRequire(hmss.hasSecretSeed()) {
+                    "Secret seed not specified for HMSS protocol."
                   }
-                  recordEncryptedTrusTeeRequisitionLocally(
-                    token = computationToken,
+                  grpcRequire(hmss.dataProviderCertificate.isNotBlank()) {
+                    "DataProviderCertificate not specified for HMSS protocol."
+                  }
+                  val fulfillingDuchyId = requisitionMetadata.details.externalFulfillingDuchyId
+                  grpcRequire(fulfillingDuchyId == duchyId) {
+                    "FulfillingDuchyId mismatch. fulfillingDuchyId=$fulfillingDuchyId, " +
+                      "currentDuchy=$duchyId"
+                  }
+
+                  recordHmssRequisitionLocally(
+                    token = token,
                     key = externalRequisitionKey,
                     blobPath = blob.blobKey,
-                    envelopeEncryption = trusTee.envelopeEncryption,
-                    populationSpecFingerprint = trusTee.populationSpecFingerprint,
+                    secretSeedCiphertext = hmss.secretSeed.ciphertext,
+                    registerCount = hmss.registerCount,
+                    dataProviderCertificate = hmss.dataProviderCertificate,
                   )
                 }
-                Header.TrusTee.DataFormat.DATA_FORMAT_UNSPECIFIED,
-                Header.TrusTee.DataFormat.UNRECOGNIZED -> failGrpc { "Unsupported data format." }
+                ComputationStage.StageCase.TRUS_TEE -> {
+                  val trusTee = header.trusTee
+                  when (trusTee.dataFormat) {
+                    Header.TrusTee.DataFormat.FREQUENCY_VECTOR -> {
+                      recordPlainTrusTeeRequisitionLocally(
+                        token = token,
+                        key = externalRequisitionKey,
+                        blobPath = blob.blobKey,
+                        populationSpecFingerprint = trusTee.populationSpecFingerprint,
+                      )
+                    }
+                    Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
+                      when (trusTee.envelopeEncryption.encryptedDek.format) {
+                        EncryptionKey.Format.TINK_ENCRYPTED_KEYSET -> {}
+                        EncryptionKey.Format.FORMAT_UNSPECIFIED,
+                        EncryptionKey.Format.UNRECOGNIZED ->
+                          failGrpc { "Invalid EncryptedDek format" }
+                      }
+                      recordEncryptedTrusTeeRequisitionLocally(
+                        token = token,
+                        key = externalRequisitionKey,
+                        blobPath = blob.blobKey,
+                        envelopeEncryption = trusTee.envelopeEncryption,
+                        populationSpecFingerprint = trusTee.populationSpecFingerprint,
+                      )
+                    }
+                    Header.TrusTee.DataFormat.DATA_FORMAT_UNSPECIFIED,
+                    Header.TrusTee.DataFormat.UNRECOGNIZED ->
+                      failGrpc { "Unsupported data format." }
+                  }
+                }
+                ComputationStage.StageCase.STAGE_NOT_SET -> failGrpc { "ComputationStage not set" }
               }
             }
-            ComputationStage.StageCase.STAGE_NOT_SET -> failGrpc { "ComputationStage not set" }
-          }
-        }
 
-        fulfillRequisitionAtKingdom(
-          computationToken.globalComputationId,
-          externalRequisitionKey.externalRequisitionId,
-          header.nonce,
-          header.etag,
-        )
+            Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+            token
+          }
+
+        ReportTracing.traceSuspending(
+          spanName = "duchy.requisition.kingdom_fulfillment",
+          attributes =
+            traceAttributes
+              .toBuilder()
+              .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_requisition_kingdom_fulfillment")
+              .put(ReportTraceAttributes.OUTCOME, "started")
+              .build(),
+        ) {
+          fulfillRequisitionAtKingdom(
+            computationToken.globalComputationId,
+            externalRequisitionKey.externalRequisitionId,
+            header.nonce,
+            header.etag,
+          )
+          Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+        }
 
         return FULFILLED_RESPONSE
       }
@@ -344,7 +381,8 @@ class RequisitionFulfillmentService(
               this.populationSpecFingerprint = populationSpecFingerprint
               if (envelopeEncryption.hasAwsKmsParams()) {
                 val apiAwsKmsParams = envelopeEncryption.awsKmsParams
-                // Which audience is set determines how the mill authenticates to AWS STS.
+                // Which audience is set determines how the mill authenticates to
+                // AWS STS.
                 val (awsAudience, awsCredentialSource) =
                   when (apiAwsKmsParams.tokenAudienceCase) {
                     TokenAudienceCase.WORKLOAD_IDENTITY_ID_TOKEN_AUDIENCE ->

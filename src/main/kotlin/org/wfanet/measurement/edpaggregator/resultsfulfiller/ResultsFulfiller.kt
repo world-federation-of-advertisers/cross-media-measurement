@@ -17,8 +17,10 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.DescriptorProtos.FileDescriptorProto
+import com.google.protobuf.DescriptorProtos.FileOptions
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
-import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -37,37 +39,33 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
-import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
-import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
@@ -105,6 +103,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param kmsClient KMS client for accessing encrypted resources in storage.
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
+ * @param wholeBlobEntityTypes entity types whose blob metadata IDs are exhaustive at that level.
  * @param responsePageSize
  * @param listMaxAttempts maximum total attempts for each `ListRequisitionMetadata` page before
  *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
@@ -126,14 +125,64 @@ class ResultsFulfiller(
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
+  private val wholeBlobEntityTypes: Set<String>,
+  private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? = null,
   private val responsePageSize: Int? = null,
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
   private val listRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val metrics: ResultsFulfillerMetrics,
 ) {
 
+  init {
+    if (groupedRequisitions.requireModelLineFinalization) {
+      val selectedModelLine =
+        checkNotNull(groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)) {
+          "Missing selected model line for cutover fulfillment"
+        }
+      val visibleModelInfo = modelLineInfoMap.getValue(groupedRequisitions.modelLine)
+      val selectedModelInfo = modelLineInfoMap.getValue(selectedModelLine)
+      require(selectedModelInfo.populationSpec == visibleModelInfo.populationSpec) {
+        "Selected model line $selectedModelLine has an incompatible PopulationSpec"
+      }
+      require(
+        selectedModelInfo.eventDescriptor.fullName == visibleModelInfo.eventDescriptor.fullName &&
+          eventSchema(selectedModelInfo.eventDescriptor) ==
+            eventSchema(visibleModelInfo.eventDescriptor)
+      ) {
+        "Selected model line $selectedModelLine has an incompatible EventTemplate descriptor"
+      }
+    }
+  }
+
+  private fun eventSchema(descriptor: Descriptors.Descriptor): Map<String, Message> = buildMap {
+    fun addFileContext(typeName: String, file: Descriptors.FileDescriptor) {
+      val proto = file.toProto()
+      put(
+        "$typeName#file-context",
+        FileDescriptorProto.newBuilder()
+          .setSyntax(proto.syntax.ifEmpty { "proto2" })
+          .setEdition(proto.edition)
+          .setOptions(FileOptions.newBuilder().setFeatures(proto.options.features))
+          .build(),
+      )
+    }
+    fun addMessage(message: Descriptors.Descriptor) {
+      if (put(message.fullName, message.toProto()) != null) return
+      addFileContext(message.fullName, message.file)
+      for (field in message.fields + message.extensions) {
+        if (field.javaType == Descriptors.FieldDescriptor.JavaType.MESSAGE) {
+          addMessage(field.messageType)
+        } else if (field.javaType == Descriptors.FieldDescriptor.JavaType.ENUM) {
+          put(field.enumType.fullName, field.enumType.toProto())
+          addFileContext(field.enumType.fullName, field.enumType.file)
+        }
+      }
+    }
+    addMessage(descriptor)
+  }
+
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
-    EventProcessingOrchestrator<Message>(privateEncryptionKey)
+    EventProcessingOrchestrator<Message>(privateEncryptionKey = privateEncryptionKey)
   }
 
   /**
@@ -147,51 +196,107 @@ class ResultsFulfiller(
    * @throws IllegalArgumentException If a requisition specifies an unsupported protocol.
    * @throws Exception If decryption or RPC fulfillment fails.
    */
-  @OptIn(ExperimentalCoroutinesApi::class)
   suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+    try {
+      Tracing.traceSuspending(
+        spanName = SPAN_PROCESS_GROUP,
+        attributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+            .also { builder ->
+              if (groupedRequisitions.report.isNotEmpty()) {
+                builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+              }
+              if (groupedRequisitions.basicReport.isNotEmpty()) {
+                builder.put(
+                  ReportTraceAttributes.BASIC_REPORT_NAME,
+                  groupedRequisitions.basicReport,
+                )
+              }
+            }
+            .build(),
+      ) {
+        fulfillRequisitionsInternal(parallelism)
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: RequisitionProcessingException) {
+      logGroupFailure(e.failure)
+      throw e.failure
+    } catch (e: Exception) {
+      recordSharedFailure(e)
+      logGroupFailure(e)
+      throw e
+    }
+  }
+
+  private fun recordSharedFailure(error: Exception) {
+    for (entry in groupedRequisitions.requisitionsList) {
+      val requisition =
+        runCatching { entry.requisition.unpack(Requisition::class.java) }.getOrNull() ?: continue
+      Tracing.recordFailure(
+        spanName = "edp_aggregator.results_fulfiller.shared_failure",
+        attributes = requisitionTraceAttributes(requisition.name),
+        error = error,
+      )
+    }
+  }
+
+  private fun logGroupFailure(error: Exception) {
+    ReportTraceLogging.log(
+      logger,
+      Level.SEVERE,
+      error,
+      "edp_aggregator.results_fulfiller.group_failed",
+      ReportTraceAttributes.BASIC_REPORT_NAME_STRING to groupedRequisitions.basicReport,
+      ReportTraceAttributes.REPORT_NAME_STRING to groupedRequisitions.report,
+      ReportTraceAttributes.GROUP_ID_STRING to groupedRequisitions.groupId,
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "results_fulfillment",
+      ReportTraceAttributes.OUTCOME_STRING to "failed",
+      ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(error),
+      ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(error),
+    )
+  }
+
+  private fun requisitionTraceAttributes(requisitionName: String): Attributes {
+    return Attributes.builder()
+      .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+      .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .also { builder ->
+        if (groupedRequisitions.report.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+        }
+        if (groupedRequisitions.basicReport.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
+        }
+      }
+      .build()
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun fulfillRequisitionsInternal(parallelism: Int) {
     val reportProcessingTimer = TimeSource.Monotonic.markNow()
     val requisitions =
       groupedRequisitions.requisitionsList.mapIndexed { index, entry ->
         entry.requisition.unpack(Requisition::class.java)
       }
 
-    // Build the entity-key map once so the precedence decision is explicit at this call site
-    // (instead of being made deep inside FilterSpecIndex.fromRequisitions). When entity keys are
-    // present we use them as the selector; otherwise we fall back to the legacy reference-id
-    // selector and skip building its map entirely.
-    val eventGroupEntityKeyMap: Map<String, LabeledImpression.EntityKey> =
-      buildEventGroupEntityKeyMap(groupedRequisitions.eventGroupMapList)
-    val eventGroupSelector: FilterSpecIndex.Companion.EventGroupSelector =
-      if (eventGroupEntityKeyMap.isNotEmpty()) {
-        FilterSpecIndex.Companion.EventGroupSelector.ByEntityKeys(eventGroupEntityKeyMap)
-      } else {
-        FilterSpecIndex.Companion.EventGroupSelector.ByEventGroupReferenceIds(
-          groupedRequisitions.eventGroupMapList.associate {
-            it.eventGroup to it.details.eventGroupReferenceId
-          }
-        )
-      }
+    val resolvedEventGroups: ResolvedEventGroups =
+      ResolvedEventGroups.fromEventGroupMapEntries(
+        groupedRequisitions.eventGroupMapList,
+        eventGroupReferenceIdEntityKeyMapping,
+        wholeBlobEntityTypes,
+      )
 
     // Filter requisitions that are not in the requisitions metadata storage or have been either
     // fulfilled or refused already
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    // Empty metadata is almost always transient, not a permanent orphan. DataWatcher dispatches
-    // this work item on the blob write, but the RequisitionFetcher creates the RequisitionMetadata
-    // *after* writing the blob (writeBlob then batchCreateRequisitionMetadataForGroup), so a
-    // dispatch that wins the race against that metadata write reads zero rows here even though they
-    // land moments later. Throwing nacks the work item, which redelivers and self-heals once the
-    // metadata exists — do NOT skip-and-ack, which would abandon requisitions that are about to
-    // become fulfillable and leave the report permanently unfulfilled.
-    //
-    // The genuinely-orphaned case (fetcher crashed between blob and metadata, so metadata never
-    // arrives) is indistinguishable from the race at read time; it retries up to the queue's
-    // max_delivery_attempts and then dead-letters. Silencing that dead-letter noise requires gating
-    // dispatch on metadata existence (a done-marker) so empty metadata can only mean a true orphan;
-    // until then this stays a throw-and-retry. See #4119 (blocked by #4213).
-    //
-    // emptyMetadataRetries is the observability hook: a low steady rate is the normal race, a
-    // sustained climb on the same groupId is a stuck orphan worth investigating.
+    // RequisitionFetcher queues metadata before creating the WorkItem, so empty metadata indicates
+    // orphaned work. Throwing retries the attempt up to the queue's max delivery count and then
+    // dead-letters it instead of silently abandoning the requisitions. emptyMetadataRetries is the
+    // observability hook for finding these orphans.
     if (requisitionsMetadata.isEmpty()) {
       metrics.emptyMetadataRetries.add(
         1,
@@ -199,8 +304,9 @@ class ResultsFulfiller(
       )
       throw IllegalStateException(
         "No requisition metadata for groupId=${groupedRequisitions.groupId}; the metadata write " +
-          "likely has not committed yet. Nacking to retry; if this persists for a groupId the blob " +
-          "may be a true orphan from a fetcher crash between blob and metadata writes."
+          "likely has not committed yet. Failing this attempt so the control plane can retry; if " +
+          "this persists for a groupId the blob may be a true orphan from a fetcher crash between " +
+          "blob and metadata writes."
       )
     }
 
@@ -208,22 +314,46 @@ class ResultsFulfiller(
       requisitionsMetadata.associateBy { it.cmmsRequisition }
 
     val filteredRequisitions =
-      requisitions.filter { it.shouldBeProcessed(requisitionMetadataByName) }
+      requisitions.filter { requisition ->
+        try {
+          Tracing.traceSuspending(
+            spanName = "edp_aggregator.results_fulfiller.preflight_requisition",
+            attributes =
+              requisitionTraceAttributes(requisition.name)
+                .toBuilder()
+                .put(ReportTraceAttributes.OUTCOME, "started")
+                .build(),
+          ) {
+            val shouldBeProcessed = requisition.shouldBeProcessed(requisitionMetadataByName)
+            if (shouldBeProcessed) {
+              Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared")
+            }
+            shouldBeProcessed
+          }
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          throw RequisitionProcessingException(e)
+        }
+      }
     if (filteredRequisitions.isEmpty()) {
       return
     }
 
-    val reportId: String =
+    val metadataReportId: String =
       requireNotNull(requisitionsMetadata.first().report) {
         "Report ID is missing from requisition metadata for group id: ${groupedRequisitions.groupId}"
       }
+    val reportId = groupedRequisitions.report.ifBlank { metadataReportId }
+    val basicReportName = groupedRequisitions.basicReport
     val earliestCreateTime: Instant =
       requireNotNull(requisitionsMetadata.mapNotNull { it.createTime?.toInstant() }.minOrNull()) {
         "Create time is missing from requisition metadata for group id: ${groupedRequisitions.groupId}"
       }
     val modelLineKey = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLineKey)
-    val modelLine = modelInfo.localAlias ?: modelLineKey
+    val selectedModelLine = groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
+    val modelLine = selectedModelLine ?: modelInfo.localAlias ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
@@ -232,19 +362,35 @@ class ResultsFulfiller(
     val eventSource =
       StorageEventSource(
         impressionDataSourceProvider = impressionDataSourceProvider,
-        eventGroupDetailsList = groupedRequisitions.eventGroupMapList.map { it.details },
+        resolvedEventGroups = resolvedEventGroups,
         modelLine = modelLine,
         kmsClient = kmsClient,
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        reportInterval =
+          groupedRequisitions.reportInterval.takeIf { groupedRequisitions.hasReportInterval() },
+        requireModelLineFinalization = groupedRequisitions.requireModelLineFinalization,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 
     // Get the KEK URI from BlobDetails.encryptedDek for TrusTee protocol encryption
     val kekUri = eventSource.getKekUri()
 
-    Tracing.traceSuspending(spanName = SPAN_REPORT_FULFILLMENT, attributes = Attributes.empty()) {
+    Tracing.traceSuspending(
+      spanName = SPAN_REPORT_FULFILLMENT,
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REPORT_NAME, reportId)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+          .also { builder ->
+            if (basicReportName.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+            }
+          }
+          .build(),
+    ) {
       val span = Span.current()
       val frequencyVectorMap =
         metrics.frequencyVectorDuration.measureSuspending {
@@ -253,7 +399,7 @@ class ResultsFulfiller(
             vidIndexMap = vidIndexMap,
             populationSpec = populationSpec,
             requisitions = filteredRequisitions,
-            eventGroupSelector = eventGroupSelector,
+            resolvedEventGroups = resolvedEventGroups,
             config = pipelineConfiguration,
             eventDescriptor = eventDescriptor,
           )
@@ -268,32 +414,83 @@ class ResultsFulfiller(
           .build(),
       )
 
-      filteredRequisitions
-        .asFlow()
-        .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
-        .flatMapMerge(concurrency = parallelism) { (req, frequencyVector) ->
-          flow {
-            fulfillSingleRequisition(
-              requisition = req,
-              frequencyVector = frequencyVector,
-              populationSpec = populationSpec,
-              requisitionsMetadata = requisitionMetadataByName,
-              kekUri = kekUri,
-            )
-            emit(Unit)
+      val outcomes =
+        filteredRequisitions
+          .asFlow()
+          .flatMapMerge(concurrency = parallelism) { req: Requisition ->
+            flow {
+              val outcome =
+                try {
+                  Tracing.traceSuspending(
+                    spanName = SPAN_REQUISITION_PROCESSING,
+                    attributes =
+                      Attributes.builder()
+                        .put(ReportTraceAttributes.REQUISITION_NAME, req.name)
+                        .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+                        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+                        .put(ReportTraceAttributes.OUTCOME, "started")
+                        .also { builder ->
+                          if (reportId.isNotEmpty()) {
+                            builder.put(ReportTraceAttributes.REPORT_NAME, reportId)
+                          }
+                          if (basicReportName.isNotEmpty()) {
+                            builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+                          }
+                        }
+                        .build(),
+                  ) {
+                    val outcome =
+                      fulfillSingleRequisition(
+                        requisition = req,
+                        frequencyVector = frequencyVectorMap.getValue(req.name),
+                        populationSpec = populationSpec,
+                        requisitionsMetadata = requisitionMetadataByName,
+                        kekUri = kekUri,
+                      )
+                    val span = Span.current()
+                    span.setAttribute(
+                      ReportTraceAttributes.OUTCOME,
+                      if (outcome) "succeeded" else "refused",
+                    )
+                    if (!outcome) {
+                      span.setAttribute(
+                        ReportTraceAttributes.REFUSAL_ORIGIN,
+                        ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+                      )
+                    }
+                    outcome
+                  }
+                } catch (e: CancellationException) {
+                  throw e
+                } catch (e: Exception) {
+                  // The per-Requisition span already contains the complete failure evidence. Mark
+                  // the exception so the group wrapper does not incorrectly fan this failure out
+                  // to sibling Requisitions as though shared preparation had failed.
+                  throw RequisitionProcessingException(e)
+                }
+              emit(outcome)
+            }
           }
-        }
-        .collect()
+          .toList()
 
-      recordReportCompletion(
-        span = span,
-        requisitionCount = filteredRequisitions.size,
-        modelLine = modelLine,
-        processingTimer = reportProcessingTimer,
-        earliestCreateTime = earliestCreateTime,
-        groupId = groupedRequisitions.groupId,
-        reportId = reportId,
-      )
+      if (outcomes.all { it }) {
+        recordReportCompletion(
+          span = span,
+          requisitionCount = filteredRequisitions.size,
+          modelLine = modelLine,
+          processingTimer = reportProcessingTimer,
+          earliestCreateTime = earliestCreateTime,
+          groupId = groupedRequisitions.groupId,
+          reportId = reportId,
+        )
+      } else {
+        span
+          .setStatus(
+            io.opentelemetry.api.trace.StatusCode.ERROR,
+            "One or more requisitions refused",
+          )
+          .setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+      }
     }
   }
 
@@ -311,6 +508,7 @@ class ResultsFulfiller(
         if (metadata.state !== RequisitionMetadata.State.FULFILLED) {
           signalRequisitionFulfilled(metadata)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       Requisition.State.UNFULFILLED -> {
@@ -320,6 +518,7 @@ class ResultsFulfiller(
         if (metadata.state !== RequisitionMetadata.State.WITHDRAWN) {
           signalRequisitionWithdrawn(metadata)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       Requisition.State.REFUSED -> {
@@ -327,6 +526,7 @@ class ResultsFulfiller(
           val refusalMessage = "Requisition in invalid cmms state: ${requisition.state}"
           signalRequisitionRefused(metadata, refusalMessage)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       else -> {
@@ -335,6 +535,17 @@ class ResultsFulfiller(
         )
       }
     }
+  }
+
+  private suspend fun recordTerminalRequisition(
+    requisitionName: String,
+    requisitionState: Requisition.State,
+    outcome: String,
+  ) {
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+      .setAttribute(ReportTraceAttributes.REQUISITION_STATE, requisitionState.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
   }
 
   /**
@@ -351,7 +562,7 @@ class ResultsFulfiller(
     populationSpec: PopulationSpec,
     requisitionsMetadata: Map<String, RequisitionMetadata>,
     kekUri: String?,
-  ) {
+  ): Boolean {
 
     val requisitionProcessingTimer = TimeSource.Monotonic.markNow()
     // Update the Requisition status on the ImpressionMetadataStorage
@@ -361,26 +572,36 @@ class ResultsFulfiller(
           "Requisition metadata not found for requisition: ${requisition.name}"
         )
 
-    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-    val signedRequisitionSpec: SignedMessage =
+    val measurementSpec: MeasurementSpec = RequisitionSpecs.readMeasurementSpec(requisition)
+    // TODO: Issue #2914
+    val requisitionSpec: RequisitionSpec =
       try {
         withContext(Dispatchers.IO) {
-          val result =
-            decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-          result
+          RequisitionSpecs.readRequisitionSpec(requisition, privateEncryptionKey)
         }
       } catch (e: GeneralSecurityException) {
-        throw Exception("RequisitionSpec decryption failed", e)
+        throw Exception("RequisitionSpec could not be read", e)
       }
-    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack() // TODO: Issue #2914
     val reportId =
       requireNotNull(requisitionMetadata.report) {
         "Report ID is missing from requisition metadata: ${requisitionMetadata.name}"
       }
 
-    Tracing.traceSuspending(
+    return Tracing.traceSuspending(
       spanName = SPAN_REQUISITION_FULFILLMENT,
-      attributes = Attributes.empty(),
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REPORT_NAME, reportId)
+          .put(ReportTraceAttributes.REQUISITION_NAME, requisition.name)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+          .also { builder ->
+            val basicReportName = measurementSpec.reportingMetadata.basicReport
+            if (basicReportName.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+            }
+          }
+          .build(),
     ) {
       val span = Span.current()
       var processingMetadata: RequisitionMetadata? = null
@@ -445,22 +666,32 @@ class ResultsFulfiller(
           requisitionProcessingTimer = requisitionProcessingTimer,
           requisitionMetadata = requisitionMetadata,
         )
+        true
       } catch (e: RequisitionRefusalException) {
         recordRequisitionFailure(
           span = span,
           throwable = e,
           requisitionMetadata = requisitionMetadata,
           requisitionName = requisition.name,
+          outcome = "refused",
         )
+        logger.log(Level.WARNING, e) {
+          "Refused requisition ${requisition.name} for report=$reportId " +
+            "groupId=${groupedRequisitions.groupId}"
+        }
         val metadataForRefusal = processingMetadata ?: requisitionMetadata
         signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
         refuseRequisitionInCmms(requisition, e)
+        false
+      } catch (e: CancellationException) {
+        throw e
       } catch (t: Throwable) {
         recordRequisitionFailure(
           span = span,
           throwable = t,
           requisitionMetadata = requisitionMetadata,
           requisitionName = requisition.name,
+          outcome = "failed",
         )
         throw t
       }
@@ -567,27 +798,67 @@ class ResultsFulfiller(
     requisition: Requisition,
     e: RequisitionRefusalException,
   ) {
-    try {
-      kingdomThrottler.onReady {
-        requisitionsStub.refuseRequisition(
-          refuseRequisitionRequest {
-            name = requisition.name
-            refusal =
-              RequisitionKt.refusal {
-                justification = e.justification
-                message = e.message ?: "Requisition refused"
-              }
+    Tracing.traceSuspending(
+      spanName = "edp_aggregator.results_fulfiller.refuse_requisition",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REQUISITION_NAME, requisition.name)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_refusal")
+          .put(
+            ReportTraceAttributes.REFUSAL_ORIGIN,
+            ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+          )
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .also { builder ->
+            if (groupedRequisitions.report.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+            }
+            if (groupedRequisitions.basicReport.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
+            }
           }
+          .build(),
+    ) {
+      val span = Span.current()
+      try {
+        kingdomThrottler.onReady {
+          requisitionsStub.refuseRequisition(
+            refuseRequisitionRequest {
+              name = requisition.name
+              refusal =
+                RequisitionKt.refusal {
+                  justification = e.justification
+                  message = e.message ?: "Requisition refused"
+                }
+            }
+          )
+        }
+        span.setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (refusalError: Exception) {
+        span
+          .setStatus(
+            io.opentelemetry.api.trace.StatusCode.ERROR,
+            refusalError.message ?: refusalError::class.java.name,
+          )
+          .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+          .setAttribute(
+            ReportTraceAttributes.ERROR_TYPE,
+            ReportTraceAttributes.errorType(refusalError),
+          )
+          .recordException(refusalError)
+        val errorCode = ReportTraceAttributes.errorCode(refusalError)
+        if (errorCode != null) {
+          span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+        }
+        logger.log(
+          Level.SEVERE,
+          "Failed to refuse requisition ${requisition.name} in CMMS",
+          refusalError,
         )
       }
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (refusalError: Exception) {
-      logger.log(
-        Level.SEVERE,
-        "Failed to refuse requisition ${requisition.name} in CMMS",
-        refusalError,
-      )
     }
   }
 
@@ -609,6 +880,9 @@ class ResultsFulfiller(
     groupId: String,
     reportId: String,
   ) {
+    span
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     span.addEvent(
       EVENT_REQUISITIONS_FULFILLMENT_FINISHED,
       Attributes.builder()
@@ -643,6 +917,7 @@ class ResultsFulfiller(
     requisitionProcessingTimer: TimeSource.Monotonic.ValueTimeMark,
     requisitionMetadata: RequisitionMetadata,
   ) {
+    span.setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     val requisitionProcessingDurationSeconds =
       requisitionProcessingTimer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS
     metrics.requisitionProcessingDuration.record(requisitionProcessingDurationSeconds)
@@ -668,7 +943,25 @@ class ResultsFulfiller(
     throwable: Throwable,
     requisitionMetadata: RequisitionMetadata?,
     requisitionName: String,
+    outcome: String,
   ) {
+    span
+      .setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "Requisition processing failed")
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(throwable))
+      .also {
+        if (outcome == "refused") {
+          it.setAttribute(
+            ReportTraceAttributes.REFUSAL_ORIGIN,
+            ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+          )
+        }
+      }
+    val errorCode = ReportTraceAttributes.errorCode(throwable)
+    if (errorCode != null) {
+      span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+    }
     span.addEvent(
       EVENT_REQUISITION_PROCESSING_FAILED,
       Attributes.builder()
@@ -694,42 +987,19 @@ class ResultsFulfiller(
     metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
   }
 
+  private class RequisitionProcessingException(val failure: Exception) :
+    Exception(failure.message, failure)
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val SPAN_REQUISITION_PROCESSING = "requisition_processing"
 
     /**
      * Default maximum total attempts (first attempt + retries) per ListRequisitionMetadata page.
      */
     private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
 
-    /**
-     * Builds the event group → entity key map from grouped requisition entries.
-     *
-     * Only entries whose details carry a real `entity_key` are included. An entry whose
-     * `entity_key` is the kingdom-side default sentinel — i.e., `entity_id` is empty — is excluded
-     * so that legacy event groups (which only carry the schema default `entity_type="campaign"`)
-     * continue to route through `FilterSpec.ByEventGroupReferenceIds` downstream rather than being
-     * treated as real entity-key selectors.
-     */
-    @VisibleForTesting
-    fun buildEventGroupEntityKeyMap(
-      eventGroupMapList: List<GroupedRequisitions.EventGroupMapEntry>
-    ): Map<String, LabeledImpression.EntityKey> =
-      eventGroupMapList
-        .filter { it.details.hasEntityKey() && it.details.entityKey.entityId.isNotEmpty() }
-        .associate { entry ->
-          val key = entry.details.entityKey
-          entry.eventGroup to
-            LabeledImpressionKt.entityKey {
-              entityType = key.entityType
-              entityId = key.entityId
-            }
-        }
-
-    // Memory-based parallelism limit to prevent OOM with large frequency vectors
-    // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for
-    // the intermediate integer list in FrequencyVectorBuilder, ~0.5GB per requisition.
-    // For 15 parallel fulfillments we end up at ~8GB in total.
+    // Bound concurrent payloads and encryption buffers.
     private const val MAX_FULFILLMENT_PARALLELISM: Int = 15
 
     /** Utilize all cpu cores but keep one free for GC and system work, capped by memory limit. */
@@ -747,6 +1017,7 @@ class ResultsFulfiller(
     /** Mask for converting signed byte to unsigned int. */
     private const val BYTE_TO_UNSIGNED_MASK = 0xFF
 
+    private const val SPAN_PROCESS_GROUP = "results_fulfiller.process_group"
     private const val SPAN_REPORT_FULFILLMENT = "report_fulfillment"
     private const val SPAN_REQUISITION_FULFILLMENT = "requisition_fulfillment"
 

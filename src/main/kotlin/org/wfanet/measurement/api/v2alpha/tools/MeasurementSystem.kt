@@ -1005,6 +1005,16 @@ private class DataProviders {
       required = false,
     )
     noiseMechanismDeterministicTruncatedLaplaceSupported: Boolean? = null,
+    @Option(
+      names = ["--trus-tee-v2-supported"],
+      description =
+        [
+          "Whether the TrusTEE multimeasurement protocol is supported. Nothing issues such a " +
+            "Requisition yet, so setting this has no effect."
+        ],
+      required = false,
+    )
+    trusTeeV2Supported: Boolean? = null,
   ) {
     val capabilities: DataProvider.Capabilities =
       runBlocking(parentCommand.rpcDispatcher) {
@@ -1024,6 +1034,9 @@ private class DataProviders {
           if (noiseMechanismDeterministicTruncatedLaplaceSupported != null) {
             this.noiseMechanismDeterministicTruncatedLaplaceSupported =
               noiseMechanismDeterministicTruncatedLaplaceSupported
+          }
+          if (trusTeeV2Supported != null) {
+            this.trusTeeV2Supported = trusTeeV2Supported
           }
         }
     }
