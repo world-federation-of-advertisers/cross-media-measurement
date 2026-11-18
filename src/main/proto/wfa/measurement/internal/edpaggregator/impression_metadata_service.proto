@@ -168,8 +168,6 @@ message ListImpressionMetadataPageToken {
 }
 
 message DeleteImpressionMetadataRequest {
-  reserved 3;
-
   string data_provider_resource_id = 1;
   string impression_metadata_resource_id = 2;
 }
