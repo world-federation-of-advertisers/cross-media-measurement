@@ -215,6 +215,10 @@ class VidLabelingTraceStateTest {
         path.toBuilder().setGeneration(0).build(),
         path.toBuilder().setGeneration(-1).build(),
         path.toBuilder().clearGeneration().build(),
+        path
+          .toBuilder()
+          .setEventType(WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED)
+          .build(),
       )
     for (invalidPath in invalidPaths) {
       val invalid =
@@ -1264,6 +1268,7 @@ class VidLabelingTraceStateTest {
           "gs://bucket/model-line/direct/2026-09-${eventDay.toString().padStart(2, '0')}/done"
         )
         .setGeneration(doneGeneration)
+        .setEventType(WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED)
         .build()
     val params =
       WorkItem.WorkItemParams.newBuilder()

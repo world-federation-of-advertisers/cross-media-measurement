@@ -32,10 +32,6 @@ message WatchedPath {
   // The path to watch
   string source_path_regex = 2;
 
-  // CloudEvent types accepted for this path. Empty accepts all event types.
-  // A configured filter requires a matching type in the source notification.
-  repeated string event_types = 5;
-
   // The config used for control plane apps
   message ControlPlaneQueueSink {
     // The Control Plane queue that will execute this work item.

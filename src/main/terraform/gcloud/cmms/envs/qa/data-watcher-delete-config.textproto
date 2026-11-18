@@ -3,8 +3,6 @@
 watched_paths {
   identifier: "data-availability-cleanup"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/(?:vid-labeled-impressions/)?edp/edp7/.*"
-  event_types: "google.cloud.storage.object.v1.deleted"
-  event_types: "google.cloud.storage.object.v1.archived"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-qa.cloudfunctions.net/data-availability-cleanup"
     app_params {
@@ -78,8 +76,6 @@ watched_paths {
 watched_paths {
   identifier: "data-availability-cleanup"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/(?:vid-labeled-impressions/)?edp/edpa_meta/.*"
-  event_types: "google.cloud.storage.object.v1.deleted"
-  event_types: "google.cloud.storage.object.v1.archived"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-qa.cloudfunctions.net/data-availability-cleanup"
     app_params {
@@ -153,8 +149,6 @@ watched_paths {
 watched_paths {
   identifier: "data-availability-cleanup"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/(?:vid-labeled-impressions/)?edp/edpa_video_pub/.*"
-  event_types: "google.cloud.storage.object.v1.deleted"
-  event_types: "google.cloud.storage.object.v1.archived"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-qa.cloudfunctions.net/data-availability-cleanup"
     app_params {
@@ -174,8 +168,6 @@ watched_paths {
 watched_paths {
   identifier: "data-availability-cleanup"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/(?:vid-labeled-impressions/)?edp/edpa_retail_pub/.*"
-  event_types: "google.cloud.storage.object.v1.deleted"
-  event_types: "google.cloud.storage.object.v1.archived"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-qa.cloudfunctions.net/data-availability-cleanup"
     app_params {

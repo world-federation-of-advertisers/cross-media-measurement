@@ -27,6 +27,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -79,6 +80,7 @@ object DataAvailabilitySyncWorkItems {
                 dataPath = doneBlobUri
                 generation = doneBlobGeneration
                 createTime = doneBlobCreateTime.toProtoTime()
+                eventType = StorageEventType.FINALIZED
               }
               this.traceContext.putAll(traceContext)
             }

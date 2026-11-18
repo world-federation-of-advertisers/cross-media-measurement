@@ -22,7 +22,6 @@ import com.google.gson.Gson
 import com.google.protobuf.Any
 import com.google.protobuf.Int32Value
 import com.google.protobuf.Struct
-import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.Value
 import com.google.protobuf.kotlin.unpack
 import com.sun.net.httpserver.HttpExchange
@@ -46,7 +45,6 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.time.Instant
-import java.util.concurrent.atomic.AtomicInteger
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -190,129 +188,12 @@ class DataWatcherTest() {
       assertThat(workItemParams.dataPathParams.generation).isEqualTo(42L)
       assertThat(workItemParams.dataPathParams.createTime)
         .isEqualTo(Instant.parse(SOURCE_CREATE_TIME).toProtoTime())
+      assertThat(workItemParams.dataPathParams.eventType)
+        .isEqualTo(WorkItemParams.DataPathParams.StorageEventType.FINALIZED)
       assertThat(workItemParams.traceContextMap)
         .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
       val workItemAppConfig = workItemParams.appParams.unpack<Int32Value>()
       assertThat(workItemAppConfig).isEqualTo(appParams)
-    }
-  }
-
-  @Test
-  fun `upload route ignores deletion archive and missing event types before queue writes`() =
-    runBlocking {
-      val config = watchedPath {
-        identifier = "sync"
-        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        eventTypes += DataWatcher.FINALIZED_EVENT_TYPE
-        controlPlaneQueueSink = controlPlaneQueueSink { queue = "sync-queue" }
-      }
-      val watcher =
-        DataWatcher(
-          workItemsStub,
-          listOf(config),
-          idTokenProvider = mockIdTokenProvider,
-          controlPlaneThrottler = rpcThrottlers.controlPlane,
-        )
-      for (type in
-        listOf(DataWatcher.DELETED_EVENT_TYPE, "google.cloud.storage.object.v1.archived", null)) {
-        watcher.receivePath(
-          "test-schema://test-bucket/path-to-watch/source",
-          type?.let { mapOf(DataWatcher.EVENT_TYPE_METADATA_KEY to it) } ?: emptyMap(),
-        )
-      }
-      verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
-      verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
-    }
-
-  @Test
-  fun `overlapping paths route uploads and deletions to different queues`() = runBlocking {
-    val uploadRoute = watchedPath {
-      identifier = "sync"
-      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-      eventTypes += DataWatcher.FINALIZED_EVENT_TYPE
-      controlPlaneQueueSink = controlPlaneQueueSink { queue = "sync-queue" }
-    }
-    val deletionRoute = watchedPath {
-      identifier = "cleanup"
-      sourcePathRegex = uploadRoute.sourcePathRegex
-      eventTypes +=
-        listOf(DataWatcher.DELETED_EVENT_TYPE, "google.cloud.storage.object.v1.archived")
-      controlPlaneQueueSink = controlPlaneQueueSink { queue = "cleanup-queue" }
-    }
-    val watcher =
-      DataWatcher(
-        workItemsStub,
-        listOf(uploadRoute, deletionRoute),
-        idTokenProvider = mockIdTokenProvider,
-        controlPlaneThrottler = rpcThrottlers.controlPlane,
-      )
-    for (type in
-      listOf(
-        DataWatcher.FINALIZED_EVENT_TYPE,
-        DataWatcher.DELETED_EVENT_TYPE,
-        "google.cloud.storage.object.v1.archived",
-      )) {
-      watcher.receivePath(
-        "test-schema://test-bucket/path-to-watch/source",
-        sourceMetadata() + (DataWatcher.EVENT_TYPE_METADATA_KEY to type),
-      )
-    }
-    val captor = argumentCaptor<EnsureWorkItemRequest>()
-    verifyBlocking(workItemsServiceMock, times(3)) { ensureWorkItem(captor.capture()) }
-    val requests = captor.allValues
-    assertThat(requests.map { it.workItem.queue })
-      .containsExactly("sync-queue", "cleanup-queue", "cleanup-queue")
-      .inOrder()
-    assertThat(requests[0].workItemId).isNotEqualTo(requests[1].workItemId)
-    assertThat(requests[1].workItemId).isEqualTo(requests[2].workItemId)
-    assertThat(requests[1].workItem.workItemParams).isEqualTo(requests[2].workItem.workItemParams)
-  }
-
-  @Test
-  fun `unfiltered route accepts a source without an event type`() = runBlocking {
-    val config = watchedPath {
-      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-      controlPlaneQueueSink = controlPlaneQueueSink { queue = "legacy-queue" }
-    }
-    val watcher =
-      DataWatcher(
-        workItemsStub,
-        listOf(config),
-        idTokenProvider = mockIdTokenProvider,
-        controlPlaneThrottler = rpcThrottlers.controlPlane,
-      )
-    watcher.receivePath(
-      "test-schema://test-bucket/path-to-watch/source",
-      sourceMetadata() - DataWatcher.EVENT_TYPE_METADATA_KEY,
-    )
-    verifyBlocking(workItemsServiceMock, times(1)) { ensureWorkItem(any()) }
-  }
-
-  @Test
-  fun `event filter applies before HTTP delivery`() = runBlocking {
-    val server = TestServer()
-    val port = server.start(0).address.port
-    try {
-      val config = watchedPath {
-        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        eventTypes += DataWatcher.DELETED_EVENT_TYPE
-        httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$port" }
-      }
-      val watcher =
-        DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
-      val path = "test-schema://test-bucket/path-to-watch/source"
-      watcher.receivePath(
-        path,
-        mapOf(DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE),
-      )
-      assertThat(server.requestCount).isEqualTo(0)
-      watcher.receivePath(
-        path,
-        mapOf(DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.DELETED_EVENT_TYPE),
-      )
-      assertThat(server.requestCount).isEqualTo(1)
-    } finally {
-      server.stop()
     }
   }
 
@@ -346,81 +227,77 @@ class DataWatcherTest() {
   }
 
   @Test
-  fun `redelivery reuses legacy event field and trace context from existing WorkItem`() =
-    runBlocking {
-      val path = "test-schema://test-bucket/path-to-watch/some-data"
-      val queue = "test-topic-id"
-      val appParams = Any.pack(Int32Value.of(5))
-      val storedTraceparent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
-      val existingWorkItem =
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
-          name = "workItems/deterministic-id"
-          this.queue = queue
-          serializationKey = "event-group-sync:dataProviders/example"
-          workItemParams =
-            workItemParams {
-                this.appParams = appParams
-                dataPathParams = legacySourceDataPathParams(path)
-                traceContext["traceparent"] = storedTraceparent
-              }
-              .pack()
-        }
-      workItemsServiceMock.stub {
-        onBlocking { ensureWorkItem(any()) } doThrow
-          Status.ALREADY_EXISTS.asRuntimeException() doReturn
-          existingWorkItem
-        onBlocking { getWorkItem(any()) } doReturn existingWorkItem
+  fun `redelivery reuses trace context from existing WorkItem`() = runBlocking {
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val queue = "test-topic-id"
+    val appParams = Any.pack(Int32Value.of(5))
+    val storedTraceparent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+    val existingWorkItem =
+      org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+        name = "workItems/deterministic-id"
+        this.queue = queue
+        serializationKey = "event-group-sync:dataProviders/example"
+        workItemParams =
+          workItemParams {
+              this.appParams = appParams
+              dataPathParams = sourceDataPathParams(path)
+              traceContext["traceparent"] = storedTraceparent
+            }
+            .pack()
       }
-      val config = watchedPath {
-        identifier = "results-fulfiller"
-        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        controlPlaneQueueSink = controlPlaneQueueSink {
-          this.queue = queue
-          serializationKey = "event-group-sync:dataProviders/example"
-          this.appParams = appParams
-        }
-      }
-      val dataWatcher =
-        DataWatcher(
-          workItemsStub,
-          listOf(config),
-          workItemIdGenerator = { "deterministic-id" },
-          idTokenProvider = mockIdTokenProvider,
-          controlPlaneThrottler = rpcThrottlers.controlPlane,
-        )
-      val redeliverySpan =
-        Span.wrap(
-          SpanContext.create(
-            "0123456789abcdef0123456789abcdef",
-            "0123456789abcdef",
-            TraceFlags.getSampled(),
-            TraceState.getDefault(),
-          )
-        )
-
-      redeliverySpan.makeCurrent().use { dataWatcher.receivePath(path, sourceMetadata()) }
-
-      val requestCaptor = argumentCaptor<EnsureWorkItemRequest>()
-      verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
-      assertThat(requestCaptor.allValues.map { it.workItem.serializationKey })
-        .containsExactly(
-          "event-group-sync:dataProviders/example",
-          "event-group-sync:dataProviders/example",
-        )
-      val firstParams = requestCaptor.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
-      val retryParams = requestCaptor.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
-      assertThat(firstParams.traceContextMap)
-        .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
-      assertThat(retryParams.traceContextMap).containsExactly("traceparent", storedTraceparent)
-      assertThat(retryParams.appParams).isEqualTo(firstParams.appParams)
-      assertThat(retryParams.dataPathParams)
-        .isEqualTo(existingWorkItem.workItemParams.unpack<WorkItemParams>().dataPathParams)
-      assertThat(firstParams.dataPathParams.unknownFields.hasField(5)).isFalse()
-      assertThat(retryParams.dataPathParams.unknownFields.hasField(5)).isTrue()
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        Status.ALREADY_EXISTS.asRuntimeException() doReturn
+        existingWorkItem
+      onBlocking { getWorkItem(any()) } doReturn existingWorkItem
     }
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        this.queue = queue
+        serializationKey = "event-group-sync:dataProviders/example"
+        this.appParams = appParams
+      }
+    }
+    val dataWatcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        workItemIdGenerator = { "deterministic-id" },
+        idTokenProvider = mockIdTokenProvider,
+        controlPlaneThrottler = rpcThrottlers.controlPlane,
+      )
+    val redeliverySpan =
+      Span.wrap(
+        SpanContext.create(
+          "0123456789abcdef0123456789abcdef",
+          "0123456789abcdef",
+          TraceFlags.getSampled(),
+          TraceState.getDefault(),
+        )
+      )
+
+    redeliverySpan.makeCurrent().use { dataWatcher.receivePath(path, sourceMetadata()) }
+
+    val requestCaptor = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.allValues.map { it.workItem.serializationKey })
+      .containsExactly(
+        "event-group-sync:dataProviders/example",
+        "event-group-sync:dataProviders/example",
+      )
+    val firstParams = requestCaptor.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
+    val retryParams = requestCaptor.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
+    assertThat(firstParams.traceContextMap)
+      .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+    assertThat(retryParams.traceContextMap).containsExactly("traceparent", storedTraceparent)
+    assertThat(retryParams.appParams).isEqualTo(firstParams.appParams)
+    assertThat(retryParams.dataPathParams).isEqualTo(firstParams.dataPathParams)
+  }
 
   @Test
-  fun `redelivery succeeds when matching legacy WorkItem is terminal`() = runBlocking {
+  fun `redelivery succeeds when matching WorkItem is terminal`() = runBlocking {
     val path = "test-schema://test-bucket/path-to-watch/some-data"
     val queue = "test-topic-id"
     val appParams = Any.pack(Int32Value.of(5))
@@ -431,7 +308,7 @@ class DataWatcherTest() {
         workItemParams =
           workItemParams {
               this.appParams = appParams
-              dataPathParams = legacySourceDataPathParams(path)
+              dataPathParams = sourceDataPathParams(path)
               traceContext["traceparent"] =
                 "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
             }
@@ -1134,17 +1011,8 @@ class DataWatcherTest() {
       dataPath = path
       generation = 42L
       createTime = Instant.parse(SOURCE_CREATE_TIME).toProtoTime()
+      eventType = WorkItemParams.DataPathParams.StorageEventType.FINALIZED
     }
-
-    private fun legacySourceDataPathParams(path: String): WorkItemParams.DataPathParams =
-      sourceDataPathParams(path)
-        .toBuilder()
-        .setUnknownFields(
-          UnknownFieldSet.newBuilder()
-            .addField(5, UnknownFieldSet.Field.newBuilder().addVarint(1L).build())
-            .build()
-        )
-        .build()
   }
 
   @Test
@@ -1185,9 +1053,6 @@ private class TestServer(private val statusCode: Int = 200) {
   private lateinit var handler: ServerHandler
   private lateinit var httpServer: HttpServer
 
-  val requestCount: Int
-    get() = handler.requestCount.get()
-
   fun start(port: Int): HttpServer {
     httpServer = HttpServer.create(InetSocketAddress(port), 0)
     handler = ServerHandler(statusCode)
@@ -1215,12 +1080,10 @@ private class TestServer(private val statusCode: Int = 200) {
   }
 
   class ServerHandler(private val statusCode: Int) : HttpHandler {
-    val requestCount = AtomicInteger()
     lateinit var requestBody: String
     lateinit var requestHeaders: Map<String, List<String>>
 
     override fun handle(t: HttpExchange) {
-      requestCount.incrementAndGet()
       val requestBodyBytes = t.requestBody.readBytes()
       requestBody = requestBodyBytes.toString(Charsets.UTF_8)
       requestHeaders = t.requestHeaders.toMap()

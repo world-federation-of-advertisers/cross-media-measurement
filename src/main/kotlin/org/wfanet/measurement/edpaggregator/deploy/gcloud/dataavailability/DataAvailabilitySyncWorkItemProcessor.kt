@@ -161,6 +161,12 @@ internal data class DataAvailabilitySyncWorkItem(
         "data path generation must be positive"
       }
       require(dataPathParams.hasCreateTime()) { "data path create_time is required" }
+      require(
+        dataPathParams.eventType ==
+          WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+      ) {
+        "event_type must be FINALIZED"
+      }
       return DataAvailabilitySyncWorkItem(workItem, workItemParams, appParams, dataPathParams)
     }
   }

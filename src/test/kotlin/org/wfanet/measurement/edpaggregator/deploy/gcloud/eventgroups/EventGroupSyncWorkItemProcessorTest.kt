@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
-import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.timestamp
 import com.google.rpc.ErrorInfo
 import io.grpc.Status
@@ -279,23 +278,19 @@ class EventGroupSyncWorkItemProcessorTest {
   }
 
   @Test
-  fun `accepts queued work from a producer using the old event type field`() {
+  fun `deleted event is rejected before attempt creation`() {
     val work = input().workItem
     val params = work.workItemParams.unpack(WorkItem.WorkItemParams::class.java).toBuilder()
     params.dataPathParams =
       params.dataPathParams
         .toBuilder()
-        .setUnknownFields(
-          UnknownFieldSet.newBuilder()
-            .addField(5, UnknownFieldSet.Field.newBuilder().addVarint(1L).build())
-            .build()
-        )
+        .setEventType(WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED)
         .build()
-    val parsed =
+    assertFailsWith<IllegalArgumentException> {
       EventGroupSyncWorkItem.parse(
         work.toBuilder().setWorkItemParams(Any.pack(params.build())).build()
       )
-    assertThat(parsed.source.generation).isEqualTo(7L)
+    }
   }
 
   private fun input(): EventGroupSyncWorkItem =
@@ -313,6 +308,7 @@ class EventGroupSyncWorkItemProcessorTest {
               dataPathParams = dataPathParams {
                 dataPath = sourcePath
                 generation = 7L
+                eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
               }
             }
           )

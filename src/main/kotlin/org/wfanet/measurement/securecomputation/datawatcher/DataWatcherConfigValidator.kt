@@ -23,9 +23,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 object DataWatcherConfigValidator {
   fun validate(config: DataWatcherConfig) {
     for (watchedPath in config.watchedPathsList) {
-      require(watchedPath.eventTypesList.all { it.isNotBlank() }) {
-        "DataWatcher path '${watchedPath.identifier}' has a blank event type filter."
-      }
       if (!watchedPath.hasControlPlaneQueueSink()) continue
       require(
         !watchedPath.controlPlaneQueueSink.appParams.`is`(ResultsFulfillerParams::class.java)
