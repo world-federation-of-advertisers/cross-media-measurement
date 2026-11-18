@@ -191,6 +191,11 @@ message MarkPoolAssignmentJobSucceededResponse {
   // Phase 1.
   LastShardResult last_shard_result = 2;
 
+  // Whether this job was the final shard to succeed for the upload and model
+  // line, including when no ranked memberships were discovered. A retry with
+  // the same request ID preserves the original final-shard decision.
+  bool last_shard = 3;
+
   // Result of the last shard completing. Present only when the
   // last-shard mark resulted in non-empty cross-shard work; omitted
   // if no shard wrote impressions.

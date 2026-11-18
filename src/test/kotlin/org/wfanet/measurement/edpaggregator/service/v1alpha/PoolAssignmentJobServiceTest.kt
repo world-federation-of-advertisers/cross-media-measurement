@@ -718,7 +718,74 @@ class PoolAssignmentJobServiceTest {
     assertThat(response.poolAssignmentJob.state).isEqualTo(PoolAssignmentJob.State.SUCCEEDED)
     assertThat(response.poolAssignmentJob.name).isEqualTo(created.name)
     assertThat(response.poolAssignmentJob.encryptedDek).isEqualTo(ENCRYPTED_DEK)
+    assertThat(response.lastShard).isTrue()
+    assertThat(response.hasLastShardResult()).isFalse()
   }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded exposes and persists empty final shard completion`() =
+    runBlocking {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      createRawImpressionUploadModelLine(
+        DATA_PROVIDER_ID,
+        RAW_IMPRESSION_UPLOAD_ID,
+        CMMS_MODEL_LINE,
+      )
+      val shards =
+        (0..1).map { index ->
+          service.createPoolAssignmentJob(
+            createPoolAssignmentJobRequest {
+              requestId = UUID.randomUUID().toString()
+              parent = UPLOAD_KEY.toName()
+              poolAssignmentJob = poolAssignmentJob {
+                cmmsModelLine = CMMS_MODEL_LINE
+                shardIndex = index
+              }
+            }
+          )
+        }
+      val requests =
+        shards.map { shard ->
+          markPoolAssignmentJobSucceededRequest {
+            requestId = UUID.randomUUID().toString()
+            name = shard.name
+            etag = shard.etag
+            encryptedDek = ENCRYPTED_DEK
+          }
+        }
+      val early = service.markPoolAssignmentJobSucceeded(requests[0])
+      val final = service.markPoolAssignmentJobSucceeded(requests[1])
+      assertThat(early.lastShard).isFalse()
+      assertThat(final.lastShard).isTrue()
+      assertThat(final.hasLastShardResult()).isFalse()
+      assertThat(service.markPoolAssignmentJobSucceeded(requests[0])).isEqualTo(early)
+      assertThat(service.markPoolAssignmentJobSucceeded(requests[1])).isEqualTo(final)
+      val row =
+        spannerDatabase.databaseClient.singleUse().use { txn ->
+          txn
+            .executeQuery(
+              statement(
+                """
+        SELECT EncryptedMergedDek, PoolOffsets, MaxEventDate
+        FROM RawImpressionUploadModelLine JOIN RawImpressionUpload
+        USING (DataProviderResourceId, RawImpressionUploadId)
+        WHERE DataProviderResourceId = @provider
+          AND RawImpressionUploadResourceId = @upload
+          AND CmmsModelLine = @model
+        """
+                  .trimIndent()
+              ) {
+                bind("provider").to(DATA_PROVIDER_ID)
+                bind("upload").to(RAW_IMPRESSION_UPLOAD_ID)
+                bind("model").to(CMMS_MODEL_LINE)
+              }
+            )
+            .single()
+        }
+      assertThat(row.isNull("EncryptedMergedDek")).isFalse()
+      assertThat(row.getLongList("PoolOffsets")).isEmpty()
+      assertThat(row.isNull("MaxEventDate")).isTrue()
+    }
 
   @Test
   fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for empty name`() = runBlocking {
