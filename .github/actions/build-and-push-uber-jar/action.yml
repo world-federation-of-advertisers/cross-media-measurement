@@ -40,6 +40,13 @@ runs:
         mkdir -p ~/.m2
         cat > ~/.m2/settings.xml <<EOF
         <settings>
+          <mirrors>
+            <mirror>
+              <id>google-maven-central</id>
+              <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+              <mirrorOf>central</mirrorOf>
+            </mirror>
+          </mirrors>
           <servers>
             <server>
               <id>github</id>
