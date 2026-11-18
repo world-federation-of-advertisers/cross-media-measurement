@@ -663,11 +663,21 @@ locals {
     maximum_backoff       = "600s"
   }
 
+  vid_labeling_dispatch_work_item_queue = {
+    topic_name            = "vid-labeling-dispatch-queue"
+    subscription_name     = "vid-labeling-dispatch-subscription"
+    ack_deadline_seconds  = 600
+    max_delivery_attempts = 100
+    minimum_backoff       = "10s"
+    maximum_backoff       = "600s"
+  }
+
 }
 
 module "edp_aggregator" {
-  event_group_sync_memory = var.event_group_sync_memory
-  source                  = "../modules/edp-aggregator"
+  vid_labeling_dispatch_work_item_queue = local.vid_labeling_dispatch_work_item_queue
+  event_group_sync_memory               = var.event_group_sync_memory
+  source                                = "../modules/edp-aggregator"
 
   depends_on = [google_project_iam_member.terraform_metric_writer]
 

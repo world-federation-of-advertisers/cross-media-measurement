@@ -234,6 +234,7 @@ module "vid_models_bucket" {
 }
 
 resource "google_storage_bucket_object" "upload_data_watcher_config" {
+  depends_on     = [module.vid_labeling_dispatch_work_item_queue]
   name           = var.data_watcher_config.destination
   bucket         = module.config_files_bucket.storage_bucket.name
   source         = var.data_watcher_config.local_path
@@ -1503,4 +1504,75 @@ module "vid_labeling_availability_monitoring" {
 
   publication_status_storage_roots = var.data_availability_publication_status_storage_roots
   publication_status_writer_member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+
+locals {
+  vid_dispatch_queues   = var.vid_labeling_dispatch_work_item_queue == null ? {} : { dispatch = var.vid_labeling_dispatch_work_item_queue }
+  vid_dispatch_endpoint = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.cloud_function_configs.vid_labeling_dispatcher.function_name}"
+}
+
+module "vid_labeling_dispatch_work_item_queue" {
+  source                     = "../pubsub"
+  for_each                   = local.vid_dispatch_queues
+  depends_on                 = [google_service_account_iam_member.vid_dispatch_token_creator, google_cloud_run_service_iam_member.vid_dispatch_work_item_invoker]
+  topic_name                 = each.value.topic_name
+  subscription_name          = each.value.subscription_name
+  ack_deadline_seconds       = each.value.ack_deadline_seconds
+  max_delivery_attempts      = each.value.max_delivery_attempts
+  minimum_backoff            = each.value.minimum_backoff
+  maximum_backoff            = each.value.maximum_backoff
+  push_endpoint              = local.vid_dispatch_endpoint
+  push_audience              = local.vid_dispatch_endpoint
+  push_service_account_email = module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.email
+}
+
+resource "google_service_account_iam_member" "vid_dispatch_token_creator" {
+  for_each           = local.vid_dispatch_queues
+  service_account_id = module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_service_iam_member" "vid_dispatch_work_item_invoker" {
+  for_each   = local.vid_dispatch_queues
+  depends_on = [module.vid_labeling_dispatcher_cloud_function]
+  service    = var.cloud_function_configs.vid_labeling_dispatcher.function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.vid_labeling_dispatcher_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_pubsub_topic_iam_member" "vid_dispatch_publisher" {
+  for_each = module.vid_labeling_dispatch_work_item_queue
+  topic    = each.value.pubsub_topic.id
+  role     = "roles/pubsub.publisher"
+  member   = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "vid_dispatch_dlq_publisher" {
+  for_each = module.vid_labeling_dispatch_work_item_queue
+  topic    = each.value.dead_letter_topic.id
+  role     = "roles/pubsub.publisher"
+  member   = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "vid_dispatch_dlq_subscriber" {
+  for_each     = module.vid_labeling_dispatch_work_item_queue
+  subscription = each.value.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "vid_dispatch_operator_publisher" {
+  for_each = module.vid_labeling_dispatch_work_item_queue
+  topic    = each.value.pubsub_topic.id
+  role     = "roles/pubsub.publisher"
+  member   = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_pubsub_subscription_iam_member" "vid_dispatch_operator_dlq_subscriber" {
+  for_each     = module.vid_labeling_dispatch_work_item_queue
+  subscription = each.value.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = module.edp_aggregator_internal.iam_service_account.member
 }
