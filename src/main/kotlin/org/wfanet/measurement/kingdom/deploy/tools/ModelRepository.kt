@@ -366,7 +366,15 @@ class CreatePopulation : Runnable {
   )
   private lateinit var eventMessageTypeUrl: String
 
+  @Option(
+    names = ["--event-template-version"],
+    required = true,
+    description = ["Positive event-template version defining the population-field contract"],
+  )
+  private var eventTemplateVersion: Int = 0
+
   override fun run() {
+    require(eventTemplateVersion > 0) { "event-template-version must be positive" }
     val populationSpec =
       ProtobufMessages.parseMessage(populationSpecFile, PopulationSpec.getDefaultInstance())
     val typeRegistry: TypeRegistry = buildTypeRegistry()
@@ -374,7 +382,7 @@ class CreatePopulation : Runnable {
       requireNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl)) {
         "Event message descriptor not found"
       }
-    PopulationSpecValidator.validate(populationSpec, eventMessageDescriptor)
+    PopulationSpecValidator.validate(populationSpec, eventMessageDescriptor, eventTemplateVersion)
 
     val population =
       parentCommand.populationsClient.createPopulation(

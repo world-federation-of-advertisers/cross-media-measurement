@@ -13,6 +13,7 @@
  */
 package org.wfanet.measurement.eventdataprovider.eventfiltration
 
+import com.google.api.expr.v1alpha1.Expr
 import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import org.projectnessie.cel.Ast
@@ -25,6 +26,7 @@ import org.projectnessie.cel.common.types.Err
 import org.projectnessie.cel.common.types.pb.ProtoTypeRegistry
 import org.projectnessie.cel.common.types.ref.Val
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.common.ProtoReflection.allDependencies
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.matches
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
@@ -56,6 +58,54 @@ object EventFilters {
     val env = createEnv(eventMessageDescriptor)
     val ast = compile(env, celExpr, operativeFields)
     return env.program(ast)
+  }
+
+  /** Compiles a population filter while rejecting population fields outside the model's version. */
+  fun compilePopulationProgram(
+    eventMessageDescriptor: Descriptors.Descriptor,
+    celExpr: String,
+    eventTemplateVersion: Int,
+  ): Program {
+    val fields = EventTemplates.getPopulationFields(eventMessageDescriptor, eventTemplateVersion)
+    fun path(field: Descriptors.FieldDescriptor): String =
+      EventTemplates.getTemplateDescriptor(field.containingType).name + "." + field.name
+    val operativeFields = fields.map(::path).toSet()
+    val unsupportedFields =
+      eventMessageDescriptor.fields
+        .flatMap { it.messageType.fields }
+        .filter { it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute }
+        .map(::path)
+        .toSet() - operativeFields
+    val env = createEnv(eventMessageDescriptor)
+    val ast = compile(env, celExpr)
+    requireSupportedPopulationFields(ast.expr, unsupportedFields)
+    return env.program(compile(env, celExpr, operativeFields))
+  }
+
+  private fun requireSupportedPopulationFields(expr: Expr, unsupportedFields: Set<String>) {
+    fun fieldPath(node: Expr): String? =
+      when {
+        node.hasIdentExpr() -> node.identExpr.name
+        node.hasSelectExpr() ->
+          fieldPath(node.selectExpr.operand)?.let { "$it.${node.selectExpr.field}" }
+        else -> null
+      }
+    val selectedField = fieldPath(expr)
+    if (selectedField in unsupportedFields) {
+      throw EventFilterValidationException(
+        EventFilterValidationException.Code.INVALID_CEL_EXPRESSION,
+        "Population field $selectedField is unavailable in the model line's event-template version",
+      )
+    }
+    if (expr.hasSelectExpr())
+      requireSupportedPopulationFields(expr.selectExpr.operand, unsupportedFields)
+    if (expr.hasCallExpr()) {
+      if (expr.callExpr.hasTarget())
+        requireSupportedPopulationFields(expr.callExpr.target, unsupportedFields)
+      expr.callExpr.argsList.forEach { requireSupportedPopulationFields(it, unsupportedFields) }
+    }
+    if (expr.hasListExpr())
+      expr.listExpr.elementsList.forEach { requireSupportedPopulationFields(it, unsupportedFields) }
   }
 
   /**

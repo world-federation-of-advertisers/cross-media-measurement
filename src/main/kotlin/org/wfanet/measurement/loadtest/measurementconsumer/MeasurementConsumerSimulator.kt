@@ -1194,6 +1194,10 @@ abstract class MeasurementConsumerSimulator(
               populationSpec,
               requisitionFilterExpression,
               eventMessageDescriptor,
+              org.wfanet.measurement.api.v2alpha.EventTemplates.getEventDescriptor(
+                  eventMessageDescriptor
+                )
+                .currentVersion,
             )
         }
     }
