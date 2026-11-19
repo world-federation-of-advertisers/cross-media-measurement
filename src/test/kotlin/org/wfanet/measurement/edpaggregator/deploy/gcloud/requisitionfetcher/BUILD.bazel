@@ -26,7 +26,8 @@ kt_jvm_test(
 kt_jvm_test(
     name = "RequisitionFetcherFunctionTest",
     size = "small",
-    timeout = "short",
+    # Each case starts a Functions Framework JVM; startup can exceed one minute under load.
+    timeout = "moderate",
     srcs = ["RequisitionFetcherFunctionTest.kt"],
     data = [
         "//src/main/k8s/testing/secretfiles:root_certs",
