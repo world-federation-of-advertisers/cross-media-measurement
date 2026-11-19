@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabel
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasPendingVidLabelingCorrection
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasVidLabelingHealingDispatchGate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.materializeLegacyPoolAssignmentCompletion
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readPoolAssignmentJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
@@ -132,7 +133,7 @@ class SpannerRawImpressionUploadModelLineService(
                 )
                 .asRuntimeException()
             }
-            return@run existing.rawImpressionUploadModelLine
+            return@run materializeLegacyCompletion(txn, existing).rawImpressionUploadModelLine
           }
 
           val rawImpressionUploadId =
@@ -309,7 +310,7 @@ class SpannerRawImpressionUploadModelLineService(
                     )
                     .asRuntimeException()
                 }
-                existing.rawImpressionUploadModelLine
+                materializeLegacyCompletion(txn, existing).rawImpressionUploadModelLine
               } else {
                 anyInserted = true
                 val rawImpressionUploadModelLineId =
@@ -446,21 +447,61 @@ class SpannerRawImpressionUploadModelLineService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    return databaseClient.singleUse().use { txn ->
-      txn
-        .getRawImpressionUploadModelLineByResourceIds(
+    val result =
+      databaseClient.singleUse().use { txn ->
+        txn.getRawImpressionUploadModelLineByResourceIds(
           request.dataProviderResourceId,
           request.rawImpressionUploadResourceId,
           request.rawImpressionUploadModelLineResourceId,
         )
-        ?.rawImpressionUploadModelLine
-        ?: throw RawImpressionUploadModelLineNotFoundException(
-            request.dataProviderResourceId,
-            request.rawImpressionUploadResourceId,
-            request.rawImpressionUploadModelLineResourceId,
-          )
-          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          ?: throw RawImpressionUploadModelLineNotFoundException(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
+              request.rawImpressionUploadModelLineResourceId,
+            )
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+    return materializeLegacyCompletion(result)
+  }
+
+  private suspend fun materializeLegacyCompletion(
+    result: RawImpressionUploadModelLineResult
+  ): RawImpressionUploadModelLine {
+    val modelLine = result.rawImpressionUploadModelLine
+    if (modelLine.poolAssignmentComplete || !modelLine.hasEncryptedMergedDek()) return modelLine
+    return databaseClient.readWriteTransaction().run { txn ->
+      val current =
+        txn.getRawImpressionUploadModelLineByResourceIds(
+          modelLine.dataProviderResourceId,
+          modelLine.rawImpressionUploadResourceId,
+          modelLine.rawImpressionUploadModelLineResourceId,
+        ) ?: return@run modelLine
+      materializeLegacyCompletion(txn, current).rawImpressionUploadModelLine
     }
+  }
+
+  private suspend fun materializeLegacyCompletion(
+    txn: AsyncDatabaseClient.TransactionContext,
+    result: RawImpressionUploadModelLineResult,
+  ): RawImpressionUploadModelLineResult {
+    val modelLine = result.rawImpressionUploadModelLine
+    if (modelLine.poolAssignmentComplete || !modelLine.hasEncryptedMergedDek()) return result
+    val completion =
+      txn.materializeLegacyPoolAssignmentCompletion(
+        modelLine.dataProviderResourceId,
+        result.rawImpressionUploadId,
+        modelLine.cmmsModelLine,
+      ) ?: return result
+    val mergedDek = completion.encryptedMergedDek
+    return result.copy(
+      rawImpressionUploadModelLine =
+        modelLine.copy {
+          poolAssignmentComplete = completion.poolAssignmentComplete
+          outputKekUri = completion.outputKekUri
+          clearEncryptedMergedDek()
+          if (mergedDek != null) encryptedMergedDek = mergedDek
+        }
+    )
   }
 
   override suspend fun listRawImpressionUploadModelLines(
@@ -483,19 +524,17 @@ class SpannerRawImpressionUploadModelLineService(
     val after = if (request.hasPageToken()) request.pageToken.after else null
 
     databaseClient.singleUse().use { txn ->
-      val rows: Flow<RawImpressionUploadModelLine> =
-        txn
-          .readRawImpressionUploadModelLines(
-            request.dataProviderResourceId,
-            request.rawImpressionUploadResourceId.ifEmpty { null },
-            filter = if (request.hasFilter()) request.filter else null,
-            limit = pageSize + 1,
-            after = after,
-          )
-          .map { it.rawImpressionUploadModelLine }
+      val rows: Flow<RawImpressionUploadModelLineResult> =
+        txn.readRawImpressionUploadModelLines(
+          request.dataProviderResourceId,
+          request.rawImpressionUploadResourceId.ifEmpty { null },
+          filter = if (request.hasFilter()) request.filter else null,
+          limit = pageSize + 1,
+          after = after,
+        )
 
       return listRawImpressionUploadModelLinesResponse {
-        rows.collectIndexed { index, item ->
+        rows.collectIndexed { index, result ->
           if (index == pageSize) {
             val lastIncluded = this.rawImpressionUploadModelLines.last()
             nextPageToken = listRawImpressionUploadModelLinesPageToken {
@@ -507,7 +546,7 @@ class SpannerRawImpressionUploadModelLineService(
                 }
             }
           } else {
-            this.rawImpressionUploadModelLines += item
+            this.rawImpressionUploadModelLines += materializeLegacyCompletion(result)
           }
         }
       }
@@ -938,7 +977,7 @@ class SpannerRawImpressionUploadModelLineService(
       databaseClient.readWriteTransaction(Options.tag("action=transitionState"))
     val txnResult =
       transactionRunner.run { txn ->
-        val result =
+        val current =
           txn.getRawImpressionUploadModelLineByResourceIds(
             dataProviderResourceId,
             rawImpressionUploadResourceId,
@@ -950,6 +989,8 @@ class SpannerRawImpressionUploadModelLineService(
                 rawImpressionUploadModelLineResourceId,
               )
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
+
+        val result = materializeLegacyCompletion(txn, current)
 
         // AIP-155 idempotent replay: if this exact mark already ran (this mark's request_id is
         // already stamped on the row), return the resource as-is instead of re-transitioning or
@@ -986,8 +1027,7 @@ class SpannerRawImpressionUploadModelLineService(
         ) {
           val modelLine = result.rawImpressionUploadModelLine
           if (
-            !modelLine.hasEncryptedMergedDek() ||
-              modelLine.encryptedMergedDek.kekUri.isEmpty() ||
+            !modelLine.poolAssignmentComplete ||
               modelLine.poolOffsetsList.isNotEmpty() ||
               modelLine.hasMaxEventDate() ||
               txn
@@ -1007,8 +1047,7 @@ class SpannerRawImpressionUploadModelLineService(
               ) != 0L
           ) {
             throw Status.FAILED_PRECONDITION.withDescription(
-                "Direct labeling requires completed Phase-0 shards with no ranked memberships " +
-                  "and a persisted completion DEK"
+                "Direct labeling requires completed Phase-0 shards with no ranked memberships"
               )
               .asRuntimeException()
           }

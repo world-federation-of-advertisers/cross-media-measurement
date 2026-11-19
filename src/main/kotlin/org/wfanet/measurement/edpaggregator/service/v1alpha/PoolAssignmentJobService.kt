@@ -326,7 +326,7 @@ class PoolAssignmentJobService(
 
     validateEtagAndRequestId(request.etag, request.requestId)
 
-    if (!request.hasEncryptedDek()) {
+    if (request.poolOffsetsCount > 0 && !request.hasEncryptedDek()) {
       throw RequiredFieldNotSetException("encrypted_dek")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -340,7 +340,8 @@ class PoolAssignmentJobService(
             poolAssignmentJobResourceId = jobKey.poolAssignmentJobId
             etag = request.etag
             requestId = request.requestId
-            encryptedDek = request.encryptedDek.toInternal()
+            if (request.hasEncryptedDek()) encryptedDek = request.encryptedDek.toInternal()
+            outputKekUri = request.outputKekUri
             poolOffsets += request.poolOffsetsList
             if (request.hasMaxEventDate()) {
               maxEventDate = request.maxEventDate
