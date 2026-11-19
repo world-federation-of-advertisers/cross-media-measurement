@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import java.security.MessageDigest
 import kotlin.test.assertFailsWith

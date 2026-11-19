@@ -7807,7 +7807,12 @@ class DataAvailabilitySyncTest {
         OutputManifestRecordKt.labeledBlob {
           rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/files/file"
           modelLine = MODEL_LINE
-          eventDate = eventDate.toBuilder().setYear(2026).setMonth(3).setDay(14).build()
+          eventDate =
+            com.google.type.date {
+              year = 2026
+              month = 3
+              day = 14
+            }
           impressions = outputBlobReference {
             blobUri = "$bucket/$dataKey"
             blobGeneration = dataGeneration
@@ -7850,21 +7855,16 @@ class DataAvailabilitySyncTest {
       val otherMetadata =
         checkNotNull(storage.getBlob(otherMetadataKey)) as ConditionalOperationStorageClient.Blob
       val otherEntry =
-        checkNotNull(entry)
-          .toBuilder()
-          .setImpressions(
-            outputBlobReference {
-              blobUri = "$bucket/$otherDataKey"
-              blobGeneration = otherData.freshnessToken.toLong()
-            }
-          )
-          .setMetadata(
-            outputBlobReference {
-              blobUri = "$bucket/$otherMetadataKey"
-              blobGeneration = otherMetadata.freshnessToken.toLong()
-            }
-          )
-          .build()
+        checkNotNull(entry).copy {
+          impressions = outputBlobReference {
+            blobUri = "$bucket/$otherDataKey"
+            blobGeneration = otherData.freshnessToken.toLong()
+          }
+          metadata = outputBlobReference {
+            blobUri = "$bucket/$otherMetadataKey"
+            blobGeneration = otherMetadata.freshnessToken.toLong()
+          }
+        }
       val otherManifest =
         OutputManifestStore(storage, "$bucket/edp/edpa_edp")
           .write(

@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.copy
 import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
@@ -38,6 +39,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecordKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.outputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.outputManifestRecord
@@ -67,7 +69,12 @@ class CommittedOutputResolverTest {
   private val input = rawImpressionUploadFile {
     name = inputName
     blobUri = "gs://input/raw.parquet"
-    eventDate = eventDate.toBuilder().setYear(2026).setMonth(11).setDay(19).build()
+    eventDate =
+      com.google.type.date {
+        year = 2026
+        month = 11
+        day = 19
+      }
   }
   private val header =
     OutputManifestRecordKt.header {
@@ -198,7 +205,10 @@ class CommittedOutputResolverTest {
         outputManifest =
           store.write(
             "gs://bucket/output/$id/manifest",
-            header.toBuilder().setOwner(siblingName).setAttemptId(id).build(),
+            header.copy {
+              owner = siblingName
+              attemptId = id
+            },
             flowOf(
               outputManifestRecord {
                 labeledBlob =
@@ -258,7 +268,7 @@ class CommittedOutputResolverTest {
   fun `legacy-only overlapping jobs preserve deterministic input deduplication`() =
     runBlocking<Unit> {
       jobs.value = siblingPublication(manifestBacked = false)
-      jobs.siblings = listOf(jobs.value.toBuilder().setName(owner).build())
+      jobs.siblings = listOf(jobs.value.copy { name = owner })
       val result = resolver().resolve(upload, model)
       assertThat(result.legacyFiles).hasSize(1)
       assertThat(result.labeledBlobs).isEmpty()
@@ -332,15 +342,9 @@ class CommittedOutputResolverTest {
   fun `resolve rejects a labeled output for the wrong registered event date`() =
     runBlocking<Unit> {
       val wrongDate =
-        labeled
-          .toBuilder()
-          .setLabeledBlob(
-            labeled.labeledBlob
-              .toBuilder()
-              .setEventDate(input.eventDate.toBuilder().setDay(20))
-              .build()
-          )
-          .build()
+        labeled.copy {
+          labeledBlob = labeled.labeledBlob.copy { eventDate = input.eventDate.copy { day = 20 } }
+        }
       publish(wrongDate, complete)
       assertFailsWith<IllegalStateException> { resolver().resolve(upload, model) }
     }

@@ -2092,8 +2092,11 @@ abstract class PoolAssignmentJobServiceTest {
         requestId = UUID.randomUUID().toString()
         encryptedDek = ENCRYPTED_DEK
         poolOffsets += 7L
-        maxEventDate =
-          com.google.type.Date.newBuilder().setYear(2026).setMonth(11).setDay(1).build()
+        maxEventDate = date {
+          year = 2026
+          month = 11
+          this.day = 1
+        }
         outputManifest = outputBlobReference {
           blobUri = "gs://bucket/first/manifest"
           blobGeneration = 1L
@@ -2110,8 +2113,11 @@ abstract class PoolAssignmentJobServiceTest {
           requestId = UUID.randomUUID().toString()
           encryptedDek = ENCRYPTED_DEK
           poolOffsets += 8L
-          maxEventDate =
-            com.google.type.Date.newBuilder().setYear(2026).setMonth(11).setDay(2).build()
+          maxEventDate = date {
+            year = 2026
+            month = 11
+            this.day = 2
+          }
         }
       )
       assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)

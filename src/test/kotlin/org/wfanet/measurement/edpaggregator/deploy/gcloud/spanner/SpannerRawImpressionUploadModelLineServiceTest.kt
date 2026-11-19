@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
@@ -54,6 +55,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.commitRawImpressionUploadModelLineMergedOutputRequest
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createPoolAssignmentJobRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.encryptedDek
@@ -1635,16 +1637,13 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
       val e =
         assertFailsWith<StatusRuntimeException> {
           service.commitRawImpressionUploadModelLineMergedOutput(
-            request
-              .toBuilder()
-              .setRequestId(UUID.randomUUID().toString())
-              .setOutputManifest(
-                outputBlobReference {
-                  blobUri = "gs://bucket/loser/manifest"
-                  blobGeneration = 6L
-                }
-              )
-              .build()
+            request.copy {
+              requestId = UUID.randomUUID().toString()
+              outputManifest = outputBlobReference {
+                blobUri = "gs://bucket/loser/manifest"
+                blobGeneration = 6L
+              }
+            }
           )
         }
       assertThat(e.status.code).isEqualTo(Status.Code.ABORTED)
