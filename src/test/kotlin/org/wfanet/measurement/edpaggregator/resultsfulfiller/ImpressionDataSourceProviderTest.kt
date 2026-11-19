@@ -49,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlo
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataView
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
@@ -942,6 +943,67 @@ class ImpressionDataSourceProviderTest {
 
       assertThat(sources).hasSize(1)
       assertThat(attempts.get()).isEqualTo(3)
+    }
+
+  @Test
+  fun `listImpressionDataSources requests BASIC view on every page`() = runBlocking {
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse { nextPageToken = "next-page" },
+        listImpressionMetadataResponse {},
+      )
+    val period = interval {
+      startTime = timestamp { seconds = 1 }
+      endTime = timestamp { seconds = 2 }
+    }
+
+    val sources =
+      createService()
+        .listImpressionDataSources(
+          modelLine = modelLine,
+          eventGroups = listOf(referenceEventGroup("eg-1", period)),
+        )
+
+    assertThat(sources).isEmpty()
+    val captor = argumentCaptor<ListImpressionMetadataRequest>()
+    verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+    assertThat(captor.allValues.map { it.pageToken }).containsExactly("", "next-page").inOrder()
+    for (request in captor.allValues) {
+      assertThat(request.view).isEqualTo(ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC)
+      assertThat(request.pageSize).isEqualTo(1000)
+      assertThat(request.filter.modelLine).isEqualTo(modelLine)
+      assertThat(request.filter.eventGroupReferenceIdsList).containsExactly("eg-1")
+      assertThat(request.filter.intervalOverlaps).isEqualTo(period)
+    }
+  }
+
+  @Test
+  fun `listImpressionDataSources propagates resource exhaustion without reducing page size`() =
+    runBlocking {
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer {
+        throw StatusException(Status.RESOURCE_EXHAUSTED)
+      }
+      val period = interval {
+        startTime = timestamp { seconds = 1 }
+        endTime = timestamp { seconds = 2 }
+      }
+
+      val exception =
+        assertFailsWith<Exception> {
+          createService()
+            .listImpressionDataSources(
+              modelLine = modelLine,
+              eventGroups = listOf(referenceEventGroup("eg-1", period)),
+            )
+        }
+
+      assertThat((exception.cause as StatusException).status.code)
+        .isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock).listImpressionMetadata(captor.capture())
+      assertThat(captor.firstValue.pageSize).isEqualTo(1000)
+      assertThat(captor.firstValue.view)
+        .isEqualTo(ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC)
     }
 
   @Test

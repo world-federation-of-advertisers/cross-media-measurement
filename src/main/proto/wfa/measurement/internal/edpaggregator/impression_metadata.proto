@@ -86,3 +86,15 @@ message ImpressionMetadata {
   int64 metadata_blob_generation = 15;
   int64 impressions_blob_generation = 16;
 }
+
+// Fields returned for an ImpressionMetadata resource.
+enum ImpressionMetadataView {
+  // Defaults to FULL for compatibility with existing callers.
+  IMPRESSION_METADATA_VIEW_UNSPECIFIED = 0;
+
+  // All fields except entity_keys.
+  IMPRESSION_METADATA_VIEW_BASIC = 1;
+
+  // All fields, including entity_keys.
+  IMPRESSION_METADATA_VIEW_FULL = 2;
+}
