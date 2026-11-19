@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.awaitCancellation
@@ -46,6 +47,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 
@@ -75,6 +77,7 @@ class VidLabelingDispatcherWorkItemProcessorTest {
     event: WorkItem.WorkItemParams.DataPathParams.StorageEventType =
       WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED,
     appRecovery: VidLabelingDispatchWorkItemParams.RecoveryParams? = null,
+    outerSource: WorkItem.WorkItemParams.DataPathParams? = null,
   ) = workItem {
     name = "workItems/task"
     queue = "vid-labeling-dispatch-queue"
@@ -93,6 +96,7 @@ class VidLabelingDispatcherWorkItemProcessorTest {
                 }
               }
               .pack()
+          if (outerSource != null) dataPathParams = outerSource
           traceContext["traceparent"] = "00-11111111111111111111111111111111-1111111111111111-01"
         }
         .pack()
@@ -179,6 +183,57 @@ class VidLabelingDispatcherWorkItemProcessorTest {
       }
       verifyBlocking(attempts, times(4)) { failWorkItemAttempt(any()) }
       verifyBlocking(items, times(4)) { failWorkItem(any()) }
+      verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
+    }
+
+  private fun ordinarySource() = dataPathParams {
+    dataPath = "gs://raw/day/done"
+    generation = 11L
+    createTime = Instant.parse("2026-01-01T00:00:00Z").toProtoTime()
+    eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+  }
+
+  @Test
+  fun `ordinary dual source is accepted and completed`() =
+    runBlocking<Unit> {
+      val source = ordinarySource()
+      processor { input, guard ->
+          assertThat(input.source).isEqualTo(source)
+          assertThat(input.appParams.hasRecovery()).isFalse()
+          guard()
+          UploadOutcome.SUCCEEDED
+        }
+        .process(task(outerSource = source))
+      verifyBlocking(attempts, times(1)) { completeWorkItemAttempt(any()) }
+      verifyBlocking(items, times(0)) { failWorkItem(any()) }
+    }
+
+  @Test
+  fun `ordinary source mismatches fail before dispatch`() =
+    runBlocking<Unit> {
+      val source = ordinarySource()
+      for (mismatch in
+        listOf(
+          source.copy { dataPath = "gs://raw/other/done" },
+          source.copy { generation = 12L },
+          source.copy { createTime = Instant.parse("2026-01-02T00:00:00Z").toProtoTime() },
+          source.copy {
+            eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
+          },
+        )) {
+        processor { _, _ -> error("Must not dispatch mismatched sources") }
+          .process(task(outerSource = mismatch))
+      }
+      verifyBlocking(items, times(4)) { failWorkItem(any()) }
+      verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
+    }
+
+  @Test
+  fun `recovery with generic outer source is rejected before dispatch`() =
+    runBlocking<Unit> {
+      processor { _, _ -> error("Must not dispatch recovery with ordinary fencing") }
+        .process(task(appRecovery = recovery(), outerSource = ordinarySource()))
+      verifyBlocking(items, times(1)) { failWorkItem(any()) }
       verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
     }
 
