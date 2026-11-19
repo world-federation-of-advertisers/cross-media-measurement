@@ -495,17 +495,14 @@ class VidLabelerApp(
         it.cmmsModelLine == modelLine
       }
     val rankIndex =
-      if (parent != null && parent.hasEncryptedMergedDek() && parent.poolOffsetsList.isEmpty()) {
-        check(!parent.encryptedMergedDek.ciphertext.isEmpty) {
-          "Empty Phase-0 completion for ${parent.name} has no encrypted DEK ciphertext"
-        }
+      if (parent != null && parent.poolAssignmentComplete && parent.poolOffsetsList.isEmpty()) {
         check(!parent.hasMaxEventDate()) {
           "Empty Phase-0 completion for ${parent.name} has a ranked event date"
         }
         check(parent.state == RawImpressionUploadModelLine.State.LABELING) {
           "Parent ${parent.name} is ${parent.state}; empty-index labeling requires LABELING"
         }
-        MemoizedRankIndex.empty(parent.encryptedMergedDek.kekUri)
+        MemoizedRankIndex.empty(parent.outputKekUri)
       } else {
         val rankIndexStore =
           RankIndexStore(
