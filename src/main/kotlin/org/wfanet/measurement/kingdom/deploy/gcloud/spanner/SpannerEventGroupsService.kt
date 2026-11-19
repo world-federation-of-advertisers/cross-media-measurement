@@ -169,16 +169,11 @@ class SpannerEventGroupsService(
         }
       }
     } catch (e: SpannerException) {
-      // Spanner rejects reads older than its retained row versions. Do not label
-      // unrelated schema or query errors as expired snapshots.
+      // A fixed snapshot can become unavailable after version or schema retention.
       if (
         request.hasReadTime() &&
-          e.errorCode in setOf(ErrorCode.FAILED_PRECONDITION, ErrorCode.OUT_OF_RANGE) &&
-          e.message.orEmpty().let { message ->
-            message.contains("timestamp", ignoreCase = true) &&
-              (message.contains("too old", ignoreCase = true) ||
-                message.contains("maximum timestamp staleness", ignoreCase = true))
-          }
+          e.errorCode in
+            setOf(ErrorCode.FAILED_PRECONDITION, ErrorCode.INVALID_ARGUMENT, ErrorCode.NOT_FOUND)
       ) {
         throw Status.FAILED_PRECONDITION.withDescription("Snapshot is no longer available")
           .asRuntimeException(
@@ -188,7 +183,16 @@ class SpannerEventGroupsService(
             }
           )
       }
-      throw e
+      throw when (e.errorCode) {
+          ErrorCode.UNAVAILABLE -> Status.UNAVAILABLE
+          ErrorCode.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          ErrorCode.CANCELLED -> Status.CANCELLED
+          ErrorCode.ABORTED -> Status.ABORTED
+          ErrorCode.RESOURCE_EXHAUSTED -> Status.RESOURCE_EXHAUSTED
+          else -> Status.INTERNAL
+        }
+        .withDescription("Unable to read EventGroups")
+        .asRuntimeException()
     }
   }
 

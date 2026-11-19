@@ -114,10 +114,12 @@ class EventGroupSync(private val stub: EventGroupsCoroutineStub, private val opt
         throw when (e.status.code) {
             Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
             Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.ABORTED -> Status.ABORTED
+            Status.Code.RESOURCE_EXHAUSTED -> Status.RESOURCE_EXHAUSTED
             else -> Status.INTERNAL
           }
           .withDescription("Unable to read event groups")
-          .withCause(e)
           .asRuntimeException()
       }
     check(response.hasReadTime() && Timestamps.isValid(response.readTime))

@@ -406,7 +406,15 @@ class EventGroupSyncTest {
 
   @Test
   fun `backend failures preserve transient codes and hide database details`(): Unit = runBlocking {
-    for (code in listOf(Status.UNAVAILABLE, Status.DEADLINE_EXCEEDED, Status.FAILED_PRECONDITION)) {
+    for (code in
+      listOf(
+        Status.UNAVAILABLE,
+        Status.DEADLINE_EXCEEDED,
+        Status.CANCELLED,
+        Status.ABORTED,
+        Status.RESOURCE_EXHAUSTED,
+        Status.FAILED_PRECONDITION,
+      )) {
       store.failure = code.withDescription("private database detail").asRuntimeException()
       val error = assertFailsWith<StatusRuntimeException> { sync(base) }
       assertThat(error.status.code)
@@ -416,6 +424,39 @@ class EventGroupSyncTest {
       assertThat(error.status.description).doesNotContain("private database")
     }
   }
+
+  @Test
+  fun `retry with a smaller page size keeps the snapshot and all remaining groups`(): Unit =
+    runBlocking {
+      for (id in 1L..3L) store.put(group(1, id, "campaign", InternalEventGroup.State.ACTIVE))
+      val first = sync(base.copy { pageSize = 1 })
+      val request =
+        base.copy {
+          pageToken = first.nextPageToken
+          pageSize = 2
+        }
+      val largePage = sync(request)
+      clock.advance(Duration.ofSeconds(1))
+      store.put(group(1, 2, "campaign", InternalEventGroup.State.DELETED))
+      val smallerPage = sync(request.copy { pageSize = 1 })
+      val last =
+        sync(
+          request.copy {
+            pageToken = smallerPage.nextPageToken
+            pageSize = 1
+          }
+        )
+      assertThat(smallerPage.readTime).isEqualTo(first.readTime)
+      assertThat(last.readTime).isEqualTo(first.readTime)
+      assertThat(smallerPage.eventGroupsList + last.eventGroupsList)
+        .containsExactlyElementsIn(largePage.eventGroupsList)
+        .inOrder()
+      assertThat(smallerPage.nextSyncToken).isEmpty()
+      assertThat(last.nextPageToken).isEmpty()
+      assertThat(last.nextSyncToken).isNotEmpty()
+      val delta = sync(base.copy { syncToken = last.nextSyncToken })
+      assertThat(delta.eventGroupsList.single().state).isEqualTo(EventGroup.State.DELETED)
+    }
 
   private suspend fun sync(request: SyncEventGroupsRequest): SyncEventGroupsResponse =
     withPrincipal(operator) { service.syncEventGroups(request) }

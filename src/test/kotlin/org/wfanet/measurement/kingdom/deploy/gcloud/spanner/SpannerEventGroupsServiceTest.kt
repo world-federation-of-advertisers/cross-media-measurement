@@ -14,11 +14,15 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.SpannerExceptionFactory
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Clock
+import java.time.Duration
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
@@ -26,8 +30,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.identity.IdGenerator
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -309,6 +319,67 @@ class SpannerEventGroupsServiceTest : EventGroupsServiceTest<SpannerEventGroupsS
         )
       }
     assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `native Spanner failures preserve retryability without database details`(): Unit =
+    runBlocking {
+      for (code in
+        listOf(
+          ErrorCode.UNAVAILABLE,
+          ErrorCode.DEADLINE_EXCEEDED,
+          ErrorCode.CANCELLED,
+          ErrorCode.ABORTED,
+          ErrorCode.RESOURCE_EXHAUSTED,
+        )) {
+        val client: AsyncDatabaseClient = mock()
+        whenever(client.readOnlyTransaction(any()))
+          .thenThrow(SpannerExceptionFactory.newSpannerException(code, "private schema detail"))
+        val service =
+          SpannerEventGroupsService(
+            idGenerator,
+            client,
+            Duration.ofSeconds(1),
+            EmptyCoroutineContext,
+          )
+        val error =
+          assertFailsWith<StatusRuntimeException> {
+            service.readEventGroups(readEventGroupsRequest { limit = 1 })
+          }
+        assertThat(error.status.code.name).isEqualTo(code.name)
+        assertThat(error.status.description).doesNotContain("private schema detail")
+      }
+    }
+
+  @Test
+  fun `schema unavailable at old snapshot requires a fresh snapshot`(): Unit = runBlocking {
+    val client: AsyncDatabaseClient = mock()
+    whenever(client.readOnlyTransaction(any()))
+      .thenThrow(
+        SpannerExceptionFactory.newSpannerException(
+          ErrorCode.INVALID_ARGUMENT,
+          "private schema detail",
+        )
+      )
+    val service =
+      SpannerEventGroupsService(idGenerator, client, Duration.ofSeconds(1), EmptyCoroutineContext)
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.readEventGroups(
+          readEventGroupsRequest {
+            limit = 1
+            readTime = clock.instant().toProtoTime()
+          }
+        )
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(error.errorInfo?.reason).isEqualTo("READ_TIME_EXPIRED")
+    val freshError =
+      assertFailsWith<StatusRuntimeException> {
+        service.readEventGroups(readEventGroupsRequest { limit = 1 })
+      }
+    assertThat(freshError.status.code).isEqualTo(Status.Code.INTERNAL)
+    assertThat(freshError.status.description).doesNotContain("private schema detail")
   }
 
   private suspend fun createSyncGroup(type: String): EventGroup {
