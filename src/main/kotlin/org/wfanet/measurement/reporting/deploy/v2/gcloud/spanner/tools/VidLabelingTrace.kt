@@ -137,6 +137,8 @@ internal data class VidLabelingTraceCollection(
   val sourceStatuses: List<VidLabelingSourceStatus>,
   val warnings: List<String>,
   val availabilityWorkItems: List<VidLabelingAvailabilityWorkItem> = emptyList(),
+  val dispatchWorkItems: List<ResolvedWorkItem> = emptyList(),
+  val dispatchSource: VidLabelingDispatchSource? = null,
 )
 
 internal data class VidLabelingSourceStatus(
@@ -161,6 +163,7 @@ internal data class VidLabelingTraceRequest(
   val loggingSourceTimeout: Duration = DEFAULT_LOGGING_SOURCE_TIMEOUT,
   val traceSourceTimeout: Duration = DEFAULT_TRACE_SOURCE_TIMEOUT,
   val workItemPageLimit: Int = DEFAULT_WORK_ITEM_PAGE_LIMIT,
+  val dispatchSource: VidLabelingDispatchSource? = null,
 )
 
 private data class SourceAttempt<T>(
@@ -300,6 +303,10 @@ internal class VidLabelingTraceCollector(
   private val workItemResolver: VidLabelingWorkItemResolver = EMPTY_WORK_ITEM_RESOLVER,
   private val routeResolver: VidLabelingRouteResolver = EMPTY_ROUTE_RESOLVER,
   private val nanoTime: () -> Long = System::nanoTime,
+  private val dispatchWorkItemResolver: VidLabelingDispatchWorkItemResolver =
+    VidLabelingDispatchWorkItemResolver { _, _ ->
+      VidLabelingWorkItemResolution(emptyList(), emptyList(), false, emptyMap())
+    },
 ) {
   private val logReaders = mutableMapOf<String, CloudLogReader>()
 
@@ -307,7 +314,9 @@ internal class VidLabelingTraceCollector(
     logReaders.getOrPut(project) { logReaderFactory(project) }
 
   suspend fun collect(request: VidLabelingTraceRequest): VidLabelingTraceCollection {
-    require(RAW_UPLOAD_PATTERN.matches(request.rawImpressionUpload)) {
+    require(
+      request.dispatchSource != null || RAW_UPLOAD_PATTERN.matches(request.rawImpressionUpload)
+    ) {
       "Invalid RawImpressionUpload resource name"
     }
     require(request.projects.isNotEmpty()) { "At least one observability project is required" }
@@ -320,6 +329,8 @@ internal class VidLabelingTraceCollector(
     requirePositive(request.loggingSourceTimeout, "loggingSourceTimeout")
     requirePositive(request.traceSourceTimeout, "traceSourceTimeout")
     require(request.workItemPageLimit > 0) { "workItemPageLimit must be positive" }
+
+    if (request.dispatchSource != null) return collectDispatch(request)
 
     val sourceStatuses = SourceStatusRecorder()
     val warnings = mutableListOf<String>()
@@ -406,12 +417,44 @@ internal class VidLabelingTraceCollector(
       warnings += "Kingdom route collection ${routeAttempt.status.replace('_', ' ')}."
     }
 
+    val dispatchSource =
+      runCatching {
+          VidLabelingDispatchSource.fromUri(
+            baseGraph.upload.name.substringBefore("/rawImpressionUploads/"),
+            baseGraph.upload.doneBlobUri,
+            baseGraph.upload.doneBlobGeneration,
+          )
+        }
+        .getOrNull()
+    val dispatchAttempt =
+      dispatchSource?.let {
+        readSource(request.authoritativeSourceTimeout) {
+          dispatchWorkItemResolver.resolve(it, request.workItemPageLimit)
+        }
+      }
+    val dispatchResolution = dispatchAttempt?.value
+    val dispatchItems = dispatchResolution?.workItems.orEmpty()
+    if (dispatchAttempt != null) {
+      sourceStatuses.record(
+        "secure_computation_dispatch",
+        if (dispatchResolution?.truncated == true) "truncated" else dispatchAttempt.status,
+        dispatchAttempt.durationNanos,
+        dispatchResolution?.counts.orEmpty(),
+        dispatchAttempt.note,
+      )
+    }
+
     val availabilityWorkItems =
       workItemResolution?.workItems.orEmpty().mapNotNull {
         it.toAvailabilityWorkItem(request.rawImpressionUpload)
       }
     var authoritativeGraph =
-      baseGraph.copy(nodes = baseGraph.nodes + workItemResolution?.nodes.orEmpty())
+      baseGraph.copy(
+        nodes =
+          baseGraph.nodes +
+            workItemResolution?.nodes.orEmpty() +
+            dispatchItems.flatMap { it.dispatchNodes() }
+      )
     if (workItemResolution == null || workItemResolution.availabilityLookupEnabled) {
       authoritativeGraph =
         authoritativeGraph.withAvailabilityWorkItems(
@@ -647,6 +690,92 @@ internal class VidLabelingTraceCollector(
       finalSourceStatuses,
       warnings.distinct(),
       availabilityWorkItems,
+      dispatchWorkItems = dispatchItems,
+    )
+  }
+
+  private suspend fun collectDispatch(
+    request: VidLabelingTraceRequest
+  ): VidLabelingTraceCollection {
+    val source = requireNotNull(request.dispatchSource)
+    val statuses = SourceStatusRecorder()
+    val warnings = mutableListOf<String>()
+    val attempt =
+      readSource(request.authoritativeSourceTimeout) {
+        dispatchWorkItemResolver.resolve(source, request.workItemPageLimit)
+      }
+    val resolution = attempt.value
+    val items = resolution?.workItems.orEmpty()
+    statuses.record(
+      "secure_computation_dispatch",
+      if (resolution?.truncated == true) "truncated" else attempt.status,
+      attempt.durationNanos,
+      resolution?.counts.orEmpty(),
+      attempt.note,
+    )
+    val names = items.map { it.workItem.name }.toSet()
+    val correlations = linkedSetOf(source.pathHash)
+    if (addBounded(correlations, names, request.correlationValueLimit)) {
+      statuses.record("dispatch_correlations", "truncated")
+      warnings += "Dispatch correlation inventory reached the configured limit."
+    }
+    val logBudget = SourceBudget(request.loggingSourceTimeout, nanoTime)
+    val traceBudget = SourceBudget(request.traceSourceTimeout, nanoTime)
+    val evidence = linkedSetOf<VidLabelingEvidence>()
+    val projects = request.projects.distinct().sorted()
+    val traceIdsByProject = mutableMapOf<String, MutableSet<String>>()
+    for (project in projects) {
+      val logs = readLogs(project, correlations, emptySet(), request, logBudget, statuses, warnings)
+      for (reference in logs.mapNotNull { parseTraceReference(it.trace, project) }) {
+        if (reference.project !in projects) {
+          statuses.record("cloud_trace", "unconfigured", project = reference.project)
+          continue
+        }
+        val ids = traceIdsByProject.getOrPut(reference.project) { linkedSetOf() }
+        if (ids.size < request.traceIdLimit || reference.traceId in ids) ids += reference.traceId
+        else statuses.record("cloud_trace", "truncated", project = reference.project)
+      }
+      evidence += logs.map { it.toEvidence() }
+    }
+    for (project in projects) {
+      val ids = traceIdsByProject[project].orEmpty()
+      val spans =
+        readSpans(project, correlations, ids, ids, request, traceBudget, statuses, warnings)
+      evidence += spans.map { it.toEvidence() }
+    }
+    val identity = VidLabelingTraceAttributes.GcsObjectIdentity(source.pathHash, source.generation)
+    val related =
+      evidence.filter {
+        val provider = it.identifiers["xmm.data_provider.name"]
+        it.identifiers[WORK_ITEM] in names ||
+          (it.gcsObjectIdentity() == identity &&
+            (provider == null || provider == source.dataProvider))
+      }
+    val execution =
+      when {
+        items.isEmpty() || resolution == null || resolution.truncated ->
+          VidLabelingExecutionStatus.UNKNOWN
+        items.all { it.workItem.state.name == "FAILED" } -> VidLabelingExecutionStatus.FAILED
+        items.all { it.workItem.state.name == "SUCCEEDED" } -> VidLabelingExecutionStatus.SUCCEEDED
+        items.any { it.workItem.state.name in setOf("QUEUED", "RUNNING") } ->
+          VidLabelingExecutionStatus.IN_PROGRESS
+        else -> VidLabelingExecutionStatus.UNKNOWN
+      }
+    if (items.isEmpty()) warnings += "No matching dispatch WorkItem was found."
+    val complete =
+      items.isNotEmpty() &&
+        statuses.snapshot().all { it.status == "complete" } &&
+        related.isNotEmpty()
+    return VidLabelingTraceCollection(
+      "",
+      if (complete) VidLabelingTraceStatus.COMPLETE else VidLabelingTraceStatus.PARTIAL,
+      execution,
+      emptyList(),
+      related.sortedBy { it.timestamp },
+      statuses.snapshot(),
+      warnings,
+      dispatchWorkItems = items,
+      dispatchSource = source,
     )
   }
 
@@ -1231,6 +1360,8 @@ internal class VidLabelingTraceCollector(
       )
     private val UNIQUE_CORRELATION_FIELDS =
       setOf(
+        WORK_ITEM,
+        WORK_ITEM_ATTEMPT,
         RAW_UPLOAD,
         "xmm.edpa.raw_impression_upload_file.name",
         RAW_UPLOAD_MODEL_LINE,
@@ -1288,7 +1419,13 @@ internal object VidLabelingTraceOutput {
   fun render(collection: VidLabelingTraceCollection): String = buildString {
     appendLine("# VID labeling trace")
     appendLine()
-    appendLine("- Raw impression upload: `" + safe(collection.rawImpressionUpload) + "`")
+    if (collection.rawImpressionUpload.isNotEmpty()) {
+      appendLine("- Raw impression upload: `" + safe(collection.rawImpressionUpload) + "`")
+    }
+    collection.dispatchSource?.let {
+      appendLine("- Dispatch provider: `" + safe(it.dataProvider) + "`")
+      appendLine("- Done-object path hash: `" + it.pathHash + "`; generation: " + it.generation)
+    }
     appendLine("- Evidence status: **" + collection.traceStatus.name.lowercase() + "**")
     appendLine("- Execution status: **" + collection.executionStatus.name.lowercase() + "**")
     appendLine()
@@ -1316,6 +1453,38 @@ internal object VidLabelingTraceOutput {
       )
     }
     appendLine()
+    if (collection.dispatchWorkItems.isNotEmpty()) {
+      appendLine("## Dispatch WorkItems")
+      appendLine()
+      appendLine("| WorkItem | Generation | State | Attempt | Attempt generation | Attempt state |")
+      appendLine("|---|---|---|---|---|---|")
+      for (resolved in collection.dispatchWorkItems) {
+        val item = resolved.workItem
+        if (resolved.attempts.isEmpty()) {
+          appendLine(
+            "| " + safe(item.name) + " | " + item.generation + " | " + item.state.name + " | | | |"
+          )
+        }
+        for (attempt in resolved.attempts) {
+          appendLine(
+            "| " +
+              safe(item.name) +
+              " | " +
+              item.generation +
+              " | " +
+              item.state.name +
+              " | " +
+              safe(attempt.name) +
+              " | " +
+              attempt.workItemGeneration +
+              " | " +
+              attempt.state.name +
+              " |"
+          )
+        }
+      }
+      appendLine()
+    }
     appendLine("## Route graph")
     appendLine()
     for (graph in collection.modelLines) {
@@ -1494,7 +1663,7 @@ internal suspend fun collectVidLabelingTraceBatch(
 @CommandLine.Command(
   name = "vid-labeling-trace",
   mixinStandardHelpOptions = true,
-  description = ["Collect a metadata-only VID-labeling trace rooted at a RawImpressionUpload."],
+  description = ["Collect a metadata-only VID-labeling trace by upload or done-object identity."],
 )
 internal data class VidLabelingTraceDependencies(
   val collector: VidLabelingTraceCollector,
@@ -1591,10 +1760,24 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
   private var gcsProject: String? = null
   @Option(
     names = ["--raw-impression-upload"],
-    required = true,
     description = ["RawImpressionUpload resource name. Repeat for batch collection."],
   )
-  private lateinit var rawImpressionUploads: List<String>
+  private var rawImpressionUploads: List<String> = emptyList()
+
+  @Option(
+    names = ["--done-object-uri"],
+    description = ["GCS done-object URI; only its hash is rendered."],
+  )
+  private var doneObjectUri: String? = null
+
+  @Option(names = ["--done-object-generation"], description = ["Exact done-object generation."])
+  private var doneObjectGeneration: Long? = null
+
+  @Option(
+    names = ["--data-provider"],
+    description = ["DataProvider resource name for done-object lookup."],
+  )
+  private var doneObjectProvider: String? = null
 
   @Option(
     names = ["--observability-project"],
@@ -1674,7 +1857,30 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
   private var workItemPageLimit: Int = DEFAULT_WORK_ITEM_PAGE_LIMIT
 
   override fun call(): Int = runBlocking {
-    require(rawImpressionUploads.size == 1 || outputDirectory != null) {
+    val hasDoneInput =
+      doneObjectUri != null || doneObjectGeneration != null || doneObjectProvider != null
+    require(!hasDoneInput || rawImpressionUploads.isEmpty()) {
+      "Choose upload lookup or done-object lookup"
+    }
+    val dispatchSource =
+      if (hasDoneInput) {
+        VidLabelingDispatchSource.fromUri(
+          requireNotNull(doneObjectProvider) {
+            "--data-provider is required for done-object lookup"
+          },
+          requireNotNull(doneObjectUri) { "--done-object-uri is required for done-object lookup" },
+          requireNotNull(doneObjectGeneration) {
+            "--done-object-generation is required for done-object lookup"
+          },
+        )
+      } else null
+    require(dispatchSource != null || rawImpressionUploads.isNotEmpty()) {
+      "An upload or done-object identity is required"
+    }
+    val inputs =
+      if (dispatchSource == null) rawImpressionUploads
+      else listOf("dispatch-" + dispatchSource.pathHash + "-" + dispatchSource.generation)
+    require(inputs.size == 1 || outputDirectory != null) {
       "--output-dir is required when collecting more than one upload"
     }
     requirePositive(authoritativeSourceTimeout, "--authoritative-source-timeout")
@@ -1699,7 +1905,7 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
     if (injectedCollector != null) {
       val failed =
         collectVidLabelingTraceBatch(
-          rawImpressionUploads,
+          inputs,
           allowPartial,
           uploadTimeout,
           collect = { rawImpressionUpload ->
@@ -1717,6 +1923,7 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
                 loggingSourceTimeout,
                 traceSourceTimeout,
                 workItemPageLimit,
+                dispatchSource = dispatchSource,
               )
             )
           },
@@ -1805,11 +2012,13 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
         finalStateResolver = finalStateResolver,
         workItemResolver = workItemResolver,
         routeResolver = routeResolver,
+        dispatchWorkItemResolver =
+          VidLabelingDispatchWorkItemResolver(workItemResolver::resolveDispatch),
       )
     try {
       val failed =
         collectVidLabelingTraceBatch(
-          rawImpressionUploads,
+          inputs,
           allowPartial,
           uploadTimeout,
           collect = { rawImpressionUpload ->
@@ -1827,6 +2036,7 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
                 loggingSourceTimeout,
                 traceSourceTimeout,
                 workItemPageLimit,
+                dispatchSource = dispatchSource,
               )
             )
           },

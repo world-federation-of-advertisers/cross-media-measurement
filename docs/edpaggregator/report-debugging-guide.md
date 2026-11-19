@@ -568,6 +568,16 @@ bazel run \
   --output-dir=/tmp/vid-labeling-traces
 ```
 
+To inspect dispatch before an upload record exists, replace
+`--raw-impression-upload` with all three of `--data-provider`,
+`--done-object-uri`, and `--done-object-generation`. This reads dispatch
+WorkItems and their attempts directly through the control plane, including
+ordinary, legacy, and recovery tasks for the exact source version. Only the
+object-path hash is rendered. The dispatch table reports stored task/attempt
+states independently of telemetry completeness; an incomplete inventory cannot
+certify the execution outcome. Upload-based lookup also includes dispatch tasks
+for that upload's source version.
+
 Repeat `--raw-impression-upload` for a batch. Each upload is isolated into a
 path-safe Markdown artifact, and one malformed or failed upload does not stop
 the remaining batch. The command exits nonzero for incomplete evidence unless
