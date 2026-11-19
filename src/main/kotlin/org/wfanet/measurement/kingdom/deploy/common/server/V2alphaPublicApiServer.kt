@@ -18,6 +18,7 @@ package org.wfanet.measurement.kingdom.deploy.common.server
 
 import io.grpc.ServerServiceDefinition
 import java.io.File
+import java.time.Clock
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.asCoroutineDispatcher
@@ -131,6 +132,7 @@ private fun run(
   @CommandLine.Mixin roLlv2ProtocolConfigFlags: RoLlv2ProtocolConfigFlags,
   @CommandLine.Mixin hmssProtocolConfigFlags: HmssProtocolConfigFlags,
   @CommandLine.Mixin v2alphaFlags: V2alphaFlags,
+  @CommandLine.Mixin eventGroupSyncFlags: EventGroupSyncFlags,
   @CommandLine.Mixin trusteeProtocolConfigFlags: TrusTeeProtocolConfigFlags,
   @CommandLine.Mixin duchyInfoFlags: DuchyInfoFlags,
 ) {
@@ -245,7 +247,11 @@ private fun run(
           rateLimitingInterceptor,
           akidInterceptor,
         ),
-      EventGroupsService(InternalEventGroupsCoroutineStub(channel), serviceDispatcher)
+      EventGroupsService(
+          InternalEventGroupsCoroutineStub(channel),
+          eventGroupSyncFlags.loadOptions(Clock.systemUTC()),
+          serviceDispatcher,
+        )
         .withInterceptors(
           apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,

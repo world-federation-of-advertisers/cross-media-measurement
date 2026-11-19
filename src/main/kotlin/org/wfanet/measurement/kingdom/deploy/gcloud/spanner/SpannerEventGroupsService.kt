@@ -14,7 +14,12 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.cloud.Timestamp
+import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.TimestampBound
+import com.google.protobuf.util.Timestamps
+import com.google.rpc.errorInfo
 import io.grpc.Status
 import java.time.DateTimeException
 import java.time.Duration
@@ -26,10 +31,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsRequest
@@ -39,8 +47,11 @@ import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.ReadEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.ReadEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.readEventGroupsResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
@@ -70,6 +81,116 @@ class SpannerEventGroupsService(
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
   private val staleReadTimestampBound =
     TimestampBound.ofMaxStaleness(maxReadStaleness.toMillis(), TimeUnit.MILLISECONDS)
+
+  override suspend fun readEventGroups(request: ReadEventGroupsRequest): ReadEventGroupsResponse {
+    grpcRequire(request.limit in 1..2001) { "limit must be between 1 and 2001" }
+    grpcRequire(!request.hasReadTime() || Timestamps.isValid(request.readTime)) {
+      "Invalid read_time"
+    }
+    grpcRequire(!request.hasUpdatedAfter() || Timestamps.isValid(request.updatedAfter)) {
+      "Invalid updated_after"
+    }
+    grpcRequire(
+      !request.hasAfter() ||
+        (request.hasReadTime() &&
+          request.after.hasUpdateTime() &&
+          Timestamps.isValid(request.after.updateTime) &&
+          request.after.externalDataProviderId != 0L &&
+          request.after.externalEventGroupId != 0L)
+    ) {
+      "Invalid after"
+    }
+    grpcRequire(
+      !request.hasReadTime() ||
+        !request.hasUpdatedAfter() ||
+        Timestamps.compare(request.updatedAfter, request.readTime) <= 0
+    ) {
+      "updated_after exceeds read_time"
+    }
+    val bound =
+      if (request.hasReadTime())
+        TimestampBound.ofReadTimestamp(Timestamp.fromProto(request.readTime))
+      else TimestampBound.strong()
+    try {
+      return client.readOnlyTransaction(bound).use { transaction ->
+        // Resolve the external cursor in this same snapshot. Internal IDs stay in this server.
+        val cursor =
+          if (request.hasAfter()) {
+            EventGroupReader(EventGroup.View.BASIC)
+              .readByDataProvider(
+                transaction,
+                ExternalId(request.after.externalDataProviderId),
+                ExternalId(request.after.externalEventGroupId),
+              )
+              ?: throw Status.INVALID_ARGUMENT.withDescription("Cursor row not found at read_time")
+                .asRuntimeException()
+          } else null
+        grpcRequire(cursor == null || cursor.eventGroup.updateTime == request.after.updateTime) {
+          "Cursor update_time differs at read_time"
+        }
+        val reader =
+          EventGroupReader.usingUpdateTimeIndex().fillStatementBuilder {
+            val predicates = mutableListOf<String>()
+            if (request.hasUpdatedAfter()) {
+              predicates += "EventGroups.UpdateTime > @updatedAfter"
+              bind("updatedAfter").to(Timestamp.fromProto(request.updatedAfter))
+            }
+            if (cursor != null) {
+              predicates +=
+                """
+              EventGroups.UpdateTime >= @afterTime AND (
+                EventGroups.UpdateTime > @afterTime OR (
+                  EventGroups.UpdateTime = @afterTime AND (
+                    EventGroups.DataProviderId > @afterDataProviderId OR (
+                      EventGroups.DataProviderId = @afterDataProviderId AND EventGroups.EventGroupId > @afterEventGroupId
+                    )
+                  )
+                )
+              )
+            """
+                  .trimIndent()
+              bind("afterTime").to(Timestamp.fromProto(request.after.updateTime))
+              bind("afterDataProviderId").to(cursor.internalDataProviderId.value)
+              bind("afterEventGroupId").to(cursor.internalEventGroupId.value)
+            }
+            if (predicates.isNotEmpty()) appendClause("WHERE " + predicates.joinToString(" AND "))
+            appendClause(
+              "ORDER BY EventGroups.UpdateTime, EventGroups.DataProviderId, EventGroups.EventGroupId"
+            )
+            appendClause("LIMIT @limit")
+            bind("limit").to(request.limit.toLong())
+          }
+        val groups = reader.execute(transaction).map { it.eventGroup }.toList()
+        val readTime = transaction.readTimestamp.toProto()
+        check(!request.hasUpdatedAfter() || Timestamps.compare(request.updatedAfter, readTime) <= 0)
+        readEventGroupsResponse {
+          eventGroups += groups
+          this.readTime = readTime
+        }
+      }
+    } catch (e: SpannerException) {
+      // Spanner rejects reads older than its retained row versions. Do not label
+      // unrelated schema or query errors as expired snapshots.
+      if (
+        request.hasReadTime() &&
+          e.errorCode in setOf(ErrorCode.FAILED_PRECONDITION, ErrorCode.OUT_OF_RANGE) &&
+          e.message.orEmpty().let { message ->
+            message.contains("timestamp", ignoreCase = true) &&
+              (message.contains("too old", ignoreCase = true) ||
+                message.contains("maximum timestamp staleness", ignoreCase = true))
+          }
+      ) {
+        throw Status.FAILED_PRECONDITION.withDescription("Snapshot is no longer available")
+          .asRuntimeException(
+            errorInfo {
+              domain = "internal.kingdom.wfanet.org"
+              reason = "READ_TIME_EXPIRED"
+            }
+          )
+      }
+      throw e
+    }
+  }
 
   override suspend fun createEventGroup(request: CreateEventGroupRequest): EventGroup {
     try {

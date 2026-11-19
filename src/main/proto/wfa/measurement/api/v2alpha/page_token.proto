@@ -30,6 +30,27 @@ import "wfa/measurement/api/v2alpha/requisition.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha";
 option java_multiple_files = true;
 
+// Implementation-only encrypted tokens for EventGroups.SyncEventGroups.
+message EventGroupSyncToken {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    PAGE = 1;
+    SYNC = 2;
+  }
+  int32 version = 1;
+  Kind kind = 2;
+  google.protobuf.Timestamp expires_at = 3;
+  google.protobuf.Timestamp read_time = 4;
+  // PAGE tokens bind the original completed checkpoint token verbatim.
+  string sync_token = 5;
+  message After {
+    google.protobuf.Timestamp update_time = 1;
+    fixed64 external_data_provider_id = 2;
+    fixed64 external_event_group_id = 3;
+  }
+  After after = 6;
+}
+
 message ListCertificatesPageToken {
   message ParentKey {
     oneof external_parent_id {

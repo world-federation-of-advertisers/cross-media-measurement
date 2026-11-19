@@ -41,6 +41,33 @@ service EventGroups {
   rpc DeleteEventGroup(DeleteEventGroupRequest) returns (EventGroup);
 
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
+
+  // Reads a bounded page of latest states, including deleted groups and all
+  // entity types. Omit read_time to choose a strong snapshot. Reuse the
+  // returned read_time on every later page; writes after it appear in the next
+  // sync.
+  rpc ReadEventGroups(ReadEventGroupsRequest) returns (ReadEventGroupsResponse);
+}
+
+message ReadEventGroupsRequest {
+  google.protobuf.Timestamp read_time = 1;
+  // Exclusive checkpoint from the last completed sync. Omit for all groups.
+  google.protobuf.Timestamp updated_after = 2;
+  message After {
+    google.protobuf.Timestamp update_time = 1;
+    fixed64 external_data_provider_id = 2;
+    fixed64 external_event_group_id = 3;
+  }
+  // Last returned row at read_time. Requires read_time.
+  After after = 3;
+  // Required. Must be between 1 and 2001 (includes the pagination lookahead).
+  int32 limit = 4;
+}
+
+message ReadEventGroupsResponse {
+  repeated EventGroup event_groups = 1;
+  // Actual database snapshot, even when no rows matched.
+  google.protobuf.Timestamp read_time = 2;
 }
 
 message CreateEventGroupRequest {
