@@ -1230,6 +1230,22 @@ private constructor(
     expectedWorkItems: List<ExpectedWorkItemGroup>,
     pageLimit: Int,
   ): VidLabelingWorkItemResolution {
+    return resolveMatching(expectedWorkItems, pageLimit) { workItem ->
+      relevantWorkItemSelector.isRelevant(rawImpressionUpload, workItem)
+    }
+  }
+
+  suspend fun resolveDispatch(
+    source: VidLabelingDispatchSource,
+    pageLimit: Int,
+  ): VidLabelingWorkItemResolution =
+    resolveMatching(emptyList(), pageLimit) { it.dispatchSource() == source }
+
+  private suspend fun resolveMatching(
+    expectedWorkItems: List<ExpectedWorkItemGroup>,
+    pageLimit: Int,
+    isRelevant: (WorkItem) -> Boolean,
+  ): VidLabelingWorkItemResolution {
     require(pageLimit > 0) { "pageLimit must be positive" }
     require(maxAttemptConcurrency > 0) { "maxAttemptConcurrency must be positive" }
     val expectedNames = expectedWorkItems.flatMap { it.candidateNames }.toSet()
@@ -1250,10 +1266,7 @@ private constructor(
       pagesFetched++
       rowsExamined += response.workItemsCount
       for (workItem in response.workItemsList) {
-        if (
-          workItem.name in expectedNames ||
-            relevantWorkItemSelector.isRelevant(rawImpressionUpload, workItem)
-        ) {
+        if (workItem.name in expectedNames || isRelevant(workItem)) {
           retained.putIfAbsent(workItem.name, workItem)
         }
       }
