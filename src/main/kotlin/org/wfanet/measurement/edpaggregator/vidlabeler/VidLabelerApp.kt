@@ -122,8 +122,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param workItemAttemptsClient gRPC stub for WorkItemAttempts service.
  * @param kmsClients per-`DataProvider` [KmsClient]s (each the EDP's own KEK), used for BOTH the
  *   raw-impression PME decrypt and the labeled-output encrypt — exactly one client per EDP.
- * @param encryptKekUris per-`DataProvider` KEK URI used to wrap the labeled output on the
- *   non-memoized path; the memoized path instead reuses the KEK carried on the rank-index blobs.
+ * @param encryptKekUris configured labeled-output KEK URIs keyed by DataProvider.
  * @param getStorageConfig builds a [StorageConfig] from [VidLabelerParams.StorageParams].
  * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED` and learn
  *   whether it is the last job out for one or more model lines.
@@ -502,7 +501,11 @@ class VidLabelerApp(
         check(parent.state == RawImpressionUploadModelLine.State.LABELING) {
           "Parent ${parent.name} is ${parent.state}; empty-index labeling requires LABELING"
         }
-        MemoizedRankIndex.empty(parent.outputKekUri)
+        val outputKekUri =
+          requireNotNull(encryptKekUris[dataProvider]) {
+            "encrypt KEK URI not found for $dataProvider"
+          }
+        MemoizedRankIndex.empty(outputKekUri)
       } else {
         val rankIndexStore =
           RankIndexStore(
@@ -594,8 +597,6 @@ class VidLabelerApp(
         vidModelLoader = vidModelLoader,
         impressionConverter = impressionConverter,
         encryptKmsClient = kmsClient,
-        // The labeled output is wrapped with the EDP's KEK, the same one the rank-index blobs were
-        // written with; read it from the loaded RankIndexBlobs so there is no separate KEK field.
         encryptKekUri = rankIndex.kekUri,
         newSink = {
           inputBlobUri,
