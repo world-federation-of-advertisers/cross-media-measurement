@@ -497,7 +497,6 @@ class SpannerRawImpressionUploadModelLineService(
       rawImpressionUploadModelLine =
         modelLine.copy {
           poolAssignmentComplete = completion.poolAssignmentComplete
-          outputKekUri = completion.outputKekUri
           clearEncryptedMergedDek()
           if (mergedDek != null) encryptedMergedDek = mergedDek
         }

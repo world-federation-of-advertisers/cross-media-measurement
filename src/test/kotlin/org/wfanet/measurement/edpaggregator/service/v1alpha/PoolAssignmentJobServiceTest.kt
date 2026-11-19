@@ -746,7 +746,6 @@ class PoolAssignmentJobServiceTest {
         requestId = UUID.randomUUID().toString()
         name = shard.name
         etag = shard.etag
-        outputKekUri = "fake-kms://output"
       }
       val result = service.markPoolAssignmentJobSucceeded(request)
       assertThat(result.lastShard).isTrue()
@@ -757,8 +756,12 @@ class PoolAssignmentJobServiceTest {
           txn
             .executeQuery(
               statement(
-                "SELECT OutputKekUri FROM RawImpressionUploadModelLine " +
-                  "WHERE DataProviderResourceId = @provider AND CmmsModelLine = @model"
+                """
+                SELECT PoolAssignmentComplete, EncryptedMergedDek, PoolOffsets, MaxEventDate
+                FROM RawImpressionUploadModelLine
+                WHERE DataProviderResourceId = @provider AND CmmsModelLine = @model
+                """
+                  .trimIndent()
               ) {
                 bind("provider").to(DATA_PROVIDER_ID)
                 bind("model").to(CMMS_MODEL_LINE)
@@ -766,7 +769,10 @@ class PoolAssignmentJobServiceTest {
             )
             .single()
         }
-      assertThat(parent.getString("OutputKekUri")).isEqualTo(request.outputKekUri)
+      assertThat(parent.getBoolean("PoolAssignmentComplete")).isTrue()
+      assertThat(parent.isNull("EncryptedMergedDek")).isTrue()
+      assertThat(parent.getLongList("PoolOffsets")).isEmpty()
+      assertThat(parent.isNull("MaxEventDate")).isTrue()
       assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(result)
     }
 
@@ -814,7 +820,7 @@ class PoolAssignmentJobServiceTest {
             .executeQuery(
               statement(
                 """
-        SELECT EncryptedMergedDek, PoolOffsets, MaxEventDate, PoolAssignmentComplete, OutputKekUri
+        SELECT EncryptedMergedDek, PoolOffsets, MaxEventDate, PoolAssignmentComplete
         FROM RawImpressionUploadModelLine JOIN RawImpressionUpload
         USING (DataProviderResourceId, RawImpressionUploadId)
         WHERE DataProviderResourceId = @provider
@@ -832,7 +838,6 @@ class PoolAssignmentJobServiceTest {
         }
       assertThat(row.isNull("EncryptedMergedDek")).isTrue()
       assertThat(row.getBoolean("PoolAssignmentComplete")).isTrue()
-      assertThat(row.getString("OutputKekUri")).isEqualTo(ENCRYPTED_DEK.kekUri)
       assertThat(row.getLongList("PoolOffsets")).isEmpty()
       assertThat(row.isNull("MaxEventDate")).isTrue()
     }

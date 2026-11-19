@@ -757,7 +757,7 @@ DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):
 
 Deploy the completion schema and metadata services before activating the updated VID Labeler
 and SubpoolAssigner. Completed legacy groups are normalized on access or before adding shard
-jobs, preserving their original finalizer response and output KEK without a whole-table backfill.
+jobs, preserving their original finalizer response without a whole-table backfill.
 Historical decisions already lost before upgrade cannot be reconstructed.
 
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0

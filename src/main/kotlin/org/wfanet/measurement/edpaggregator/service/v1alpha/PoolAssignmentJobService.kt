@@ -341,7 +341,6 @@ class PoolAssignmentJobService(
             etag = request.etag
             requestId = request.requestId
             if (request.hasEncryptedDek()) encryptedDek = request.encryptedDek.toInternal()
-            outputKekUri = request.outputKekUri
             poolOffsets += request.poolOffsetsList
             if (request.hasMaxEventDate()) {
               maxEventDate = request.maxEventDate
