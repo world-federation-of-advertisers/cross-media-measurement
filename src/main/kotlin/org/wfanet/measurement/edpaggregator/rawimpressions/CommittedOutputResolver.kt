@@ -68,6 +68,7 @@ class CommittedOutputResolver(
     val blobs = mutableListOf<OutputManifestRecord.LabeledBlob>()
     val legacy = linkedMapOf<String, RawImpressionUploadFile>()
     val manifests = mutableListOf<OutputBlobReference>()
+    val scopeHasManifest = mutableMapOf<Pair<String, String>, Boolean>()
     for (job in selected.filter { it.state == VidLabelingJob.State.SUCCEEDED }) {
       val inputs = linkedMapOf<String, RawImpressionUploadFile>()
       for (name in job.rawImpressionUploadFilesList) {
@@ -76,6 +77,19 @@ class CommittedOutputResolver(
         }
         inputs[name] = callMetadata {
           files.getRawImpressionUploadFile(getRawImpressionUploadFileRequest { this.name = name })
+        }
+      }
+      // Completed publication is one logical dataset. Cleanup may enumerate all selected
+      // artifacts, including an invalid overlapping set, so eviction can remove it.
+      if (requireCompleted) {
+        val manifestBacked = job.hasOutputManifest()
+        for (name in inputs.keys) {
+          for (line in job.cmmsModelLinesList) {
+            val previous = scopeHasManifest.putIfAbsent(name to line, manifestBacked)
+            check(previous == null || (!previous && !manifestBacked)) {
+              "Overlapping committed input/model publications"
+            }
+          }
         }
       }
       if (!job.hasOutputManifest()) {

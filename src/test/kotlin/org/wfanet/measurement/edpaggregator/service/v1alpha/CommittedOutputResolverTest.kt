@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
+import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -104,6 +105,7 @@ class CommittedOutputResolverTest {
   private val jobs =
     object : VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase() {
       var value: VidLabelingJob = VidLabelingJob.getDefaultInstance()
+      var siblings: List<VidLabelingJob> = emptyList()
 
       override suspend fun listVidLabelingJobs(
         request: ListVidLabelingJobsRequest
@@ -117,7 +119,9 @@ class CommittedOutputResolverTest {
             dataProviderResourceId = request.dataProviderResourceId
             rawImpressionUploadResourceId = request.rawImpressionUploadResourceId
             fileResourceId = request.fileResourceId
-            blobUri = input.blobUri
+            blobUri =
+              if (request.fileResourceId == "file") input.blobUri
+              else input.blobUri + "-" + request.fileResourceId
             blobGeneration = 1L
             eventDate = input.eventDate
           }
@@ -128,17 +132,17 @@ class CommittedOutputResolverTest {
         override suspend fun listVidLabelingJobs(
           request: InternalListJobs
         ): InternalListJobsResponse = internalJobsResponse {
-          vidLabelingJobs += internalJob {
+          for (value in listOf(jobs.value) + jobs.siblings) vidLabelingJobs += internalJob {
             dataProviderResourceId = "provider"
             rawImpressionUploadResourceId = "upload"
-            vidLabelingJobResourceId = "job"
+            vidLabelingJobResourceId = value.name.substringAfterLast('/')
             state = VidLabelingState.VID_LABELING_STATE_SUCCEEDED
-            cmmsModelLines += jobs.value.cmmsModelLinesList
-            rawImpressionUploadFiles += jobs.value.rawImpressionUploadFilesList
-            if (jobs.value.hasOutputManifest())
+            cmmsModelLines += value.cmmsModelLinesList
+            rawImpressionUploadFiles += value.rawImpressionUploadFilesList
+            if (value.hasOutputManifest())
               outputManifest = internalReference {
-                blobUri = jobs.value.outputManifest.blobUri
-                blobGeneration = jobs.value.outputManifest.blobGeneration
+                blobUri = value.outputManifest.blobUri
+                blobGeneration = value.outputManifest.blobGeneration
               }
           }
         }
@@ -178,6 +182,98 @@ class CommittedOutputResolverTest {
       outputManifest = reference
     }
   }
+
+  private suspend fun siblingPublication(
+    fileName: String = inputName,
+    manifestBacked: Boolean = true,
+  ): VidLabelingJob {
+    val siblingName = "$upload/vidLabelingJobs/sibling"
+    return vidLabelingJob {
+      name = siblingName
+      state = VidLabelingJob.State.SUCCEEDED
+      cmmsModelLines += model
+      rawImpressionUploadFiles += fileName
+      if (manifestBacked) {
+        val id = UUID.randomUUID().toString()
+        outputManifest =
+          store.write(
+            "gs://bucket/output/$id/manifest",
+            header.toBuilder().setOwner(siblingName).setAttemptId(id).build(),
+            flowOf(
+              outputManifestRecord {
+                labeledBlob =
+                  OutputManifestRecordKt.labeledBlob {
+                    rawImpressionUploadFile = fileName
+                    modelLine = model
+                    eventDate = input.eventDate
+                    impressions = outputBlobReference {
+                      blobUri = "gs://bucket/output/$id/data"
+                      blobGeneration = 1L
+                    }
+                    metadata = outputBlobReference {
+                      blobUri = "gs://bucket/output/$id/data.metadata.binpb"
+                      blobGeneration = 2L
+                    }
+                  }
+              },
+              outputManifestRecord {
+                fileCompleted =
+                  OutputManifestRecordKt.fileCompleted {
+                    rawImpressionUploadFile = fileName
+                    modelLine = model
+                  }
+              },
+            ),
+          )
+      }
+    }
+  }
+
+  @Test
+  fun `complete resolution rejects overlapping manifest jobs but eviction can enumerate every selected pair`() =
+    runBlocking<Unit> {
+      publish(labeled, complete)
+      jobs.siblings = listOf(siblingPublication())
+      assertFailsWith<IllegalStateException> { resolver().resolve(upload, model) }
+      val artifacts = resolver().resolve(upload, model, requireCompleted = false)
+      assertThat(artifacts.labeledBlobs).hasSize(2)
+      assertThat(artifacts.labeledBlobs.map { it.impressions.blobUri }.toSet()).hasSize(2)
+      assertThat(artifacts.manifests).hasSize(2)
+    }
+
+  @Test
+  fun `complete resolution rejects manifest and legacy overlap in either order`() =
+    runBlocking<Unit> {
+      publish(labeled, complete)
+      val manifestJob = jobs.value
+      val legacyJob = siblingPublication(manifestBacked = false)
+      for (order in listOf(listOf(manifestJob, legacyJob), listOf(legacyJob, manifestJob))) {
+        jobs.value = order.first()
+        jobs.siblings = order.drop(1)
+        assertFailsWith<IllegalStateException> { resolver().resolve(upload, model) }
+      }
+    }
+
+  @Test
+  fun `legacy-only overlapping jobs preserve deterministic input deduplication`() =
+    runBlocking<Unit> {
+      jobs.value = siblingPublication(manifestBacked = false)
+      jobs.siblings = listOf(jobs.value.toBuilder().setName(owner).build())
+      val result = resolver().resolve(upload, model)
+      assertThat(result.legacyFiles).hasSize(1)
+      assertThat(result.labeledBlobs).isEmpty()
+    }
+
+  @Test
+  fun `complete resolution accepts disjoint manifest job scopes`() =
+    runBlocking<Unit> {
+      publish(labeled, complete)
+      jobs.siblings = listOf(siblingPublication("$upload/files/other"))
+      val result = resolver().resolve(upload, model)
+      assertThat(result.labeledBlobs).hasSize(2)
+      assertThat(result.labeledBlobs.map { it.rawImpressionUploadFile }.toSet())
+        .containsExactly(inputName, "$upload/files/other")
+    }
 
   @Test
   fun `resolve rejects foreign parents and the incorrect file collection through public jobs`() =

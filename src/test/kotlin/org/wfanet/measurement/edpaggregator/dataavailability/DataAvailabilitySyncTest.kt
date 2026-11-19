@@ -95,12 +95,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecordKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
@@ -111,14 +118,18 @@ import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.outputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.outputManifestRecord
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -320,6 +331,39 @@ class DataAvailabilitySyncTest {
     return dateCountMetric.longSumData.points
       .find { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
       ?.value
+  }
+
+  private var committedResolutionJobs: List<VidLabelingJob> = emptyList()
+
+  @get:Rule
+  val committedResolutionServer = GrpcTestServerRule {
+    addService(
+      object : VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase() {
+        override suspend fun listVidLabelingJobs(
+          request: ListVidLabelingJobsRequest
+        ): ListVidLabelingJobsResponse = listVidLabelingJobsResponse {
+          vidLabelingJobs += committedResolutionJobs
+        }
+      }
+    )
+    addService(
+      object :
+        RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase() {
+        override suspend fun getRawImpressionUploadFile(
+          request: GetRawImpressionUploadFileRequest
+        ): RawImpressionUploadFile = rawImpressionUploadFile {
+          name = request.name
+          blobUri = "gs://input/raw.parquet"
+          blobGeneration = 1L
+          eventDate =
+            com.google.type.date {
+              year = 2026
+              month = 3
+              day = 14
+            }
+        }
+      }
+    )
   }
 
   @get:Rule
@@ -7722,6 +7766,7 @@ class DataAvailabilitySyncTest {
   private suspend fun committedFixture(
     emptyOutput: Boolean = false,
     sidecarModel: String = MODEL_LINE,
+    throughResolver: Boolean = false,
     sidecarDate: LocalDate = LocalDate.of(2026, 3, 14),
   ): CommittedFixture {
     val storage = VersionedBlobMetadataStorageClient()
@@ -7795,6 +7840,62 @@ class DataAvailabilitySyncTest {
           },
           flowOf(*records.toTypedArray()),
         )
+    if (throughResolver) {
+      val otherAttempt = java.util.UUID.randomUUID().toString()
+      val otherDataKey = "edp/edpa_edp/model-line/modelLine1/$date/.attempts/$otherAttempt/data"
+      val otherMetadataKey = "$otherDataKey.metadata.binpb"
+      val otherData =
+        storage.writeVersion(otherDataKey, ByteString.copyFromUtf8("ciphertext"), Instant.now())
+      writeVidLabelerMetadata(storage, otherMetadataKey, "$bucket/$otherDataKey", date)
+      val otherMetadata =
+        checkNotNull(storage.getBlob(otherMetadataKey)) as ConditionalOperationStorageClient.Blob
+      val otherEntry =
+        checkNotNull(entry)
+          .toBuilder()
+          .setImpressions(
+            outputBlobReference {
+              blobUri = "$bucket/$otherDataKey"
+              blobGeneration = otherData.freshnessToken.toLong()
+            }
+          )
+          .setMetadata(
+            outputBlobReference {
+              blobUri = "$bucket/$otherMetadataKey"
+              blobGeneration = otherMetadata.freshnessToken.toLong()
+            }
+          )
+          .build()
+      val otherManifest =
+        OutputManifestStore(storage, "$bucket/edp/edpa_edp")
+          .write(
+            "$bucket/edp/edpa_edp/.attempts/$otherAttempt/manifest",
+            OutputManifestRecordKt.header {
+              phase = OutputManifestRecord.Header.Phase.VID_LABELING
+              rawImpressionUpload = RAW_IMPRESSION_UPLOAD
+              owner = "$RAW_IMPRESSION_UPLOAD/vidLabelingJobs/job2"
+              modelLines += MODEL_LINE
+              attemptId = otherAttempt
+            },
+            flowOf(outputManifestRecord { labeledBlob = otherEntry }, records.last()),
+          )
+      committedResolutionJobs =
+        listOf(
+          vidLabelingJob {
+            name = "$RAW_IMPRESSION_UPLOAD/vidLabelingJobs/job"
+            state = VidLabelingJob.State.SUCCEEDED
+            cmmsModelLines += MODEL_LINE
+            rawImpressionUploadFiles += "$RAW_IMPRESSION_UPLOAD/files/file"
+            outputManifest = manifest
+          },
+          vidLabelingJob {
+            name = "$RAW_IMPRESSION_UPLOAD/vidLabelingJobs/job2"
+            state = VidLabelingJob.State.SUCCEEDED
+            cmmsModelLines += MODEL_LINE
+            rawImpressionUploadFiles += "$RAW_IMPRESSION_UPLOAD/files/file"
+            outputManifest = otherManifest
+          },
+        )
+    }
     val owners =
       object : ManagedDoneObjectResolver {
         override val resolvesCommittedOutputs = true
@@ -7810,14 +7911,27 @@ class DataAvailabilitySyncTest {
           eventDate: LocalDate,
           blobKey: String,
           storageRoot: String,
-        ) =
-          CommittedOutputResolver.Result(
+        ): CommittedOutputResolver.Result {
+          if (throughResolver)
+            return CommittedOutputResolver(
+                VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
+                  committedResolutionServer.channel
+                ),
+                RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+                  committedResolutionServer.channel
+                ),
+                OutputManifestStore(storage, storageRoot),
+                RecordingThrottler(),
+              )
+              .resolve(RAW_IMPRESSION_UPLOAD, modelLine)
+          return CommittedOutputResolver.Result(
             listOfNotNull(entry),
             emptyList(),
             listOf(manifest),
             true,
             RAW_IMPRESSION_UPLOAD,
           )
+        }
       }
     val doneKey = vidLabelerDoneKey(date)
     val done = storage.writeVersion(doneKey, ByteString.EMPTY, Instant.now())
@@ -7846,6 +7960,30 @@ class DataAvailabilitySyncTest {
       metadataGeneration,
     )
   }
+
+  @Test
+  fun `managed publication rejects overlapping committed jobs before metadata creation or done publication`() =
+    runBlocking<Unit> {
+      val fixture = committedFixture(throughResolver = true)
+      assertFailsWith<IllegalStateException> {
+        fixture.sync.sync(
+          fixture.doneUri,
+          TestDataAvailabilitySyncLease.NAME,
+          fixture.doneGeneration,
+          ensureLeaseActive = {},
+        )
+      }
+      verifyBlocking(impressionMetadataServiceMock, never()) {
+        batchCreateImpressionMetadata(any())
+      }
+      val done =
+        checkNotNull(
+          fixture.storage.getBlob(SelectedStorageClient.parseBlobUri(fixture.doneUri).key)
+        )
+      assertThat(DataAvailabilityBlobs.isDataAvailabilityPublished(done)).isFalse()
+      assertThat((done as ConditionalOperationStorageClient.Blob).freshnessToken.toLong())
+        .isEqualTo(fixture.doneGeneration)
+    }
 
   @Test
   fun `managed folder replay preserves manifest ownership and both object generations`() =
