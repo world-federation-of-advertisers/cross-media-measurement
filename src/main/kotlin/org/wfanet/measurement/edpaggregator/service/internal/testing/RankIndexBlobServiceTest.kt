@@ -27,6 +27,9 @@ import io.grpc.StatusRuntimeException
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -450,6 +453,156 @@ abstract class RankIndexBlobServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
+  fun `createRankIndexBlob keeps model lines and blob types independent at the same pool offset`() =
+    runBlocking<Unit> {
+      val created = mutableListOf<RankIndexBlob>()
+      for (blobType in listOf(BlobType.BLOB_TYPE_SNAPSHOT, BlobType.BLOB_TYPE_DAY_ONLY)) {
+        for (modelLine in listOf(CMMS_MODEL_LINE, CMMS_MODEL_LINE_2)) {
+          created +=
+            createBlob(
+              blobType = blobType,
+              cmmsModelLine = modelLine,
+              poolOffset = 0L,
+              blobUri = "$BLOB_URI/$blobType/$modelLine/independent",
+            )
+        }
+      }
+      val listed =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
+      assertThat(listed.rankIndexBlobsList).containsExactlyElementsIn(created)
+    }
+
+  @Test
+  fun `concurrent snapshot creates with different request IDs select one resource`() =
+    runBlocking<Unit> {
+      val start = CompletableDeferred<Unit>()
+      val results =
+        (0 until 2).map { attempt ->
+          async {
+            start.await()
+            try {
+              createBlob(blobUri = "$BLOB_URI/attempt-$attempt")
+              Status.Code.OK
+            } catch (e: StatusRuntimeException) {
+              e.status.code
+            }
+          }
+        }
+      start.complete(Unit)
+      assertThat(results.awaitAll()).containsExactly(Status.Code.OK, Status.Code.ALREADY_EXISTS)
+      val listed =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
+      assertThat(listed.rankIndexBlobsList).hasSize(1)
+    }
+
+  @Test
+  fun `snapshot replacement after soft deletion preserves original request replay`() =
+    runBlocking<Unit> {
+      val requestId = UUID.randomUUID().toString()
+      val original = createBlob(blobUri = "$BLOB_URI/original", requestId = requestId)
+      deleteBlob(original.rankIndexBlobResourceId)
+      val replacement = createBlob(blobUri = "$BLOB_URI/replacement")
+      assertThat(replacement.rankIndexBlobResourceId).isNotEqualTo(original.rankIndexBlobResourceId)
+      assertThat(replacement.hasDeleteTime()).isFalse()
+      val replay = createBlob(blobUri = "$BLOB_URI/original", requestId = requestId)
+      assertThat(replay.rankIndexBlobResourceId).isEqualTo(original.rankIndexBlobResourceId)
+      assertThat(replay.blobUri).isEqualTo(original.blobUri)
+      assertThat(replay.encryptedDek).isEqualTo(original.encryptedDek)
+      val listed =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
+      assertThat(listed.rankIndexBlobsList).containsExactly(replacement)
+    }
+
+  @Test
+  fun `soft deleted day only retains its natural key`() =
+    runBlocking<Unit> {
+      val original =
+        createBlob(blobType = BlobType.BLOB_TYPE_DAY_ONLY, blobUri = "$BLOB_URI/original")
+      deleteBlob(original.rankIndexBlobResourceId)
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          createBlob(blobType = BlobType.BLOB_TYPE_DAY_ONLY, blobUri = "$BLOB_URI/replacement")
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
+  fun `batch snapshot conflict rejects all new rows atomically`() =
+    runBlocking<Unit> {
+      val original = createBlob(poolOffset = 0L, blobUri = "$BLOB_URI/original")
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRankIndexBlobs(
+            batchCreateRankIndexBlobsRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              requests += createRankIndexBlobRequest {
+                requestId = UUID.randomUUID().toString()
+                rankIndexBlob = newInternalBlob(poolOffset = 1L, blobUri = "$BLOB_URI/new")
+              }
+              requests += createRankIndexBlobRequest {
+                requestId = UUID.randomUUID().toString()
+                rankIndexBlob = newInternalBlob(poolOffset = 0L, blobUri = "$BLOB_URI/conflict")
+              }
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      val listed =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
+      assertThat(listed.rankIndexBlobsList).containsExactly(original)
+    }
+
+  @Test
+  fun `duplicate snapshots within a batch reject all rows atomically`() =
+    runBlocking<Unit> {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRankIndexBlobs(
+            batchCreateRankIndexBlobsRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              for (attempt in 0 until 2) {
+                requests += createRankIndexBlobRequest {
+                  requestId = UUID.randomUUID().toString()
+                  rankIndexBlob = newInternalBlob(blobUri = "$BLOB_URI/attempt-$attempt")
+                }
+              }
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      val listed =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
+      assertThat(listed.rankIndexBlobsList).isEmpty()
     }
 
   @Test
