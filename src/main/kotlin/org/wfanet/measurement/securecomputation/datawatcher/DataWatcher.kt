@@ -261,15 +261,11 @@ class DataWatcher(
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-    val existingDataPath = existingParams.dataPathParams
-    val requestedDataPath = requestedParams.dataPathParams
     check(
       existing.queue == requestedWorkItem.queue &&
         existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
-        existingDataPath.dataPath == requestedDataPath.dataPath &&
-        existingDataPath.generation == requestedDataPath.generation &&
-        existingDataPath.createTime == requestedDataPath.createTime
+        existingParams.dataPathParams == requestedParams.dataPathParams
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }

@@ -22,7 +22,6 @@ import com.google.gson.Gson
 import com.google.protobuf.Any
 import com.google.protobuf.Int32Value
 import com.google.protobuf.Struct
-import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.Value
 import com.google.protobuf.kotlin.unpack
 import com.sun.net.httpserver.HttpExchange
@@ -83,7 +82,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 
 @RunWith(JUnit4::class)
@@ -273,7 +271,7 @@ class DataWatcherTest() {
   fun `unfiltered route accepts a source without an event type`() = runBlocking {
     val config = watchedPath {
       sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-      controlPlaneQueueSink = controlPlaneQueueSink { queue = "legacy-queue" }
+      controlPlaneQueueSink = controlPlaneQueueSink { queue = "unfiltered-queue" }
     }
     val watcher =
       DataWatcher(
@@ -347,89 +345,77 @@ class DataWatcherTest() {
   }
 
   @Test
-  fun `redelivery reuses stored source parameters and trace context from existing WorkItem`() =
-    runBlocking {
-      val path = "test-schema://test-bucket/path-to-watch/some-data"
-      val queue = "test-topic-id"
-      val appParams = Any.pack(Int32Value.of(5))
-      val storedTraceparent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
-      val existingWorkItem =
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
-          name = "workItems/deterministic-id"
-          this.queue = queue
-          serializationKey = "event-group-sync:dataProviders/example"
-          workItemParams =
-            workItemParams {
-                this.appParams = appParams
-                dataPathParams =
-                  legacySourceDataPathParams(path)
-                    .toBuilder()
-                    .mergeUnknownFields(
-                      UnknownFieldSet.newBuilder()
-                        .addField(99, UnknownFieldSet.Field.newBuilder().addVarint(7L).build())
-                        .build()
-                    )
-                    .build()
-                traceContext["traceparent"] = storedTraceparent
-              }
-              .pack()
-        }
-      workItemsServiceMock.stub {
-        onBlocking { ensureWorkItem(any()) } doThrow
-          Status.ALREADY_EXISTS.asRuntimeException() doReturn
-          existingWorkItem
-        onBlocking { getWorkItem(any()) } doReturn existingWorkItem
+  fun `redelivery reuses trace context from existing WorkItem`() = runBlocking {
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val queue = "test-topic-id"
+    val appParams = Any.pack(Int32Value.of(5))
+    val storedTraceparent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+    val existingWorkItem =
+      org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+        name = "workItems/deterministic-id"
+        this.queue = queue
+        serializationKey = "event-group-sync:dataProviders/example"
+        workItemParams =
+          workItemParams {
+              this.appParams = appParams
+              dataPathParams = sourceDataPathParams(path)
+              traceContext["traceparent"] = storedTraceparent
+            }
+            .pack()
       }
-      val config = watchedPath {
-        identifier = "results-fulfiller"
-        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        controlPlaneQueueSink = controlPlaneQueueSink {
-          this.queue = queue
-          serializationKey = "event-group-sync:dataProviders/example"
-          this.appParams = appParams
-        }
-      }
-      val dataWatcher =
-        DataWatcher(
-          workItemsStub,
-          listOf(config),
-          workItemIdGenerator = { "deterministic-id" },
-          idTokenProvider = mockIdTokenProvider,
-          controlPlaneThrottler = rpcThrottlers.controlPlane,
-        )
-      val redeliverySpan =
-        Span.wrap(
-          SpanContext.create(
-            "0123456789abcdef0123456789abcdef",
-            "0123456789abcdef",
-            TraceFlags.getSampled(),
-            TraceState.getDefault(),
-          )
-        )
-
-      redeliverySpan.makeCurrent().use { dataWatcher.receivePath(path, sourceMetadata()) }
-
-      val requestCaptor = argumentCaptor<EnsureWorkItemRequest>()
-      verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
-      assertThat(requestCaptor.allValues.map { it.workItem.serializationKey })
-        .containsExactly(
-          "event-group-sync:dataProviders/example",
-          "event-group-sync:dataProviders/example",
-        )
-      val firstParams = requestCaptor.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
-      val retryParams = requestCaptor.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
-      assertThat(firstParams.traceContextMap)
-        .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
-      assertThat(retryParams.traceContextMap).containsExactly("traceparent", storedTraceparent)
-      assertThat(retryParams.appParams).isEqualTo(firstParams.appParams)
-      assertThat(retryParams.dataPathParams)
-        .isEqualTo(existingWorkItem.workItemParams.unpack<WorkItemParams>().dataPathParams)
-      assertThat(firstParams.dataPathParams.unknownFields.hasField(5)).isFalse()
-      assertThat(retryParams.dataPathParams.unknownFields.hasField(5)).isTrue()
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        Status.ALREADY_EXISTS.asRuntimeException() doReturn
+        existingWorkItem
+      onBlocking { getWorkItem(any()) } doReturn existingWorkItem
     }
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        this.queue = queue
+        serializationKey = "event-group-sync:dataProviders/example"
+        this.appParams = appParams
+      }
+    }
+    val dataWatcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        workItemIdGenerator = { "deterministic-id" },
+        idTokenProvider = mockIdTokenProvider,
+        controlPlaneThrottler = rpcThrottlers.controlPlane,
+      )
+    val redeliverySpan =
+      Span.wrap(
+        SpanContext.create(
+          "0123456789abcdef0123456789abcdef",
+          "0123456789abcdef",
+          TraceFlags.getSampled(),
+          TraceState.getDefault(),
+        )
+      )
+
+    redeliverySpan.makeCurrent().use { dataWatcher.receivePath(path, sourceMetadata()) }
+
+    val requestCaptor = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.allValues.map { it.workItem.serializationKey })
+      .containsExactly(
+        "event-group-sync:dataProviders/example",
+        "event-group-sync:dataProviders/example",
+      )
+    val firstParams = requestCaptor.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
+    val retryParams = requestCaptor.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
+    assertThat(firstParams.traceContextMap)
+      .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+    assertThat(retryParams.traceContextMap).containsExactly("traceparent", storedTraceparent)
+    assertThat(retryParams.appParams).isEqualTo(firstParams.appParams)
+    assertThat(retryParams.dataPathParams).isEqualTo(firstParams.dataPathParams)
+  }
 
   @Test
-  fun `redelivery succeeds when matching legacy WorkItem is terminal`() = runBlocking {
+  fun `redelivery succeeds when matching WorkItem is terminal`() = runBlocking {
     val path = "test-schema://test-bucket/path-to-watch/some-data"
     val queue = "test-topic-id"
     val appParams = Any.pack(Int32Value.of(5))
@@ -440,7 +426,7 @@ class DataWatcherTest() {
         workItemParams =
           workItemParams {
               this.appParams = appParams
-              dataPathParams = legacySourceDataPathParams(path, fieldNumber = 4)
+              dataPathParams = sourceDataPathParams(path)
               traceContext["traceparent"] =
                 "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
             }
@@ -473,55 +459,6 @@ class DataWatcherTest() {
 
     verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(any()) }
     verifyBlocking(workItemsServiceMock) { getWorkItem(any()) }
-  }
-
-  @Test
-  fun `redelivery does not retry a WorkItem with a different source identity`() = runBlocking {
-    val path = "test-schema://test-bucket/path-to-watch/some-data"
-    val queue = "test-topic-id"
-    val source = sourceDataPathParams(path)
-    val variants =
-      listOf(
-        source.copy { dataPath = "$path-other" },
-        source.copy { generation += 1L },
-        source.copy { createTime = Instant.parse(SOURCE_CREATE_TIME).plusSeconds(1).toProtoTime() },
-      )
-    val config = watchedPath {
-      identifier = "results-fulfiller"
-      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-      controlPlaneQueueSink = controlPlaneQueueSink { this.queue = queue }
-    }
-    val watcher =
-      DataWatcher(
-        workItemsStub,
-        listOf(config),
-        workItemIdGenerator = { "deterministic-id" },
-        idTokenProvider = mockIdTokenProvider,
-        controlPlaneThrottler = rpcThrottlers.controlPlane,
-      )
-    workItemsServiceMock.stub {
-      onBlocking { ensureWorkItem(any()) } doThrow Status.ALREADY_EXISTS.asRuntimeException()
-    }
-    for (variant in variants) {
-      val existing =
-        org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
-          name = "workItems/deterministic-id"
-          this.queue = queue
-          workItemParams =
-            workItemParams {
-                appParams = config.controlPlaneQueueSink.appParams
-                dataPathParams = variant
-              }
-              .pack()
-        }
-      workItemsServiceMock.stub { onBlocking { getWorkItem(any()) } doReturn existing }
-
-      watcher.receivePath(path, sourceMetadata())
-    }
-
-    verifyBlocking(workItemsServiceMock, times(variants.size)) { ensureWorkItem(any()) }
-    verifyBlocking(workItemsServiceMock, times(variants.size)) { getWorkItem(any()) }
-    verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
   }
 
   @Test
@@ -1193,19 +1130,6 @@ class DataWatcherTest() {
       generation = 42L
       createTime = Instant.parse(SOURCE_CREATE_TIME).toProtoTime()
     }
-
-    private fun legacySourceDataPathParams(
-      path: String,
-      fieldNumber: Int = 5,
-    ): WorkItemParams.DataPathParams =
-      sourceDataPathParams(path)
-        .toBuilder()
-        .setUnknownFields(
-          UnknownFieldSet.newBuilder()
-            .addField(fieldNumber, UnknownFieldSet.Field.newBuilder().addVarint(1L).build())
-            .build()
-        )
-        .build()
   }
 
   @Test

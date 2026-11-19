@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
-import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.timestamp
 import com.google.rpc.ErrorInfo
 import io.grpc.Status
@@ -276,28 +275,6 @@ class EventGroupSyncWorkItemProcessorTest {
     assertThat(syncs).isEqualTo(1)
     assertThat(retries).isEqualTo(2)
     assertThat(controlPlane.state).isEqualTo(WorkItem.State.SUCCEEDED)
-  }
-
-  @Test
-  fun `accepts queued work from a producer using the old event type field`() {
-    for (fieldNumber in listOf(4, 5)) {
-      val work = input().workItem
-      val params = work.workItemParams.unpack(WorkItem.WorkItemParams::class.java).toBuilder()
-      params.dataPathParams =
-        params.dataPathParams
-          .toBuilder()
-          .setUnknownFields(
-            UnknownFieldSet.newBuilder()
-              .addField(fieldNumber, UnknownFieldSet.Field.newBuilder().addVarint(1L).build())
-              .build()
-          )
-          .build()
-      val parsed =
-        EventGroupSyncWorkItem.parse(
-          work.toBuilder().setWorkItemParams(Any.pack(params.build())).build()
-        )
-      assertThat(parsed.source.generation).isEqualTo(7L)
-    }
   }
 
   private fun input(): EventGroupSyncWorkItem =

@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.protobuf.Any
 import com.google.protobuf.InvalidProtocolBufferException
-import com.google.protobuf.Timestamp
 import com.google.type.date
 import java.time.Instant
 import java.time.LocalDate
@@ -121,23 +120,13 @@ object DataAvailabilitySyncWorkItems {
       } catch (_: InvalidProtocolBufferException) {
         return null
       }
-    val dataPath = params.dataPathParams
-    return Identity(
-      queue,
-      serializationKey,
-      appParams,
-      dataPath.dataPath,
-      dataPath.generation,
-      dataPath.createTime,
-    )
+    return Identity(queue, serializationKey, appParams, params.dataPathParams)
   }
 
   private data class Identity(
     val queue: String,
     val serializationKey: String,
     val appParams: DataAvailabilitySyncParams,
-    val doneBlobUri: String,
-    val doneBlobGeneration: Long,
-    val doneBlobCreateTime: Timestamp,
+    val dataPathParams: WorkItem.WorkItemParams.DataPathParams,
   )
 }

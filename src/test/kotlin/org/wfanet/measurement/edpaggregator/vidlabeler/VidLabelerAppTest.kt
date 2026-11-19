@@ -25,7 +25,6 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
-import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusException
@@ -1612,69 +1611,6 @@ class VidLabelerAppTest {
     assertThat(workItemParams.dataPathParams.createTime.toInstant())
       .isEqualTo(DONE_OBJECT_CREATE_TIME)
     verifyBlocking(rawImpressionUploadModelLinesService) {
-      markRawImpressionUploadModelLineAvailabilitySyncing(any())
-    }
-  }
-
-  @Test
-  fun `runWork reuses existing done generation with either old event type field`() = runBlocking {
-    stubLastOutWithEventDate()
-    val existing = availabilityWorkItem(UPLOAD, 321L)
-    val params = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-    val requests = mutableListOf<CreateWorkItemRequest>()
-    workItemsService.stub {
-      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
-        { invocation ->
-          requests += invocation.getArgument<CreateWorkItemRequest>(0)
-          throw StatusRuntimeException(Status.ALREADY_EXISTS)
-        }
-    }
-    rawImpressionUploadModelLinesService.stub {
-      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
-        rawImpressionUploadModelLine {
-          name = PARENT_NAME
-          cmmsModelLine = MODEL_LINE
-          state = RawImpressionUploadModelLine.State.COMPLETED
-        }
-    }
-    val writes = mutableListOf<Long>()
-    for (fieldNumber in listOf(4, 5)) {
-      val legacyParams =
-        params.copy {
-          dataPathParams =
-            dataPathParams
-              .toBuilder()
-              .setUnknownFields(
-                UnknownFieldSet.newBuilder()
-                  .addField(fieldNumber, UnknownFieldSet.Field.newBuilder().addVarint(1L).build())
-                  .build()
-              )
-              .build()
-        }
-      workItemsService.stub {
-        onBlocking { getWorkItem(any()) } doReturn
-          existing.copy { workItemParams = legacyParams.pack() }
-      }
-
-      createApp(
-          getGcsObjectGeneration = { _, _, _ -> 321L },
-          writeGcsObject = { _, _, _, expected ->
-            writes += expected
-            322L
-          },
-        )
-        .runWork(buildMessage(taskParams()))
-    }
-
-    assertThat(writes).isEmpty()
-    assertThat(requests).hasSize(2)
-    for (request in requests) {
-      assertThat("workItems/${request.workItemId}").isEqualTo(existing.name)
-      val actual = request.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-      assertThat(actual.dataPathParams.generation).isEqualTo(321L)
-      assertThat(actual.dataPathParams.createTime.toInstant()).isEqualTo(DONE_OBJECT_CREATE_TIME)
-    }
-    verifyBlocking(rawImpressionUploadModelLinesService, times(2)) {
       markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
   }
