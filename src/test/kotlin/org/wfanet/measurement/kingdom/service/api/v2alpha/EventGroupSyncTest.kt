@@ -246,6 +246,21 @@ class EventGroupSyncTest {
   }
 
   @Test
+  fun `checkpoint expiry starts at snapshot time rather than page completion`(): Unit =
+    runBlocking {
+      for (id in 1L..2L) store.put(group(1, id, "campaign", InternalEventGroup.State.ACTIVE))
+      val first = sync(base.copy { pageSize = 1 })
+      clock.advance(Duration.ofMinutes(14))
+      val last = sync(base.copy { pageToken = first.nextPageToken })
+      clock.advance(Duration.ofDays(30).minusMinutes(14))
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          sync(base.copy { syncToken = last.nextSyncToken })
+        }
+      assertThat(error.errorInfo?.reason).isEqualTo("SYNC_TOKEN_EXPIRED")
+    }
+
+  @Test
   fun `expired completed checkpoint requires full inventory`(): Unit = runBlocking {
     val result = sync(base)
     clock.advance(Duration.ofDays(30))

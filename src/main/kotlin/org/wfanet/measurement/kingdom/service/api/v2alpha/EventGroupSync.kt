@@ -154,7 +154,7 @@ class EventGroupSync(private val stub: EventGroupsCoroutineStub, private val opt
             eventGroupSyncToken {
               version = 1
               kind = EventGroupSyncToken.Kind.SYNC
-              expiresAt = options.clock.instant().plus(options.syncTokenTtl).toProtoTime()
+              expiresAt = response.readTime.toInstant().plus(options.syncTokenTtl).toProtoTime()
               this.readTime = response.readTime
             },
             associatedData,
