@@ -644,7 +644,6 @@ class SpannerPoolAssignmentJobService(
           mergedOffsets,
           mergedMaxEventDate,
           poolAssignmentComplete = isLastShard,
-          outputKekUri = request.outputKekUri.ifEmpty { jobDek?.kekUri.orEmpty() },
           mergedDek = if (isLastShard && mergedOffsets.isNotEmpty()) jobDek else null,
         )
 

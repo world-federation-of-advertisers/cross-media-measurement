@@ -94,7 +94,4 @@ message RawImpressionUploadModelLine {
   repeated google.type.Date synchronized_availability_dates = 19;
   // Whether every Phase-0 shard has completed successfully.
   bool pool_assignment_complete = 20;
-
-  // KEK URI for VID-labeled output without rank snapshots.
-  string output_kek_uri = 21;
 }
