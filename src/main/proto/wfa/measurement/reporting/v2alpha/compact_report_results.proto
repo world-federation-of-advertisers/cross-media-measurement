@@ -30,13 +30,13 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 
 // Results for the `BasicReport.COMPACT` view.
 //
-// Dictionaries are local to this response and contain distinct entries in
-// first-use order. References are one-based indices, with zero denoting absence
-// unless documented otherwise. Every nonzero index must be within its
-// dictionary. Resource-name fields retain complete resource names; indices use
-// separate fields. Expanding these results preserves the corresponding FULL
-// view's known fields, numeric types, message presence, and group and row
-// order.
+// Dictionaries are local to this `CompactReportResults` message and contain
+// distinct entries in first-use order across groups and rows. References are
+// one-based indices, with zero denoting absence unless documented otherwise.
+// Every nonzero index must be within its dictionary. Resource-name fields
+// retain complete resource names; indices use separate fields. Expanding these
+// results preserves the corresponding FULL view's known fields, numeric types,
+// message presence, and group and row order.
 message CompactReportResults {
   // Shared reporting-unit summaries, including complete component and
   // ReportingSet resource names.
@@ -105,8 +105,9 @@ message CompactReportResults {
 
   // Presence of a nested message at each row of a group.
   //
-  // Exactly one `rows` variant must be set. An absent owning message column
-  // means absence in every row. Child presence must imply parent presence.
+  // Every present message column must set `presence` with exactly one `rows`
+  // variant. An absent column means absence in every row. Child presence must
+  // imply parent presence.
   message MessagePresence {
     oneof rows {
       // True when the message is present in every row. False is invalid.
@@ -120,8 +121,10 @@ message CompactReportResults {
   // Flattened integer vectors in row order.
   //
   // Exactly one length representation is used: `fixed_length`, including
-  // zero, or `row_count` entries in `lengths`. Lengths must be nonnegative and
-  // sum to the number of `values`; absent parent messages have empty vectors.
+  // zero, or `row_count` entries in `lengths`. Lengths must be nonnegative.
+  // The concatenated element count must equal sum(`lengths`) or
+  // `row_count * fixed_length`. An absent column means empty vectors in every
+  // row; absent parent messages must have empty vectors.
   message Int64VectorColumn {
     // Concatenated vectors without changing integer values.
     repeated int64 values = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
@@ -154,9 +157,12 @@ message CompactReportResults {
 
   // Columns corresponding to `ResultGroup.MetricSet.BasicMetricSet`.
   //
-  // Scalar columns throughout this format are either empty (all default zero
-  // values) or contain exactly `row_count` values. Values for absent messages
-  // must be zero. Repeated numeric fields use protobuf's packed encoding.
+  // Scalar columns throughout this format are either empty (all protobuf
+  // default values) or contain exactly `row_count` values. Floating-point
+  // defaults are positive zero; negative zero must not be omitted. Nondefault
+  // float values retain their original precision. Values for absent messages
+  // must be default values. Repeated numeric fields use protobuf's packed
+  // encoding.
   message BasicMetricSetColumns {
     // Presence of the original message, including empty messages.
     MessagePresence presence = 1 [(google.api.field_behavior) = OUTPUT_ONLY];

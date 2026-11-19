@@ -125,8 +125,9 @@ message BasicReport {
   repeated ResultGroup result_groups = 7
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Report results in the COMPACT view. Unset in the FULL view or when the
-  // report has no results. All other resource fields are shared by both views.
+  // Report results in the COMPACT view. Unset in the FULL view or when
+  // `result_groups` would be empty in the FULL view. Groups with zero result
+  // rows are preserved. All other resource fields are shared by both views.
   CompactReportResults compact_results = 15
       [(google.api.field_behavior) = OUTPUT_ONLY];
 

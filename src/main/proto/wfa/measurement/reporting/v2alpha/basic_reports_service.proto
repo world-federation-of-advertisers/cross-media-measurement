@@ -149,8 +149,9 @@ message ListBasicReportsRequest {
   ];
 
   // Result representation for every returned report. Defaults to FULL when
-  // unspecified, preserving the existing List response. Must match the view
-  // used for the request that supplied `page_token`.
+  // unspecified, preserving the existing List response. The effective view
+  // must match the request that supplied `page_token`: unspecified and FULL
+  // are equivalent.
   BasicReport.View view = 6 [(google.api.field_behavior) = OPTIONAL];
 }
 
