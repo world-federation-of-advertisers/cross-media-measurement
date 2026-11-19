@@ -56,7 +56,7 @@ class ValidateDataWatcherConfigTest {
 
   @Test
   fun `main accepts a VID labeling dispatch route`() {
-    assertSuccess(execute(route("VidLabelingDispatchWorkItemParams")))
+    assertSuccess(execute(route("VidLabelingDispatcherParams")))
   }
 
   @Test
@@ -65,7 +65,7 @@ class ValidateDataWatcherConfigTest {
       execute(
         route("EventGroupSyncParams") +
           route("ExternalDataAvailabilitySyncParams") +
-          route("VidLabelingDispatchWorkItemParams")
+          route("VidLabelingDispatcherParams")
       )
     )
   }
