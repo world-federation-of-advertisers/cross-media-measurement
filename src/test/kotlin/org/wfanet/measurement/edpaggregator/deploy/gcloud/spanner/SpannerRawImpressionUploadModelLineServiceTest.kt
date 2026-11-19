@@ -54,7 +54,6 @@ import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest
-import org.wfanet.measurement.internal.edpaggregator.encryptedDek
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineFailedRequest
@@ -1443,7 +1442,8 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
           set("RawImpressionUploadModelLineId").to(readModelId(pool))
           set("PoolOffsets").toInt64Array(offsets)
           if (completed) {
-            set("EncryptedMergedDek").to(Value.protoMessage(encryptedDek { this.kekUri = kekUri }))
+            set("PoolAssignmentComplete").to(true)
+            set("OutputKekUri").to(kekUri)
           }
           if (withDate) {
             set("MaxEventDate").to(com.google.cloud.Date.fromYearMonthDay(2026, 1, 5))
@@ -1570,11 +1570,15 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     }
 
   @Test
-  fun `markRawImpressionUploadModelLineLabeling rejects missing output KEK`() = runBlocking {
-    val pool = emptyPoolAssignment("missing-kek", kekUri = "")
-    val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
-    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-  }
+  fun `markRawImpressionUploadModelLineLabeling accepts completion without encryption material`() =
+    runBlocking {
+      val pool = emptyPoolAssignment("missing-kek", kekUri = "")
+      assertThat(pool.hasEncryptedMergedDek()).isFalse()
+      assertThat(labeling(pool).state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+    }
 
   @Test
   fun `markRawImpressionUploadModelLineLabeling preserves the empty completion CAS`() =

@@ -723,6 +723,54 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
+  fun `markPoolAssignmentJobSucceeded accepts empty output without a DEK through public API`() =
+    runBlocking {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      createRawImpressionUploadModelLine(
+        DATA_PROVIDER_ID,
+        RAW_IMPRESSION_UPLOAD_ID,
+        CMMS_MODEL_LINE,
+      )
+      val shard =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            requestId = UUID.randomUUID().toString()
+            parent = UPLOAD_KEY.toName()
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val request = markPoolAssignmentJobSucceededRequest {
+        requestId = UUID.randomUUID().toString()
+        name = shard.name
+        etag = shard.etag
+        outputKekUri = "fake-kms://output"
+      }
+      val result = service.markPoolAssignmentJobSucceeded(request)
+      assertThat(result.lastShard).isTrue()
+      assertThat(result.hasLastShardResult()).isFalse()
+      assertThat(result.poolAssignmentJob.hasEncryptedDek()).isFalse()
+      val parent =
+        spannerDatabase.databaseClient.singleUse().use { txn ->
+          txn
+            .executeQuery(
+              statement(
+                "SELECT OutputKekUri FROM RawImpressionUploadModelLine " +
+                  "WHERE DataProviderResourceId = @provider AND CmmsModelLine = @model"
+              ) {
+                bind("provider").to(DATA_PROVIDER_ID)
+                bind("model").to(CMMS_MODEL_LINE)
+              }
+            )
+            .single()
+        }
+      assertThat(parent.getString("OutputKekUri")).isEqualTo(request.outputKekUri)
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(result)
+    }
+
+  @Test
   fun `markPoolAssignmentJobSucceeded exposes and persists empty final shard completion`() =
     runBlocking {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
@@ -766,7 +814,7 @@ class PoolAssignmentJobServiceTest {
             .executeQuery(
               statement(
                 """
-        SELECT EncryptedMergedDek, PoolOffsets, MaxEventDate
+        SELECT EncryptedMergedDek, PoolOffsets, MaxEventDate, PoolAssignmentComplete, OutputKekUri
         FROM RawImpressionUploadModelLine JOIN RawImpressionUpload
         USING (DataProviderResourceId, RawImpressionUploadId)
         WHERE DataProviderResourceId = @provider
@@ -782,7 +830,9 @@ class PoolAssignmentJobServiceTest {
             )
             .single()
         }
-      assertThat(row.isNull("EncryptedMergedDek")).isFalse()
+      assertThat(row.isNull("EncryptedMergedDek")).isTrue()
+      assertThat(row.getBoolean("PoolAssignmentComplete")).isTrue()
+      assertThat(row.getString("OutputKekUri")).isEqualTo(ENCRYPTED_DEK.kekUri)
       assertThat(row.getLongList("PoolOffsets")).isEmpty()
       assertThat(row.isNull("MaxEventDate")).isTrue()
     }
@@ -839,7 +889,7 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
-  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for missing encrypted_dek`() =
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for missing encrypted_dek on ranked output`() =
     runBlocking {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
       val created =
@@ -861,6 +911,7 @@ class PoolAssignmentJobServiceTest {
               this.requestId = UUID.randomUUID().toString()
               name = created.name
               etag = created.etag
+              poolOffsets += 7L
             }
           )
         }

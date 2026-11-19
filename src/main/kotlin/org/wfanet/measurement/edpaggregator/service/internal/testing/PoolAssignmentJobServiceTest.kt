@@ -1208,7 +1208,7 @@ abstract class PoolAssignmentJobServiceTest {
   }
 
   @Test
-  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT if encrypted_dek not set`() =
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT if encrypted_dek not set for ranked output`() =
     runBlocking {
       val created: PoolAssignmentJob =
         service.createPoolAssignmentJob(
@@ -1232,6 +1232,8 @@ abstract class PoolAssignmentJobServiceTest {
               rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
               poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
               etag = created.etag
+              poolOffsets += POOL_OFFSETS
+              maxEventDate = MAX_EVENT_DATE
             }
           )
         }
@@ -1486,6 +1488,147 @@ abstract class PoolAssignmentJobServiceTest {
       assertThat(final.hasLastShardResult()).isFalse()
       assertThat(service.markPoolAssignmentJobSucceeded(requests[0])).isEqualTo(early)
       assertThat(service.markPoolAssignmentJobSucceeded(requests[1])).isEqualTo(final)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded completes empty work without an encrypted DEK`() =
+    runBlocking {
+      val shard =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val request = markPoolAssignmentJobSucceededRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
+        etag = shard.etag
+        outputKekUri = "fake-kms://output"
+      }
+      val response = service.markPoolAssignmentJobSucceeded(request)
+      assertThat(response.lastShard).isTrue()
+      assertThat(response.hasLastShardResult()).isFalse()
+      assertThat(response.poolAssignmentJob.hasEncryptedDek()).isFalse()
+      assertThat(
+          getRawImpressionUploadModelLineMergedDek(
+            DATA_PROVIDER_RESOURCE_ID,
+            RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+            CMMS_MODEL_LINE,
+          )
+        )
+        .isNull()
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(response)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded uses persisted key when final shard is empty`() =
+    runBlocking {
+      val shards =
+        (0..1).map { index ->
+          service.createPoolAssignmentJob(
+            createPoolAssignmentJobRequest {
+              requestId = UUID.randomUUID().toString()
+              poolAssignmentJob = poolAssignmentJob {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                cmmsModelLine = CMMS_MODEL_LINE
+                shardIndex = index
+              }
+            }
+          )
+        }
+      service.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = shards[0].poolAssignmentJobResourceId
+          etag = shards[0].etag
+          encryptedDek = ENCRYPTED_DEK
+          poolOffsets += POOL_OFFSETS
+          maxEventDate = MAX_EVENT_DATE
+        }
+      )
+      val finalRequest = markPoolAssignmentJobSucceededRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        poolAssignmentJobResourceId = shards[1].poolAssignmentJobResourceId
+        etag = shards[1].etag
+        outputKekUri = "fake-kms://output"
+      }
+      val response = service.markPoolAssignmentJobSucceeded(finalRequest)
+      assertThat(response.lastShard).isTrue()
+      assertThat(response.lastShardResult.poolOffsetsList).containsExactlyElementsIn(POOL_OFFSETS)
+      assertThat(response.poolAssignmentJob.encryptedDek).isEqualTo(ENCRYPTED_DEK)
+      assertThat(
+          getRawImpressionUploadModelLineMergedDek(
+            DATA_PROVIDER_RESOURCE_ID,
+            RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+            CMMS_MODEL_LINE,
+          )
+        )
+        .isEqualTo(ENCRYPTED_DEK)
+      assertThat(service.markPoolAssignmentJobSucceeded(finalRequest)).isEqualTo(response)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded preserves original completion after sibling creation`() =
+    runBlocking {
+      suspend fun createShard(index: Int) =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = index
+            }
+          }
+        )
+
+      val firstShard = createShard(0)
+      val originalRequest = markPoolAssignmentJobSucceededRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        poolAssignmentJobResourceId = firstShard.poolAssignmentJobResourceId
+        etag = firstShard.etag
+        encryptedDek = ENCRYPTED_DEK
+        poolOffsets += 7L
+        maxEventDate = MAX_EVENT_DATE
+      }
+      val original = service.markPoolAssignmentJobSucceeded(originalRequest)
+      assertThat(original.lastShard).isTrue()
+
+      val laterShard = createShard(1)
+      assertThat(service.markPoolAssignmentJobSucceeded(originalRequest)).isEqualTo(original)
+      service.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = laterShard.poolAssignmentJobResourceId
+          etag = laterShard.etag
+          encryptedDek = ENCRYPTED_DEK
+          poolOffsets += 8L
+          maxEventDate = date {
+            year = MAX_EVENT_DATE.year
+            month = MAX_EVENT_DATE.month
+            day = MAX_EVENT_DATE.day + 1
+          }
+        }
+      )
+      assertThat(service.markPoolAssignmentJobSucceeded(originalRequest)).isEqualTo(original)
     }
 
   @Test

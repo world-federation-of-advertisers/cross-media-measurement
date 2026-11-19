@@ -1657,6 +1657,8 @@ class RawImpressionUploadModelLineServiceTest {
       recoveryAction =
         InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
       recoveryPredecessorRawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_ID_2
+      poolAssignmentComplete = true
+      outputKekUri = "fake-kms://output"
       poolOffsets += listOf(0L, 5L, 10L)
       maxEventDate = date {
         year = 2026
@@ -1673,6 +1675,8 @@ class RawImpressionUploadModelLineServiceTest {
 
     val publicModelLine = internalModelLine.toPublic()
 
+    assertThat(publicModelLine.poolAssignmentComplete).isTrue()
+    assertThat(publicModelLine.outputKekUri).isEqualTo("fake-kms://output")
     assertThat(publicModelLine.poolOffsetsList).containsExactly(0L, 5L, 10L).inOrder()
     assertThat(publicModelLine.failureAttemptId).isEqualTo("failure-attempt-1")
     assertThat(publicModelLine.failureReason)
