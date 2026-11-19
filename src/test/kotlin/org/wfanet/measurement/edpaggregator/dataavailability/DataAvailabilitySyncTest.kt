@@ -43,6 +43,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.logging.Handler
 import java.util.logging.LogRecord
@@ -1184,6 +1185,45 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `VID Labeler discovery follows an immutable attempt from the canonical sidecar`() =
+    runBlocking<Unit> {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val eventDate = LocalDate.of(2026, 3, 15)
+      val rawUri = "gs://raw-bucket/upload/input.parquet"
+      val canonicalKey = vidLabelerOutputKey(rawUri, eventDate)
+      val canonicalUri = "$bucket/$canonicalKey"
+      val attempt = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+      val dataUri = LabeledImpressionsBlobKeys.forAttemptUri(canonicalUri, attempt)
+      storageClient.writeBlob("$canonicalKey.attempt-$attempt", ByteString.copyFromUtf8("labeled"))
+      writeVidLabelerMetadata(storageClient, "$canonicalKey.metadata.binpb", dataUri, eventDate)
+      writeVidLabelerDone(storageClient, eventDate)
+      val outcome =
+        newDataAvailabilitySync(storageClient)
+          .sync(
+            vidLabelerDoneUri(eventDate),
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = 77L,
+            discoveryMode =
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
+                rawImpressionBlobUris = listOf(rawUri),
+                modelLine = MODEL_LINE,
+                eventDate = eventDate,
+              ),
+            ensureLeaseActive = {},
+          )
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+      val batch = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(batch.capture())
+      }
+      assertThat(batch.firstValue.requestsList.single().impressionMetadata.blobUri)
+        .isEqualTo("$canonicalUri.metadata.binpb")
+      assertThat(storageClient.getBlob(canonicalKey)).isNull()
+    }
+
+  @Test
   fun `VID Labeler discovery processes only deterministic outputs for the upload`() = runBlocking {
     val storageClient =
       FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
@@ -1408,7 +1448,7 @@ class DataAvailabilitySyncTest {
           )
       }
 
-    assertThat(error).hasMessageThat().contains("without its output")
+    assertThat(error).hasMessageThat().contains("is missing")
   }
 
   @Test

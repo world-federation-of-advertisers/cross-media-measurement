@@ -51,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
@@ -80,6 +81,66 @@ class GcsLabeledOutputEvictionTest {
     addService(metadata)
     addService(files)
   }
+
+  @Test
+  fun `sidecar reader uses the captured object generation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val id = BlobId.of("output", "vid/data.metadata.binpb", 42L)
+      val details = blobDetails {
+        blobUri = "gs://output/vid/data.attempt-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      }
+      whenever(storage.readAllBytes(id)).thenReturn(details.toByteArray())
+      val result =
+        GcsLabeledOutputStore(storage).readBlobDetails("gs://output/vid/data.metadata.binpb", 42L)
+      assertThat(result).isEqualTo(details)
+      verify(storage).readAllBytes(id)
+      verify(storage, never()).readAllBytes(BlobId.of("output", "vid/data.metadata.binpb"))
+    }
+
+  @Test
+  fun `finalized attempt cleanup deletes canonical metadata before selected data`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val deleted = mutableListOf<String>()
+      whenever(storage.delete(any<BlobId>())).thenAnswer { invocation ->
+        deleted += invocation.getArgument<BlobId>(0).name
+        true
+      }
+      val original = plan(1)
+      val data = "gs://output/vid/file0.attempt-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+      val updated =
+        original.copy(
+          cascade =
+            listOf(
+              original.cascade
+                .single()
+                .copy(
+                  labeledOutputManifest =
+                    labeledOutputManifest {
+                      blobs +=
+                        LabeledOutputManifestKt.blobVersion {
+                          blobUri = "gs://output/vid/file0.metadata.binpb"
+                          generation = 42L
+                        }
+                      blobs +=
+                        LabeledOutputManifestKt.blobVersion {
+                          blobUri = data
+                          generation = 42L
+                        }
+                    }
+                )
+            )
+        )
+      evictor(storage).evict(updated, "bad inputs") {}
+      assertThat(deleted)
+        .containsExactly(
+          "vid/file0.metadata.binpb",
+          "vid/file0.attempt-aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        )
+        .inOrder()
+      verify(storage, never()).delete(BlobId.of("output", "vid/file0", 42L))
+    }
 
   @Test
   fun `eviction overlaps GCS deletes within its limit and preserves each sidecar order`() =
@@ -285,6 +346,7 @@ class GcsLabeledOutputEvictionTest {
       "gs://output/vid",
       store::getGeneration,
       store::delete,
+      readBlobDetails = { uri, _ -> blobDetails { blobUri = uri.removeSuffix(".metadata.binpb") } },
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
   }
