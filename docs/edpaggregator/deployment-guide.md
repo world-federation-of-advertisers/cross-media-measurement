@@ -870,7 +870,7 @@ binary. Keep the metadata services and VidLabeler until all no-snapshot labeling
 
 The VID-labeling monitor automatically replays a succeeded Phase-0 shard for a stalled
 `POOL_ASSIGNING` parent, including a completed upload with no ranked memberships. Recovery
-checks the persisted completion DEK and every expected shard, then resumes deterministic
+checks explicit Phase-0 completion and every expected shard, then resumes deterministic
 labeling-job creation and publication. The monitor retains its three-recovery-attempt limit.
 If an upload already exhausted those attempts, inspect the parent and all shard jobs and,
 under explicit operator authorization, resubmit the original SubpoolAssigner parameters in a
