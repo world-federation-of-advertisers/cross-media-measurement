@@ -59,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -529,6 +530,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
+        ModelLinesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         TestEvent.getDefaultInstance(),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
