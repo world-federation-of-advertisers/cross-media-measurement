@@ -576,7 +576,8 @@ class VidLabelerAppTest {
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.LABELING
-            encryptedMergedDek = this@VidLabelerAppTest.encryptedDek
+            poolAssignmentComplete = true
+            outputKekUri = kekUri
           }
         }
     }
@@ -612,8 +613,8 @@ class VidLabelerAppTest {
             cmmsModelLine = MODEL_LINE
             this.state = state
             poolOffsets += offsets
-            if (withCompletion)
-              encryptedMergedDek = this@VidLabelerAppTest.encryptedDek.copy { kekUri = kek }
+            poolAssignmentComplete = withCompletion
+            outputKekUri = kek
             if (withDate)
               maxEventDate =
                 com.google.type.date {
@@ -747,13 +748,11 @@ class VidLabelerAppTest {
     }
 
   @Test
-  fun `runWork rejects completion metadata without encrypted DEK ciphertext`() = runBlocking {
-    encryptedDek = encryptedDek.copy { clearCiphertext() }
+  fun `runWork completes empty work without merged encryption material`() = runBlocking {
     stubCompletedPhase0()
-    val error =
-      assertFailsWith<IllegalStateException> { createApp().runWork(buildMessage(memoizedParams())) }
-    assertThat(error).hasMessageThat().contains("no encrypted DEK ciphertext")
-    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+    createApp().runWork(buildMessage(memoizedParams()))
+    verifyBlocking(rankIndexBlobsService, never()) { listRankIndexBlobs(any()) }
+    verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(any()) }
   }
 
   @Test
