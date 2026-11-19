@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countPoolAs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ensurePoolAssignmentGroupOpen
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobsByRequestIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findSucceededPoolAssignmentJobDek
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getPoolAssignmentJobByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadIdForPoolAssignment
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineMergeState
@@ -643,15 +644,30 @@ class SpannerPoolAssignmentJobService(
           set("ErrorMessage").to(null as String?)
         }
 
+        val mergedDek =
+          when {
+            !isLastShard -> null
+            request.hasEncryptedDek() -> request.encryptedDek
+            mergedOffsets.isEmpty() -> null
+            else ->
+              checkNotNull(
+                txn.findSucceededPoolAssignmentJobDek(
+                  request.dataProviderResourceId,
+                  result.rawImpressionUploadId,
+                  currentJob.cmmsModelLine,
+                )
+              ) {
+                "Nonempty pool assignment has no persisted encryption key"
+              }
+          }
         txn.updateRawImpressionUploadModelLineMergedOutputs(
           request.dataProviderResourceId,
           result.rawImpressionUploadId,
           mergeState.rawImpressionUploadModelLineId,
           mergedOffsets,
           mergedMaxEventDate,
-          // On last-shard-out, promote this (final) shard's DEK onto the parent as the merged DEK
-          // so a retrying SubpoolAssigner can decrypt the merged per-subpool blobs.
-          mergedDek = if (isLastShard && request.hasEncryptedDek()) request.encryptedDek else null,
+          // An empty final shard selects an existing peer key; a fully empty group needs no key.
+          mergedDek = mergedDek,
         )
 
         TransactionResult(
@@ -692,7 +708,7 @@ class SpannerPoolAssignmentJobService(
       if (txnResult.isLastShard) {
         val hasOffsets = txnResult.poolOffsets.isNotEmpty()
         val hasMaxEventDate = txnResult.maxEventDate != null
-        check(hasOffsets == hasMaxEventDate) {
+        check(!hasOffsets || hasMaxEventDate) {
           "LastShardResult invariant violated: pool_offsets present=$hasOffsets but " +
             "max_event_date present=$hasMaxEventDate"
         }

@@ -620,3 +620,31 @@ suspend fun AsyncDatabaseClient.ReadContext.ensurePoolAssignmentGroupOpen(
     throw Status.FAILED_PRECONDITION.withDescription("Pool assignment output is already committed")
       .asRuntimeException()
 }
+
+/** Finds a real persisted peer key when the final shard has no encrypted output of its own. */
+suspend fun AsyncDatabaseClient.ReadContext.findSucceededPoolAssignmentJobDek(
+  dataProvider: String,
+  upload: Long,
+  modelLine: String,
+): InternalEncryptedDek? {
+  val row =
+    executeQuery(
+        statement(
+          """
+    SELECT EncryptedDek FROM PoolAssignmentJob
+    WHERE DataProviderResourceId = @provider AND RawImpressionUploadId = @upload
+      AND CmmsModelLine = @model AND CAST(State AS INT64) = @succeeded
+      AND EncryptedDek IS NOT NULL
+    LIMIT 1
+    """
+            .trimIndent()
+        ) {
+          bind("provider").to(dataProvider)
+          bind("upload").to(upload)
+          bind("model").to(modelLine)
+          bind("succeeded").to(State.POOL_ASSIGNMENT_STATE_SUCCEEDED.number.toLong())
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
+  return row.getProtoMessage("EncryptedDek", InternalEncryptedDek.getDefaultInstance())
+}

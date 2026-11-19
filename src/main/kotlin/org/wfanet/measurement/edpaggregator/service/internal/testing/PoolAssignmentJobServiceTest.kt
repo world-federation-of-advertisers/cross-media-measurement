@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.rpc.errorInfo
 import com.google.type.date
 import io.grpc.Status
@@ -1945,6 +1946,118 @@ abstract class PoolAssignmentJobServiceTest {
           }
         )
       assertThat(fetched).isEqualTo(response.poolAssignmentJob)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded retains a real merge key when an empty final shard completes a nonempty group`() =
+    runBlocking<Unit> {
+      val first = createOutputJob(0)
+      val last = createOutputJob(1)
+      val key = encryptedDek {
+        kekUri = "kek"
+        ciphertext = ByteString.copyFromUtf8("wrapped-key")
+      }
+      service.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = first.poolAssignmentJobResourceId
+          etag = first.etag
+          requestId = UUID.randomUUID().toString()
+          encryptedDek = key
+          poolOffsets += 7L
+          maxEventDate = date {
+            year = 2026
+            month = 11
+            day = 19
+          }
+          outputManifest = outputBlobReference {
+            blobUri = "gs://bucket/attempt/first"
+            blobGeneration = 1L
+          }
+        }
+      )
+      val request = markPoolAssignmentJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        poolAssignmentJobResourceId = last.poolAssignmentJobResourceId
+        etag = last.etag
+        requestId = UUID.randomUUID().toString()
+        outputManifest = outputBlobReference {
+          blobUri = "gs://bucket/attempt/last"
+          blobGeneration = 2L
+        }
+      }
+      val response = service.markPoolAssignmentJobSucceeded(request)
+      assertThat(response.poolAssignmentJob.hasEncryptedDek()).isFalse()
+      assertThat(response.poolAssignmentJob.lastShard).isTrue()
+      assertThat(response.lastShardResult.poolOffsetsList).containsExactly(7L)
+      assertThat(
+          getRawImpressionUploadModelLineMergedDek(
+            DATA_PROVIDER_RESOURCE_ID,
+            RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+            CMMS_MODEL_LINE,
+          )
+        )
+        .isEqualTo(key)
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(response)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded accepts an empty manifest with an observed event date`() =
+    runBlocking<Unit> {
+      val job = createOutputJob()
+      val request = markPoolAssignmentJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+        maxEventDate = date {
+          year = 2026
+          month = 11
+          day = 19
+        }
+        outputManifest = outputBlobReference {
+          blobUri = "gs://bucket/attempt/empty"
+          blobGeneration = 1L
+        }
+      }
+      val response = service.markPoolAssignmentJobSucceeded(request)
+      assertThat(response.poolAssignmentJob.hasEncryptedDek()).isFalse()
+      assertThat(response.poolAssignmentJob.lastShard).isTrue()
+      assertThat(response.hasLastShardResult()).isFalse()
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(response)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded preserves a supplied legacy key for an empty group`() =
+    runBlocking<Unit> {
+      val job = createOutputJob()
+      val key = encryptedDek {
+        kekUri = "legacy-kek"
+        ciphertext = ByteString.copyFromUtf8("legacy-wrapped-key")
+      }
+      val request = markPoolAssignmentJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+        encryptedDek = key
+      }
+      val response = service.markPoolAssignmentJobSucceeded(request)
+      assertThat(response.poolAssignmentJob.encryptedDek).isEqualTo(key)
+      assertThat(response.hasLastShardResult()).isFalse()
+      assertThat(
+          getRawImpressionUploadModelLineMergedDek(
+            DATA_PROVIDER_RESOURCE_ID,
+            RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+            CMMS_MODEL_LINE,
+          )
+        )
+        .isEqualTo(key)
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(response)
     }
 
   @Test
