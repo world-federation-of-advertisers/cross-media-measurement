@@ -820,6 +820,8 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.PoolOffsets,
       RawImpressionUploadModelLine.MaxEventDate,
       RawImpressionUploadModelLine.EncryptedMergedDek,
+      RawImpressionUploadModelLine.PoolAssignmentComplete,
+      RawImpressionUploadModelLine.OutputKekUri,
       RawImpressionUploadModelLine.MarkPoolAssigningRequestId,
       RawImpressionUploadModelLine.MarkRankingRequestId,
       RawImpressionUploadModelLine.MarkLabelingRequestId,
@@ -853,9 +855,8 @@ private object RawImpressionUploadModelLineEntity {
         if (!struct.isNull("ErrorMessage")) {
           errorMessage = struct.getString("ErrorMessage")
         }
-        // Phase-0 last-shard-out outputs on the parent row, read back by a retrying
-        // SubpoolAssigner (see SubpoolAssigner.recoverIfLastShardOut). All three are
-        // populated together on last-shard-out; null until then.
+        poolAssignmentComplete = struct.getBoolean("PoolAssignmentComplete")
+        if (!struct.isNull("OutputKekUri")) outputKekUri = struct.getString("OutputKekUri")
         if (!struct.isNull("PoolOffsets")) {
           poolOffsets += struct.getLongList("PoolOffsets")
         }
