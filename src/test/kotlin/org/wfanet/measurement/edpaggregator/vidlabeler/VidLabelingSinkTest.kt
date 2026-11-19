@@ -626,6 +626,62 @@ class VidLabelingSinkTest {
     }
 
   @Test
+  fun `writer failure excludes processed values while preserving publication failure`() =
+    runBlocking {
+      val marker = "SYNTHETIC_PRIVATE_VALUE"
+      val cause = IllegalArgumentException(marker)
+      val failure =
+        IllegalStateException(marker, cause).apply {
+          addSuppressed(IllegalArgumentException(marker))
+        }
+      val failingAead =
+        object : Aead {
+          override fun encrypt(plaintext: ByteArray?, associatedData: ByteArray?): ByteArray =
+            throw failure
+
+          override fun decrypt(ciphertext: ByteArray?, associatedData: ByteArray?): ByteArray =
+            throw failure
+        }
+      val failingKms = FakeKmsClient().apply { setAead(kekUri, failingAead) }
+      val output = CopyOnWriteArrayList<String>()
+      val handler =
+        object : java.util.logging.Handler() {
+          override fun publish(record: java.util.logging.LogRecord) {
+            output += java.util.logging.SimpleFormatter().format(record)
+          }
+
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val logger = java.util.logging.Logger.getLogger(BaseVidLabelingSink::class.java.name)
+      logger.addHandler(handler)
+      val publications = CopyOnWriteArrayList<LabeledOutputPublication>()
+      tempFolder.root.resolve("labeled").mkdirs()
+      val sink =
+        sink(
+          contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
+          encryptKmsClient = failingKms,
+          publicationObserver = { publications += it },
+        )
+      try {
+        sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1)))
+        assertFailsWith<Exception> { sink.commit() }
+        assertThat(output.joinToString("\n")).doesNotContain(marker)
+        assertThat(output.joinToString("\n")).contains("java.lang.IllegalStateException")
+        assertThat(output.joinToString("\n"))
+          .contains("Caused by: java.lang.IllegalArgumentException")
+        val publication = publications.single()
+        assertThat(publication.outcome).isEqualTo("failed")
+        assertThat(generateSequence(publication.error) { it.cause }.toList()).contains(failure)
+        assertThat(failure.message).isEqualTo(marker)
+      } finally {
+        sink.close()
+        logger.removeHandler(handler)
+      }
+    }
+
+  @Test
   fun `metrics - labeled impressions, outside-window drops, and blobs written are counted`() =
     runBlocking<Unit> {
       tempFolder.root.resolve("labeled").mkdirs()
