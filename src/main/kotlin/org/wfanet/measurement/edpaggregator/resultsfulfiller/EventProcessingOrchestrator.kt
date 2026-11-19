@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
@@ -246,9 +247,6 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
 
       logger.info("Completed processing ${results.size} requisitions")
       return results
-    } catch (e: Exception) {
-      logger.severe("Fatal error in event processing: ${e.message}")
-      throw e
     } finally {
       shutdownExecutorService(executorService)
     }
@@ -272,7 +270,13 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
         thread.isDaemon = false
         thread
       },
-      { t, e -> logger.log(Level.SEVERE, "Uncaught exception in thread pool: ${t.name}", e) },
+      { t, e ->
+        logger.log(
+          Level.SEVERE,
+          "Uncaught exception in thread pool: ${t.id}",
+          ExceptionDiagnostics.forLogging(e),
+        )
+      },
       true, /* asyncMode */
     )
   }
