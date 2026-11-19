@@ -53,6 +53,28 @@ class EdpAggregatorSchemaTest : UsingSpannerEmulator(Schemata.EDP_AGGREGATOR_CHA
   }
 
   @Test
+  fun `rank index active natural key indexes null delete time`() = runBlocking {
+    val row =
+      databaseClient.singleUse().use { txn ->
+        txn
+          .executeQuery(
+            Statement.of(
+              """
+        SELECT IS_UNIQUE, IS_NULL_FILTERED
+        FROM INFORMATION_SCHEMA.INDEXES
+        WHERE TABLE_NAME = 'RankIndexBlob'
+          AND INDEX_NAME = 'RankIndexBlobByActiveNaturalKey'
+      """
+                .trimIndent()
+            )
+          )
+          .single()
+      }
+    assertThat(row.getBoolean("IS_UNIQUE")).isTrue()
+    assertThat(row.getBoolean("IS_NULL_FILTERED")).isFalse()
+  }
+
+  @Test
   fun `database is created`() {
     // No-op. Just ensure that DB is created by test infra.
   }
