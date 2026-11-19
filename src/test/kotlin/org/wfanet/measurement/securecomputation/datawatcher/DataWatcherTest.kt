@@ -45,6 +45,7 @@ import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -188,12 +189,129 @@ class DataWatcherTest() {
       assertThat(workItemParams.dataPathParams.generation).isEqualTo(42L)
       assertThat(workItemParams.dataPathParams.createTime)
         .isEqualTo(Instant.parse(SOURCE_CREATE_TIME).toProtoTime())
-      assertThat(workItemParams.dataPathParams.eventType)
-        .isEqualTo(WorkItemParams.DataPathParams.StorageEventType.FINALIZED)
       assertThat(workItemParams.traceContextMap)
         .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
       val workItemAppConfig = workItemParams.appParams.unpack<Int32Value>()
       assertThat(workItemAppConfig).isEqualTo(appParams)
+    }
+  }
+
+  @Test
+  fun `upload route ignores deletion archive and missing event types before queue writes`() =
+    runBlocking {
+      val config = watchedPath {
+        identifier = "sync"
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        eventTypes += DataWatcher.FINALIZED_EVENT_TYPE
+        controlPlaneQueueSink = controlPlaneQueueSink { queue = "sync-queue" }
+      }
+      val watcher =
+        DataWatcher(
+          workItemsStub,
+          listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+          controlPlaneThrottler = rpcThrottlers.controlPlane,
+        )
+      for (type in
+        listOf(DataWatcher.DELETED_EVENT_TYPE, "google.cloud.storage.object.v1.archived", null)) {
+        val metadata = sourceMetadata().toMutableMap()
+        metadata.remove(DataWatcher.EVENT_TYPE_METADATA_KEY)
+        if (type != null) metadata[DataWatcher.EVENT_TYPE_METADATA_KEY] = type
+        watcher.receivePath("test-schema://test-bucket/path-to-watch/source", metadata)
+      }
+      verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+      verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `overlapping paths route uploads and deletions to different queues`() = runBlocking {
+    val uploadRoute = watchedPath {
+      identifier = "sync"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      eventTypes += DataWatcher.FINALIZED_EVENT_TYPE
+      controlPlaneQueueSink = controlPlaneQueueSink { queue = "sync-queue" }
+    }
+    val deletionRoute = watchedPath {
+      identifier = "cleanup"
+      sourcePathRegex = uploadRoute.sourcePathRegex
+      eventTypes +=
+        listOf(DataWatcher.DELETED_EVENT_TYPE, "google.cloud.storage.object.v1.archived")
+      controlPlaneQueueSink = controlPlaneQueueSink { queue = "cleanup-queue" }
+    }
+    val watcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(uploadRoute, deletionRoute),
+        idTokenProvider = mockIdTokenProvider,
+        controlPlaneThrottler = rpcThrottlers.controlPlane,
+      )
+    for (type in
+      listOf(
+        DataWatcher.FINALIZED_EVENT_TYPE,
+        DataWatcher.DELETED_EVENT_TYPE,
+        "google.cloud.storage.object.v1.archived",
+      )) {
+      watcher.receivePath(
+        "test-schema://test-bucket/path-to-watch/source",
+        sourceMetadata() + (DataWatcher.EVENT_TYPE_METADATA_KEY to type),
+      )
+    }
+    val captor = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(3)) { ensureWorkItem(captor.capture()) }
+    val requests = captor.allValues
+    assertThat(requests.map { it.workItem.queue })
+      .containsExactly("sync-queue", "cleanup-queue", "cleanup-queue")
+      .inOrder()
+    assertThat(requests[0].workItemId).isNotEqualTo(requests[1].workItemId)
+    assertThat(requests[1].workItemId).isEqualTo(requests[2].workItemId)
+    assertThat(requests[1].workItem.workItemParams).isEqualTo(requests[2].workItem.workItemParams)
+  }
+
+  @Test
+  fun `unfiltered route accepts a source without an event type`() = runBlocking {
+    val config = watchedPath {
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink { queue = "unfiltered-queue" }
+    }
+    val watcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        idTokenProvider = mockIdTokenProvider,
+        controlPlaneThrottler = rpcThrottlers.controlPlane,
+      )
+    watcher.receivePath(
+      "test-schema://test-bucket/path-to-watch/source",
+      sourceMetadata() - DataWatcher.EVENT_TYPE_METADATA_KEY,
+    )
+    verifyBlocking(workItemsServiceMock, times(1)) { ensureWorkItem(any()) }
+  }
+
+  @Test
+  fun `event filter applies before HTTP delivery`() = runBlocking {
+    val server = TestServer()
+    val port = server.start(0).address.port
+    try {
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        eventTypes += DataWatcher.DELETED_EVENT_TYPE
+        httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$port" }
+      }
+      val watcher =
+        DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
+      val path = "test-schema://test-bucket/path-to-watch/source"
+      watcher.receivePath(
+        path,
+        mapOf(DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE),
+      )
+      assertThat(server.requestCount).isEqualTo(0)
+      watcher.receivePath(
+        path,
+        mapOf(DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.DELETED_EVENT_TYPE),
+      )
+      assertThat(server.requestCount).isEqualTo(1)
+    } finally {
+      server.stop()
     }
   }
 
@@ -1011,7 +1129,6 @@ class DataWatcherTest() {
       dataPath = path
       generation = 42L
       createTime = Instant.parse(SOURCE_CREATE_TIME).toProtoTime()
-      eventType = WorkItemParams.DataPathParams.StorageEventType.FINALIZED
     }
   }
 
@@ -1053,6 +1170,9 @@ private class TestServer(private val statusCode: Int = 200) {
   private lateinit var handler: ServerHandler
   private lateinit var httpServer: HttpServer
 
+  val requestCount: Int
+    get() = handler.requestCount.get()
+
   fun start(port: Int): HttpServer {
     httpServer = HttpServer.create(InetSocketAddress(port), 0)
     handler = ServerHandler(statusCode)
@@ -1080,10 +1200,12 @@ private class TestServer(private val statusCode: Int = 200) {
   }
 
   class ServerHandler(private val statusCode: Int) : HttpHandler {
+    val requestCount = AtomicInteger()
     lateinit var requestBody: String
     lateinit var requestHeaders: Map<String, List<String>>
 
     override fun handle(t: HttpExchange) {
+      requestCount.incrementAndGet()
       val requestBodyBytes = t.requestBody.readBytes()
       requestBody = requestBodyBytes.toString(Charsets.UTF_8)
       requestHeaders = t.requestHeaders.toMap()

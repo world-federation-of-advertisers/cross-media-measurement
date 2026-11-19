@@ -81,8 +81,11 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.integration.testing.ImpressionMetadataAwaiter
 import org.wfanet.measurement.integration.testing.RequisitionFetcherClient
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
@@ -90,6 +93,7 @@ import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurem
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -345,7 +349,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   private class CreateDoneBlobs : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
-    private val storageClient = StorageOptions.getDefaultInstance().service
     private val googleProjectId: String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
 
@@ -358,7 +361,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             )
             createDoneBlobs()
 
-            logger.info("Event Group Sync completed.")
+            logger.info("Labeled fixture synchronization completed.")
           }
           base.evaluate()
         }
@@ -377,7 +380,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             "non-memoized model line must be a full ModelLine resource name: $modelLine"
           }
           .modelLineId
-      buildPaths(modelLineId).forEach { path ->
+      val paths = buildPaths(modelLineId)
+      val expectedBlobs = writeReusedLabeledImpressions.expectedBlobGenerations
+      ImpressionMetadataAwaiter.requireCompleteFixtureCoverage(expectedBlobs, paths)
+      val doneBlobGenerations = mutableMapOf<String, Long>()
+      paths.forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient =
           SelectedStorageClient(
@@ -393,7 +400,57 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         }
 
         logger.info("Creating a new DONE blob at path: $path...")
-        selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
+        val written = selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
+        doneBlobGenerations[path] =
+          (written as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
+      }
+      awaitFixtureAvailability(modelLine, doneBlobGenerations, expectedBlobs)
+    }
+
+    private suspend fun awaitFixtureAvailability(
+      modelLine: String,
+      doneBlobs: Map<String, Long>,
+      expectedBlobs: Map<String, Long>,
+    ) {
+      val pipelinedDataProvider =
+        System.getenv("PIPELINED_DATA_PROVIDER") ?: EDPA_DATA_PROVIDERS.first()
+      val parentsByPath =
+        mapOf(
+          EDP7_IMPRESSION_PATH to pipelinedDataProvider,
+          EDPA_META_IMPRESSION_PATH to EDPA_DATA_PROVIDERS.single { it != pipelinedDataProvider },
+        )
+      val expectedByParent =
+        expectedBlobs.entries
+          .filter { it.key.substringAfterLast('/').startsWith("metadata") }
+          .groupBy { (uri, _) ->
+            val key = SelectedStorageClient.parseBlobUri(uri).key
+            parentsByPath.getValue(key.substringBefore("/model-line/"))
+          }
+          .mapValues { (_, blobs) ->
+            blobs.map { (uri, generation) ->
+              val prefix = uri.substringBeforeLast('/')
+              val suffix =
+                uri.substringAfterLast('/').removePrefix("metadata").removeSuffix(".binpb")
+              impressionMetadata {
+                blobUri = uri
+                this.modelLine = modelLine
+                metadataBlobGeneration = generation
+                impressionsBlobGeneration = expectedBlobs.getValue("$prefix/impressions$suffix")
+                outputDoneBlobGeneration = doneBlobs.getValue("$prefix/done")
+              }
+            }
+          }
+      val channel = AwaitVidLabelingRule.buildEdpaChannel()
+      try {
+        ImpressionMetadataAwaiter(
+            ImpressionMetadataServiceCoroutineStub(channel),
+            pollInterval = 5.seconds,
+            timeout = DATA_AVAILABILITY_PUBLICATION_TIMEOUT,
+            rpcTimeout = 30.seconds,
+          )
+          .awaitCompletion(expectedByParent)
+      } finally {
+        channel.shutdown()
       }
     }
 
