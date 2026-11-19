@@ -23,7 +23,6 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
@@ -577,7 +576,6 @@ class VidLabelerAppTest {
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.LABELING
             poolAssignmentComplete = true
-            outputKekUri = kekUri
           }
         }
     }
@@ -601,7 +599,6 @@ class VidLabelerAppTest {
   private fun stubCompletedPhase0(
     offsets: List<Long> = emptyList(),
     state: RawImpressionUploadModelLine.State = RawImpressionUploadModelLine.State.LABELING,
-    kek: String = kekUri,
     withDate: Boolean = false,
     withCompletion: Boolean = true,
   ) {
@@ -614,7 +611,6 @@ class VidLabelerAppTest {
             this.state = state
             poolOffsets += offsets
             poolAssignmentComplete = withCompletion
-            outputKekUri = kek
             if (withDate)
               maxEventDate =
                 com.google.type.date {
@@ -642,13 +638,7 @@ class VidLabelerAppTest {
   @Test
   fun `runWork encrypts ordinary output with the configured labeled-output KEK`() =
     runBlocking<Unit> {
-      val persistedKek = FakeKmsClient.KEY_URI_PREFIX + "persisted-completion-key"
-      kmsClient.setAead(
-        persistedKek,
-        KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-          .getPrimitive(RegistryConfiguration.get(), Aead::class.java),
-      )
-      stubCompletedPhase0(kek = persistedKek)
+      stubCompletedPhase0()
       val inputFile = "$UPLOAD/files/ordinary"
       vidLabelingJobsService.stub {
         onBlocking { getVidLabelingJob(any()) } doReturn
@@ -731,7 +721,6 @@ class VidLabelerAppTest {
         tempFolder.root.walkTopDown().single { it.isFile && it.name.endsWith(".metadata.binpb") }
       val details = BlobDetails.parseFrom(metadataFile.readBytes())
       assertThat(details.encryptedDek.kekUri).isEqualTo(kekUri)
-      assertThat(details.encryptedDek.kekUri).isNotEqualTo(persistedKek)
       val parsed = SelectedStorageClient.parseBlobUri(details.blobUri)
       val client =
         SelectedStorageClient(parsed, tempFolder.root, null)
@@ -766,24 +755,15 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork rejects empty configured output KEK without falling back to Phase 0`() =
-    runBlocking {
-      stubCompletedPhase0()
-      val error =
-        assertFailsWith<IllegalArgumentException> {
-          createApp(encryptKekUris = mapOf(DATA_PROVIDER_NAME to ""))
-            .runWork(buildMessage(memoizedParams()))
-        }
-      assertThat(error).hasMessageThat().contains("KEK URI")
-      verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
-    }
-
-  @Test
-  fun `runWork completes empty work without a parent output KEK`() = runBlocking {
-    stubCompletedPhase0(kek = "")
-    createApp().runWork(buildMessage(memoizedParams()))
-    verifyBlocking(rankIndexBlobsService, never()) { listRankIndexBlobs(any()) }
-    verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(any()) }
+  fun `runWork rejects empty configured output KEK`() = runBlocking {
+    stubCompletedPhase0()
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createApp(encryptKekUris = mapOf(DATA_PROVIDER_NAME to ""))
+          .runWork(buildMessage(memoizedParams()))
+      }
+    assertThat(error).hasMessageThat().contains("KEK URI")
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
   }
 
   @Test
