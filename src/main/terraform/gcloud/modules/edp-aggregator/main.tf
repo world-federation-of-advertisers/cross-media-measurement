@@ -835,8 +835,15 @@ module "data_availability_monitor_cloud_function" {
   entry_point                              = var.cloud_function_configs.data_availability_monitor.entry_point
   extra_env_vars                           = var.cloud_function_configs.data_availability_monitor.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_monitor.secret_mappings
-  uber_jar_path                            = var.cloud_function_configs.data_availability_monitor.uber_jar_path
-  config_path                              = var.data_availability_monitor_config.local_path
+  secrets_to_access = [
+    for key in [
+      "metadata_storage_root_ca",
+      "data_availability_tls_key",
+      "data_availability_tls_pem",
+    ] : local.all_secrets[key].secret_id
+  ]
+  uber_jar_path = var.cloud_function_configs.data_availability_monitor.uber_jar_path
+  config_path   = var.data_availability_monitor_config.local_path
 }
 
 module "data_availability_monitor_cloud_scheduler" {

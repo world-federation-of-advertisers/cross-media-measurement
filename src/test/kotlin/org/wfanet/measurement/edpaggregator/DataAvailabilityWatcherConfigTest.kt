@@ -83,6 +83,12 @@ class DataAvailabilityWatcherConfigTest {
           resolveRunfile("$configDirectory/data-availability-monitor-config.textproto").toFile(),
           DataAvailabilityMonitorConfigs.getDefaultInstance(),
         )
+      for (monitor in availabilityMonitorConfigs.configsList) {
+        assertThat(monitor.hasImpressionMetadataConnection()).isTrue()
+        assertThat(monitor.impressionMetadataConnection.certFilePath).isNotEmpty()
+        assertThat(monitor.impressionMetadataConnection.privateKeyFilePath).isNotEmpty()
+        assertThat(monitor.impressionMetadataConnection.certCollectionFilePath).isNotEmpty()
+      }
       val runtimeConfigsByDataProvider = runtimeConfigs.configsList.associateBy { it.dataProvider }
       val dataAvailabilityWatchedPaths =
         watcherConfig.watchedPathsList.filter { it.identifier == DATA_AVAILABILITY_IDENTIFIER }

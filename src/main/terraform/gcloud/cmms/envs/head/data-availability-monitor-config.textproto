@@ -14,11 +14,6 @@ configs {
   }
   edp_impression_path: "edp/edp7"
   model_line_configs {
-  impression_metadata_connection {
-    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
-    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
-    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
-  }
     model_line: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc"
   }
   max_stale_days: 3
@@ -38,11 +33,6 @@ configs {
   }
   edp_impression_path: "edp/edpa_meta"
   model_line_configs {
-  impression_metadata_connection {
-    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
-    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
-    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
-  }
     model_line: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc"
   }
   max_stale_days: 3
@@ -62,11 +52,6 @@ configs {
   }
   edp_impression_path: "vid-labeled-impressions/edp/edp7"
   model_line_configs {
-  impression_metadata_connection {
-    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
-    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
-    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
-  }
     model_line: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc"
   }
   max_stale_days: 3
@@ -86,11 +71,6 @@ configs {
   }
   edp_impression_path: "vid-labeled-impressions/edp/edpa_meta"
   model_line_configs {
-  impression_metadata_connection {
-    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
-    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
-    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
-  }
     model_line: "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc"
   }
   max_stale_days: 3
