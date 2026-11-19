@@ -131,7 +131,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkIte
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RenewWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
@@ -640,7 +639,6 @@ class DataAvailabilitySyncFunctionTest {
               dataPath = "gs://bucket/$folder/done"
               generation = 123L
               createTime = timestamp { seconds = 1_800_000_000L }
-              eventType = StorageEventType.FINALIZED
             }
           }
         )
@@ -821,7 +819,6 @@ class DataAvailabilitySyncFunctionTest {
                   dataPath = "gs://output-bucket/done"
                   generation = DONE_BLOB_GENERATION
                   createTime = timestamp { seconds = 1_800_000_000L }
-                  eventType = StorageEventType.FINALIZED
                 }
               }
             )
@@ -1465,7 +1462,6 @@ class DataAvailabilitySyncFunctionTest {
                 )
               generation = 123L
               createTime = timestamp { seconds = 1_800_000_000L }
-              eventType = StorageEventType.FINALIZED
             }
             traceContext["traceparent"] = "00-1af7651916cd43dd8448eb211c80319c-0123456789abcdef-01"
           }
