@@ -1,0 +1,77 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Run Kubernetes correctness tests
+description: Run both correctness suites against a fresh local cluster
+runs:
+  using: composite
+  steps:
+    - name: Export bazel output path
+      shell: bash
+      run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
+
+    - name: Create cluster
+      id: create-cluster
+      shell: bash
+      run: |
+        echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
+        curl -LOJ https://kind.sigs.k8s.io/examples/kind-with-registry.sh
+        chmod +x kind-with-registry.sh
+        sed -i 's|kind create cluster|kind create cluster --image=kindest/node:v1.35.1|g' kind-with-registry.sh
+        ./kind-with-registry.sh
+
+    - name: Run correctness test
+      id: run-correctness-test
+      shell: bash
+      run: >
+        python3 .github/workflows/scripts/ci_test_groups.py run
+        --targets-file=ci-test-groups/correctness.txt
+        --log-file=ci-results/correctness.log
+        --force-test-execution="$FORCE_TEST_EXECUTION"
+        --test-output=streamed
+
+    - name: Delete Kubernetes Resources
+      continue-on-error: true
+      shell: bash
+      run: |
+        kubectl delete all --namespace=default --all --cascade=foreground --wait
+        kubectl delete networkpolicies --namespace=default --all
+
+    - name: Run panelmatch correctness test
+      id: run-panelmatch-correctness-test
+      shell: bash
+      run: >
+        python3 .github/workflows/scripts/ci_test_groups.py run
+        --targets-file=ci-test-groups/panelmatch.txt
+        --log-file=ci-results/panelmatch.log
+        --force-test-execution="$FORCE_TEST_EXECUTION"
+        --test-output=streamed
+
+    - name: Export cluster logs
+      id: export-cluster-logs
+      if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+      continue-on-error: true
+      shell: bash
+      run: |
+        mkdir -p "$CLUSTER_LOGS_PATH"
+        kind export logs "$CLUSTER_LOGS_PATH"
+
+    - name: Upload cluster logs artifact
+      if: failure() && steps.export-cluster-logs.outcome == 'success'
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      continue-on-error: true
+      with:
+        name: cluster-logs
+        path: ${{ env.CLUSTER_LOGS_PATH }}
+
