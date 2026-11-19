@@ -202,7 +202,6 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
           rawImpressionUploadResourceId = upload
           poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
           etag = shard.etag
-          outputKekUri = "fake-kms://output"
         }
       )
       val resourceId =
@@ -234,7 +233,6 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
             }
           )
       assertThat(parent.poolAssignmentComplete).isTrue()
-      assertThat(parent.outputKekUri).isEqualTo("fake-kms://output")
       assertThat(parent.hasEncryptedMergedDek()).isFalse()
       assertThat(parent.poolOffsetsList).isEmpty()
       assertThat(parent.hasMaxEventDate()).isFalse()
@@ -271,7 +269,6 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
             rawImpressionUploadResourceId = upload
             poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
             etag = shard.etag
-            outputKekUri = "fake-kms://output"
           }
         }
       val early = api.markPoolAssignmentJobSucceeded(requests[0])
@@ -383,7 +380,7 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
         statement(
           """
         UPDATE RawImpressionUploadModelLine
-        SET PoolAssignmentComplete = FALSE, OutputKekUri = NULL, EncryptedMergedDek = @dek
+        SET PoolAssignmentComplete = FALSE, EncryptedMergedDek = @dek
         WHERE DataProviderResourceId = @provider
         """
             .trimIndent()
@@ -440,7 +437,6 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
           }
         )
     assertThat(normalized.poolAssignmentComplete).isTrue()
-    assertThat(normalized.outputKekUri).isEqualTo(dek.kekUri)
     assertThat(normalized.hasEncryptedMergedDek()).isFalse()
     assertThat(getRawImpressionUploadModelLineMergedDek(provider, upload, model)).isNull()
     val parent =
@@ -449,7 +445,7 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
           .executeQuery(
             statement(
               """
-        SELECT PoolAssignmentComplete, OutputKekUri
+        SELECT PoolAssignmentComplete
         FROM RawImpressionUploadModelLine WHERE DataProviderResourceId = @provider
         """
                 .trimIndent()
@@ -460,7 +456,6 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
           .single()
       }
     assertThat(parent.getBoolean("PoolAssignmentComplete")).isTrue()
-    assertThat(parent.getString("OutputKekUri")).isEqualTo(dek.kekUri)
     if (accessFirst == "get") createShard(2)
     for (index in requests.indices) {
       assertThat(api.markPoolAssignmentJobSucceeded(requests[index])).isEqualTo(original[index])

@@ -22,5 +22,4 @@ ALTER TABLE PoolAssignmentJob ADD COLUMN LastShardPoolOffsets ARRAY<INT64>;
 ALTER TABLE PoolAssignmentJob ADD COLUMN LastShardMaxEventDate DATE;
 ALTER TABLE RawImpressionUploadModelLine
   ADD COLUMN PoolAssignmentComplete BOOL NOT NULL DEFAULT (FALSE);
-ALTER TABLE RawImpressionUploadModelLine ADD COLUMN OutputKekUri STRING(MAX);
 RUN BATCH;

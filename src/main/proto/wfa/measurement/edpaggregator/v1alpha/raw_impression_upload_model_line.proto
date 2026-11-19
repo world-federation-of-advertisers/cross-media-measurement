@@ -168,7 +168,4 @@ message RawImpressionUploadModelLine {
   // Whether every Phase-0 shard has completed successfully.
   bool pool_assignment_complete = 17
       [(google.api.field_behavior) = OUTPUT_ONLY];
-
-  // KEK URI for VID-labeled output when Phase 0 produced no ranked memberships.
-  string output_kek_uri = 18 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
