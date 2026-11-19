@@ -126,17 +126,9 @@ message RawImpressionUploadModelLine {
   google.type.Date max_event_date = 9
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // DEK that encrypts the merged per-subpool `SubpoolFingerprints` blobs.
-  // Presence records completion of every Phase-0 shard, including when
-  // `pool_offsets` is empty and no merged blob is needed. On
-  // last-shard-out the service promotes the marking
-  // `PoolAssignmentJob.encrypted_dek` (the last shard's own DEK, which it also
-  // used for the merge) onto this field, atomically with
-  // `pool_offsets`/`max_event_date`. A retrying SubpoolAssigner reuses it so a
-  // re-run's merge — and every published
-  // `VidRankBuilderParams.encrypted_subpool_maps_dek` — stays consistent with
-  // the already-written merged blobs instead of diverging on a freshly
-  // generated DEK.
+  // DEK for merged per-subpool `SubpoolFingerprints` blobs. Unset when
+  // Phase 0 produced no ranked memberships. Persisted before merging so
+  // recovery reuses the same key.
   // (-- api-linter: core::0215::foreign-type-reference=disabled
   //     aip.dev/not-precedent: Shared encryption key schema used by
   //     impression processing and aggregation. --)
@@ -173,4 +165,10 @@ message RawImpressionUploadModelLine {
   // ImpressionMetadata and the Kingdom.
   repeated google.type.Date pending_availability_dates = 16
       [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Whether every Phase-0 shard has completed successfully.
+  bool pool_assignment_complete = 17
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // KEK URI for VID-labeled output when Phase 0 produced no ranked memberships.
+  string output_kek_uri = 18 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
