@@ -18,10 +18,14 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
+import java.util.logging.Level
+import java.util.logging.LogRecord
+import java.util.logging.SimpleFormatter
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ageBucket
 import org.wfanet.measurement.edpaggregator.v1alpha.ageRange
@@ -165,9 +169,13 @@ class LabelerInputMapperTest {
         }
       )
 
-    assertFailsWith<IllegalArgumentException> {
-      mapper.project(mapOf("g" to parquetValue { stringValue = "X" }))
-    }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapper.project(mapOf("g" to parquetValue { stringValue = "SYNTHETIC_PRIVATE_VALUE" }))
+      }
+    assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(failure).hasMessageThat().contains("column=g")
+    assertThat(failure).hasMessageThat().contains("UNKNOWN_LOOKUP_VALUE")
   }
 
   @Test
@@ -181,28 +189,34 @@ class LabelerInputMapperTest {
             fieldPath = GENDER_PATH
             enumLookup = enumLookup {
               column = "g"
-              lookupTable["M"] = "NOT_A_GENDER"
+              lookupTable["SYNTHETIC_PRIVATE_VALUE"] = "NOT_A_GENDER"
             }
           }
         )
       }
-    assertThat(ex).hasMessageThat().contains("NOT_A_GENDER")
+    assertThat(ex).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(ex).hasMessageThat().doesNotContain("NOT_A_GENDER")
+    assertThat(ex).hasMessageThat().contains("INVALID_CONFIGURATION")
   }
 
   @Test
   fun `rejects a default_enum_value naming a non-existent enum value at construction`() {
-    assertFailsWith<IllegalArgumentException> {
-      mapperOf(
-        labelerInputFieldMapping {
-          fieldPath = GENDER_PATH
-          enumLookup = enumLookup {
-            column = "g"
-            lookupTable["M"] = "GENDER_MALE"
-            defaultEnumValue = "NOT_A_GENDER"
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapperOf(
+          labelerInputFieldMapping {
+            fieldPath = GENDER_PATH
+            enumLookup = enumLookup {
+              column = "g"
+              lookupTable["M"] = "GENDER_MALE"
+              defaultEnumValue = "SYNTHETIC_PRIVATE_VALUE"
+            }
           }
-        }
-      )
-    }
+        )
+      }
+    assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(failure).hasMessageThat().contains("INVALID_CONFIGURATION")
+    assertThat(failure).hasMessageThat().contains("column=g")
   }
 
   @Test
@@ -281,9 +295,58 @@ class LabelerInputMapperTest {
   @Test
   fun `throws on an age bucket value not in the bucket_table`() {
     val mapper = ageBucketMapper()
-    assertFailsWith<IllegalArgumentException> {
-      mapper.project(mapOf("bucket" to parquetValue { stringValue = "unknown" }))
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapper.project(mapOf("bucket" to parquetValue { stringValue = "SYNTHETIC_PRIVATE_VALUE" }))
+      }
+    assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(failure).hasMessageThat().contains("column=bucket")
+    assertThat(failure).hasMessageThat().contains("UNKNOWN_LOOKUP_VALUE")
+  }
+
+  @Test
+  fun `rejects numeric ages without exposing the value`() {
+    val mapper =
+      mapperOf(
+        labelerInputFieldMapping {
+          fieldPath = AGE_PATH
+          ageRange = ageRange { singleAgeColumn = "age" }
+        }
+      )
+    for (age in listOf(-9876543210L, 9876543210L)) {
+      val failure =
+        assertFailsWith<IllegalArgumentException> {
+          mapper.project(mapOf("age" to parquetValue { int64Value = age }))
+        }
+      assertThat(failure).hasMessageThat().doesNotContain(age.toString())
+      assertThat(failure).hasMessageThat().contains("column=age")
+      assertThat(failure).hasMessageThat().contains("OUT_OF_RANGE")
     }
+  }
+
+  @Test
+  fun `rejects a negative bucket configuration without echoing its raw key`() {
+    val mapper =
+      mapperOf(
+        labelerInputFieldMapping {
+          fieldPath = AGE_PATH
+          ageRange = ageRange {
+            bucketLookup = bucketLookup {
+              column = "bucket"
+              bucketTable["SYNTHETIC_PRIVATE_VALUE"] = ageBucket {
+                minAge = -1
+                maxAge = 24
+              }
+            }
+          }
+        }
+      )
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapper.project(mapOf("bucket" to parquetValue { stringValue = "SYNTHETIC_PRIVATE_VALUE" }))
+      }
+    assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(failure).hasMessageThat().contains("INVALID_CONFIGURATION")
   }
 
   @Test
@@ -322,21 +385,51 @@ class LabelerInputMapperTest {
 
   @Test
   fun `rejects a duplicate field path at construction`() {
-    assertFailsWith<IllegalArgumentException> {
-      mapperOf(scalar("timestamp_usec", "a"), scalar("timestamp_usec", "b"))
-    }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapperOf(scalar("SYNTHETIC_PRIVATE_VALUE", "a"), scalar("SYNTHETIC_PRIVATE_VALUE", "b"))
+      }
+    assertPrivateConfiguration(failure)
   }
 
   @Test
   fun `rejects an entry with no source at construction`() {
-    assertFailsWith<IllegalArgumentException> {
-      mapperOf(labelerInputFieldMapping { fieldPath = "timestamp_usec" })
-    }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapperOf(labelerInputFieldMapping { fieldPath = "SYNTHETIC_PRIVATE_VALUE" })
+      }
+    assertPrivateConfiguration(failure)
   }
 
   @Test
   fun `rejects an unknown field path at construction`() {
-    assertFailsWith<IllegalArgumentException> { mapperOf(scalar("not_a_field", "c")) }
+    val failure =
+      assertFailsWith<IllegalArgumentException> { mapperOf(scalar("SYNTHETIC_PRIVATE_VALUE", "c")) }
+    assertPrivateConfiguration(failure)
+  }
+
+  @Test
+  fun `rejects an empty composite source without exposing its unresolved field path`() {
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapperOf(
+          labelerInputFieldMapping {
+            fieldPath = "SYNTHETIC_PRIVATE_VALUE"
+            compositeIdentity = compositeIdentity {}
+          }
+        )
+      }
+    assertPrivateConfiguration(failure)
+  }
+
+  private fun assertPrivateConfiguration(failure: IllegalArgumentException) {
+    assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(failure).hasMessageThat().contains("INVALID_CONFIGURATION")
+    assertThat(ExceptionDiagnostics.summary(failure)).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    val output =
+      SimpleFormatter()
+        .format(LogRecord(Level.SEVERE, "Invalid mapping").apply { thrown = failure })
+    assertThat(output).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
   }
 
   @Test

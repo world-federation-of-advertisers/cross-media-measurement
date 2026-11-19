@@ -20,6 +20,8 @@ import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
 import com.google.protobuf.Message
+import org.wfanet.measurement.common.ExceptionDiagnostics.Category
+import org.wfanet.measurement.common.ExceptionDiagnostics.ValidationFailure
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.ParquetValue.KindCase
 
@@ -119,28 +121,47 @@ object ProtoRowProjector {
     fieldPath: String,
     allowMessageLeaf: Boolean = false,
   ): List<FieldDescriptor> {
-    require(fieldPath.isNotEmpty()) { "Empty field path" }
+    if (fieldPath.isEmpty()) {
+      throw ValidationFailure(Category.INVALID_CONFIGURATION, expectedType = root.fullName)
+    }
     val segments = fieldPath.split('.')
     val path = ArrayList<FieldDescriptor>(segments.size)
     var current: Descriptor = root
     for ((index, name) in segments.withIndex()) {
       val field =
-        requireNotNull(current.findFieldByName(name)) {
-          "Unknown field '$name' in field path '$fieldPath'"
-        }
+        current.findFieldByName(name)
+          ?: throw ValidationFailure(
+            Category.INVALID_CONFIGURATION,
+            expectedType = current.fullName,
+          )
       val isLast = index == segments.size - 1
       if (!isLast) {
-        require(field.javaType == JavaType.MESSAGE && !field.isRepeated) {
-          "Intermediate segment '$name' in '$fieldPath' must be a singular message field"
+        if (field.javaType != JavaType.MESSAGE || field.isRepeated) {
+          throw ValidationFailure(
+            Category.INVALID_CONFIGURATION,
+            fieldPath = field.fullName,
+            expectedType = "SINGULAR_MESSAGE",
+            actualType = if (field.isRepeated) "REPEATED" else field.javaType.name,
+          )
         }
         current = field.messageType
       } else if (allowMessageLeaf) {
-        require(field.javaType == JavaType.MESSAGE && !field.isRepeated) {
-          "Leaf segment '$name' in '$fieldPath' must be a singular message field"
+        if (field.javaType != JavaType.MESSAGE || field.isRepeated) {
+          throw ValidationFailure(
+            Category.INVALID_CONFIGURATION,
+            fieldPath = field.fullName,
+            expectedType = "SINGULAR_MESSAGE",
+            actualType = if (field.isRepeated) "REPEATED" else field.javaType.name,
+          )
         }
       } else {
-        require(!field.isRepeated && field.javaType != JavaType.MESSAGE) {
-          "Leaf segment '$name' in '$fieldPath' must be a singular scalar or enum field"
+        if (field.isRepeated || field.javaType == JavaType.MESSAGE) {
+          throw ValidationFailure(
+            Category.INVALID_CONFIGURATION,
+            fieldPath = field.fullName,
+            expectedType = "SINGULAR_SCALAR_OR_ENUM",
+            actualType = if (field.isRepeated) "REPEATED" else field.javaType.name,
+          )
         }
       }
       path.add(field)
@@ -158,9 +179,8 @@ object ProtoRowProjector {
         // Unsigned 32-bit proto fields are stored as a two's-complement Java `int`, so values in
         // [2^31, 2^32) are valid and must be bit-truncated rather than range-rejected.
         if (fd.type == FieldDescriptor.Type.UINT32 || fd.type == FieldDescriptor.Type.FIXED32) {
-          require(longValue in 0L..0xFFFFFFFFL) {
-            "Column '$column' value $longValue is out of range for unsigned 32-bit field " +
-              fd.fullName
+          if (longValue !in 0L..0xFFFFFFFFL) {
+            throw ValidationFailure(Category.OUT_OF_RANGE, column, fd.fullName, "UINT32")
           }
           longValue.toInt()
         } else {
@@ -176,25 +196,38 @@ object ProtoRowProjector {
       JavaType.ENUM -> {
         when (value.kindCase) {
           KindCase.STRING_VALUE ->
-            requireNotNull(fd.enumType.findValueByName(value.stringValue)) {
-              "Column '$column' value '${value.stringValue}' is not a ${fd.enumType.name} enum name"
-            }
+            fd.enumType.findValueByName(value.stringValue)
+              ?: throw ValidationFailure(
+                Category.UNKNOWN_ENUM_VALUE,
+                column,
+                fd.fullName,
+                fd.enumType.fullName,
+              )
           KindCase.INT32_VALUE,
           KindCase.UINT32_VALUE ->
-            requireNotNull(
-              fd.enumType.findValueByNumber(asLong(value, column).toIntExact(column))
-            ) {
-              "Column '$column' has no ${fd.enumType.name} enum value for number"
-            }
+            fd.enumType.findValueByNumber(asLong(value, column).toIntExact(column))
+              ?: throw ValidationFailure(
+                Category.UNKNOWN_ENUM_VALUE,
+                column,
+                fd.fullName,
+                fd.enumType.fullName,
+              )
           else ->
-            throw IllegalArgumentException(
-              "Column '$column' (${value.kindCase}) cannot map to enum field ${fd.fullName}"
+            throw ValidationFailure(
+              Category.INCOMPATIBLE_TYPE,
+              column,
+              fd.fullName,
+              "ENUM",
+              value.kindCase.name,
             )
         }
       }
       else ->
-        throw IllegalArgumentException(
-          "Unsupported leaf field type ${fd.javaType} for ${fd.fullName} (column '$column')"
+        throw ValidationFailure(
+          Category.INVALID_CONFIGURATION,
+          column,
+          fd.fullName,
+          actualType = fd.javaType.name,
         )
     }
   }
@@ -210,8 +243,11 @@ object ProtoRowProjector {
       KindCase.TIMESTAMP_VALUE ->
         value.timestampValue.seconds * 1_000_000L + value.timestampValue.nanos / 1_000L
       else ->
-        throw IllegalArgumentException(
-          "Column '$column' (${value.kindCase}) is not an integral value"
+        throw ValidationFailure(
+          Category.INCOMPATIBLE_TYPE,
+          column,
+          expectedType = "INTEGRAL",
+          actualType = value.kindCase.name,
         )
     }
 
@@ -222,8 +258,11 @@ object ProtoRowProjector {
       KindCase.INT32_VALUE -> value.int32Value.toDouble()
       KindCase.INT64_VALUE -> value.int64Value.toDouble()
       else ->
-        throw IllegalArgumentException(
-          "Column '$column' (${value.kindCase}) is not a floating-point value"
+        throw ValidationFailure(
+          Category.INCOMPATIBLE_TYPE,
+          column,
+          expectedType = "FLOATING_POINT",
+          actualType = value.kindCase.name,
         )
     }
 
@@ -233,15 +272,20 @@ object ProtoRowProjector {
     expected: KindCase,
     extract: (ParquetValue) -> T,
   ): T {
-    require(value.kindCase == expected) {
-      "Column '$column' (${value.kindCase}) does not match expected $expected"
+    if (value.kindCase != expected) {
+      throw ValidationFailure(
+        Category.INCOMPATIBLE_TYPE,
+        column,
+        expectedType = expected.name,
+        actualType = value.kindCase.name,
+      )
     }
     return extract(value)
   }
 
   private fun Long.toIntExact(column: String): Int {
-    require(this in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
-      "Column '$column' value $this overflows a 32-bit int field"
+    if (this !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+      throw ValidationFailure(Category.OUT_OF_RANGE, column, expectedType = "INT32")
     }
     return toInt()
   }
