@@ -83,6 +83,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
 
 @RunWith(JUnit4::class)
@@ -346,7 +347,7 @@ class DataWatcherTest() {
   }
 
   @Test
-  fun `redelivery reuses legacy event field and trace context from existing WorkItem`() =
+  fun `redelivery reuses stored source parameters and trace context from existing WorkItem`() =
     runBlocking {
       val path = "test-schema://test-bucket/path-to-watch/some-data"
       val queue = "test-topic-id"
@@ -360,7 +361,15 @@ class DataWatcherTest() {
           workItemParams =
             workItemParams {
                 this.appParams = appParams
-                dataPathParams = legacySourceDataPathParams(path)
+                dataPathParams =
+                  legacySourceDataPathParams(path)
+                    .toBuilder()
+                    .mergeUnknownFields(
+                      UnknownFieldSet.newBuilder()
+                        .addField(99, UnknownFieldSet.Field.newBuilder().addVarint(7L).build())
+                        .build()
+                    )
+                    .build()
                 traceContext["traceparent"] = storedTraceparent
               }
               .pack()
@@ -464,6 +473,55 @@ class DataWatcherTest() {
 
     verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(any()) }
     verifyBlocking(workItemsServiceMock) { getWorkItem(any()) }
+  }
+
+  @Test
+  fun `redelivery does not retry a WorkItem with a different source identity`() = runBlocking {
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val queue = "test-topic-id"
+    val source = sourceDataPathParams(path)
+    val variants =
+      listOf(
+        source.copy { dataPath = "$path-other" },
+        source.copy { generation += 1L },
+        source.copy { createTime = Instant.parse(SOURCE_CREATE_TIME).plusSeconds(1).toProtoTime() },
+      )
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink { this.queue = queue }
+    }
+    val watcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        workItemIdGenerator = { "deterministic-id" },
+        idTokenProvider = mockIdTokenProvider,
+        controlPlaneThrottler = rpcThrottlers.controlPlane,
+      )
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow Status.ALREADY_EXISTS.asRuntimeException()
+    }
+    for (variant in variants) {
+      val existing =
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+          name = "workItems/deterministic-id"
+          this.queue = queue
+          workItemParams =
+            workItemParams {
+                appParams = config.controlPlaneQueueSink.appParams
+                dataPathParams = variant
+              }
+              .pack()
+        }
+      workItemsServiceMock.stub { onBlocking { getWorkItem(any()) } doReturn existing }
+
+      watcher.receivePath(path, sourceMetadata())
+    }
+
+    verifyBlocking(workItemsServiceMock, times(variants.size)) { ensureWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock, times(variants.size)) { getWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
   }
 
   @Test

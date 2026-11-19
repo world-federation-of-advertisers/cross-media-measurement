@@ -20,7 +20,6 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdToken
 import com.google.auth.oauth2.IdTokenProvider
 import com.google.protobuf.Any
-import com.google.protobuf.UnknownFieldSet
 import io.grpc.Status
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -262,26 +261,19 @@ class DataWatcher(
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    val existingDataPath = existingParams.dataPathParams
+    val requestedDataPath = requestedParams.dataPathParams
     check(
       existing.queue == requestedWorkItem.queue &&
         existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
-        existingParams.dataPathParams.withoutLegacyEventType() ==
-          requestedParams.dataPathParams.withoutLegacyEventType()
+        existingDataPath.dataPath == requestedDataPath.dataPath &&
+        existingDataPath.generation == requestedDataPath.generation &&
+        existingDataPath.createTime == requestedDataPath.createTime
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }
     return existing.workItemParams
-  }
-
-  private fun WorkItem.WorkItemParams.DataPathParams.withoutLegacyEventType():
-    WorkItem.WorkItemParams.DataPathParams {
-    // Earlier Halo builds used field 4 or 5 for event_type.
-    return toBuilder()
-      .setUnknownFields(
-        UnknownFieldSet.newBuilder(unknownFields).clearField(4).clearField(5).build()
-      )
-      .build()
   }
 
   private fun sendToHttpEndpoint(
