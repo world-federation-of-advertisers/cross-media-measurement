@@ -20,6 +20,8 @@ import io.grpc.StatusException
 import java.time.LocalDate
 import java.util.LinkedHashMap
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
@@ -44,6 +46,7 @@ class GrpcManagedDoneObjectResolver(
   private val files: RawImpressionUploadFileServiceCoroutineStub,
   private val labelingJobs: VidLabelingJobServiceCoroutineStub,
   private val throttler: Throttler,
+  private val manifestStore: ((String) -> OutputManifestStore)? = null,
 ) : ManagedDoneObjectResolver {
   private data class ModelOwner(
     val name: String,
@@ -68,6 +71,26 @@ class GrpcManagedDoneObjectResolver(
     LinkedHashMap<Pair<String, LocalDate>, Map<String, List<RegisteredInput>>>(4, 0.75f, true)
   private val labelingFilesByUpload =
     LinkedHashMap<Triple<String, String, List<String>>, Boolean>(8, 0.75f, true)
+
+  override val resolvesCommittedOutputs: Boolean
+    get() = manifestStore != null
+
+  override suspend fun committedOutputs(
+    modelLine: String,
+    eventDate: LocalDate,
+    blobKey: String,
+    storageRoot: String,
+  ): CommittedOutputResolver.Result? {
+    val factory = manifestStore ?: return null
+    val matches =
+      readModelLines(modelLine).filter {
+        LabeledImpressionsBlobKeys.forDone(uploadName(it), modelLine, eventDate)
+          .substringAfterLast('/') == blobKey.substringAfterLast('/')
+      }
+    check(matches.size == 1) { "Managed output has no unique owner" }
+    return CommittedOutputResolver(labelingJobs, files, factory(storageRoot), throttler)
+      .resolve(uploadName(matches.single()), modelLine)
+  }
 
   override suspend fun modelLineFor(eventDate: LocalDate, blobKey: String): String {
     // A zero-output managed marker has no sidecar carrying the full model name. Stream the

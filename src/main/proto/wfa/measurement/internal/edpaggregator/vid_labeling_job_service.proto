@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
+import "wfa/measurement/internal/edpaggregator/output_manifest.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/vid_labeling_job.proto";
@@ -174,6 +175,10 @@ message MarkVidLabelingJobSucceededRequest {
 
   // A request ID for retry idempotency.
   string request_id = 5;
+
+  // Complete immutable output for this attempt, including successful empty
+  // output.
+  OutputBlobReference output_manifest = 6;
 }
 
 // Response message for MarkVidLabelingJobSucceeded.

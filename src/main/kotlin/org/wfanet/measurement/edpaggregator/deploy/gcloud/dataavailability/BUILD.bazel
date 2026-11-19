@@ -33,6 +33,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:grpc_managed_done_object_resolver",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:managed_done_object_resolver",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_rpc_throttler_environment",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:output_manifest_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",

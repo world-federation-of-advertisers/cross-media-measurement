@@ -60,6 +60,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.ModelLineCutover
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -69,6 +70,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter as listFilter
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataRequest
@@ -248,6 +250,7 @@ class DataAvailabilitySync(
     val expectedImpressionBlobUri: String? = null,
     val capturedBlob: CapturedBlob? = null,
     val content: ByteString? = null,
+    val capturedImpressionsBlob: CapturedBlob? = null,
   )
 
   private data class CapturedBlob(val blob: StorageClient.Blob, val generation: Long)
@@ -439,28 +442,65 @@ class DataAvailabilitySync(
         }
       }
       val selectedMetadataKeys = (discoveryMode as? DiscoveryMode.SelectedMetadataBlobs)?.blobKeys
+      val committedOutputs =
+        if (
+          managedOwners != null &&
+            managedOwners.resolvesCommittedOutputs &&
+            doneBlobUri.key.substringAfterLast('/').startsWith("done-")
+        ) {
+          val date =
+            vidLabelerOutputs?.eventDate ?: LocalDate.parse(folderPrefix.substringAfterLast('/'))
+          val model =
+            vidLabelerOutputs?.modelLine ?: managedOwners.modelLineFor(date, doneBlobUri.key)
+          when (managedOwners.resolve(model, date, doneBlobUri.key)) {
+            ManagedDoneObjectDisposition.CURRENT -> {}
+            ManagedDoneObjectDisposition.FINALIZING -> error("Managed output is not finalized")
+            ManagedDoneObjectDisposition.OBSOLETE ->
+              throw ObsoleteDataAvailabilityWorkItemException()
+          }
+          managedOwners
+            .committedOutputs(
+              model,
+              date,
+              doneBlobUri.key,
+              absoluteBlobUri(doneBlobUri, edpImpressionPath),
+            )
+            ?.takeIf { it.hasCommittedManifests }
+            ?.let { Triple(it, model, date) }
+        } else null
       val impressionMetadataBlobs: Flow<MetadataBlobCandidate> =
-        when (discoveryMode) {
-          DiscoveryMode.FolderScan,
-          is DiscoveryMode.SelectedMetadataBlobs ->
-            externalSnapshot
-              ?.metadataBlobs
-              ?.asFlow()
-              ?.filter { selectedMetadataKeys == null || it.blob.blobKey in selectedMetadataKeys }
-              ?.map { captured ->
-                MetadataBlobCandidate(
-                  blob = captured.blob,
-                  capturedBlob = captured,
-                  content = readCapturedBlob(captured),
-                )
-              }
-              ?: storageClient
-                .listBlobs(doneBlobFolderPrefix)
-                .filter { selectedMetadataKeys == null || it.blobKey in selectedMetadataKeys }
-                .map { MetadataBlobCandidate(it) }
-          is DiscoveryMode.VidLabelerOutputs ->
-            discoverVidLabelerMetadataBlobs(discoveryMode, doneBlobUri)
-        }
+        if (committedOutputs != null) {
+          discoverCommittedMetadataBlobs(
+              committedOutputs.first,
+              committedOutputs.second,
+              committedOutputs.third,
+              doneBlobUri,
+            )
+            .filter { selectedMetadataKeys == null || it.blob.blobKey in selectedMetadataKeys }
+        } else
+          when (discoveryMode) {
+            DiscoveryMode.FolderScan,
+            is DiscoveryMode.SelectedMetadataBlobs ->
+              externalSnapshot
+                ?.metadataBlobs
+                ?.filter { !isAttemptObject(it.blob.blobKey) }
+                ?.asFlow()
+                ?.filter { selectedMetadataKeys == null || it.blob.blobKey in selectedMetadataKeys }
+                ?.map { captured ->
+                  MetadataBlobCandidate(
+                    blob = captured.blob,
+                    capturedBlob = captured,
+                    content = readCapturedBlob(captured),
+                  )
+                }
+                ?: storageClient
+                  .listBlobs(doneBlobFolderPrefix)
+                  .filter { !isAttemptObject(it.blobKey) }
+                  .filter { selectedMetadataKeys == null || it.blobKey in selectedMetadataKeys }
+                  .map { MetadataBlobCandidate(it) }
+            is DiscoveryMode.VidLabelerOutputs ->
+              discoverVidLabelerMetadataBlobs(discoveryMode, doneBlobUri)
+          }
 
       // 1. Retrieve blob details from storage and build a map and validate them
       val impressionMetadataMap: Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> =
@@ -1889,6 +1929,67 @@ class DataAvailabilitySync(
       .associateBy { it.blobUri }
   }
 
+  private fun isAttemptObject(key: String): Boolean =
+    key.contains("/.attempts/") || key.contains("/.vid-output-attempts/")
+
+  private suspend fun captureExactOutput(
+    reference: OutputBlobReference,
+    root: BlobUri,
+  ): CapturedBlob {
+    val parsed = SelectedStorageClient.parseBlobUri(reference.blobUri)
+    check(parsed.scheme == root.scheme && parsed.bucket == root.bucket) {
+      "Committed output belongs to another storage root"
+    }
+    val blob = checkNotNull(storageClient.getBlob(parsed.key)) { "Committed output is missing" }
+    val captured = captureBlob(blob)
+    check(captured.generation == reference.blobGeneration) { "Committed output generation changed" }
+    return captured
+  }
+
+  private fun discoverCommittedMetadataBlobs(
+    output: CommittedOutputResolver.Result,
+    modelLine: String,
+    eventDate: LocalDate,
+    doneBlobUri: BlobUri,
+  ): Flow<MetadataBlobCandidate> = flow {
+    for (entry in
+      output.labeledBlobs.filter {
+        it.modelLine == modelLine &&
+          LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) == eventDate
+      }) {
+      val metadata = captureExactOutput(entry.metadata, doneBlobUri)
+      val impressions = captureExactOutput(entry.impressions, doneBlobUri)
+      emit(
+        MetadataBlobCandidate(
+          metadata.blob,
+          entry.impressions.blobUri,
+          metadata,
+          readCapturedBlob(metadata),
+          impressions,
+        )
+      )
+    }
+    val legacyUris =
+      output.legacyFiles
+        .filter {
+          LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) == eventDate
+        }
+        .map { it.blobUri }
+    if (legacyUris.isNotEmpty()) {
+      discoverVidLabelerMetadataBlobs(
+          DiscoveryMode.VidLabelerOutputs(
+            rawImpressionUpload =
+              output.legacyFiles.first().name.substringBefore("/rawImpressionUploadFiles/"),
+            rawImpressionBlobUris = legacyUris,
+            modelLine = modelLine,
+            eventDate = eventDate,
+          ),
+          doneBlobUri,
+        )
+        .collect { emit(it) }
+    }
+  }
+
   @OptIn(ExperimentalCoroutinesApi::class)
   private fun discoverVidLabelerMetadataBlobs(
     discoveryMode: DiscoveryMode.VidLabelerOutputs,
@@ -2077,9 +2178,11 @@ class DataAvailabilitySync(
           else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
         }
       logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
-      val capturedImpressionBlob = externalSnapshot?.getReferencedBlob(impressionBlobUri.key)
+      val capturedImpressionBlob =
+        candidate.capturedImpressionsBlob
+          ?: externalSnapshot?.getReferencedBlob(impressionBlobUri.key)
       val impressionBlob =
-        if (externalSnapshot != null) capturedImpressionBlob?.blob
+        if (capturedImpressionBlob != null || externalSnapshot != null) capturedImpressionBlob?.blob
         else storageClient.getBlob(impressionBlobUri.key)
       if (impressionBlob == null) {
         val eventDate =

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator.v1alpha;
 
+import "wfa/measurement/edpaggregator/v1alpha/output_manifest.proto";
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
@@ -220,6 +221,11 @@ message MarkVidLabelingJobSucceededRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
+
+  // Complete immutable output for this attempt, including successful empty
+  // output.
+  OutputBlobReference output_manifest = 4
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator.v1alpha;
 
+import "wfa/measurement/edpaggregator/v1alpha/output_manifest.proto";
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
@@ -230,6 +231,7 @@ message MarkPoolAssignmentJobSucceededRequest {
   ];
 
   // The DEK that encrypts this shard's `SubpoolFingerprints` blobs.
+  // Required for non-empty or legacy output; absent for an empty manifest.
   // Persisted by the server onto the job's OUTPUT_ONLY
   // `PoolAssignmentJob.encrypted_dek` atomically with the `SUCCEEDED`
   // transition. On the last-shard mark, the server additionally promotes
@@ -240,7 +242,7 @@ message MarkPoolAssignmentJobSucceededRequest {
   //     aip.dev/not-precedent: Shared encryption key schema used by
   //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 4
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 
   // Subpool offsets discovered by this shard during Phase 0. The service unions
   // these across all shards of the (upload, model line); on the last shard out
@@ -256,6 +258,11 @@ message MarkPoolAssignmentJobSucceededRequest {
   // `RawImpressionUploadModelLine.max_event_date`. Unset for a shard that wrote
   // no impressions.
   google.type.Date max_event_date = 6 [(google.api.field_behavior) = OPTIONAL];
+
+  // Complete immutable output for this attempt, including successful empty
+  // output.
+  OutputBlobReference output_manifest = 7
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the

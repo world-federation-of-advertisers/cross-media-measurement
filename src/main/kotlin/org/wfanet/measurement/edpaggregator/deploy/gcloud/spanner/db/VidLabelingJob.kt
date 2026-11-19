@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
@@ -34,6 +35,8 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ListVidLabelingJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListVidLabelingJobsRequest
+import org.wfanet.measurement.internal.edpaggregator.MarkVidLabelingJobSucceededResponse
+import org.wfanet.measurement.internal.edpaggregator.OutputBlobReference
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJob
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingState as State
 import org.wfanet.measurement.internal.edpaggregator.vidLabelingJob
@@ -44,6 +47,7 @@ data class VidLabelingJobResult(
   val vidLabelingJobId: Long,
   val markSucceededRequestId: String,
   val markFailedRequestId: String,
+  val completionResult: MarkVidLabelingJobSucceededResponse? = null,
 )
 
 /** Returns whether a [VidLabelingJob] with the specified keys exists. */
@@ -358,10 +362,12 @@ private object VidLabelingJobEntity {
       VidLabelingJob.CreateRequestId,
       VidLabelingJob.MarkSucceededRequestId,
       VidLabelingJob.MarkFailedRequestId,
+      VidLabelingJob.CompletionResult,
       VidLabelingJob.State,
       VidLabelingJob.ErrorMessage,
       VidLabelingJob.CreateTime,
       VidLabelingJob.UpdateTime,
+      VidLabelingJob.OutputManifest,
     FROM
       VidLabelingJob
     """
@@ -382,6 +388,10 @@ private object VidLabelingJobEntity {
           errorMessage = struct.getString("ErrorMessage")
         }
         etag = ETags.computeETag(updateTime.toInstant())
+        if (!struct.isNull("OutputManifest")) {
+          outputManifest =
+            OutputBlobReference.parseFrom(struct.getBytes("OutputManifest").toByteArray())
+        }
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("VidLabelingJobId"),
@@ -391,6 +401,50 @@ private object VidLabelingJobEntity {
         struct.getString("MarkSucceededRequestId")
       },
       if (struct.isNull("MarkFailedRequestId")) "" else struct.getString("MarkFailedRequestId"),
+      if (struct.isNull("CompletionResult")) null
+      else
+        MarkVidLabelingJobSucceededResponse.parseFrom(
+          struct.getBytes("CompletionResult").toByteArray()
+        ),
     )
+  }
+}
+
+/** Seals manifest-based model-line output once its complete job set has succeeded. */
+suspend fun AsyncDatabaseClient.ReadContext.ensureVidLabelingGroupOpen(
+  dataProvider: String,
+  upload: Long,
+  modelLines: List<String>,
+) {
+  for (model in modelLines.distinct()) {
+    val row =
+      executeQuery(
+          statement(
+            """
+      SELECT COUNT(*) AS Total,
+        COUNTIF(CAST(State AS INT64) = @succeeded) AS Succeeded,
+        COUNTIF(OutputManifest IS NOT NULL) AS Published
+      FROM VidLabelingJob
+      WHERE DataProviderResourceId = @provider AND RawImpressionUploadId = @upload
+        AND @model IN UNNEST(CmmsModelLines)
+    """
+              .trimIndent()
+          ) {
+            bind("provider").to(dataProvider)
+            bind("upload").to(upload)
+            bind("model").to(model)
+            bind("succeeded").to(State.VID_LABELING_STATE_SUCCEEDED.number.toLong())
+          }
+        )
+        .singleOrNullIfEmpty()
+    if (
+      row != null &&
+        row.getLong("Total") > 0L &&
+        row.getLong("Total") == row.getLong("Succeeded") &&
+        row.getLong("Published") > 0L
+    ) {
+      throw Status.FAILED_PRECONDITION.withDescription("Labeled output is already complete")
+        .asRuntimeException()
+    }
   }
 }

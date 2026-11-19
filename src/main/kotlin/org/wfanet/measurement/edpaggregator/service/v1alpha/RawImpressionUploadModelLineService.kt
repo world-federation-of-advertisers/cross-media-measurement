@@ -30,8 +30,10 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.edpaggregator.service.internal.OutputBlobReferences
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.CommitRawImpressionUploadModelLineMergedOutputRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
@@ -56,6 +58,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceStub
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesRequest as internalBatchCreateRequest
+import org.wfanet.measurement.internal.edpaggregator.commitRawImpressionUploadModelLineMergedOutputRequest as internalCommitMergedOutputRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest as internalCreateRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest as internalGetRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadModelLinesRequest as internalListRequest
@@ -71,6 +74,52 @@ class RawImpressionUploadModelLineService(
   private val internalModelLineStub: InternalModelLineServiceStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : RawImpressionUploadModelLineServiceCoroutineImplBase(coroutineContext) {
+
+  override suspend fun commitRawImpressionUploadModelLineMergedOutput(
+    request: CommitRawImpressionUploadModelLineMergedOutputRequest
+  ): RawImpressionUploadModelLine {
+    val key =
+      RawImpressionUploadModelLineKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    try {
+      if (request.etag.isEmpty()) throw RequiredFieldNotSetException("etag")
+      if (request.requestId.isEmpty()) throw RequiredFieldNotSetException("request_id")
+      try {
+        UUID.fromString(request.requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("request_id", e)
+      }
+      if (!request.hasOutputManifest()) throw RequiredFieldNotSetException("output_manifest")
+      OutputBlobReferences.validate(
+        request.outputManifest.blobUri,
+        request.outputManifest.blobGeneration,
+        required = { RequiredFieldNotSetException(it) },
+        invalid = { field, cause -> InvalidFieldValueException(field, cause) },
+      )
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val response =
+      try {
+        internalModelLineStub.commitRawImpressionUploadModelLineMergedOutput(
+          internalCommitMergedOutputRequest {
+            dataProviderResourceId = key.dataProviderId
+            rawImpressionUploadResourceId = key.rawImpressionUploadId
+            rawImpressionUploadModelLineResourceId = key.rawImpressionUploadModelLineId
+            etag = request.etag
+            requestId = request.requestId
+            outputManifest = request.outputManifest.toInternal()
+          }
+        )
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.ABORTED) throw e.status.withCause(e).asRuntimeException()
+        throw handleInternalError(e)
+      }
+    return response.toPublic()
+  }
 
   override suspend fun createRawImpressionUploadModelLine(
     request: CreateRawImpressionUploadModelLineRequest
@@ -741,6 +790,9 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
       errorMessage = source.errorMessage
     }
     // Phase-0 last-shard-out outputs (OUTPUT_ONLY), consumed by a retrying SubpoolAssigner.
+    if (source.hasMergedOutputManifest()) {
+      mergedOutputManifest = source.mergedOutputManifest.toPublic()
+    }
     poolOffsets += source.poolOffsetsList
     if (source.hasMaxEventDate()) {
       maxEventDate = source.maxEventDate

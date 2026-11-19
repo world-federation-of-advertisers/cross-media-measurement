@@ -38,11 +38,13 @@ import org.wfanet.measurement.internal.edpaggregator.VidLabelingJob
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createVidLabelingJobRequest
 import org.wfanet.measurement.internal.edpaggregator.getVidLabelingJobRequest
 import org.wfanet.measurement.internal.edpaggregator.listVidLabelingJobsRequest
 import org.wfanet.measurement.internal.edpaggregator.markVidLabelingJobFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.markVidLabelingJobSucceededRequest
+import org.wfanet.measurement.internal.edpaggregator.outputBlobReference
 import org.wfanet.measurement.internal.edpaggregator.vidLabelingJob
 
 @RunWith(JUnit4::class)
@@ -1106,6 +1108,112 @@ abstract class VidLabelingJobServiceTest {
         }
       )
   }
+
+  @Test
+  fun `markVidLabelingJobSucceeded persists and replays the selected manifest`() =
+    runBlocking<Unit> {
+      val job = createJob()
+      val manifest = outputBlobReference {
+        blobUri = "gs://bucket/attempt/manifest"
+        blobGeneration = 3L
+      }
+      val request = markVidLabelingJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        vidLabelingJobResourceId = job.vidLabelingJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+        outputManifest = manifest
+      }
+      val original = service.markVidLabelingJobSucceeded(request)
+      createJob(
+        cmmsModelLines = listOf(CMMS_MODEL_LINE_2),
+        rawImpressionUploadFiles = listOf(FILE_2),
+      )
+      val replay = service.markVidLabelingJobSucceeded(request)
+      assertThat(replay).isEqualTo(original)
+      assertThat(replay.vidLabelingJob.outputManifest).isEqualTo(manifest)
+      assertThat(replay.lastVidLabelingJobResult.completedModelLinesList)
+        .containsExactly(CMMS_MODEL_LINE)
+      val fetched =
+        service.getVidLabelingJob(
+          getVidLabelingJobRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = job.vidLabelingJobResourceId
+          }
+        )
+      assertThat(fetched.outputManifest).isEqualTo(manifest)
+    }
+
+  @Test
+  fun `markVidLabelingJobSucceeded cannot replace a selected manifest with a different request`() =
+    runBlocking<Unit> {
+      val job = createJob()
+      val request = markVidLabelingJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        vidLabelingJobResourceId = job.vidLabelingJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+        outputManifest = outputBlobReference {
+          blobUri = "gs://bucket/winner/manifest"
+          blobGeneration = 1L
+        }
+      }
+      val winner = service.markVidLabelingJobSucceeded(request)
+      val loser =
+        request.copy {
+          requestId = UUID.randomUUID().toString()
+          outputManifest = outputBlobReference {
+            blobUri = "gs://bucket/loser/manifest"
+            blobGeneration = 2L
+          }
+        }
+      val e = assertFailsWith<StatusRuntimeException> { service.markVidLabelingJobSucceeded(loser) }
+      assertThat(e.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(service.markVidLabelingJobSucceeded(request)).isEqualTo(winner)
+    }
+
+  @Test
+  fun `createVidLabelingJob rejects new membership after manifest-based output completes`() =
+    runBlocking<Unit> {
+      val job = createJob()
+      service.markVidLabelingJobSucceeded(
+        markVidLabelingJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          vidLabelingJobResourceId = job.vidLabelingJobResourceId
+          etag = job.etag
+          requestId = UUID.randomUUID().toString()
+          outputManifest = outputBlobReference {
+            blobUri = "gs://bucket/attempt/manifest"
+            blobGeneration = 1L
+          }
+        }
+      )
+      val e =
+        assertFailsWith<StatusRuntimeException> {
+          createJob(rawImpressionUploadFiles = listOf(FILE_2))
+        }
+      assertThat(e.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `legacy completion replay retains the original result after a later sibling is added`() =
+    runBlocking<Unit> {
+      val job = createJob()
+      val request = markVidLabelingJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        vidLabelingJobResourceId = job.vidLabelingJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+      }
+      val original = service.markVidLabelingJobSucceeded(request)
+      createJob(rawImpressionUploadFiles = listOf(FILE_2))
+      assertThat(service.markVidLabelingJobSucceeded(request)).isEqualTo(original)
+    }
 
   companion object {
     private const val MAX_BATCH_SIZE = 50

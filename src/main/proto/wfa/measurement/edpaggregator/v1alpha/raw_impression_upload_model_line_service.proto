@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator.v1alpha;
 
+import "google/api/annotations.proto";
+import "wfa/measurement/edpaggregator/v1alpha/output_manifest.proto";
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
@@ -31,6 +33,17 @@ option java_outer_classname = "RawImpressionUploadModelLineServiceProto";
 // which track per-model-line processing state for a raw
 // impression upload.
 service RawImpressionUploadModelLineService {
+  // Commits the complete merged output once all pool-assignment jobs succeeded.
+  // Returns ABORTED on etag mismatch and FAILED_PRECONDITION before completion.
+  rpc CommitRawImpressionUploadModelLineMergedOutput(
+      CommitRawImpressionUploadModelLineMergedOutputRequest)
+      returns (RawImpressionUploadModelLine) {
+    option (google.api.http) = {
+      post: "/v1alpha/{name=dataProviders/*/rawImpressionUploads/*/rawImpressionUploadModelLines/*}:commitMergedOutput"
+      body: "*"
+    };
+  }
+
   // Creates a new `RawImpressionUploadModelLine`.
   rpc CreateRawImpressionUploadModelLine(
       CreateRawImpressionUploadModelLineRequest)
@@ -480,4 +493,25 @@ message MarkRawImpressionUploadModelLineFailedRequest {
       type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
     }
   ];
+}
+
+// Commits one immutable merged output to a model-line execution.
+message CommitRawImpressionUploadModelLineMergedOutputRequest {
+  // Model-line execution resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+  // Current resource etag.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+  // UUID4 request identifier for lost-reply retries.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+  // Complete immutable merged output.
+  OutputBlobReference output_manifest = 4
+      [(google.api.field_behavior) = REQUIRED];
 }

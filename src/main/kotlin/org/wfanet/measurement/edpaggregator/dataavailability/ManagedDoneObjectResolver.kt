@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import java.time.LocalDate
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
 
 /** An availability delivery whose output owner has been invalidated or superseded. */
 class ObsoleteDataAvailabilityWorkItemException :
@@ -30,6 +31,18 @@ enum class ManagedDoneObjectDisposition {
 }
 
 fun interface ManagedDoneObjectResolver {
+  /** Whether this reader can resolve database-selected output manifests. */
+  val resolvesCommittedOutputs: Boolean
+    get() = false
+
+  /** Resolves selected outputs for a managed marker, or null for a legacy-only reader. */
+  suspend fun committedOutputs(
+    modelLine: String,
+    eventDate: LocalDate,
+    blobKey: String,
+    storageRoot: String,
+  ): CommittedOutputResolver.Result? = null
+
   /** Finds the full registered model name for a managed marker without labeled sidecars. */
   suspend fun modelLineFor(eventDate: LocalDate, blobKey: String): String =
     error("Managed trigger model line requires authoritative lookup")

@@ -39,15 +39,21 @@ kt_jvm_library(
     ],
     deps = [
         ":data_availability_blobs",
+        ":managed_done_object_resolver",
         "//imports/java/io/opentelemetry/api",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:blob_uris",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:committed_output_resolver",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:output_manifest_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
 
@@ -104,6 +110,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:committed_output_resolver",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:output_manifest_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
@@ -116,6 +124,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:output_manifest_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
@@ -152,6 +161,7 @@ kt_jvm_library(
 kt_jvm_library(
     name = "managed_done_object_resolver",
     srcs = ["ManagedDoneObjectResolver.kt"],
+    deps = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:committed_output_resolver"],
 )
 
 kt_jvm_library(
@@ -159,6 +169,8 @@ kt_jvm_library(
     srcs = ["GrpcManagedDoneObjectResolver.kt"],
     deps = [
         ":managed_done_object_resolver",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:committed_output_resolver",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:output_manifest_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",

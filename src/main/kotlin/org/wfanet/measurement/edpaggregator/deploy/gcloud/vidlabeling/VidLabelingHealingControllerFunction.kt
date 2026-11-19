@@ -41,6 +41,8 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -51,6 +53,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
@@ -65,10 +68,12 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUpl
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingControllerEventSink
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Scheduled Cloud Function for automatic VID-labeling correction progression. */
 class VidLabelingHealingControllerFunction(
@@ -186,6 +191,19 @@ class VidLabelingHealingControllerFunction(
               labeledOutputStore::getGeneration,
               labeledOutputStore::delete,
               rpcThrottlers = rpcThrottlers,
+              committedOutputResolver =
+                CommittedOutputResolver(
+                  VidLabelingJobServiceCoroutineStub(rawChannel),
+                  files,
+                  OutputManifestStore(
+                    GcsStorageClient(
+                      storage,
+                      SelectedStorageClient.parseBlobUri(labeledOutputPrefix(config)).bucket,
+                    ),
+                    labeledOutputPrefix(config),
+                  ),
+                  rpcThrottlers.metadataRead,
+                ),
             )
         }
       val recoverUploader =

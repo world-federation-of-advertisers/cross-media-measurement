@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator.v1alpha;
 
+import "wfa/measurement/edpaggregator/v1alpha/output_manifest.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
@@ -170,5 +171,9 @@ message RawImpressionUploadModelLine {
   // Event dates whose VID-labeled output has not yet been synchronized into
   // ImpressionMetadata and the Kingdom.
   repeated google.type.Date pending_availability_dates = 16
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Selected complete merged subpool output; absent for legacy executions.
+  OutputBlobReference merged_output_manifest = 17
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }

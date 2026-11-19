@@ -46,6 +46,7 @@ import org.wfanet.measurement.internal.edpaggregator.getPoolAssignmentJobRequest
 import org.wfanet.measurement.internal.edpaggregator.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededRequest
+import org.wfanet.measurement.internal.edpaggregator.outputBlobReference
 import org.wfanet.measurement.internal.edpaggregator.poolAssignmentJob
 
 @RunWith(JUnit4::class)
@@ -1897,6 +1898,111 @@ abstract class PoolAssignmentJobServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  private suspend fun createOutputJob(shard: Int = 0): PoolAssignmentJob =
+    service.createPoolAssignmentJob(
+      createPoolAssignmentJobRequest {
+        requestId = UUID.randomUUID().toString()
+        poolAssignmentJob = poolAssignmentJob {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          cmmsModelLine = CMMS_MODEL_LINE
+          shardIndex = shard
+        }
+      }
+    )
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded persists an empty manifest without a dummy DEK`() =
+    runBlocking<Unit> {
+      val job = createOutputJob()
+      val manifest = outputBlobReference {
+        blobUri = "gs://bucket/attempt/manifest"
+        blobGeneration = 1L
+      }
+      val response =
+        service.markPoolAssignmentJobSucceeded(
+          markPoolAssignmentJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+            etag = job.etag
+            requestId = UUID.randomUUID().toString()
+            outputManifest = manifest
+          }
+        )
+      assertThat(response.poolAssignmentJob.outputManifest).isEqualTo(manifest)
+      assertThat(response.poolAssignmentJob.lastShard).isTrue()
+      assertThat(response.poolAssignmentJob.hasEncryptedDek()).isFalse()
+      assertThat(response.hasLastShardResult()).isFalse()
+      val fetched =
+        service.getPoolAssignmentJob(
+          getPoolAssignmentJobRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+          }
+        )
+      assertThat(fetched).isEqualTo(response.poolAssignmentJob)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded rejects nonpositive manifest generations`() =
+    runBlocking<Unit> {
+      val job = createOutputJob()
+      val e =
+        assertFailsWith<StatusRuntimeException> {
+          service.markPoolAssignmentJobSucceeded(
+            markPoolAssignmentJobSucceededRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+              etag = job.etag
+              requestId = UUID.randomUUID().toString()
+              outputManifest = outputBlobReference { blobUri = "gs://bucket/attempt/manifest" }
+            }
+          )
+        }
+      assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded preserves its original finalizer result after later sibling completion`() =
+    runBlocking<Unit> {
+      val first = createOutputJob()
+      val request = markPoolAssignmentJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        poolAssignmentJobResourceId = first.poolAssignmentJobResourceId
+        etag = first.etag
+        requestId = UUID.randomUUID().toString()
+        encryptedDek = ENCRYPTED_DEK
+        poolOffsets += 7L
+        maxEventDate =
+          com.google.type.Date.newBuilder().setYear(2026).setMonth(11).setDay(1).build()
+        outputManifest = outputBlobReference {
+          blobUri = "gs://bucket/first/manifest"
+          blobGeneration = 1L
+        }
+      }
+      val original = service.markPoolAssignmentJobSucceeded(request)
+      val later = createOutputJob(1)
+      service.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          poolAssignmentJobResourceId = later.poolAssignmentJobResourceId
+          etag = later.etag
+          requestId = UUID.randomUUID().toString()
+          encryptedDek = ENCRYPTED_DEK
+          poolOffsets += 8L
+          maxEventDate =
+            com.google.type.Date.newBuilder().setYear(2026).setMonth(11).setDay(2).build()
+        }
+      )
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
+      assertThat(original.lastShardResult.poolOffsetsList).containsExactly(7L)
     }
 
   companion object {

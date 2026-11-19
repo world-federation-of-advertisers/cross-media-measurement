@@ -86,6 +86,8 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.ModelLineCutover
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchUpdateImpressionMetadataRequest
@@ -97,6 +99,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecordKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
@@ -107,6 +111,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.outputBlobReference
+import org.wfanet.measurement.edpaggregator.v1alpha.outputManifestRecord
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobChangedException
@@ -7702,6 +7708,149 @@ class DataAvailabilitySyncTest {
     storageClient.writeBlob(dataPath, ByteString.copyFromUtf8("data"))
     storageClient.writeBlob(donePath, ByteString.copyFromUtf8("done"))
   }
+
+  private data class CommittedFixture(
+    val storage: VersionedBlobMetadataStorageClient,
+    val sync: DataAvailabilitySync,
+    val doneUri: String,
+    val doneGeneration: Long,
+    val dataKey: String,
+    val dataGeneration: Long,
+    val metadataGeneration: Long,
+  )
+
+  private suspend fun committedFixture(): CommittedFixture {
+    val storage = VersionedBlobMetadataStorageClient()
+    val date = LocalDate.of(2026, 3, 14)
+    val attempt = "00000000-0000-4000-8000-000000000001"
+    val dataKey = "edp/edpa_edp/model-line/modelLine1/$date/.attempts/$attempt/data"
+    val data = storage.writeVersion(dataKey, ByteString.copyFromUtf8("ciphertext"), Instant.now())
+    val metadataKey = "$dataKey.metadata.binpb"
+    writeVidLabelerMetadata(storage, metadataKey, "$bucket/$dataKey", date)
+    val metadataVersion =
+      checkNotNull(storage.getBlob(metadataKey)) as ConditionalOperationStorageClient.Blob
+    val entry =
+      OutputManifestRecordKt.labeledBlob {
+        rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/rawImpressionUploadFiles/file"
+        modelLine = MODEL_LINE
+        eventDate = eventDate.toBuilder().setYear(2026).setMonth(3).setDay(14).build()
+        impressions = outputBlobReference {
+          blobUri = "$bucket/$dataKey"
+          blobGeneration = data.freshnessToken.toLong()
+        }
+        this.metadata = outputBlobReference {
+          blobUri = "$bucket/$metadataKey"
+          blobGeneration = metadataVersion.freshnessToken.toLong()
+        }
+      }
+    val manifest =
+      OutputManifestStore(storage, "$bucket/edp/edpa_edp")
+        .write(
+          "$bucket/edp/edpa_edp/.vid-output-attempts/$attempt/manifest",
+          OutputManifestRecordKt.header {
+            phase = OutputManifestRecord.Header.Phase.VID_LABELING
+            rawImpressionUpload = RAW_IMPRESSION_UPLOAD
+            owner = "$RAW_IMPRESSION_UPLOAD/vidLabelingJobs/job"
+            modelLines += MODEL_LINE
+            attemptId = attempt
+          },
+          flowOf(
+            outputManifestRecord { labeledBlob = entry },
+            outputManifestRecord {
+              fileCompleted =
+                OutputManifestRecordKt.fileCompleted {
+                  rawImpressionUploadFile = entry.rawImpressionUploadFile
+                  modelLine = MODEL_LINE
+                }
+            },
+          ),
+        )
+    val owners =
+      object : ManagedDoneObjectResolver {
+        override val resolvesCommittedOutputs = true
+
+        override suspend fun modelLineFor(eventDate: LocalDate, blobKey: String): String =
+          MODEL_LINE
+
+        override suspend fun resolve(modelLine: String, eventDate: LocalDate, blobKey: String) =
+          ManagedDoneObjectDisposition.CURRENT
+
+        override suspend fun committedOutputs(
+          modelLine: String,
+          eventDate: LocalDate,
+          blobKey: String,
+          storageRoot: String,
+        ) = CommittedOutputResolver.Result(listOf(entry), emptyList(), listOf(manifest), true)
+      }
+    val doneKey = vidLabelerDoneKey(date)
+    val done = storage.writeVersion(doneKey, ByteString.EMPTY, Instant.now())
+    val sync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storage,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        RecordingThrottler(),
+        DEFAULT_BATCH_SIZE,
+        emptyMap(),
+        false,
+        publishEventGroupActivities = null,
+        generationMatchedMetadataUpdater = storage.generationMatchedMetadataUpdater,
+        managedDoneObjectResolver = { owners },
+      )
+    return CommittedFixture(
+      storage,
+      sync,
+      "$bucket/$doneKey",
+      done.freshnessToken.toLong(),
+      dataKey,
+      data.freshnessToken.toLong(),
+      metadataVersion.freshnessToken.toLong(),
+    )
+  }
+
+  @Test
+  fun `sync records both generations selected by a committed output manifest`() =
+    runBlocking<Unit> {
+      val fixture = committedFixture()
+      fixture.sync.sync(
+        fixture.doneUri,
+        TestDataAvailabilitySyncLease.NAME,
+        fixture.doneGeneration,
+        ensureLeaseActive = {},
+      )
+      val captured = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(captured.capture())
+      }
+      val row = captured.firstValue.requestsList.single().impressionMetadata
+      assertThat(row.metadataBlobGeneration).isEqualTo(fixture.metadataGeneration)
+      assertThat(row.impressionsBlobGeneration).isEqualTo(fixture.dataGeneration)
+      assertThat(row.blobUri).endsWith("${fixture.dataKey}.metadata.binpb")
+    }
+
+  @Test
+  fun `sync rejects replaced committed data before creating impression metadata`() =
+    runBlocking<Unit> {
+      val fixture = committedFixture()
+      fixture.storage.writeVersion(
+        fixture.dataKey,
+        ByteString.copyFromUtf8("replacement"),
+        Instant.now(),
+      )
+      assertFailsWith<IllegalStateException> {
+        fixture.sync.sync(
+          fixture.doneUri,
+          TestDataAvailabilitySyncLease.NAME,
+          fixture.doneGeneration,
+          ensureLeaseActive = {},
+        )
+      }
+      verifyBlocking(impressionMetadataServiceMock, never()) {
+        batchCreateImpressionMetadata(any())
+      }
+    }
 
   private class RecordingThrottler : Throttler {
     var onReadyCalls: Int = 0

@@ -127,3 +127,9 @@ databaseChangeLog:
   - include:
       file: create-report-routing-decision-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-vid-labeling-output-manifest-state.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: allow-soft-deleted-rank-index-replacements.sql
+      relativeToChangeLogFile: true

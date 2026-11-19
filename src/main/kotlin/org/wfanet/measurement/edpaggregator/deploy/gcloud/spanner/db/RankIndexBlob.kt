@@ -342,6 +342,7 @@ fun AsyncDatabaseClient.TransactionContext.softDeleteRankIndexBlob(
     set("RawImpressionUploadId").to(rawImpressionUploadId)
     set("RankIndexBlobId").to(rankIndexBlobId)
     set("DeleteTime").to(Value.COMMIT_TIMESTAMP)
+    set("IsDeleted").to(true)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }

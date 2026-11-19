@@ -52,13 +52,18 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+import org.wfanet.measurement.internal.edpaggregator.commitRawImpressionUploadModelLineMergedOutputRequest
+import org.wfanet.measurement.internal.edpaggregator.createPoolAssignmentJobRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineRankingRequest
+import org.wfanet.measurement.internal.edpaggregator.outputBlobReference
+import org.wfanet.measurement.internal.edpaggregator.poolAssignmentJob
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine
 
 class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelLineServiceTest() {
@@ -1395,6 +1400,195 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
         )
         .single()
         .getLong("RawImpressionUploadModelLineId")
+    }
+
+  private suspend fun createOutputExecution(): RawImpressionUploadModelLine {
+    createParentUpload("output-provider", "output-upload")
+    val service = newService(IdGenerator.Default)
+    val created =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = "output-provider"
+          rawImpressionUploadResourceId = "output-upload"
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            dataProviderResourceId = "output-provider"
+            rawImpressionUploadResourceId = "output-upload"
+            cmmsModelLine = "modelProviders/provider/modelSuites/suite/modelLines/output"
+          }
+        }
+      )
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUpload")
+          .apply {
+            set("DataProviderResourceId").to("output-provider")
+            set("RawImpressionUploadId").to(uploadIdsByResourceId.getValue("output-upload"))
+            set("State")
+              .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE))
+            set("RegistrationComplete").to(true)
+          }
+          .build()
+      )
+    )
+    return service.markRawImpressionUploadModelLinePoolAssigning(
+      markRawImpressionUploadModelLinePoolAssigningRequest {
+        dataProviderResourceId = created.dataProviderResourceId
+        rawImpressionUploadResourceId = created.rawImpressionUploadResourceId
+        rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = created.etag
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+  }
+
+  private suspend fun createOutputPoolJob(
+    execution: RawImpressionUploadModelLine,
+    succeed: Boolean,
+  ) {
+    val pools = SpannerPoolAssignmentJobService(spannerDatabase.databaseClient)
+    val job =
+      pools.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          requestId = UUID.randomUUID().toString()
+          poolAssignmentJob = poolAssignmentJob {
+            dataProviderResourceId = execution.dataProviderResourceId
+            rawImpressionUploadResourceId = execution.rawImpressionUploadResourceId
+            cmmsModelLine = execution.cmmsModelLine
+          }
+        }
+      )
+    if (succeed)
+      pools.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          dataProviderResourceId = job.dataProviderResourceId
+          rawImpressionUploadResourceId = job.rawImpressionUploadResourceId
+          poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+          requestId = UUID.randomUUID().toString()
+          etag = job.etag
+          outputManifest = outputBlobReference {
+            blobUri = "gs://bucket/pool/manifest"
+            blobGeneration = 1L
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `commitMergedOutput rejects absent jobs instead of treating them as empty success`() =
+    runBlocking<Unit> {
+      val execution = createOutputExecution()
+      val e =
+        assertFailsWith<StatusRuntimeException> {
+          newService(IdGenerator.Default)
+            .commitRawImpressionUploadModelLineMergedOutput(
+              commitRawImpressionUploadModelLineMergedOutputRequest {
+                dataProviderResourceId = execution.dataProviderResourceId
+                rawImpressionUploadResourceId = execution.rawImpressionUploadResourceId
+                rawImpressionUploadModelLineResourceId =
+                  execution.rawImpressionUploadModelLineResourceId
+                etag = execution.etag
+                requestId = UUID.randomUUID().toString()
+                outputManifest = outputBlobReference {
+                  blobUri = "gs://bucket/merged/manifest"
+                  blobGeneration = 1L
+                }
+              }
+            )
+        }
+      assertThat(e.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `commitMergedOutput rejects a still incomplete pool job`() =
+    runBlocking<Unit> {
+      val execution = createOutputExecution()
+      createOutputPoolJob(execution, succeed = false)
+      val e =
+        assertFailsWith<StatusRuntimeException> {
+          newService(IdGenerator.Default)
+            .commitRawImpressionUploadModelLineMergedOutput(
+              commitRawImpressionUploadModelLineMergedOutputRequest {
+                dataProviderResourceId = execution.dataProviderResourceId
+                rawImpressionUploadResourceId = execution.rawImpressionUploadResourceId
+                rawImpressionUploadModelLineResourceId =
+                  execution.rawImpressionUploadModelLineResourceId
+                etag = execution.etag
+                requestId = UUID.randomUUID().toString()
+                outputManifest = outputBlobReference {
+                  blobUri = "gs://bucket/merged/manifest"
+                  blobGeneration = 1L
+                }
+              }
+            )
+        }
+      assertThat(e.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `commitMergedOutput selects one winner and preserves it after empty output advances`() =
+    runBlocking<Unit> {
+      var execution = createOutputExecution()
+      createOutputPoolJob(execution, succeed = true)
+      val service = newService(IdGenerator.Default)
+      execution =
+        service.getRawImpressionUploadModelLine(
+          getRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = execution.dataProviderResourceId
+            rawImpressionUploadResourceId = execution.rawImpressionUploadResourceId
+            rawImpressionUploadModelLineResourceId =
+              execution.rawImpressionUploadModelLineResourceId
+          }
+        )
+      val request = commitRawImpressionUploadModelLineMergedOutputRequest {
+        dataProviderResourceId = execution.dataProviderResourceId
+        rawImpressionUploadResourceId = execution.rawImpressionUploadResourceId
+        rawImpressionUploadModelLineResourceId = execution.rawImpressionUploadModelLineResourceId
+        etag = execution.etag
+        requestId = UUID.randomUUID().toString()
+        outputManifest = outputBlobReference {
+          blobUri = "gs://bucket/winner/manifest"
+          blobGeneration = 5L
+        }
+      }
+      val winner = service.commitRawImpressionUploadModelLineMergedOutput(request)
+      val e =
+        assertFailsWith<StatusRuntimeException> {
+          service.commitRawImpressionUploadModelLineMergedOutput(
+            request
+              .toBuilder()
+              .setRequestId(UUID.randomUUID().toString())
+              .setOutputManifest(
+                outputBlobReference {
+                  blobUri = "gs://bucket/loser/manifest"
+                  blobGeneration = 6L
+                }
+              )
+              .build()
+          )
+        }
+      assertThat(e.status.code).isEqualTo(Status.Code.ABORTED)
+      val labeling =
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            dataProviderResourceId = winner.dataProviderResourceId
+            rawImpressionUploadResourceId = winner.rawImpressionUploadResourceId
+            rawImpressionUploadModelLineResourceId = winner.rawImpressionUploadModelLineResourceId
+            etag = winner.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      assertThat(labeling.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+        )
+      assertThat(
+          service.commitRawImpressionUploadModelLineMergedOutput(request).mergedOutputManifest
+        )
+        .isEqualTo(winner.mergedOutputManifest)
+      val closed =
+        assertFailsWith<StatusRuntimeException> { createOutputPoolJob(labeling, succeed = false) }
+      assertThat(closed.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   companion object {

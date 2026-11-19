@@ -348,6 +348,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
+        ":output_manifest_proto",
         ":raw_impression_upload_model_line_failure_reason_proto",
         ":raw_impression_upload_model_line_recovery_action_proto",
         ":raw_impression_upload_model_line_state_proto",
@@ -366,6 +367,7 @@ proto_library(
     srcs = ["raw_impression_upload_model_line_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":output_manifest_proto",
         ":raw_impression_upload_model_line_failure_reason_proto",
         ":raw_impression_upload_model_line_proto",
         ":raw_impression_upload_model_line_recovery_action_proto",
@@ -441,6 +443,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
+        ":output_manifest_proto",
         ":pool_assignment_state_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -457,6 +460,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
+        ":output_manifest_proto",
         ":pool_assignment_job_proto",
         ":pool_assignment_state_proto",
         "@com_google_googleapis//google/type:date_proto",
@@ -542,6 +546,7 @@ proto_library(
     srcs = ["vid_labeling_job.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":output_manifest_proto",
         ":vid_labeling_state_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
@@ -557,6 +562,7 @@ proto_library(
     srcs = ["vid_labeling_job_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":output_manifest_proto",
         ":vid_labeling_job_proto",
         ":vid_labeling_state_proto",
         "@com_google_googleapis//google/type:interval_proto",
@@ -567,4 +573,17 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "vid_labeling_job_service_kt_jvm_grpc_proto",
     deps = [":vid_labeling_job_service_proto"],
+)
+
+proto_library(
+    name = "output_manifest_proto",
+    srcs = ["output_manifest.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "output_manifest_kt_jvm_proto",
+    deps = [":output_manifest_proto"],
 )

@@ -68,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilit
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
 import org.wfanet.measurement.edpaggregator.dataavailability.ObsoleteDataAvailabilityWorkItemException
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingRpcThrottlersEnvironment
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
@@ -609,6 +610,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           RawImpressionUploadFileServiceCoroutineStub(instrumentedMetadataChannel),
           VidLabelingJobServiceCoroutineStub(instrumentedMetadataChannel),
           ownerReadThrottler,
+          manifestStore = { root ->
+            OutputManifestStore(storageAccess.client as ConditionalOperationStorageClient, root)
+          },
         )
       },
     )

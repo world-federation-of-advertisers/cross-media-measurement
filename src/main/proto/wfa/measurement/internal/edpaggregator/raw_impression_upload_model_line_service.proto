@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
+import "wfa/measurement/internal/edpaggregator/output_manifest.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "google/type/interval.proto";
@@ -32,6 +33,12 @@ option java_outer_classname = "RawImpressionUploadModelLineServiceProto";
 // which track per-model-line processing state for a raw
 // impression upload.
 service RawImpressionUploadModelLineService {
+  // Commits the complete merged output once all pool-assignment jobs succeeded.
+  // Returns ABORTED on etag mismatch and FAILED_PRECONDITION before completion.
+  rpc CommitRawImpressionUploadModelLineMergedOutput(
+      CommitRawImpressionUploadModelLineMergedOutputRequest)
+      returns (RawImpressionUploadModelLine);
+
   // Creates a new `RawImpressionUploadModelLine`.
   rpc CreateRawImpressionUploadModelLine(
       CreateRawImpressionUploadModelLineRequest)
@@ -322,4 +329,14 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   // when recovery starts a new memoized chain after its first upload was
   // permanently removed.
   string recovery_predecessor_raw_impression_upload_resource_id = 10;
+}
+
+// Commits one immutable merged output to a model-line execution.
+message CommitRawImpressionUploadModelLineMergedOutputRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string raw_impression_upload_model_line_resource_id = 3;
+  string etag = 4;
+  string request_id = 5;
+  OutputBlobReference output_manifest = 6;
 }

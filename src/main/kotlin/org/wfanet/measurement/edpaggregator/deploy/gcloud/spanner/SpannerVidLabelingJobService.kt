@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.VidLabelingJobResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countOtherNonSucceededVidLabelingJobsForModelLine
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ensureVidLabelingGroupOpen
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobsByCreateRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
@@ -43,12 +44,14 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateVidLa
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.vidLabelingJobExists
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.internal.OutputBlobReferences
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.VidLabelingJobAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.VidLabelingJobNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.VidLabelingJobStateInvalidException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateVidLabelingJobRequest
@@ -118,6 +121,11 @@ class SpannerVidLabelingJobService(
             }
 
           val resourceId = "$VID_LABELING_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+          txn.ensureVidLabelingGroupOpen(
+            dataProviderResourceId,
+            rawImpressionUploadId,
+            job.cmmsModelLinesList,
+          )
           txn.insertVidLabelingJob(
             rawImpressionUploadId = rawImpressionUploadId,
             vidLabelingJobId = vidLabelingJobId,
@@ -252,6 +260,11 @@ class SpannerVidLabelingJobService(
                 }
 
               val resourceId = "$VID_LABELING_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
+              txn.ensureVidLabelingGroupOpen(
+                dataProviderResourceId,
+                rawImpressionUploadId,
+                subRequest.vidLabelingJob.cmmsModelLinesList,
+              )
               txn.insertVidLabelingJob(
                 rawImpressionUploadId = rawImpressionUploadId,
                 vidLabelingJobId = vidLabelingJobId,
@@ -396,6 +409,19 @@ class SpannerVidLabelingJobService(
       request.requestId,
     )
 
+    if (request.hasOutputManifest()) {
+      try {
+        OutputBlobReferences.validate(
+          request.outputManifest.blobUri,
+          request.outputManifest.blobGeneration,
+        )
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=markVidLabelingJobSucceeded"))
 
@@ -421,6 +447,16 @@ class SpannerVidLabelingJobService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
         val currentJob = result.vidLabelingJob
+        if (result.markSucceededRequestId == request.requestId && result.completionResult != null) {
+          return@run TransactionResult(
+            currentJob,
+            completedModelLines =
+              checkNotNull(result.completionResult)
+                .lastVidLabelingJobResult
+                .completedModelLinesList,
+            isReplay = true,
+          )
+        }
 
         // Idempotency: if already succeeded by this same request_id, return the original response,
         // recomputing the completed model lines so the replay matches the first response (AIP-155).
@@ -450,17 +486,6 @@ class SpannerVidLabelingJobService(
           currentJob = currentJob,
         )
 
-        txn.updateVidLabelingJobState(
-          dataProviderResourceId = request.dataProviderResourceId,
-          rawImpressionUploadId = result.rawImpressionUploadId,
-          vidLabelingJobId = result.vidLabelingJobId,
-          state = State.VID_LABELING_STATE_SUCCEEDED,
-        ) {
-          set("MarkSucceededRequestId").to(request.requestId)
-          // Clear any error message from a prior FAILED attempt; it is only set while FAILED.
-          set("ErrorMessage").to(null as String?)
-        }
-
         // A model line is complete when none of its sibling jobs (covering that model line) remain
         // non-SUCCEEDED. The buffered update above is not visible in this read, so the current job
         // is excluded by ID rather than relying on its persisted state.
@@ -474,10 +499,36 @@ class SpannerVidLabelingJobService(
             ) == 0L
           }
 
+        txn.updateVidLabelingJobState(
+          dataProviderResourceId = request.dataProviderResourceId,
+          rawImpressionUploadId = result.rawImpressionUploadId,
+          vidLabelingJobId = result.vidLabelingJobId,
+          state = State.VID_LABELING_STATE_SUCCEEDED,
+        ) {
+          set("MarkSucceededRequestId").to(request.requestId)
+          if (request.hasOutputManifest()) {
+            set("OutputManifest").toProtoBytes(request.outputManifest)
+          }
+          val original = markVidLabelingJobSucceededResponse {
+            if (completedModelLines.isNotEmpty()) {
+              lastVidLabelingJobResult =
+                MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+                  this.completedModelLines += completedModelLines
+                }
+            }
+          }
+          set("CompletionResult").toProtoBytes(original)
+          // Clear any error message from a prior FAILED attempt; it is only set while FAILED.
+          set("ErrorMessage").to(null as String?)
+        }
+
         TransactionResult(
           updatedJob =
             currentJob.copy {
               state = State.VID_LABELING_STATE_SUCCEEDED
+              if (request.hasOutputManifest()) {
+                outputManifest = request.outputManifest
+              }
               clearErrorMessage()
               clearUpdateTime()
             },

@@ -35,6 +35,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.PoolAssignmentJobResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonSucceededPoolAssignmentJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countPoolAssignmentJobSiblingsSucceededAfter
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.ensurePoolAssignmentGroupOpen
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAssignmentJobsByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getPoolAssignmentJobByResourceId
@@ -47,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updatePoolA
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadModelLineMergedOutputs
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.internal.OutputBlobReferences
 import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentJobAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentJobNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentJobStateInvalidException
@@ -134,6 +136,11 @@ class SpannerPoolAssignmentJobService(
 
           val resourceId = "$POOL_ASSIGNMENT_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
 
+          txn.ensurePoolAssignmentGroupOpen(
+            job.dataProviderResourceId,
+            rawImpressionUploadId,
+            job.cmmsModelLine,
+          )
           txn.insertPoolAssignmentJob(
             rawImpressionUploadId = rawImpressionUploadId,
             poolAssignmentJobId = poolAssignmentJobId,
@@ -284,6 +291,11 @@ class SpannerPoolAssignmentJobService(
 
               val resourceId = "$POOL_ASSIGNMENT_JOB_RESOURCE_ID_PREFIX-${UUID.randomUUID()}"
 
+              txn.ensurePoolAssignmentGroupOpen(
+                dataProviderResourceId,
+                rawImpressionUploadId,
+                subRequest.poolAssignmentJob.cmmsModelLine,
+              )
               txn.insertPoolAssignmentJob(
                 rawImpressionUploadId = rawImpressionUploadId,
                 poolAssignmentJobId = poolAssignmentJobId,
@@ -449,9 +461,25 @@ class SpannerPoolAssignmentJobService(
       throw InvalidFieldValueException("request_id", e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (!request.hasEncryptedDek()) {
+    if (
+      !request.hasEncryptedDek() &&
+        (!request.hasOutputManifest() || request.poolOffsetsList.isNotEmpty())
+    ) {
       throw RequiredFieldNotSetException("encrypted_dek")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.hasOutputManifest()) {
+      try {
+        OutputBlobReferences.validate(
+          request.outputManifest.blobUri,
+          request.outputManifest.blobGeneration,
+        )
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val transactionRunner =
@@ -481,6 +509,17 @@ class SpannerPoolAssignmentJobService(
               .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
         val currentJob = result.poolAssignmentJob
+        if (result.markSucceededRequestId == request.requestId && result.completionResult != null) {
+          val original = checkNotNull(result.completionResult)
+          return@run TransactionResult(
+            currentJob,
+            isLastShard = currentJob.lastShard || original.hasLastShardResult(),
+            poolOffsets = original.lastShardResult.poolOffsetsList,
+            maxEventDate =
+              original.lastShardResult.maxEventDate.takeIf { original.hasLastShardResult() },
+            isReplay = true,
+          )
+        }
 
         // Idempotency: a replay must reproduce the ORIGINAL response (AIP-155), so re-derive the
         // original last-shard status rather than re-deciding from current state: this shard was
@@ -543,20 +582,6 @@ class SpannerPoolAssignmentJobService(
           throw e.asStatusRuntimeException(Status.Code.ABORTED)
         }
 
-        txn.updatePoolAssignmentJobState(
-          dataProviderResourceId = request.dataProviderResourceId,
-          rawImpressionUploadId = result.rawImpressionUploadId,
-          poolAssignmentJobId = result.poolAssignmentJobId,
-          state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED,
-        ) {
-          // request_id is REQUIRED, so stamp it unconditionally for AIP-155 replay detection.
-          set("MarkSucceededRequestId").to(request.requestId)
-          // Persist the per-shard DEK that encrypts this shard's SubpoolFingerprints blobs.
-          set("EncryptedDek").toProtoBytes(request.encryptedDek)
-          // Clear any stale failure detail on the FAILED -> SUCCEEDED transition.
-          set("ErrorMessage").to(null as String?)
-        }
-
         // Merge this shard's pool offsets + max event date into the parent model line's
         // accumulated outputs: read current values, merge in memory (the buffered write below
         // is not visible to reads in this txn), then persist the union/max.
@@ -586,6 +611,38 @@ class SpannerPoolAssignmentJobService(
             currentJob.cmmsModelLine,
           ) == 1L
 
+        txn.updatePoolAssignmentJobState(
+          dataProviderResourceId = request.dataProviderResourceId,
+          rawImpressionUploadId = result.rawImpressionUploadId,
+          poolAssignmentJobId = result.poolAssignmentJobId,
+          state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED,
+        ) {
+          // request_id is REQUIRED, so stamp it unconditionally for AIP-155 replay detection.
+          set("MarkSucceededRequestId").to(request.requestId)
+          if (request.hasOutputManifest()) {
+            set("LastShard").to(isLastShard)
+          }
+          if (request.hasOutputManifest()) {
+            set("OutputManifest").toProtoBytes(request.outputManifest)
+          }
+          val original = markPoolAssignmentJobSucceededResponse {
+            if (isLastShard && mergedOffsets.isNotEmpty()) {
+              lastShardResult =
+                MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
+                  poolOffsets += mergedOffsets
+                  maxEventDate = checkNotNull(mergedMaxEventDate)
+                }
+            }
+          }
+          set("CompletionResult").toProtoBytes(original)
+          // Persist the per-shard DEK that encrypts this shard's SubpoolFingerprints blobs.
+          if (request.hasEncryptedDek()) {
+            set("EncryptedDek").toProtoBytes(request.encryptedDek)
+          }
+          // Clear any stale failure detail on the FAILED -> SUCCEEDED transition.
+          set("ErrorMessage").to(null as String?)
+        }
+
         txn.updateRawImpressionUploadModelLineMergedOutputs(
           request.dataProviderResourceId,
           result.rawImpressionUploadId,
@@ -594,14 +651,22 @@ class SpannerPoolAssignmentJobService(
           mergedMaxEventDate,
           // On last-shard-out, promote this (final) shard's DEK onto the parent as the merged DEK
           // so a retrying SubpoolAssigner can decrypt the merged per-subpool blobs.
-          mergedDek = if (isLastShard) request.encryptedDek else null,
+          mergedDek = if (isLastShard && request.hasEncryptedDek()) request.encryptedDek else null,
         )
 
         TransactionResult(
           updatedJob =
             currentJob.copy {
               state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED
-              encryptedDek = request.encryptedDek
+              if (request.hasEncryptedDek()) {
+                encryptedDek = request.encryptedDek
+              }
+              if (request.hasOutputManifest()) {
+                outputManifest = request.outputManifest
+              }
+              if (request.hasOutputManifest()) {
+                lastShard = isLastShard
+              }
               clearErrorMessage()
               clearUpdateTime()
             },

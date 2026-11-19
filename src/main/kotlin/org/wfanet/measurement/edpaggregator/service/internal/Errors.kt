@@ -676,3 +676,36 @@ class PoolAssignmentJobStateInvalidException(
     ),
     cause,
   )
+
+/** Validates a bounded immutable object reference at API boundaries. */
+object OutputBlobReferences {
+  fun validate(
+    blobUri: String,
+    blobGeneration: Long,
+    required: (String) -> Throwable = { RequiredFieldNotSetException(it) },
+    invalid: (String, Throwable?) -> Throwable = { field, cause ->
+      InvalidFieldValueException(field, cause)
+    },
+  ) {
+    if (blobUri.isEmpty()) throw required("output_manifest.blob_uri")
+    val uri =
+      try {
+        java.net.URI.create(blobUri)
+      } catch (e: IllegalArgumentException) {
+        throw invalid("output_manifest.blob_uri", e)
+      }
+    if (
+      blobUri.length > 4096 ||
+        uri.scheme !in setOf("gs", "file") ||
+        uri.path.isNullOrEmpty() ||
+        uri.path == "/" ||
+        uri.fragment != null ||
+        uri.query != null ||
+        uri.userInfo != null ||
+        (uri.scheme == "gs" && uri.host.isNullOrEmpty())
+    ) {
+      throw invalid("output_manifest.blob_uri", null)
+    }
+    if (blobGeneration <= 0L) throw invalid("output_manifest.blob_generation", null)
+  }
+}

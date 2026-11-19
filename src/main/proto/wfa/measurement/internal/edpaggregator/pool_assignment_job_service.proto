@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
+import "wfa/measurement/internal/edpaggregator/output_manifest.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "google/type/interval.proto";
@@ -178,6 +179,10 @@ message MarkPoolAssignmentJobSucceededRequest {
   // a maximum across shards by the service. Unset for a shard that wrote no
   // impressions.
   google.type.Date max_event_date = 8;
+
+  // Complete immutable output for this attempt, including successful empty
+  // output.
+  OutputBlobReference output_manifest = 9;
 }
 
 // Response message for MarkPoolAssignmentJobSucceeded.

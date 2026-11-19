@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRankIndexBlobsRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRankIndexBlobsResponse
 import org.wfanet.measurement.internal.edpaggregator.BatchDeleteRankIndexBlobsRequest
@@ -506,6 +507,32 @@ class SpannerRankIndexBlobService(
           listOf(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING),
         )
         .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    if (
+      rankIndexBlob.blobType ==
+        org.wfanet.measurement.internal.edpaggregator.BlobType.BLOB_TYPE_SNAPSHOT
+    ) {
+      // Older writers set only DeleteTime. Reconcile their deletion marker before registration.
+      txn.executeUpdate(
+        statement(
+          """
+        UPDATE RankIndexBlob SET IsDeleted = TRUE
+        WHERE DataProviderResourceId = @dataProvider
+          AND RawImpressionUploadId = @upload
+          AND CmmsModelLine = @modelLine
+          AND PoolOffset = @poolOffset
+          AND CAST(BlobType AS INT64) = 2
+          AND DeleteTime IS NOT NULL AND NOT IsDeleted
+      """
+            .trimIndent()
+        ) {
+          bind("dataProvider").to(dataProviderResourceId)
+          bind("upload").to(rawImpressionUploadId)
+          bind("modelLine").to(rankIndexBlob.cmmsModelLine)
+          bind("poolOffset").to(rankIndexBlob.poolOffset)
+        }
+      )
     }
 
     val rankIndexBlobId =

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator.v1alpha;
 
+import "wfa/measurement/edpaggregator/v1alpha/output_manifest.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
@@ -90,4 +91,8 @@ message VidLabelingJob {
 
   // Entity tag for optimistic concurrency control.
   string etag = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Selected complete output; absent for legacy jobs.
+  OutputBlobReference output_manifest = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

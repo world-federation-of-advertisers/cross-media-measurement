@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.edpaggregator.BlobType
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.internal.edpaggregator.OutputBlobReference
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
@@ -81,6 +82,7 @@ data class RawImpressionUploadModelLineResult(
    * hasn't happened. Used to short-circuit an idempotent replay of the same mark.
    */
   val markFailedRequestId: String,
+  val commitMergedOutputRequestId: String = "",
 )
 
 /** Returns whether a [RawImpressionUploadModelLine] with the specified keys exists. */
@@ -817,6 +819,8 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.ErrorMessage,
       RawImpressionUploadModelLine.CreateTime,
       RawImpressionUploadModelLine.UpdateTime,
+      RawImpressionUploadModelLine.MergedOutputManifest,
+      RawImpressionUploadModelLine.CommitMergedOutputRequestId,
       RawImpressionUploadModelLine.PoolOffsets,
       RawImpressionUploadModelLine.MaxEventDate,
       RawImpressionUploadModelLine.EncryptedMergedDek,
@@ -850,6 +854,11 @@ private object RawImpressionUploadModelLineEntity {
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()
         etag = ETags.computeETag(updateTime.toInstant())
+        if (!struct.isNull("MergedOutputManifest")) {
+          mergedOutputManifest =
+            OutputBlobReference.parseFrom(struct.getBytes("MergedOutputManifest").toByteArray())
+        }
+
         if (!struct.isNull("ErrorMessage")) {
           errorMessage = struct.getString("ErrorMessage")
         }
@@ -905,6 +914,7 @@ private object RawImpressionUploadModelLineEntity {
       markAvailabilitySyncingRequestId = markId("MarkAvailabilitySyncingRequestId"),
       markCompletedRequestId = markId("MarkCompletedRequestId"),
       markFailedRequestId = markId("MarkFailedRequestId"),
+      commitMergedOutputRequestId = markId("CommitMergedOutputRequestId"),
     )
   }
 }

@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
+import "wfa/measurement/internal/edpaggregator/output_manifest.proto";
 import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
@@ -94,4 +95,7 @@ message RawImpressionUploadModelLine {
 
   // Event dates whose VID-labeled output has already been synchronized.
   repeated google.type.Date synchronized_availability_dates = 19;
+
+  // Selected complete merged subpool output; absent for legacy executions.
+  OutputBlobReference merged_output_manifest = 20;
 }

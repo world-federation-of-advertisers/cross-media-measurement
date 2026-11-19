@@ -36,7 +36,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.undeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /** Selects either an inclusive range or a nonempty set of exact data dates. */
@@ -88,6 +91,7 @@ class MissingImpressionMetadataRecovery(
   private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Set<String>,
   private val metrics: MissingImpressionMetadataRecoveryMetrics,
   private val dataAvailabilitySyncLease: String = "",
+  private val managedDoneObjectResolver: (() -> ManagedDoneObjectResolver)? = null,
 ) {
   init {
     require(edpImpressionPath.isNotEmpty()) { "edpImpressionPath must not be empty" }
@@ -266,9 +270,123 @@ class MissingImpressionMetadataRecovery(
     )
   }
 
+  private fun isAttemptObject(key: String): Boolean =
+    key.contains("/.attempts/") || key.contains("/.vid-output-attempts/")
+
   private suspend fun recoverDateFolder(dateFolderPrefix: String): FolderRecoveryResult {
+    var result = recoverLegacyDateFolder(dateFolderPrefix)
+    val factory = managedDoneObjectResolver ?: return result
+    val markers =
+      storageClient.listBlobs(dateFolderPrefix).toList().filter {
+        it.blobKey.substringBeforeLast('/') + "/" == dateFolderPrefix &&
+          it.blobKey.substringAfterLast('/').startsWith("done-")
+      }
+    for (marker in markers) {
+      ensureLeaseActive()
+      val reader = factory()
+      val date = LocalDate.parse(dateFolderPrefix.trimEnd('/').substringAfterLast('/'))
+      val modelLine = reader.modelLineFor(date, marker.blobKey)
+      when (reader.resolve(modelLine, date, marker.blobKey)) {
+        ManagedDoneObjectDisposition.CURRENT -> {}
+        ManagedDoneObjectDisposition.FINALIZING,
+        ManagedDoneObjectDisposition.OBSOLETE -> continue
+      }
+      val root = BlobUris.buildUri(storageRootUri, edpImpressionPath)
+      val output = reader.committedOutputs(modelLine, date, marker.blobKey, root) ?: continue
+      val selected = linkedSetOf<String>()
+      for (entry in
+        output.labeledBlobs.filter {
+          LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) == date
+        }) {
+        for (reference in listOf(entry.metadata, entry.impressions)) {
+          val key = SelectedStorageClient.parseBlobUri(reference.blobUri).key
+          val live =
+            checkNotNull(storageClient.getBlob(key)) { "Committed recovery output is missing" }
+          check(
+            (live as ConditionalOperationStorageClient.Blob).freshnessToken ==
+              reference.blobGeneration.toString()
+          ) {
+            "Committed recovery output generation changed"
+          }
+        }
+        selected += SelectedStorageClient.parseBlobUri(entry.metadata.blobUri).key
+      }
+      for (file in
+        output.legacyFiles.filter {
+          LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) == date
+        }) {
+        val uri =
+          LabeledImpressionsBlobKeys.forInputUri(root, file.blobUri, modelLine, date) +
+            ".metadata.binpb"
+        val key = SelectedStorageClient.parseBlobUri(uri).key
+        if (storageClient.getBlob(key) != null) selected += key
+      }
+      val registered = listRegisteredMetadata(dateFolderPrefix)
+      val missing =
+        selected
+          .filter { key -> registered[BlobUris.buildUri(storageRootUri, key)] == null }
+          .toSet()
+      val deleted =
+        selected
+          .filter { key ->
+            registered[BlobUris.buildUri(storageRootUri, key)]?.state ==
+              ImpressionMetadata.State.DELETED
+          }
+          .toSet()
+      if (
+        missing.isEmpty() &&
+          deleted.isEmpty() &&
+          DataAvailabilityBlobs.isDataAvailabilityPublished(marker)
+      )
+        continue
+      val doneUri = BlobUris.buildUri(storageRootUri, marker.blobKey)
+      val processed = sync(doneUri, selected)
+      val active = listRegisteredMetadata(dateFolderPrefix)
+      val recovered =
+        missing.count { key ->
+          key in processed &&
+            active[BlobUris.buildUri(storageRootUri, key)]?.state == ImpressionMetadata.State.ACTIVE
+        }
+      val restored =
+        deleted.count { key ->
+          key in processed &&
+            active[BlobUris.buildUri(storageRootUri, key)]?.state == ImpressionMetadata.State.ACTIVE
+        }
+      val added =
+        FolderRecoveryResult(
+          finalizedMetadataBlobs = selected.size,
+          missingBlobs = missing.size,
+          deletedRecordsWithBlobs = deleted.size,
+          undeletedRecords = restored,
+          failedUndeletes = deleted.size - restored,
+          recoveredBlobs = recovered,
+          failedBlobs = missing.size - recovered,
+          dateFoldersResynced = 1,
+          incompleteFullSyncFolders = 0,
+          errors = emptyList(),
+        )
+      result =
+        FolderRecoveryResult(
+          finalizedMetadataBlobs = result.finalizedMetadataBlobs + added.finalizedMetadataBlobs,
+          missingBlobs = result.missingBlobs + added.missingBlobs,
+          deletedRecordsWithBlobs = result.deletedRecordsWithBlobs + added.deletedRecordsWithBlobs,
+          undeletedRecords = result.undeletedRecords + added.undeletedRecords,
+          failedUndeletes = result.failedUndeletes + added.failedUndeletes,
+          recoveredBlobs = result.recoveredBlobs + added.recoveredBlobs,
+          failedBlobs = result.failedBlobs + added.failedBlobs,
+          dateFoldersResynced = result.dateFoldersResynced + added.dateFoldersResynced,
+          incompleteFullSyncFolders =
+            result.incompleteFullSyncFolders + added.incompleteFullSyncFolders,
+          errors = result.errors + added.errors,
+        )
+    }
+    return result
+  }
+
+  private suspend fun recoverLegacyDateFolder(dateFolderPrefix: String): FolderRecoveryResult {
     val blobs = storageClient.listBlobs(dateFolderPrefix).toList()
-    val storageMetadataBlobs = blobs.filter(::hasMetadataFileName)
+    val storageMetadataBlobs =
+      blobs.filter { hasMetadataFileName(it) && !isAttemptObject(it.blobKey) }
     val storageMetadataBlobsByUri =
       storageMetadataBlobs.associateBy { BlobUris.buildUri(storageRootUri, it.blobKey) }
     val registeredMetadata = listRegisteredMetadata(dateFolderPrefix)

@@ -1,0 +1,101 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+package wfa.measurement.edpaggregator.v1alpha;
+import "google/api/field_behavior.proto";
+import "google/type/date.proto";
+import "wfa/measurement/edpaggregator/v1alpha/encrypted_dek.proto";
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "OutputManifestProto";
+// Exact object version in a committed output publication.
+message OutputBlobReference {
+  // Absolute object URI.
+  string blob_uri = 1 [(google.api.field_behavior) = REQUIRED];
+  // Immutable positive object generation.
+  int64 blob_generation = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// One RecordIO record in an immutable output manifest.
+message OutputManifestRecord {
+  // Scope of one complete publication attempt.
+  message Header {
+    // Publication stage.
+    enum Phase {
+      PHASE_UNSPECIFIED = 0;
+      POOL_ASSIGNMENT = 1;
+      POOL_MERGE = 2;
+      VID_LABELING = 3;
+    }
+    // Publication stage.
+    Phase phase = 1 [(google.api.field_behavior) = REQUIRED];
+    // RawImpressionUpload resource name.
+    string raw_impression_upload = 2 [(google.api.field_behavior) = REQUIRED];
+    // Job or model-line resource name owning this publication.
+    string owner = 3 [(google.api.field_behavior) = REQUIRED];
+    // Model lines covered by this publication.
+    repeated string model_lines = 4 [(google.api.field_behavior) = REQUIRED];
+    // Unique publication attempt identifier.
+    string attempt_id = 5 [(google.api.field_behavior) = REQUIRED];
+    // Wrapped key for encrypted subpool entries. Absent for empty output.
+    wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 6
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+  // One durable subpool blob.
+  message SubpoolBlob {
+    // Subpool offset.
+    int64 pool_offset = 1 [(google.api.field_behavior) = REQUIRED];
+    // Exact encrypted blob version.
+    OutputBlobReference blob = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+  // One matched labeled-data and metadata pair.
+  message LabeledBlob {
+    // Registered RawImpressionUploadFile resource name.
+    string raw_impression_upload_file = 1
+        [(google.api.field_behavior) = REQUIRED];
+    // Model line resource name.
+    string model_line = 2 [(google.api.field_behavior) = REQUIRED];
+    // Registered event date.
+    google.type.Date event_date = 3 [(google.api.field_behavior) = REQUIRED];
+    // Exact encrypted data version.
+    OutputBlobReference impressions = 4
+        [(google.api.field_behavior) = REQUIRED];
+    // Exact key-bearing metadata sidecar version.
+    OutputBlobReference metadata = 5 [(google.api.field_behavior) = REQUIRED];
+  }
+  // Completion of one input/model scope, including successful empty output.
+  message FileCompleted {
+    // Registered RawImpressionUploadFile resource name.
+    string raw_impression_upload_file = 1
+        [(google.api.field_behavior) = REQUIRED];
+    // Model line resource name.
+    string model_line = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+  // Integrity proof after all preceding records.
+  message Footer {
+    // Number of preceding records, including the header.
+    int64 record_count = 1 [(google.api.field_behavior) = REQUIRED];
+    // SHA-256 of the preceding serialized records in order.
+    bytes checksum = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+  // Record body. A manifest starts with Header and ends with Footer.
+  oneof body {
+    Header header = 1;
+    SubpoolBlob subpool_blob = 2;
+    LabeledBlob labeled_blob = 3;
+    FileCompleted file_completed = 4;
+    Footer footer = 5;
+  }
+}

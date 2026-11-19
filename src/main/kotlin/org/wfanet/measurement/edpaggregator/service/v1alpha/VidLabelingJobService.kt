@@ -28,6 +28,7 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.edpaggregator.service.internal.OutputBlobReferences
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateVidLabelingJobRequest
@@ -338,6 +339,21 @@ class VidLabelingJobService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.hasOutputManifest()) {
+      try {
+        OutputBlobReferences.validate(
+          request.outputManifest.blobUri,
+          request.outputManifest.blobGeneration,
+          required = { RequiredFieldNotSetException(it) },
+          invalid = { field, cause -> InvalidFieldValueException(field, cause) },
+        )
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
     val internalResponse: InternalMarkSucceededResponse =
       try {
         internalVidLabelingJobStub.markVidLabelingJobSucceeded(
@@ -347,6 +363,9 @@ class VidLabelingJobService(
             vidLabelingJobResourceId = jobKey.vidLabelingJobId
             etag = request.etag
             requestId = request.requestId
+            if (request.hasOutputManifest()) {
+              outputManifest = request.outputManifest.toInternal()
+            }
           }
         )
       } catch (e: StatusException) {
@@ -411,6 +430,9 @@ class VidLabelingJobService(
   }
 
   private fun handleInternalError(e: StatusException): StatusRuntimeException {
+    if (e.status.code == Status.Code.FAILED_PRECONDITION && InternalErrors.getReason(e) == null) {
+      return e.status.withCause(e).asRuntimeException()
+    }
     return when (InternalErrors.getReason(e)) {
       InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
       InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -478,6 +500,9 @@ internal fun InternalVidLabelingJob.toPublic(): VidLabelingJob {
     updateTime = source.updateTime
     if (source.errorMessage.isNotEmpty()) {
       errorMessage = source.errorMessage
+    }
+    if (source.hasOutputManifest()) {
+      outputManifest = source.outputManifest.toPublic()
     }
     if (source.etag.isNotEmpty()) {
       etag = source.etag

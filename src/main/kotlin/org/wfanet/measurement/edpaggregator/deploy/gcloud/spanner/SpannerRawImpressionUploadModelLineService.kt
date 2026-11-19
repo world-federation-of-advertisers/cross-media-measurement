@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
+import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import java.time.LocalDate
@@ -34,6 +35,8 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadModelLineResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCompletedRawImpressionUploadModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonSucceededPoolAssignmentJobs
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countPoolAssignmentJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findHistoricalAvailabilityUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findInProgressModelLinesForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findNewerSnapshotBasis
@@ -55,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawIm
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.internal.OutputBlobReferences
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineConcurrentException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineStateInvalidException
@@ -63,8 +67,11 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.internal.edpaggregator.CommitRawImpressionUploadModelLineMergedOutputRequest
 import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageTokenKt
@@ -94,6 +101,96 @@ class SpannerRawImpressionUploadModelLineService(
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : RawImpressionUploadModelLineServiceCoroutineImplBase(coroutineContext) {
+
+  override suspend fun commitRawImpressionUploadModelLineMergedOutput(
+    request: CommitRawImpressionUploadModelLineMergedOutputRequest
+  ): RawImpressionUploadModelLine {
+    try {
+      if (request.dataProviderResourceId.isEmpty())
+        throw RequiredFieldNotSetException("data_provider_resource_id")
+      if (request.rawImpressionUploadResourceId.isEmpty())
+        throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
+      if (request.rawImpressionUploadModelLineResourceId.isEmpty())
+        throw RequiredFieldNotSetException("raw_impression_upload_model_line_resource_id")
+      if (request.etag.isEmpty()) throw RequiredFieldNotSetException("etag")
+      if (request.requestId.isEmpty()) throw RequiredFieldNotSetException("request_id")
+      try {
+        UUID.fromString(request.requestId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("request_id", e)
+      }
+      if (!request.hasOutputManifest()) throw RequiredFieldNotSetException("output_manifest")
+      OutputBlobReferences.validate(
+        request.outputManifest.blobUri,
+        request.outputManifest.blobGeneration,
+      )
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val runner = databaseClient.readWriteTransaction(Options.tag("action=commitMergedOutput"))
+    val selected =
+      runner.run { txn ->
+        val result =
+          txn.getRawImpressionUploadModelLineByResourceIds(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+            request.rawImpressionUploadModelLineResourceId,
+          )
+            ?: throw RawImpressionUploadModelLineNotFoundException(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadResourceId,
+                request.rawImpressionUploadModelLineResourceId,
+              )
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        val current = result.rawImpressionUploadModelLine
+        if (current.hasMergedOutputManifest()) {
+          if (result.commitMergedOutputRequestId == request.requestId) return@run current
+          throw Status.ABORTED.withDescription("Merged output is already committed")
+            .asRuntimeException()
+        }
+        if (
+          current.state != State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING ||
+            txn.countPoolAssignmentJobs(
+              request.dataProviderResourceId,
+              result.rawImpressionUploadId,
+              current.cmmsModelLine,
+            ) == 0L ||
+            txn.countNonSucceededPoolAssignmentJobs(
+              request.dataProviderResourceId,
+              result.rawImpressionUploadId,
+              current.cmmsModelLine,
+            ) != 0L
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription("Pool assignment is incomplete")
+            .asRuntimeException()
+        }
+        try {
+          EtagMismatchException.check(request.etag, current.etag)
+        } catch (e: EtagMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.ABORTED)
+        }
+        txn.bufferUpdateMutation("RawImpressionUploadModelLine") {
+          set("DataProviderResourceId").to(request.dataProviderResourceId)
+          set("RawImpressionUploadId").to(result.rawImpressionUploadId)
+          set("RawImpressionUploadModelLineId").to(result.rawImpressionUploadModelLineId)
+          set("MergedOutputManifest").toProtoBytes(request.outputManifest)
+          set("CommitMergedOutputRequestId").to(request.requestId)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+        current.copy {
+          mergedOutputManifest = request.outputManifest
+          clearUpdateTime()
+        }
+      }
+    return if (selected.hasUpdateTime()) selected
+    else
+      selected.copy {
+        updateTime = runner.getCommitTimestamp().toProto()
+        etag = ETags.computeETag(updateTime.toInstant())
+      }
+  }
 
   override suspend fun createRawImpressionUploadModelLine(
     request: CreateRawImpressionUploadModelLineRequest
@@ -567,6 +664,7 @@ class SpannerRawImpressionUploadModelLineService(
             // Non-memoized uploads skip Phase 0/1 and go straight CREATED -> LABELING.
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
           ),
         markRequestIdColumn = "MarkLabelingRequestId",
@@ -964,6 +1062,20 @@ class SpannerRawImpressionUploadModelLineService(
         }
 
         val currentState = result.rawImpressionUploadModelLine.state
+        if (
+          nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING &&
+            currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING &&
+            (!result.rawImpressionUploadModelLine.hasMergedOutputManifest() ||
+              result.rawImpressionUploadModelLine.poolOffsetsList.isNotEmpty() ||
+              txn.countNonSucceededPoolAssignmentJobs(
+                dataProviderResourceId,
+                result.rawImpressionUploadId,
+                result.rawImpressionUploadModelLine.cmmsModelLine,
+              ) != 0L)
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription("Empty pool handoff is not committed")
+            .asRuntimeException()
+        }
         if (currentState !in validPreviousStates) {
           throw RawImpressionUploadModelLineStateInvalidException(
               dataProviderResourceId,

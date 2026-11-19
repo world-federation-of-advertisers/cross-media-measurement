@@ -563,6 +563,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
+        ":output_manifest_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_googleapis//google/type:date_proto",
@@ -580,7 +581,9 @@ proto_library(
     srcs = ["raw_impression_upload_model_line_service.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":output_manifest_proto",
         ":raw_impression_upload_model_line_proto",
+        "@com_google_googleapis//google/api:annotations_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
@@ -634,6 +637,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
+        ":output_manifest_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -651,6 +655,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":encrypted_dek_proto",
+        ":output_manifest_proto",
         ":pool_assignment_job_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
@@ -670,6 +675,7 @@ proto_library(
     srcs = ["vid_labeling_job.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":output_manifest_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
         "@com_google_protobuf//:timestamp_proto",
@@ -686,6 +692,7 @@ proto_library(
     srcs = ["vid_labeling_job_service.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":output_manifest_proto",
         ":vid_labeling_job_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
@@ -697,4 +704,20 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "vid_labeling_job_service_kt_jvm_grpc_proto",
     deps = [":vid_labeling_job_service_proto"],
+)
+
+proto_library(
+    name = "output_manifest_proto",
+    srcs = ["output_manifest.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":encrypted_dek_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/type:date_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "output_manifest_kt_jvm_proto",
+    deps = [":output_manifest_proto"],
 )

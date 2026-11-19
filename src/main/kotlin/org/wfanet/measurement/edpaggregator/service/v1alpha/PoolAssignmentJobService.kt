@@ -28,6 +28,7 @@ import org.wfanet.measurement.edpaggregator.service.PoolAssignmentJobKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.edpaggregator.service.internal.OutputBlobReferences
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.CreatePoolAssignmentJobRequest
@@ -326,9 +327,27 @@ class PoolAssignmentJobService(
 
     validateEtagAndRequestId(request.etag, request.requestId)
 
-    if (!request.hasEncryptedDek()) {
+    if (
+      !request.hasEncryptedDek() &&
+        (!request.hasOutputManifest() || request.poolOffsetsList.isNotEmpty())
+    ) {
       throw RequiredFieldNotSetException("encrypted_dek")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.hasOutputManifest()) {
+      try {
+        OutputBlobReferences.validate(
+          request.outputManifest.blobUri,
+          request.outputManifest.blobGeneration,
+          required = { RequiredFieldNotSetException(it) },
+          invalid = { field, cause -> InvalidFieldValueException(field, cause) },
+        )
+      } catch (e: RequiredFieldNotSetException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      } catch (e: InvalidFieldValueException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     }
 
     val internalResponse: InternalMarkSucceededResponse =
@@ -340,7 +359,12 @@ class PoolAssignmentJobService(
             poolAssignmentJobResourceId = jobKey.poolAssignmentJobId
             etag = request.etag
             requestId = request.requestId
-            encryptedDek = request.encryptedDek.toInternal()
+            if (request.hasOutputManifest()) {
+              outputManifest = request.outputManifest.toInternal()
+            }
+            if (request.hasEncryptedDek()) {
+              encryptedDek = request.encryptedDek.toInternal()
+            }
             poolOffsets += request.poolOffsetsList
             if (request.hasMaxEventDate()) {
               maxEventDate = request.maxEventDate
@@ -424,6 +448,9 @@ class PoolAssignmentJobService(
 }
 
 private fun handleInternalError(e: StatusException): StatusRuntimeException {
+  if (e.status.code == Status.Code.FAILED_PRECONDITION && InternalErrors.getReason(e) == null) {
+    return e.status.withCause(e).asRuntimeException()
+  }
   return when (InternalErrors.getReason(e)) {
     InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
     InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
@@ -486,9 +513,13 @@ internal fun InternalPoolAssignmentJob.toPublic(): PoolAssignmentJob {
     if (source.hasEncryptedDek()) {
       encryptedDek = source.encryptedDek.toPublic()
     }
+    if (source.hasOutputManifest()) {
+      outputManifest = source.outputManifest.toPublic()
+    }
     if (source.etag.isNotEmpty()) {
       etag = source.etag
     }
+    lastShard = source.lastShard
   }
 }
 

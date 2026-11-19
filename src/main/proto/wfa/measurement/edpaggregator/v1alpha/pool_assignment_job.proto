@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.edpaggregator.v1alpha;
 
+import "wfa/measurement/edpaggregator/v1alpha/output_manifest.proto";
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
@@ -92,4 +93,10 @@ message PoolAssignmentJob {
   //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 9
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Selected complete output; absent for legacy jobs.
+  OutputBlobReference output_manifest = 10
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Whether this job was the final pool-assignment job when it succeeded.
+  bool last_shard = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

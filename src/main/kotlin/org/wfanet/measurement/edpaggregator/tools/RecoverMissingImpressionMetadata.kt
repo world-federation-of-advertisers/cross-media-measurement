@@ -62,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMe
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
 import org.wfanet.measurement.edpaggregator.dataavailability.ModelLineAliasValidator
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GcsGenerationMatchedBlobMetadataUpdater
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
@@ -411,6 +412,17 @@ class RecoverMissingImpressionMetadata : Runnable {
                 recoverySources
                   .filter { it.bucketName == source.bucketName }
                   .map { it.edpImpressionPath }
+              val createManagedResolver = {
+                GrpcManagedDoneObjectResolver(
+                  config.dataProvider,
+                  RawImpressionUploadServiceCoroutineStub(instrumentedMetadataChannel),
+                  RawImpressionUploadModelLineServiceCoroutineStub(instrumentedMetadataChannel),
+                  RawImpressionUploadFileServiceCoroutineStub(instrumentedMetadataChannel),
+                  VidLabelingJobServiceCoroutineStub(instrumentedMetadataChannel),
+                  throttler,
+                  manifestStore = { root -> OutputManifestStore(source.storageClient, root) },
+                )
+              }
               MissingImpressionMetadataRecovery(
                   storageClient = source.storageClient,
                   storageRootUri = BlobUri(scheme = "gs", bucket = source.bucketName, key = ""),
@@ -422,6 +434,7 @@ class RecoverMissingImpressionMetadata : Runnable {
                   dateSelection = recoveryDateSelection,
                   dataAvailabilitySyncLease = lease.name,
                   ensureLeaseActive = lease::invoke,
+                  managedDoneObjectResolver = createManagedResolver,
                   sync = { doneBlobUri, metadataBlobKeys ->
                     val filteringStorageClient =
                       FilteringBlobMetadataStorageClient(
@@ -479,20 +492,7 @@ class RecoverMissingImpressionMetadata : Runnable {
                         impressionMetadataBatchSize = impressionMetadataBatchSize,
                         modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                         errorIfGapsExist = config.errorIfGapsExist,
-                        managedDoneObjectResolver = {
-                          GrpcManagedDoneObjectResolver(
-                            config.dataProvider,
-                            RawImpressionUploadServiceCoroutineStub(instrumentedMetadataChannel),
-                            RawImpressionUploadModelLineServiceCoroutineStub(
-                              instrumentedMetadataChannel
-                            ),
-                            RawImpressionUploadFileServiceCoroutineStub(
-                              instrumentedMetadataChannel
-                            ),
-                            VidLabelingJobServiceCoroutineStub(instrumentedMetadataChannel),
-                            throttler,
-                          )
-                        },
+                        managedDoneObjectResolver = createManagedResolver,
                         availabilityImpressionPaths = availabilityPaths,
                         modelLineCutovers =
                           config.modelLineCutoversList.map(ModelLineCutover::from),
@@ -529,8 +529,7 @@ class RecoverMissingImpressionMetadata : Runnable {
                           else DataAvailabilitySync.DiscoveryMode.FolderScan,
                         ensureLeaseActive = lease::invoke,
                       )
-                    if (external) processedMetadataBlobKeys
-                    else filteringStorageClient.processedMetadataBlobKeys
+                    processedMetadataBlobKeys + filteringStorageClient.processedMetadataBlobKeys
                   },
                   metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
                 )

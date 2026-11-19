@@ -29,6 +29,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
 import org.wfanet.measurement.edpaggregator.service.RankIndexBlobKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
@@ -97,6 +98,7 @@ class EvictUploader(
   private val getBlobGeneration: suspend (String) -> Long?,
   private val deleteBlob: suspend (String, Long) -> Boolean,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val committedOutputResolver: CommittedOutputResolver? = null,
 ) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
 
@@ -696,7 +698,8 @@ class EvictUploader(
     entry: CascadeEntry,
     captureGeneration: Boolean,
   ): LabeledOutputManifest {
-    val outputUris = resolveLabeledOutputUris(entry.uploadName, entry.cmmsModelLine)
+    val expectedVersions = resolveLabeledOutputVersions(entry.uploadName, entry.cmmsModelLine)
+    val outputUris = expectedVersions.keys.toList()
     val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
     val versions = coroutineScope {
       outputUris
@@ -706,7 +709,12 @@ class EvictUploader(
               LabeledOutputManifestKt.blobVersion {
                 this.blobUri = blobUri
                 if (captureGeneration) {
-                  getBlobGeneration(blobUri)?.let { generation = it }
+                  val live = getBlobGeneration(blobUri)
+                  val expected = expectedVersions.getValue(blobUri)
+                  check(expected == null || live == null || expected == live) {
+                    "Committed labeled-output generation changed"
+                  }
+                  (expected ?: live)?.let { generation = it }
                 }
               }
             }
@@ -720,23 +728,35 @@ class EvictUploader(
   private suspend fun resolveLabeledOutputUris(
     uploadName: String,
     cmmsModelLine: String,
-  ): List<String> {
-    val outputUris =
-      listRawImpressionUploadFiles(uploadName)
-        .map { file ->
-          LabeledImpressionsBlobKeys.forInputUri(
-            labeledImpressionsBlobPrefix,
-            file.blobUri,
-            cmmsModelLine,
-            file.eventDate.toLocalDate(),
-          )
-        }
-        .distinct()
-        .sorted()
-        .flatMap { impressionsBlobUri ->
-          listOf(impressionsBlobUri + LABELED_OUTPUT_METADATA_SUFFIX, impressionsBlobUri)
-        }
-    return outputUris
+  ): List<String> = resolveLabeledOutputVersions(uploadName, cmmsModelLine).keys.toList()
+
+  private suspend fun resolveLabeledOutputVersions(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): Map<String, Long?> {
+    val committed =
+      committedOutputResolver?.resolve(uploadName, cmmsModelLine, requireCompleted = false)
+    val files =
+      if (committed?.hasCommittedManifests == true) committed.legacyFiles
+      else listRawImpressionUploadFiles(uploadName)
+    val versions = linkedMapOf<String, Long?>()
+    for (file in files.sortedBy { it.blobUri }) {
+      val uri =
+        LabeledImpressionsBlobKeys.forInputUri(
+          labeledImpressionsBlobPrefix,
+          file.blobUri,
+          cmmsModelLine,
+          file.eventDate.toLocalDate(),
+        )
+      versions[uri + LABELED_OUTPUT_METADATA_SUFFIX] = null
+      versions[uri] = null
+    }
+    if (committed != null)
+      for (blob in committed.labeledBlobs.sortedBy { it.impressions.blobUri }) {
+        versions[blob.metadata.blobUri] = blob.metadata.blobGeneration
+        versions[blob.impressions.blobUri] = blob.impressions.blobGeneration
+      }
+    return versions
   }
 
   private suspend fun verifyLabeledOutputManifests(plan: EvictionPlan) {

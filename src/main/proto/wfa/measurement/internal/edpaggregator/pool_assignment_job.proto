@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
+import "wfa/measurement/internal/edpaggregator/output_manifest.proto";
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/pool_assignment_state.proto";
@@ -64,4 +65,9 @@ message PoolAssignmentJob {
   // blob written by this shard's VM. Populated when the job is marked
   // SUCCEEDED; read by the last-shard-out to decrypt this shard's blobs.
   EncryptedDek encrypted_dek = 11;
+
+  // Selected complete output; absent for legacy jobs.
+  OutputBlobReference output_manifest = 12;
+  // Whether this job was the final pool-assignment job when it succeeded.
+  bool last_shard = 13;
 }

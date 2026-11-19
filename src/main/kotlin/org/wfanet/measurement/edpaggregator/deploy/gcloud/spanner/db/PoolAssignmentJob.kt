@@ -23,6 +23,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import com.google.type.Date
+import io.grpc.Status
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
@@ -40,6 +41,8 @@ import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListPoolAssignmentJobsRequest
+import org.wfanet.measurement.internal.edpaggregator.MarkPoolAssignmentJobSucceededResponse
+import org.wfanet.measurement.internal.edpaggregator.OutputBlobReference
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJob
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentState as State
 import org.wfanet.measurement.internal.edpaggregator.poolAssignmentJob
@@ -50,6 +53,7 @@ data class PoolAssignmentJobResult(
   val poolAssignmentJobId: Long,
   val markSucceededRequestId: String,
   val markFailedRequestId: String,
+  val completionResult: MarkPoolAssignmentJobSucceededResponse? = null,
 )
 
 /** Returns whether a [PoolAssignmentJob] with the specified keys exists. */
@@ -514,11 +518,14 @@ private object PoolAssignmentJobEntity {
       PoolAssignmentJob.CreateRequestId,
       PoolAssignmentJob.MarkSucceededRequestId,
       PoolAssignmentJob.MarkFailedRequestId,
+      PoolAssignmentJob.CompletionResult,
       PoolAssignmentJob.State,
       PoolAssignmentJob.ErrorMessage,
       PoolAssignmentJob.EncryptedDek,
       PoolAssignmentJob.CreateTime,
       PoolAssignmentJob.UpdateTime,
+      PoolAssignmentJob.LastShard,
+      PoolAssignmentJob.OutputManifest,
     FROM
       PoolAssignmentJob
     """
@@ -543,12 +550,73 @@ private object PoolAssignmentJobEntity {
             struct.getProtoMessage("EncryptedDek", InternalEncryptedDek.getDefaultInstance())
         }
         etag = ETags.computeETag(updateTime.toInstant())
+        if (!struct.isNull("OutputManifest")) {
+          outputManifest =
+            OutputBlobReference.parseFrom(struct.getBytes("OutputManifest").toByteArray())
+        }
+        lastShard = !struct.isNull("LastShard") && struct.getBoolean("LastShard")
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("PoolAssignmentJobId"),
       if (struct.isNull("MarkSucceededRequestId")) ""
       else struct.getString("MarkSucceededRequestId"),
       if (struct.isNull("MarkFailedRequestId")) "" else struct.getString("MarkFailedRequestId"),
+      if (struct.isNull("CompletionResult")) null
+      else
+        MarkPoolAssignmentJobSucceededResponse.parseFrom(
+          struct.getBytes("CompletionResult").toByteArray()
+        ),
     )
   }
+}
+
+/** Counts actual jobs so absent work cannot masquerade as successful empty output. */
+suspend fun AsyncDatabaseClient.ReadContext.countPoolAssignmentJobs(
+  dataProvider: String,
+  upload: Long,
+  modelLine: String,
+): Long {
+  val row =
+    executeQuery(
+        statement(
+          """
+    SELECT COUNT(*) AS Cnt FROM PoolAssignmentJob
+    WHERE DataProviderResourceId = @provider AND RawImpressionUploadId = @upload AND CmmsModelLine = @model
+  """
+            .trimIndent()
+        ) {
+          bind("provider").to(dataProvider)
+          bind("upload").to(upload)
+          bind("model").to(modelLine)
+        }
+      )
+      .singleOrNullIfEmpty()
+  return row?.getLong("Cnt") ?: 0L
+}
+
+/** Prevents new members from changing an already selected merged-output scope. */
+suspend fun AsyncDatabaseClient.ReadContext.ensurePoolAssignmentGroupOpen(
+  dataProvider: String,
+  upload: Long,
+  modelLine: String,
+) {
+  val row =
+    executeQuery(
+        statement(
+          """
+    SELECT COUNT(*) AS Cnt FROM RawImpressionUploadModelLine
+    WHERE DataProviderResourceId = @provider AND RawImpressionUploadId = @upload
+      AND CmmsModelLine = @model AND MergedOutputManifest IS NOT NULL
+  """
+            .trimIndent()
+        ) {
+          bind("provider").to(dataProvider)
+          bind("upload").to(upload)
+          bind("model").to(modelLine)
+        }
+      )
+      .singleOrNullIfEmpty()
+  if (row != null && row.getLong("Cnt") != 0L)
+    throw Status.FAILED_PRECONDITION.withDescription("Pool assignment output is already committed")
+      .asRuntimeException()
 }

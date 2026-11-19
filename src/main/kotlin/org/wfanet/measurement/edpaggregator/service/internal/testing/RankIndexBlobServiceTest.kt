@@ -1147,6 +1147,63 @@ abstract class RankIndexBlobServiceTest {
     }
   }
 
+  @Test
+  fun `createRankIndexBlob permits a new snapshot after the prior snapshot is deleted`() =
+    runBlocking<Unit> {
+      val originalRequest = createRankIndexBlobRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rankIndexBlob = newInternalBlob().copy { blobUri = "gs://bucket/original-snapshot" }
+      }
+      val original = service.createRankIndexBlob(originalRequest)
+      deleteBlob(original.rankIndexBlobResourceId)
+      val replacement =
+        service.createRankIndexBlob(
+          originalRequest.copy {
+            requestId = UUID.randomUUID().toString()
+            rankIndexBlob = newInternalBlob().copy { blobUri = "gs://bucket/replacement-snapshot" }
+          }
+        )
+      assertThat(replacement.hasDeleteTime()).isFalse()
+      assertThat(replacement.rankIndexBlobResourceId).isNotEqualTo(original.rankIndexBlobResourceId)
+      assertThat(service.createRankIndexBlob(originalRequest).rankIndexBlobResourceId)
+        .isEqualTo(original.rankIndexBlobResourceId)
+    }
+
+  @Test
+  fun `batchCreateRankIndexBlobs atomically rejects conflicting live snapshots`() =
+    runBlocking<Unit> {
+      val requests =
+        listOf("a", "b").map { suffix ->
+          createRankIndexBlobRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rankIndexBlob = newInternalBlob().copy { blobUri = "gs://bucket/attempt-$suffix" }
+          }
+        }
+      val e =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateRankIndexBlobs(
+            batchCreateRankIndexBlobsRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              this.requests += requests
+            }
+          )
+        }
+      assertThat(e.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      val page =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
+      assertThat(page.rankIndexBlobsList).isEmpty()
+    }
+
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "dataProviders/dp1"
     private const val RAW_IMPRESSION_UPLOAD_RESOURCE_ID = "uploads/upload1"

@@ -28,6 +28,22 @@ object LabeledImpressionsBlobKeys {
     eventDate: LocalDate,
   ): String = "${prefix.trimEnd('/')}/${forInput(inputBlobUri, modelLine, eventDate)}"
 
+  /** Returns one immutable output URI under a job-attempt namespace. */
+  fun forAttemptInputUri(
+    prefix: String,
+    inputBlobUri: String,
+    modelLine: String,
+    eventDate: LocalDate,
+    attemptPath: String,
+  ): String {
+    require(
+      attemptPath.isNotEmpty() &&
+        attemptPath.split('/').all { it.isNotEmpty() && it != "." && it != ".." }
+    )
+    java.util.UUID.fromString(attemptPath.substringAfterLast('/'))
+    return "${prefix.trimEnd('/')}/${forDateDirectory(modelLine, eventDate)}/.attempts/$attemptPath/${sha256("$inputBlobUri|$modelLine")}"
+  }
+
   /** Returns the absolute done-marker URI for one upload, model line, and event date. */
   fun forDoneUri(
     prefix: String,
