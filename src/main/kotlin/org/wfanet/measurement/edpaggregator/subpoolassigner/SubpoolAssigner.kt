@@ -219,8 +219,8 @@ class SubpoolAssigner(
     // 412
     //   and the job never reaches SUCCEEDED. A correct fix (recover the winner's DEK on retry:
     //   row-first DEK, or key-on-row) is an API change; kept unconditional for now.
-    val dek: EncryptedDek = store.generateDek(kekUri)
     val subpoolIds = accumulator.subpoolIds().toList()
+    val dek: EncryptedDek? = if (subpoolIds.isEmpty()) null else store.generateDek(kekUri)
     // Write the per-subpool blobs with bounded concurrency (up to SUBPOOL_UPLOAD_CONCURRENCY at
     // once). subpoolIds is deduplicated, so each async block owns a DISTINCT subpool id: the
     // concurrent accumulator.remove(subpoolId) calls therefore only ever run across DIFFERENT
@@ -240,7 +240,7 @@ class SubpoolAssigner(
               try {
                 store.writeBlob(
                   shardSubpoolKey(shardIndex, subpoolId),
-                  dek,
+                  checkNotNull(dek),
                   subpoolId,
                   accumulator.streamChunks(subpoolId),
                 )
@@ -299,7 +299,8 @@ class SubpoolAssigner(
             // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
             // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
             requestId = deterministicUuid("$poolAssignmentJob|succeeded")
-            encryptedDek = dek
+            if (dek != null) encryptedDek = dek
+            outputKekUri = kekUri
             poolOffsets += subpoolIds
             sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
           }
@@ -318,7 +319,7 @@ class SubpoolAssigner(
           parent,
           markResponse.lastShardResult.poolOffsetsList,
           markResponse.lastShardResult.maxEventDate,
-          mergedDek = dek,
+          mergedDek = markResponse.poolAssignmentJob.encryptedDek,
         )
       } else {
         runEmptyLastShardOut(parent)
@@ -332,9 +333,8 @@ class SubpoolAssigner(
    * discovered subpool offsets, the max event date, and the merged-blob DEK were persisted on the
    * parent `RawImpressionUploadModelLine` by the last-shard-out's `MarkPoolAssignmentJobSucceeded`,
    * so we read them back:
-   * - no completion DEK and empty `pool_offsets` -> the final shard has not committed; nothing to
-   *   do,
-   * - completion DEK and empty `pool_offsets` -> verify every expected shard and resume file
+   * - incomplete Phase 0 and empty `pool_offsets` -> the final shard has not committed,
+   * - completed Phase 0 and empty `pool_offsets` -> verify every expected shard and resume
    *   labeling,
    * - parent state already `RANKING`/`LABELING`/`AVAILABILITY_SYNCING`/`COMPLETED` -> the
    *   last-shard-out fully finished (the state flip is its last step), so there is nothing to
@@ -359,10 +359,10 @@ class SubpoolAssigner(
       )
       return Result(0, 0, 0, 0, lastShardOut = true, outcome = "already_completed")
     }
+    if (!parent.poolAssignmentComplete) {
+      return Result(0, 0, 0, 0, lastShardOut = false, outcome = "already_completed")
+    }
     if (parent.poolOffsetsList.isEmpty()) {
-      if (!parent.hasEncryptedMergedDek()) {
-        return Result(0, 0, 0, 0, lastShardOut = false, outcome = "already_completed")
-      }
       runEmptyLastShardOut(parent)
       return Result(0, 0, 0, 0, lastShardOut = true, outcome = "recovered")
     }
@@ -387,11 +387,7 @@ class SubpoolAssigner(
       "Parent ${parent.name} has not reached POOL_ASSIGNING"
     }
     check(
-      parent.hasEncryptedMergedDek() &&
-        parent.encryptedMergedDek.kekUri.isNotEmpty() &&
-        !parent.encryptedMergedDek.ciphertext.isEmpty &&
-        parent.poolOffsetsList.isEmpty() &&
-        !parent.hasMaxEventDate()
+      parent.poolAssignmentComplete && parent.poolOffsetsList.isEmpty() && !parent.hasMaxEventDate()
     ) {
       "Parent ${parent.name} has no valid empty Phase-0 completion"
     }
@@ -470,13 +466,14 @@ class SubpoolAssigner(
         "dispatcher commits the phase transition"
     }
 
+    check(parent.poolAssignmentComplete) { "Parent ${parent.name} has incomplete Phase 0" }
     logger.info(
       "Shard $shardIndex is last-out for $modelLine; merging ${poolOffsets.size} subpools"
     )
 
     // Each shard encrypted its blobs with its own DEK, persisted on its PoolAssignmentJob row by
     // MarkPoolAssignmentJobSucceeded; recover them via ListPoolAssignmentJobs for this model line.
-    val shardDeks: Map<Int, EncryptedDek> = listShardDeks()
+    val shardDeks: Map<Int, EncryptedDek?> = listShardDeks()
 
     // Merge the subpools CONCURRENTLY, all sharing one Semaphore so the TOTAL number of in-flight
     // shard reads across every subpool merge is bounded by MERGE_READ_CONCURRENCY, keeping merge
@@ -494,15 +491,13 @@ class SubpoolAssigner(
             //   unconditional.
             try {
               val inputs =
-                (0 until totalShards).map { shard ->
+                (0 until totalShards).mapNotNull { shard ->
                   failureShard = shard
-                  SubpoolFingerprintsStore.SubpoolBlob(
-                    shardSubpoolKey(shard, poolOffset),
-                    requireNotNull(shardDeks[shard]) {
-                      "Missing DEK for shard $shard; cannot merge"
-                    },
-                  )
+                  require(shard in shardDeks) { "Missing DEK for shard $shard; cannot merge" }
+                  val shardDek = shardDeks[shard] ?: return@mapNotNull null
+                  SubpoolFingerprintsStore.SubpoolBlob(shardSubpoolKey(shard, poolOffset), shardDek)
                 }
+              check(inputs.isNotEmpty()) { "Ranked output has no persisted shard DEK" }
               failureShard = null
               store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore)
             } catch (e: CancellationException) {
@@ -760,8 +755,13 @@ class SubpoolAssigner(
    * (`RawImpressionUpload`, `ModelLine`) via `ListPoolAssignmentJobs` (paged). Each row carries the
    * DEK its shard's `MarkPoolAssignmentJobSucceeded` persisted.
    */
-  private suspend fun listShardDeks(): Map<Int, EncryptedDek> =
-    listShardJobs().associate { it.shardIndex to it.encryptedDek }
+  private suspend fun listShardDeks(): Map<Int, EncryptedDek?> =
+    listShardJobs().associate { job ->
+      check(job.state == PoolAssignmentJob.State.SUCCEEDED) {
+        "Fingerprint merge requires every expected shard to succeed"
+      }
+      job.shardIndex to if (job.hasEncryptedDek()) job.encryptedDek else null
+    }
 
   private suspend fun listShardJobs(): List<PoolAssignmentJob> {
     val jobs = ArrayList<PoolAssignmentJob>(totalShards)
