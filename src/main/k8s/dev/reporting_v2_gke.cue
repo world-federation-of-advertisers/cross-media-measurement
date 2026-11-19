@@ -110,7 +110,7 @@ objectSets: [
 	reporting.services,
 	reporting.cronJobs,
 	reporting.networkPolicies,
-	[_accessInternalApiDisruptionBudget],
+	[_accessInternalApiDisruptionBudget, _accessPublicApiDisruptionBudget],
 	if _mcpHost != "" && _oauthIssuer != "" {[_reportingMcpManagedCertificate, _reportingMcpIngress]},
 ]
 
@@ -122,6 +122,17 @@ _accessInternalApiDisruptionBudget: #PodDisruptionBudget & {
 	spec: {
 		minAvailable: 1
 		selector:     reporting.deployments["access-internal-api-server"].spec.selector
+	}
+}
+
+_accessPublicApiDisruptionBudget: #PodDisruptionBudget & {
+	metadata: {
+		_component: "reporting"
+		name:       "access-public-api-server"
+	}
+	spec: {
+		minAvailable: 1
+		selector:     reporting.deployments["access-public-api-server"].spec.selector
 	}
 }
 
@@ -198,20 +209,21 @@ reporting: #Reporting & {
 				]
 			}
 		}
-		"access-internal-api-server": {
-			spec: {
+		for name in ["access-internal-api-server", "access-public-api-server"] {
+			"\(name)": spec: {
 				replicas: 2
-				template: spec: #ServiceAccountPodSpec & {
-					serviceAccountName: #InternalAccessServerServiceAccount
-					// Require separate nodes for authorization availability during node drains.
-					topologySpreadConstraints: [{
-						maxSkew:           1
-						minDomains:        2
-						topologyKey:       "kubernetes.io/hostname"
-						whenUnsatisfiable: "DoNotSchedule"
-						labelSelector:     reporting.deployments["access-internal-api-server"].spec.selector
-					}]
-				}
+				template: spec: topologySpreadConstraints: [{
+					maxSkew:           1
+					minDomains:        2
+					topologyKey:       "kubernetes.io/hostname"
+					whenUnsatisfiable: "DoNotSchedule"
+					labelSelector:     reporting.deployments[name].spec.selector
+				}]
+			}
+		}
+		"access-internal-api-server": {
+			spec: template: spec: #ServiceAccountPodSpec & {
+				serviceAccountName: #InternalAccessServerServiceAccount
 			}
 		}
 	}
