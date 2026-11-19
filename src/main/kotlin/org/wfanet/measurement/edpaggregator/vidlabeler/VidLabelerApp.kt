@@ -31,6 +31,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.time.Instant
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -75,6 +76,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationReq
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -89,6 +91,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -323,6 +326,73 @@ class VidLabelerApp(
     }
   }
 
+  private suspend fun completedConcurrentJob(params: VidLabelerParams): VidLabelingJob? {
+    val current =
+      rpcThrottlers.metadataRead.onReady {
+        vidLabelingJobsStub.getVidLabelingJob(
+          getVidLabelingJobRequest { name = params.vidLabelingJob }
+        )
+      }
+    return current.takeIf { it.state == VidLabelingJob.State.SUCCEEDED }
+  }
+
+  private suspend fun requireConcurrentHandoff(
+    params: VidLabelerParams,
+    completed: VidLabelingJob,
+  ) {
+    val rows = listAllModelLines(rawImpressionUpload(params))
+    val pendingModelLines =
+      params.modelLinesList.filter { modelLine ->
+        checkNotNull(rows.singleOrNull { it.cmmsModelLine == modelLine }) {
+            "Concurrent labeling parent is missing"
+          }
+          .state !in
+          setOf(
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+            RawImpressionUploadModelLine.State.FAILED,
+          )
+      }
+    if (pendingModelLines.isEmpty()) return
+
+    // Terminal jobs retain their completion time and immutable membership. A sibling that
+    // already existed and was still unfinished at that time proves this job was not last-out.
+    // Jobs created later cannot change the original responsibility. Ties or missing timestamps
+    // provide no proof, so keep retrying the existing finalization path in those cases.
+    val siblings = mutableListOf<VidLabelingJob>()
+    var nextPage = ""
+    do {
+      val page =
+        rpcThrottlers.metadataRead.onReady {
+          vidLabelingJobsStub.listVidLabelingJobs(
+            listVidLabelingJobsRequest {
+              parent = rawImpressionUpload(params)
+              pageSize = 1000
+              pageToken = nextPage
+            }
+          )
+        }
+      siblings += page.vidLabelingJobsList
+      nextPage = page.nextPageToken
+    } while (nextPage.isNotEmpty())
+    check(
+      completed.hasUpdateTime() &&
+        pendingModelLines.all { modelLine ->
+          siblings.any { sibling ->
+            sibling.name != completed.name &&
+              modelLine in sibling.cmmsModelLinesList &&
+              sibling.hasCreateTime() &&
+              sibling.createTime.toInstant() < completed.updateTime.toInstant() &&
+              (sibling.state != VidLabelingJob.State.SUCCEEDED ||
+                (sibling.hasUpdateTime() &&
+                  sibling.updateTime.toInstant() > completed.updateTime.toInstant()))
+          }
+        }
+    ) {
+      "Concurrent labeling job completed before its availability handoff; retry finalization"
+    }
+  }
+
   /** Memoized rank-index Phase-2 path: derive each VID from its memoized rank. */
   private suspend fun runMemoized(
     params: VidLabelerParams,
@@ -362,21 +432,36 @@ class VidLabelerApp(
           VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT,
           job.rawImpressionUploadFilesCount.toLong(),
         )
+      val outputCollision = AtomicBoolean(false)
       val observedEventDates: Set<LocalDate> =
         if (job.state != VidLabelingJob.State.SUCCEEDED) {
-          labelMemoized(
-            params,
-            mp,
-            modelLine,
-            config,
-            dataProvider,
-            kmsClient,
-            job.rawImpressionUploadFilesList,
-          )
+          try {
+            labelMemoized(
+              params,
+              mp,
+              modelLine,
+              config,
+              dataProvider,
+              kmsClient,
+              job.rawImpressionUploadFilesList,
+              onOutputCollision = { outputCollision.set(true) },
+            )
+          } catch (e: BlobChangedException) {
+            val completed = completedConcurrentJob(params) ?: throw e
+            requireConcurrentHandoff(params, completed)
+            metrics.workItemsProcessedCounter.add(1, attributes)
+            return LabelingRunResult("already_completed", job.rawImpressionUploadFilesCount)
+          }
         } else {
-          logger.info("VidLabelingJob $vidLabelingJob already SUCCEEDED; skipping relabel")
+          logger.info("VidLabelingJob ${params.vidLabelingJob} already SUCCEEDED; skipping relabel")
           emptySet()
         }
+      val completed = if (outputCollision.get()) completedConcurrentJob(params) else null
+      if (completed != null) {
+        requireConcurrentHandoff(params, completed)
+        metrics.workItemsProcessedCounter.add(1, attributes)
+        return LabelingRunResult("already_completed", job.rawImpressionUploadFilesCount)
+      }
 
       val finalized =
         markSucceededAndTransition(
@@ -441,19 +526,34 @@ class VidLabelerApp(
           VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT,
           job.rawImpressionUploadFilesCount.toLong(),
         )
+      val outputCollision = AtomicBoolean(false)
       val observedEventDates: Set<LocalDate> =
         if (job.state != VidLabelingJob.State.SUCCEEDED) {
-          labelNonMemoized(
-            params,
-            dataProvider,
-            kmsClient,
-            encryptKekUri,
-            job.rawImpressionUploadFilesList,
-          )
+          try {
+            labelNonMemoized(
+              params,
+              dataProvider,
+              kmsClient,
+              encryptKekUri,
+              job.rawImpressionUploadFilesList,
+              onOutputCollision = { outputCollision.set(true) },
+            )
+          } catch (e: BlobChangedException) {
+            val completed = completedConcurrentJob(params) ?: throw e
+            requireConcurrentHandoff(params, completed)
+            metrics.workItemsProcessedCounter.add(1, attributes)
+            return LabelingRunResult("already_completed", job.rawImpressionUploadFilesCount)
+          }
         } else {
           logger.info("VidLabelingJob ${params.vidLabelingJob} already SUCCEEDED; skipping relabel")
           emptySet()
         }
+      val completed = if (outputCollision.get()) completedConcurrentJob(params) else null
+      if (completed != null) {
+        requireConcurrentHandoff(params, completed)
+        metrics.workItemsProcessedCounter.add(1, attributes)
+        return LabelingRunResult("already_completed", job.rawImpressionUploadFilesCount)
+      }
 
       val finalized =
         markSucceededAndTransition(
@@ -489,6 +589,7 @@ class VidLabelerApp(
     dataProvider: String,
     kmsClient: KmsClient,
     inputFiles: List<String>,
+    onOutputCollision: () -> Unit = {},
   ): Set<LocalDate> {
     val rankIndexStore =
       RankIndexStore(
@@ -573,7 +674,8 @@ class VidLabelerApp(
       )
 
     val impressionConverter = buildImpressionConverter(modelLine, config)
-    val publicationObserver = outputPublicationObserver(params, dataProvider, "memoized")
+    val publicationObserver =
+      outputPublicationObserver(params, dataProvider, "memoized", onOutputCollision)
 
     return VidLabeler(
         rawImpressionSource = rawImpressionSource,
@@ -631,6 +733,7 @@ class VidLabelerApp(
     kmsClient: KmsClient,
     encryptKekUri: String,
     inputFiles: List<String>,
+    onOutputCollision: () -> Unit = {},
   ): Set<LocalDate> {
     val modelLines = params.modelLinesList
     val configsByModelLine =
@@ -704,7 +807,8 @@ class VidLabelerApp(
       }
 
     val impressionConverter = buildImpressionConverter(firstModelLine, firstConfig)
-    val publicationObserver = outputPublicationObserver(params, dataProvider, "non_memoized")
+    val publicationObserver =
+      outputPublicationObserver(params, dataProvider, "non_memoized", onOutputCollision)
 
     return VidLabeler(
         rawImpressionSource = rawImpressionSource,
@@ -1659,9 +1763,11 @@ class VidLabelerApp(
     params: VidLabelerParams,
     dataProvider: String,
     route: String,
+    onOutputCollision: () -> Unit = {},
   ): (LabeledOutputPublication) -> Unit {
     val span = Span.current()
     return { publication ->
+      if (publication.outcome == "already_completed") onOutputCollision()
       val publicationError = publication.error
       val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(publication.uri)
       val event =
