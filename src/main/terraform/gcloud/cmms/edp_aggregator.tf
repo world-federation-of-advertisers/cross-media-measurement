@@ -439,11 +439,16 @@ locals {
       uber_jar_path   = var.data_availability_cleanup_uber_jar_path
     }
     data_availability_monitor = {
-      function_name   = "data-availability-monitor"
-      entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityMonitorFunction"
-      extra_env_vars  = "${var.data_availability_monitor_env_var},CONFIG_BLOB_KEY=${local.data_availability_monitor_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
-      secret_mappings = ""
-      uber_jar_path   = var.data_availability_monitor_uber_jar_path
+      function_name  = "data-availability-monitor"
+      entry_point    = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityMonitorFunction"
+      extra_env_vars = "${var.data_availability_monitor_env_var},CONFIG_BLOB_KEY=${local.data_availability_monitor_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
+      secret_mappings = join(",", [
+        for mapping in local.data_availability_secret_mappings : mapping
+        if startswith(mapping, "/secrets/cert/data_availability/") ||
+        startswith(mapping, "/secrets/key/data_availability/") ||
+        startswith(mapping, "/secrets/ca/metadata_storage/")
+      ])
+      uber_jar_path = var.data_availability_monitor_uber_jar_path
     }
     vid_labeling_dispatcher = {
       function_name   = "vid-labeling-dispatcher"

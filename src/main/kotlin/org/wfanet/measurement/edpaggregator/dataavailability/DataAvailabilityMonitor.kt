@@ -39,6 +39,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata as V1Alph
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter as listImpressionMetadataRequestFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -78,10 +80,15 @@ class DataAvailabilityMonitor(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub?,
   private val dataProviderName: String?,
   private val clock: () -> Instant = { Instant.now() },
+  private val managedDoneObjectResolver: (() -> ManagedDoneObjectResolver)? = null,
+  private val outputStorageRoot: String? = null,
 ) {
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
+    require(managedDoneObjectResolver == null || !outputStorageRoot.isNullOrBlank()) {
+      "Managed output monitoring requires its storage root URI"
+    }
     require(activeModelLines.isNotEmpty()) { "activeModelLines must not be empty" }
     require(dataProviderName?.isNotBlank() != false) { "dataProviderName must not be blank" }
     val activeModelLineNames = activeModelLines.mapTo(mutableSetOf(), ModelLineKey::toName)
@@ -487,7 +494,7 @@ class DataAvailabilityMonitor(
     val prefix =
       if (edpImpressionPath.isEmpty()) "model-line/$modelLineId/"
       else "$edpImpressionPath/model-line/$modelLineId/"
-    val baseInfo = getDateInfo(prefix, unprocessedDoneThreshold)
+    val baseInfo = getDateInfo(prefix, unprocessedDoneThreshold, modelLineKey.toName())
 
     val spuriousInterval = spuriousDeletionInterval ?: return baseInfo
 
@@ -579,7 +586,11 @@ class DataAvailabilityMonitor(
    * Layers Monitor-specific classification (zero-impression, late-arrival, unprocessed-done,
    * healthy) on top of [DataAvailabilityBlobs.enumerateDateInfo]'s storage-level classification.
    */
-  private suspend fun getDateInfo(prefix: String, unprocessedDoneThreshold: Duration): DateInfo {
+  private suspend fun getDateInfo(
+    prefix: String,
+    unprocessedDoneThreshold: Duration,
+    modelLineName: String,
+  ): DateInfo {
     val enumerated = DataAvailabilityBlobs.enumerateDateInfo(storageClient, prefix)
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
     val lateArrivingDatesList = mutableListOf<LocalDate>()
@@ -588,42 +599,41 @@ class DataAvailabilityMonitor(
     val healthyDatesList = mutableListOf<LocalDate>()
 
     val now = clock()
-    for ((date, doneBlobs) in enumerated.datesWithDoneBlob) {
+    val relevantDates = mutableSetOf<LocalDate>()
+    for ((date, enumeratedDone) in enumerated.datesWithDoneBlob) {
       val dateString = date.toString()
 
-      // Check if there is at least one non-done file with content
+      val managed =
+        managedDoneObjectResolver != null &&
+          enumeratedDone.none { it.blobKey.substringAfterLast('/') == "done" }
+      val health = if (managed) managedDateHealth(modelLineName, date, enumeratedDone) else null
+      val doneBlobs = health?.done ?: enumeratedDone
+      if (doneBlobs.isEmpty()) continue
+      relevantDates += date
       val hasData =
-        storageClient.listBlobs("${prefix}$dateString/").firstOrNull {
-          !DataAvailabilityBlobs.isDoneBlob(it.blobKey) && it.size > 0
-        } != null
-      if (!hasData) {
-        zeroImpressionDatesList.add(date)
-      }
-
-      // The metadata-persistence marker supports two alert categories:
-      //   - Sync stamps `synced-by=data-availability-sync` on the `done` blob after it persists
-      //     ImpressionMetadata. An absent marker means that phase did not complete.
-      //   - Sync stamps the same marker on each metadata blob it processes. An unmarked
-      //     metadata blob in a date whose persistence phase completed represents late-arriving or
-      //     rewritten data (the EDP overwrote a metadata blob after Sync ran; fresh GCS
-      //     uploads replace prior user-set custom metadata).
-      // Full Kingdom publication is tracked separately by matching per-attempt IDs on `done`.
+        health?.hasData
+          ?: (storageClient.listBlobs("$prefix$dateString/").firstOrNull {
+            !DataAvailabilityBlobs.isDoneBlob(it.blobKey) && it.size > 0
+          } != null)
+      val ready = health?.ready ?: true
+      if (ready && !hasData) zeroImpressionDatesList += date
       val allDoneSynced = doneBlobs.all(DataAvailabilityBlobs::isSynced)
       val hasLateArrivals =
         if (allDoneSynced) {
-          storageClient.listBlobs("${prefix}$dateString/").firstOrNull { isUnsynced(it) } != null
+          health?.hasLate
+            ?: (storageClient.listBlobs("$prefix$dateString/").firstOrNull { isUnsynced(it) } !=
+              null)
         } else false
-      if (hasLateArrivals) {
-        lateArrivingDatesList.add(date)
-      }
+      if (hasLateArrivals) lateArrivingDatesList += date
 
       // A done blob exists but lacks the marker. If it has been there long enough that Sync should
       // reasonably have processed it, flag the date as having an unprocessed done.
       val isUnprocessedDone =
-        doneBlobs.any {
-          !DataAvailabilityBlobs.isSynced(it) &&
-            Duration.between(it.createTime, now) >= unprocessedDoneThreshold
-        }
+        health?.invalid == true ||
+          doneBlobs.any {
+            !DataAvailabilityBlobs.isSynced(it) &&
+              Duration.between(it.createTime, now) >= unprocessedDoneThreshold
+          }
       val isUnpublishedAvailability =
         doneBlobs.any {
           DataAvailabilityBlobs.isSynced(it) &&
@@ -638,13 +648,15 @@ class DataAvailabilityMonitor(
         unpublishedAvailabilityDatesList.add(date)
       }
 
-      if (hasData && !hasLateArrivals && !isUnprocessedDone && !isUnpublishedAvailability) {
+      if (
+        ready && hasData && !hasLateArrivals && !isUnprocessedDone && !isUnpublishedAvailability
+      ) {
         healthyDatesList.add(date)
       }
     }
 
     return DateInfo(
-      datesWithDoneBlob = enumerated.datesWithDoneBlob.keys,
+      datesWithDoneBlob = relevantDates,
       zeroImpressionDates = zeroImpressionDatesList.sorted(),
       datesWithoutDoneBlob = enumerated.datesWithoutDoneBlob,
       lateArrivingDates = lateArrivingDatesList.sorted(),
@@ -655,6 +667,98 @@ class DataAvailabilityMonitor(
       spuriousDeletionCountsByDate = null,
       legitimateDeletionCount = null,
     )
+  }
+
+  private data class ManagedDateHealth(
+    val done: List<StorageClient.Blob>,
+    val hasData: Boolean,
+    val hasLate: Boolean,
+    val ready: Boolean,
+    val invalid: Boolean,
+  )
+
+  /** Inspects only selected managed artifacts; private failed attempts are not dataset health. */
+  private suspend fun managedDateHealth(
+    modelLine: String,
+    date: LocalDate,
+    markers: List<StorageClient.Blob>,
+  ): ManagedDateHealth {
+    val reader = checkNotNull(managedDoneObjectResolver).invoke()
+    val relevant = mutableListOf<StorageClient.Blob>()
+    var hasData = false
+    var hasLate = false
+    var ready = true
+    var invalid = false
+    for (marker in markers) {
+      when (reader.resolve(modelLine, date, marker.blobKey)) {
+        ManagedDoneObjectDisposition.OBSOLETE -> continue
+        ManagedDoneObjectDisposition.FINALIZING -> {
+          relevant += marker
+          ready = false
+          continue
+        }
+        ManagedDoneObjectDisposition.CURRENT -> relevant += marker
+      }
+      val output =
+        try {
+          checkNotNull(
+            reader.committedOutputs(
+              modelLine,
+              date,
+              marker.blobKey,
+              checkNotNull(outputStorageRoot),
+            )
+          ) {
+            "Managed marker has no committed-output reader"
+          }
+        } catch (e: IllegalStateException) {
+          logger.log(Level.WARNING, "Managed output is incomplete for $modelLine on $date", e)
+          ready = false
+          invalid = true
+          continue
+        }
+      for (entry in
+        output.labeledBlobs.filter {
+          it.modelLine == modelLine &&
+            LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) == date
+        }) {
+        val data =
+          storageClient.getBlob(SelectedStorageClient.parseBlobUri(entry.impressions.blobUri).key)
+        val metadata =
+          storageClient.getBlob(SelectedStorageClient.parseBlobUri(entry.metadata.blobUri).key)
+        val intact =
+          (data as? ConditionalOperationStorageClient.Blob)?.freshnessToken ==
+            entry.impressions.blobGeneration.toString() &&
+            (metadata as? ConditionalOperationStorageClient.Blob)?.freshnessToken ==
+              entry.metadata.blobGeneration.toString()
+        if (!intact) {
+          ready = false
+          invalid = true
+          hasLate = true
+        } else {
+          hasData = hasData || checkNotNull(data).size > 0
+          hasLate = hasLate || !DataAvailabilityBlobs.isSynced(checkNotNull(metadata))
+        }
+      }
+      for (file in
+        output.legacyFiles.filter {
+          LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) == date
+        }) {
+        val uri =
+          LabeledImpressionsBlobKeys.forInputUri(
+            checkNotNull(outputStorageRoot),
+            file.blobUri,
+            modelLine,
+            date,
+          )
+        val data = storageClient.getBlob(SelectedStorageClient.parseBlobUri(uri).key)
+        val metadata =
+          storageClient.getBlob(SelectedStorageClient.parseBlobUri(uri + ".metadata.binpb").key)
+        hasData = hasData || (data?.size ?: 0L) > 0L
+        hasLate = hasLate || (metadata != null && !DataAvailabilityBlobs.isSynced(metadata))
+      }
+    }
+    return ManagedDateHealth(relevant, hasData, hasLate, ready, invalid)
   }
 
   /** Returns true if [blob] is a metadata file that has not been marked as synced. */

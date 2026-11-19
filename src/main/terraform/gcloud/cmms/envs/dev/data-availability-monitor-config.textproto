@@ -1,6 +1,11 @@
 # proto-file: wfa/measurement/config/edpaggregator/data_availability_monitor_config.proto
 # proto-message: wfa.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 configs {
+  impression_metadata_connection {
+    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
+    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
   data_provider_name: "dataProviders/T5RryPMNong"
   storage {
     gcs {
@@ -9,12 +14,22 @@ configs {
   }
   edp_impression_path: "edp/edp7"
   model_line_configs {
+  impression_metadata_connection {
+    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
+    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
     model_line: "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"
   }
   max_stale_days: 3
   time_zone: "UTC"
 }
 configs {
+  impression_metadata_connection {
+    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
+    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
   data_provider_name: "dataProviders/J3-pzhqS9Lo"
   storage {
     gcs {
@@ -23,12 +38,22 @@ configs {
   }
   edp_impression_path: "edp/edpa_meta"
   model_line_configs {
+  impression_metadata_connection {
+    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
+    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
     model_line: "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"
   }
   max_stale_days: 3
   time_zone: "UTC"
 }
 configs {
+  impression_metadata_connection {
+    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
+    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
   data_provider_name: "dataProviders/T5RryPMNong"
   storage {
     gcs {
@@ -37,12 +62,22 @@ configs {
   }
   edp_impression_path: "vid-labeled-impressions/edp/edp7"
   model_line_configs {
+  impression_metadata_connection {
+    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
+    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
     model_line: "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"
   }
   max_stale_days: 3
   time_zone: "UTC"
 }
 configs {
+  impression_metadata_connection {
+    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
+    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
   data_provider_name: "dataProviders/J3-pzhqS9Lo"
   storage {
     gcs {
@@ -51,6 +86,11 @@ configs {
   }
   edp_impression_path: "vid-labeled-impressions/edp/edpa_meta"
   model_line_configs {
+  impression_metadata_connection {
+    cert_file_path: "/secrets/cert/data_availability/data_availability_tls.pem"
+    private_key_file_path: "/secrets/key/data_availability/data_availability_tls.key"
+    cert_collection_file_path: "/secrets/ca/metadata_storage/edp_aggregator_root.pem"
+  }
     model_line: "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"
   }
   max_stale_days: 3

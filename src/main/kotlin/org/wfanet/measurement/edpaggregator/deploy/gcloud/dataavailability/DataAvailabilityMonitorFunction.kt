@@ -34,15 +34,23 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityMonitor
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcManagedDoneObjectResolver
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -193,6 +201,29 @@ class DataAvailabilityMonitorFunction : HttpFunction {
         monitoringWindows = monitoringWindows,
         impressionMetadataStub = impressionMetadataStub,
         dataProviderName = config.dataProviderName.ifEmpty { null },
+        outputStorageRoot =
+          "gs://" + config.storage.gcs.bucketName + "/" + config.edpImpressionPath,
+        managedDoneObjectResolver = {
+          require(
+            config.dataProviderName.isNotEmpty() && config.hasImpressionMetadataConnection()
+          ) {
+            "Managed output monitoring requires data_provider_name and impression_metadata_connection"
+          }
+          val channel = getOrCreateImpressionMetadataChannel(config.impressionMetadataConnection)
+          GrpcManagedDoneObjectResolver(
+            config.dataProviderName,
+            RawImpressionUploadServiceCoroutineStub(channel),
+            RawImpressionUploadModelLineServiceCoroutineStub(channel),
+            RawImpressionUploadFileServiceCoroutineStub(channel),
+            VidLabelingJobServiceCoroutineStub(channel),
+            object : Throttler {
+              override suspend fun <T> onReady(block: suspend () -> T): T = block()
+            },
+            manifestStore = { root ->
+              OutputManifestStore(storageClient as ConditionalOperationStorageClient, root)
+            },
+          )
+        },
       )
 
     val unprocessedDoneThreshold: Duration =

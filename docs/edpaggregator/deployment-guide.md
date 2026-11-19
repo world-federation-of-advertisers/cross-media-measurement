@@ -1370,6 +1370,13 @@ and can delete activity appended by `DataAvailabilitySync`. See
 
 ### DataAvailabilityMonitor config (`DataAvailabilityMonitorConfigs`)
 
+Managed VID-labeler output monitoring requires data_provider_name and
+impression_metadata_connection. The monitor reads the selected output manifests through the
+metadata API, using the same client certificate and trust chain as DataAvailabilitySync. Deploy
+the monitor's metadata certificate mounts and configuration before enabling immutable attempt
+writers; external canonical done snapshots keep their folder-scan behavior.
+
+
 Proto: `wfa/measurement/config/edpaggregator/data_availability_monitor_config.proto`.
 One `configs` entry per monitored impression path.
 

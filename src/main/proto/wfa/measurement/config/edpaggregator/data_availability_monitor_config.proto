@@ -64,7 +64,8 @@ message DataAvailabilityMonitorConfig {
   // Format: "dataProviders/{data_provider}"
   string data_provider_name = 7;
 
-  // How to connect to the ImpressionMetadata service.
+  // How to connect to the metadata API. Required when monitoring managed
+  // VID-labeler done markers, or when checking spurious deletions.
   TransportLayerSecurityParams impression_metadata_connection = 8;
 
   // Maximum age of a "done" blob that lacks the `synced-by` marker before the

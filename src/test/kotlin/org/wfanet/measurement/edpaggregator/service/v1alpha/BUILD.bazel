@@ -1235,3 +1235,32 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "CommittedOutputMonitorTest",
+    srcs = ["CommittedOutputMonitorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.CommittedOutputMonitorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_monitor",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:managed_done_object_resolver",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:committed_output_resolver",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:output_manifest_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:output_manifest_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
+    ],
+)
