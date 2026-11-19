@@ -262,6 +262,12 @@ the index efficiently.
 - **`ListImpressionMetadata` from the results-fulfiller** is the read hot path.
   It is paginated and index-backed; keep filters aligned to the index prefix
   (model line, then event group, then interval) so they stay range scans.
+  The fulfiller requests `IMPRESSION_METADATA_VIEW_BASIC` with 1,000 records per
+  page. This view omits `entity_keys` from the internal database projection while
+  preserving entity-key filtering and all other response fields. Other list
+  callers receive `IMPRESSION_METADATA_VIEW_FULL` unless they select a view.
+  For staged upgrades, deploy the internal metadata API and system API servers
+  before the results-fulfiller so both servers honor the compact view.
 - **`ComputeModelLineBounds`** aggregates over a model line's rows to find the
   covered interval. It scans more rows than a point lookup; call it deliberately
   (e.g. once per planning step), not in a tight loop, and expect its cost to grow
