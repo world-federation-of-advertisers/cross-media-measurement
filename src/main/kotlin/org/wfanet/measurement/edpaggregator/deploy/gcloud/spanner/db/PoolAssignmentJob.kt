@@ -389,7 +389,6 @@ data class RawImpressionUploadModelLineMergeState(
   val maxEventDate: Date?,
   val encryptedMergedDek: InternalEncryptedDek?,
   val poolAssignmentComplete: Boolean,
-  val outputKekUri: String,
 )
 
 /**
@@ -407,7 +406,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineMerge
   val sql =
     """
     SELECT RawImpressionUploadModelLineId, PoolOffsets, MaxEventDate,
-      EncryptedMergedDek, PoolAssignmentComplete, OutputKekUri
+      EncryptedMergedDek, PoolAssignmentComplete
     FROM RawImpressionUploadModelLine
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND RawImpressionUploadId = @rawImpressionUploadId
@@ -434,7 +433,6 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineMerge
       if (row.isNull("EncryptedMergedDek")) null
       else row.getProtoMessage("EncryptedMergedDek", InternalEncryptedDek.getDefaultInstance()),
     poolAssignmentComplete = row.getBoolean("PoolAssignmentComplete"),
-    outputKekUri = if (row.isNull("OutputKekUri")) "" else row.getString("OutputKekUri"),
   )
 }
 
@@ -446,7 +444,6 @@ fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadModelLineMer
   poolOffsets: List<Long>,
   maxEventDate: Date?,
   poolAssignmentComplete: Boolean,
-  outputKekUri: String,
   mergedDek: InternalEncryptedDek?,
   preserveUpdateTime: Boolean = false,
 ) {
@@ -458,7 +455,6 @@ fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadModelLineMer
     set("MaxEventDate").to(maxEventDate?.toCloudDate())
     if (poolAssignmentComplete) {
       set("PoolAssignmentComplete").to(true)
-      set("OutputKekUri").to(outputKekUri)
       if (mergedDek != null) {
         set("EncryptedMergedDek").toProtoBytes(mergedDek)
       } else {
@@ -527,7 +523,6 @@ suspend fun AsyncDatabaseClient.TransactionContext.materializeLegacyPoolAssignme
       maxEventDate = mergeState.maxEventDate,
     )
   val mergedDek = if (mergeState.poolOffsets.isNotEmpty()) legacyDek else null
-  val outputKekUri = mergeState.outputKekUri.ifEmpty { legacyDek.kekUri }
   if (needsParent)
     updateRawImpressionUploadModelLineMergedOutputs(
       dataProviderResourceId,
@@ -536,15 +531,10 @@ suspend fun AsyncDatabaseClient.TransactionContext.materializeLegacyPoolAssignme
       mergeState.poolOffsets,
       mergeState.maxEventDate,
       poolAssignmentComplete = true,
-      outputKekUri = outputKekUri,
       mergedDek = mergedDek,
       preserveUpdateTime = true,
     )
-  return mergeState.copy(
-    encryptedMergedDek = mergedDek,
-    poolAssignmentComplete = true,
-    outputKekUri = outputKekUri,
-  )
+  return mergeState.copy(encryptedMergedDek = mergedDek, poolAssignmentComplete = true)
 }
 
 /** Reads an existing output key for a final shard with no shard blobs of its own. */

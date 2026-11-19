@@ -821,7 +821,6 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.MaxEventDate,
       RawImpressionUploadModelLine.EncryptedMergedDek,
       RawImpressionUploadModelLine.PoolAssignmentComplete,
-      RawImpressionUploadModelLine.OutputKekUri,
       RawImpressionUploadModelLine.MarkPoolAssigningRequestId,
       RawImpressionUploadModelLine.MarkRankingRequestId,
       RawImpressionUploadModelLine.MarkLabelingRequestId,
@@ -856,7 +855,6 @@ private object RawImpressionUploadModelLineEntity {
           errorMessage = struct.getString("ErrorMessage")
         }
         poolAssignmentComplete = struct.getBoolean("PoolAssignmentComplete")
-        if (!struct.isNull("OutputKekUri")) outputKekUri = struct.getString("OutputKekUri")
         if (!struct.isNull("PoolOffsets")) {
           poolOffsets += struct.getLongList("PoolOffsets")
         }

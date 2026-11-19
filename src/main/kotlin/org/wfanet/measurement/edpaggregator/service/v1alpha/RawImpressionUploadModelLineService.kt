@@ -742,7 +742,6 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
     }
     // Phase-0 last-shard-out outputs (OUTPUT_ONLY), consumed by a retrying SubpoolAssigner.
     poolAssignmentComplete = source.poolAssignmentComplete
-    outputKekUri = source.outputKekUri
     poolOffsets += source.poolOffsetsList
     if (source.hasMaxEventDate()) {
       maxEventDate = source.maxEventDate

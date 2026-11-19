@@ -1511,7 +1511,6 @@ abstract class PoolAssignmentJobServiceTest {
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
         etag = shard.etag
-        outputKekUri = "fake-kms://output"
       }
       val response = service.markPoolAssignmentJobSucceeded(request)
       assertThat(response.lastShard).isTrue()
@@ -1563,7 +1562,6 @@ abstract class PoolAssignmentJobServiceTest {
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         poolAssignmentJobResourceId = shards[1].poolAssignmentJobResourceId
         etag = shards[1].etag
-        outputKekUri = "fake-kms://output"
       }
       val response = service.markPoolAssignmentJobSucceeded(finalRequest)
       assertThat(response.lastShard).isTrue()

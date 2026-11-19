@@ -1405,7 +1405,6 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     unfinished: Boolean = false,
     offsets: List<Long> = emptyList(),
     withDate: Boolean = false,
-    kekUri: String = "fake-kms://edp",
   ): RawImpressionUploadModelLine {
     val model = registeredModel(upload, "gs://input/$upload")
     val pool =
@@ -1443,7 +1442,6 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
           set("PoolOffsets").toInt64Array(offsets)
           if (completed) {
             set("PoolAssignmentComplete").to(true)
-            set("OutputKekUri").to(kekUri)
           }
           if (withDate) {
             set("MaxEventDate").to(com.google.cloud.Date.fromYearMonthDay(2026, 1, 5))
@@ -1572,7 +1570,7 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
   @Test
   fun `markRawImpressionUploadModelLineLabeling accepts completion without encryption material`() =
     runBlocking {
-      val pool = emptyPoolAssignment("missing-kek", kekUri = "")
+      val pool = emptyPoolAssignment("no-encryption-material")
       assertThat(pool.hasEncryptedMergedDek()).isFalse()
       assertThat(labeling(pool).state)
         .isEqualTo(
