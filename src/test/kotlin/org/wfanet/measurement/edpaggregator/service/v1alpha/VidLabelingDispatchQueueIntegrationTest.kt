@@ -34,6 +34,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
@@ -86,6 +87,14 @@ private constructor(private val leaseClock: MutableClock) :
       assertReadablePeople(MEMOIZED_MODEL_LINE, setOf("person"))
       assertReadablePeople(DIRECT_MODEL_LINE, setOf("person"))
       assertThat(dispatchTasks()).hasSize(1)
+      val frame =
+        dispatchTasks().single().workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      val app = frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+      assertThat(frame.hasDataPathParams()).isTrue()
+      assertThat(frame.dataPathParams.dataPath).isEqualTo(app.source.dataPath)
+      assertThat(frame.dataPathParams.generation).isEqualTo(app.source.generation)
+      assertThat(frame.dataPathParams.createTime.seconds).isEqualTo(app.source.createTime.seconds)
+      assertThat(frame.dataPathParams.createTime.nanos).isEqualTo(app.source.createTime.nanos)
       assertThat(dispatchTasks().single().state).isEqualTo(WorkItem.State.SUCCEEDED)
       assertThat(workItemTransport.deliveryCount(dispatchTasks().single().name)).isAtLeast(2)
       assertThat(listMetadata()).hasSize(2)
@@ -164,7 +173,12 @@ private constructor(private val leaseClock: MutableClock) :
             workItemId = "stale-marker"
             workItem = workItem {
               queue = VidLabelingDispatchWorkItems.QUEUE
-              workItemParams = old.workItemParams
+              // A stored item from the app-only intake predates ordinary source indexing.
+              workItemParams =
+                old.workItemParams
+                  .unpack(WorkItem.WorkItemParams::class.java)
+                  .copy { clearDataPathParams() }
+                  .let { com.google.protobuf.Any.pack(it) }
             }
           }
         )
