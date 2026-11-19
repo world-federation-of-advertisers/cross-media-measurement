@@ -44,9 +44,6 @@ internal data class VidLabelingDispatchInput(
           "Missing WorkItemParams"
         }
         val frame = item.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-        require(!frame.hasDataPathParams()) {
-          "Dispatcher source identity must be application-owned"
-        }
         require(frame.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java)) {
           "Missing dispatch parameters"
         }
@@ -55,6 +52,14 @@ internal data class VidLabelingDispatchInput(
             frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
           )
         require(app.hasSource()) { "Missing dispatch source" }
+        if (app.hasRecovery()) {
+          require(!frame.hasDataPathParams()) {
+            "Recovery source identity must be application-owned"
+          }
+        } else if (frame.hasDataPathParams()) {
+          require(frame.dataPathParams == app.source) { "Ordinary dispatch sources must match" }
+        }
+        // App-only ordinary items remain readable during migration from older intake.
         return VidLabelingDispatchInput(app.source, app)
       } catch (e: InvalidProtocolBufferException) {
         throw IllegalArgumentException("Malformed dispatch parameters", e)
