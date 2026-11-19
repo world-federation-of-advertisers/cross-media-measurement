@@ -50,6 +50,9 @@ data class PoolAssignmentJobResult(
   val poolAssignmentJobId: Long,
   val markSucceededRequestId: String,
   val markFailedRequestId: String,
+  val lastShard: Boolean?,
+  val lastShardPoolOffsets: List<Long>,
+  val lastShardMaxEventDate: Date?,
 )
 
 /** Returns whether a [PoolAssignmentJob] with the specified keys exists. */
@@ -384,6 +387,9 @@ data class RawImpressionUploadModelLineMergeState(
   val rawImpressionUploadModelLineId: Long,
   val poolOffsets: List<Long>,
   val maxEventDate: Date?,
+  val encryptedMergedDek: InternalEncryptedDek?,
+  val poolAssignmentComplete: Boolean,
+  val outputKekUri: String,
 )
 
 /**
@@ -400,7 +406,8 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineMerge
 ): RawImpressionUploadModelLineMergeState? {
   val sql =
     """
-    SELECT RawImpressionUploadModelLineId, PoolOffsets, MaxEventDate
+    SELECT RawImpressionUploadModelLineId, PoolOffsets, MaxEventDate,
+      EncryptedMergedDek, PoolAssignmentComplete, OutputKekUri
     FROM RawImpressionUploadModelLine
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND RawImpressionUploadId = @rawImpressionUploadId
@@ -423,24 +430,25 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineMerge
     poolOffsets = if (row.isNull("PoolOffsets")) emptyList() else row.getLongList("PoolOffsets"),
     maxEventDate =
       if (row.isNull("MaxEventDate")) null else row.getDate("MaxEventDate").toProtoDate(),
+    encryptedMergedDek =
+      if (row.isNull("EncryptedMergedDek")) null
+      else row.getProtoMessage("EncryptedMergedDek", InternalEncryptedDek.getDefaultInstance()),
+    poolAssignmentComplete = row.getBoolean("PoolAssignmentComplete"),
+    outputKekUri = if (row.isNull("OutputKekUri")) "" else row.getString("OutputKekUri"),
   )
 }
 
-/**
- * Buffers an update to the parent [RawImpressionUploadModelLine] row's merged Phase-1 outputs: the
- * unioned [poolOffsets] and reduced [maxEventDate] accumulated across PoolAssignmentJob shards, and
- * (only on last-shard-out) the [mergedDek] promoted from the last shard's `encrypted_dek`.
- *
- * [mergedDek] is written only when non-null; it is the DEK a retrying SubpoolAssigner reads back to
- * decrypt the merged per-subpool blobs (see SubpoolAssigner.recoverIfLastShardOut).
- */
+/** Buffers accumulated Phase-0 outputs and, on final completion, its independent metadata. */
 fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadModelLineMergedOutputs(
   dataProviderResourceId: String,
   rawImpressionUploadId: Long,
   rawImpressionUploadModelLineId: Long,
   poolOffsets: List<Long>,
   maxEventDate: Date?,
-  mergedDek: InternalEncryptedDek? = null,
+  poolAssignmentComplete: Boolean,
+  outputKekUri: String,
+  mergedDek: InternalEncryptedDek?,
+  preserveUpdateTime: Boolean = false,
 ) {
   bufferUpdateMutation("RawImpressionUploadModelLine") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -448,10 +456,145 @@ fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadModelLineMer
     set("RawImpressionUploadModelLineId").to(rawImpressionUploadModelLineId)
     set("PoolOffsets").toInt64Array(poolOffsets)
     set("MaxEventDate").to(maxEventDate?.toCloudDate())
-    if (mergedDek != null) {
-      set("EncryptedMergedDek").toProtoBytes(mergedDek)
+    if (poolAssignmentComplete) {
+      set("PoolAssignmentComplete").to(true)
+      set("OutputKekUri").to(outputKekUri)
+      if (mergedDek != null) {
+        set("EncryptedMergedDek").toProtoBytes(mergedDek)
+      } else {
+        set("EncryptedMergedDek").to(null as com.google.cloud.ByteArray?)
+      }
     }
-    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+    if (!preserveUpdateTime) set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/**
+ * Materializes one completed legacy group before its metadata or membership can change. Legacy
+ * completion commits are uniquely ordered because every mark writes the shared parent.
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.materializeLegacyPoolAssignmentCompletion(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  cmmsModelLine: String,
+): RawImpressionUploadModelLineMergeState? {
+  val mergeState =
+    getRawImpressionUploadModelLineMergeState(
+      dataProviderResourceId,
+      rawImpressionUploadId,
+      cmmsModelLine,
+    ) ?: return null
+  val legacyDek = mergeState.encryptedMergedDek ?: return null
+  if (
+    countNonSucceededPoolAssignmentJobs(
+      dataProviderResourceId,
+      rawImpressionUploadId,
+      cmmsModelLine,
+    ) != 0L
+  )
+    return null
+  val row =
+    executeQuery(
+        statement(
+          """
+    ${PoolAssignmentJobEntity.BASE_SQL}
+    JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)
+    WHERE PoolAssignmentJob.DataProviderResourceId = @provider
+      AND PoolAssignmentJob.RawImpressionUploadId = @upload
+      AND PoolAssignmentJob.CmmsModelLine = @model
+    ORDER BY PoolAssignmentJob.UpdateTime DESC
+    LIMIT 1
+    """
+            .trimIndent()
+        ) {
+          bind("provider").to(dataProviderResourceId)
+          bind("upload").to(rawImpressionUploadId)
+          bind("model").to(cmmsModelLine)
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
+  val finalizer = PoolAssignmentJobEntity.buildResult(row)
+  val needsSnapshot = finalizer.lastShard == null
+  val needsParent = !mergeState.poolAssignmentComplete || mergeState.poolOffsets.isEmpty()
+  if (!needsSnapshot && !needsParent) return null
+  if (needsSnapshot)
+    persistPoolAssignmentJobCompletion(
+      dataProviderResourceId,
+      rawImpressionUploadId,
+      finalizer.poolAssignmentJobId,
+      lastShard = true,
+      poolOffsets = mergeState.poolOffsets,
+      maxEventDate = mergeState.maxEventDate,
+    )
+  val mergedDek = if (mergeState.poolOffsets.isNotEmpty()) legacyDek else null
+  val outputKekUri = mergeState.outputKekUri.ifEmpty { legacyDek.kekUri }
+  if (needsParent)
+    updateRawImpressionUploadModelLineMergedOutputs(
+      dataProviderResourceId,
+      rawImpressionUploadId,
+      mergeState.rawImpressionUploadModelLineId,
+      mergeState.poolOffsets,
+      mergeState.maxEventDate,
+      poolAssignmentComplete = true,
+      outputKekUri = outputKekUri,
+      mergedDek = mergedDek,
+      preserveUpdateTime = true,
+    )
+  return mergeState.copy(
+    encryptedMergedDek = mergedDek,
+    poolAssignmentComplete = true,
+    outputKekUri = outputKekUri,
+  )
+}
+
+/** Reads an existing output key for a final shard with no shard blobs of its own. */
+suspend fun AsyncDatabaseClient.ReadContext.getSucceededPoolAssignmentJobDek(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  cmmsModelLine: String,
+): InternalEncryptedDek? {
+  val row =
+    executeQuery(
+        statement(
+          """
+      SELECT EncryptedDek
+      FROM PoolAssignmentJob
+      WHERE DataProviderResourceId = @dataProviderResourceId
+        AND RawImpressionUploadId = @rawImpressionUploadId
+        AND CmmsModelLine = @cmmsModelLine
+        AND CAST(State AS INT64) = @succeededState
+        AND EncryptedDek IS NOT NULL
+      ORDER BY ShardIndex
+      LIMIT 1
+      """
+            .trimIndent()
+        ) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadId").to(rawImpressionUploadId)
+          bind("cmmsModelLine").to(cmmsModelLine)
+          bind("succeededState").to(State.POOL_ASSIGNMENT_STATE_SUCCEEDED.number.toLong())
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
+  return row.getProtoMessage("EncryptedDek", InternalEncryptedDek.getDefaultInstance())
+}
+
+/** Stores replay data for a successful mark written by an older metadata service. */
+fun AsyncDatabaseClient.TransactionContext.persistPoolAssignmentJobCompletion(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  poolAssignmentJobId: Long,
+  lastShard: Boolean,
+  poolOffsets: List<Long>,
+  maxEventDate: Date?,
+) {
+  bufferUpdateMutation("PoolAssignmentJob") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("PoolAssignmentJobId").to(poolAssignmentJobId)
+    set("LastShard").to(lastShard)
+    set("LastShardPoolOffsets").toInt64Array(poolOffsets)
+    set("LastShardMaxEventDate").to(maxEventDate?.toCloudDate())
   }
 }
 
@@ -514,6 +657,9 @@ private object PoolAssignmentJobEntity {
       PoolAssignmentJob.CreateRequestId,
       PoolAssignmentJob.MarkSucceededRequestId,
       PoolAssignmentJob.MarkFailedRequestId,
+      PoolAssignmentJob.LastShard,
+      PoolAssignmentJob.LastShardPoolOffsets,
+      PoolAssignmentJob.LastShardMaxEventDate,
       PoolAssignmentJob.State,
       PoolAssignmentJob.ErrorMessage,
       PoolAssignmentJob.EncryptedDek,
@@ -549,6 +695,11 @@ private object PoolAssignmentJobEntity {
       if (struct.isNull("MarkSucceededRequestId")) ""
       else struct.getString("MarkSucceededRequestId"),
       if (struct.isNull("MarkFailedRequestId")) "" else struct.getString("MarkFailedRequestId"),
+      if (struct.isNull("LastShard")) null else struct.getBoolean("LastShard"),
+      if (struct.isNull("LastShardPoolOffsets")) emptyList()
+      else struct.getLongList("LastShardPoolOffsets"),
+      if (struct.isNull("LastShardMaxEventDate")) null
+      else struct.getDate("LastShardMaxEventDate").toProtoDate(),
     )
   }
 }
