@@ -264,7 +264,9 @@ class DataWatcher(
     val workItemParams =
       workItemParams {
           appParams = dispatchParams?.pack() ?: queueConfig.appParams
-          if (dispatchParams == null) this.dataPathParams = sourceIdentity
+          if (dispatchParams == null || !dispatchParams.hasRecovery()) {
+            this.dataPathParams = sourceIdentity
+          }
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
@@ -349,11 +351,25 @@ class DataWatcher(
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    val requestedDispatch =
+      if (requestedParams.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java)) {
+        requestedParams.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+      } else null
+    // Older VID dispatch items stored the complete source only in application parameters.
+    val matchingLegacyDispatchSource =
+      existing.queue == VidLabelingDispatchWorkItems.QUEUE &&
+        !existingParams.hasDataPathParams() &&
+        requestedParams.hasDataPathParams() &&
+        requestedDispatch != null &&
+        !requestedDispatch.hasRecovery() &&
+        requestedDispatch.hasSource() &&
+        requestedDispatch.source == requestedParams.dataPathParams
     check(
       existing.queue == requestedWorkItem.queue &&
         existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
-        existingParams.dataPathParams == requestedParams.dataPathParams
+        (existingParams.dataPathParams == requestedParams.dataPathParams ||
+          matchingLegacyDispatchSource)
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }

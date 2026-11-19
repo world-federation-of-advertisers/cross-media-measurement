@@ -27,6 +27,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
@@ -35,12 +36,15 @@ import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ensureWorkItemRequest
@@ -163,6 +167,82 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
       assertThat(persisted.state).isEqualTo(WorkItem.State.SUCCEEDED)
     }
+
+  @Test
+  fun `ordinary dispatch source is indexed while historical recovery is admitted`() =
+    runBlocking<Unit> {
+      val publisher = RecordingPublisher()
+      val services = initServices(TestConfig.QUEUE_MAPPING, IdGenerator.Default, publisher)
+      val newer =
+        services.service.createWorkItem(
+          dispatchSourceRequest("ordinary-new", 200L, SOURCE_CREATE_TIME.plusSeconds(1))
+        )
+      val older =
+        services.service.createWorkItem(
+          dispatchSourceRequest("ordinary-old", 100L, SOURCE_CREATE_TIME)
+        )
+      val recovery =
+        services.service.createWorkItem(
+          dispatchSourceRequest("recovery-old", 100L, SOURCE_CREATE_TIME, recoveryReplay = true)
+        )
+      assertThat(newer.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(older.state).isEqualTo(WorkItem.State.SUCCEEDED)
+      assertThat(recovery.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(publisher.workItemNames)
+        .containsExactly("workItems/ordinary-new", "workItems/recovery-old")
+      val columns =
+        spannerDatabase.databaseClient
+          .singleUse()
+          .executeQuery(
+            com.google.cloud.spanner.Statement.newBuilder(
+                "SELECT SourceDataPath, SourceObjectGeneration, SourceObjectCreateTime FROM WorkItems WHERE WorkItemResourceId = @id"
+              )
+              .bind("id")
+              .to("ordinary-new")
+              .build()
+          )
+          .single()
+      assertThat(columns.getString("SourceDataPath")).isEqualTo(SOURCE_DATA_PATH)
+      assertThat(columns.getLong("SourceObjectGeneration")).isEqualTo(200L)
+      assertThat(columns.isNull("SourceObjectCreateTime")).isFalse()
+    }
+
+  private fun dispatchSourceRequest(
+    resourceId: String,
+    generation: Long,
+    createTime: Instant,
+    recoveryReplay: Boolean = false,
+  ): org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemRequest {
+    val original = sourceWorkItemRequest(resourceId, generation, createTime)
+    val source =
+      original.workItem.workItemParams
+        .unpack(PublicWorkItem.WorkItemParams::class.java)
+        .dataPathParams
+    return original.copy {
+      workItem =
+        original.workItem.copy {
+          serializationKey = ""
+          workItemParams =
+            workItemParams {
+                appParams =
+                  vidLabelingDispatchWorkItemParams {
+                      dataProvider = "dataProviders/provider"
+                      this.source = source
+                      if (recoveryReplay)
+                        recovery = recoveryParams {
+                          overrideModelLines += "modelProviders/mp/modelSuites/ms/modelLines/line"
+                          sourceUpload = "dataProviders/provider/rawImpressionUploads/source"
+                          uploadHealingOperation =
+                            "dataProviders/provider/uploadHealingOperations/operation"
+                        }
+                    }
+                    .pack()
+                if (!recoveryReplay) dataPathParams = source
+              }
+              .pack()
+        }
+    }
+  }
 
   private fun sourceWorkItemRequest(resourceId: String, generation: Long, createTime: Instant) =
     createWorkItemRequest {
