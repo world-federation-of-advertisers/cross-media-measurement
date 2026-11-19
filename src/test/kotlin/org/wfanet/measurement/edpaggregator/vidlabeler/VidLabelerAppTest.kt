@@ -61,6 +61,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
@@ -69,6 +70,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -84,6 +86,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
@@ -104,6 +107,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
@@ -125,7 +129,12 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.storage.ParquetStorageClient
+import org.wfanet.measurement.storage.ParquetValue
+import org.wfanet.measurement.storage.parquetValue
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.virtualpeople.common.LabelerInput
+import org.wfanet.virtualpeople.common.LabelerOutput
+import org.wfanet.virtualpeople.common.VirtualPersonActivity
 
 @RunWith(JUnit4::class)
 class VidLabelerAppTest {
@@ -302,6 +311,9 @@ class VidLabelerAppTest {
         mockVidAssigner
       },
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
+    converter: ImpressionConverter = ImpressionConverter { _, _ ->
+      error("impressionConverter should not be invoked")
+    },
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     writeGcsObject: suspend (String?, BlobInfo, ByteArray, Long) -> Long = { _, _, _, _ ->
       error("writeGcsObject should not be invoked")
@@ -333,9 +345,7 @@ class VidLabelerAppTest {
       // The model is loaded up-front by VidLabeler.label(); the converter never runs because the
       // (mocked) RawImpressionUploadFileService returns no files, so there are no events to label.
       loadAssigner = loadAssigner,
-      buildImpressionConverter = { _, _ ->
-        ImpressionConverter { _, _ -> error("impressionConverter should not be invoked") }
-      },
+      buildImpressionConverter = { _, _ -> converter },
       rpcThrottlers = rpcThrottlers,
       writeGcsObject = writeGcsObject,
       getGcsObjectGeneration = getGcsObjectGeneration,
@@ -495,6 +505,204 @@ class VidLabelerAppTest {
         }
     }
   }
+
+  @Test
+  fun `completed sidecar loser skips Mark while partial jobs can finish from winning output`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("output-bucket").mkdirs()
+      val fileName = "$UPLOAD/rawImpressionUploadFiles/file1"
+      val eventDate =
+        com.google.type.date {
+          year = 2026
+          month = 6
+          day = 30
+        }
+      val parquetBlob =
+        mock<ParquetStorageClient.ParquetBlob> {
+          on { readRows() } doReturn
+            flowOf(mapOf("event_id_column" to parquetValue { stringValue = "event" }))
+          onBlocking { readSchema() } doReturn
+            mapOf("event_id_column" to ParquetValue.KindCase.STRING_VALUE)
+          onBlocking { readKeyValueMetadata() } doReturn mapOf("event_date" to "2026-06-30")
+        }
+      mockParquetStorageClient.stub { onBlocking { getBlob(any()) } doReturn parquetBlob }
+      rawImpressionUploadFilesService.stub {
+        onBlocking { getRawImpressionUploadFile(any()) } doReturn
+          rawImpressionUploadFile {
+            name = fileName
+            blobUri = "file:///raw-bucket/input.parquet"
+            this.eventDate = eventDate
+          }
+      }
+      val writer =
+        mock<PopulationAttributeWriter> {
+          on { apply(any(), any()) } doReturn
+            com.google.protobuf.Any.pack(TestEvent.getDefaultInstance())
+        }
+      val converter = ImpressionConverter { _, _ ->
+        ConvertedImpression(
+          LabelerInput.newBuilder()
+            .setTimestampUsec(Instant.parse("2026-06-30T00:00:01Z").epochSecond * 1_000_000L)
+            .build(),
+          { TestEvent.getDefaultInstance() },
+          listOf(
+            LabeledImpressionKt.entityKey {
+              entityType = "household"
+              entityId = "h1"
+            }
+          ),
+          writer,
+        )
+      }
+      mockVidAssigner.stub {
+        on { assign(any()) } doReturn
+          LabelerOutput.newBuilder()
+            .addPeople(VirtualPersonActivity.newBuilder().setVirtualPersonId(42L))
+            .build()
+      }
+      fun job(stateValue: VidLabelingJob.State) = vidLabelingJob {
+        name = VID_LABELING_JOB
+        state = stateValue
+        etag = "etag"
+        createTime = com.google.protobuf.util.Timestamps.fromSeconds(10L)
+        updateTime = com.google.protobuf.util.Timestamps.fromSeconds(20L)
+        rawImpressionUploadFiles += fileName
+      }
+      vidLabelingJobsService.stub {
+        onBlocking { getVidLabelingJob(any()) } doReturn job(VidLabelingJob.State.CREATED)
+        onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+          markVidLabelingJobSucceededResponse {}
+      }
+      val params = nonMemoizedParams()
+      createApp(converter = converter).runWork(buildMessage(params))
+      for (completed in listOf(true, false)) {
+        clearInvocations(vidLabelingJobsService)
+        var gets = 0
+        vidLabelingJobsService.stub {
+          onBlocking { getVidLabelingJob(any()) } doAnswer
+            {
+              job(
+                if (gets++ == 0 || !completed) VidLabelingJob.State.CREATED
+                else VidLabelingJob.State.SUCCEEDED
+              )
+            }
+        }
+        rawImpressionUploadModelLinesService.stub {
+          onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+              }
+            }
+        }
+        createApp(converter = converter).runWork(buildMessage(params))
+        verifyBlocking(vidLabelingJobsService, times(if (completed) 0 else 1)) {
+          markVidLabelingJobSucceeded(any())
+        }
+        assertThat(gets).isEqualTo(2)
+      }
+      fun sibling(
+        created: Long,
+        stateValue: VidLabelingJob.State,
+        model: String = MODEL_LINE,
+        updated: Long = 30L,
+      ) = vidLabelingJob {
+        name = "$UPLOAD/vidLabelingJobs/sibling"
+        cmmsModelLines += model
+        createTime = com.google.protobuf.util.Timestamps.fromSeconds(created)
+        updateTime = com.google.protobuf.util.Timestamps.fromSeconds(updated)
+        state = stateValue
+      }
+      val cases =
+        listOf(
+          sibling(10L, VidLabelingJob.State.CREATED) to true,
+          sibling(10L, VidLabelingJob.State.SUCCEEDED) to true,
+          sibling(10L, VidLabelingJob.State.SUCCEEDED, updated = 15L) to false,
+          sibling(10L, VidLabelingJob.State.SUCCEEDED, updated = 20L) to false,
+          sibling(10L, VidLabelingJob.State.SUCCEEDED).toBuilder().clearUpdateTime().build() to
+            false,
+          sibling(30L, VidLabelingJob.State.CREATED) to false,
+          sibling(10L, VidLabelingJob.State.CREATED, MODEL_LINE + "-unrelated") to false,
+        )
+      for ((other, canAcknowledge) in cases) {
+        clearInvocations(vidLabelingJobsService)
+        var gets = 0
+        vidLabelingJobsService.stub {
+          onBlocking { getVidLabelingJob(any()) } doAnswer
+            {
+              job(if (gets++ == 0) VidLabelingJob.State.CREATED else VidLabelingJob.State.SUCCEEDED)
+            }
+          onBlocking { listVidLabelingJobs(any()) } doReturn
+            listVidLabelingJobsResponse { vidLabelingJobs += other }
+        }
+        rawImpressionUploadModelLinesService.stub {
+          onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = RawImpressionUploadModelLine.State.LABELING
+              }
+            }
+        }
+        if (canAcknowledge) createApp(converter = converter).runWork(buildMessage(params))
+        else
+          assertFailsWith<IllegalStateException> {
+            createApp(converter = converter).runWork(buildMessage(params))
+          }
+        verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+        verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobFailed(any()) }
+      }
+      for (completed in listOf(true, false)) {
+        clearInvocations(vidLabelingJobsService)
+        var gets = 0
+        vidLabelingJobsService.stub {
+          onBlocking { getVidLabelingJob(any()) } doAnswer
+            {
+              job(
+                if (gets++ == 0 || !completed) VidLabelingJob.State.CREATED
+                else VidLabelingJob.State.SUCCEEDED
+              )
+            }
+        }
+        rawImpressionUploadModelLinesService.stub {
+          onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+              }
+            }
+        }
+        val collisionConverter = ImpressionConverter { _, _ ->
+          throw org.wfanet.measurement.storage.BlobChangedException("immutable data collision")
+        }
+        if (completed) createApp(converter = collisionConverter).runWork(buildMessage(params))
+        else
+          assertFailsWith<org.wfanet.measurement.storage.BlobChangedException> {
+            createApp(converter = collisionConverter).runWork(buildMessage(params))
+          }
+        verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+        verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobFailed(any()) }
+      }
+      // A decryptable pair with unusable metadata cannot complete an unfinished job.
+      val metadataFile =
+        tempFolder.root.walkTopDown().single { it.isFile && it.name.endsWith(".metadata.binpb") }
+      val original =
+        org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails.parseFrom(metadataFile.readBytes())
+      metadataFile.writeBytes(original.toBuilder().clearInterval().build().toByteArray())
+      clearInvocations(vidLabelingJobsService)
+      vidLabelingJobsService.stub {
+        onBlocking { getVidLabelingJob(any()) } doReturn job(VidLabelingJob.State.CREATED)
+      }
+      assertFailsWith<IllegalArgumentException> {
+        createApp(converter = converter).runWork(buildMessage(params))
+      }
+      verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+    }
 
   @Test
   fun `runWork marks job succeeded`() = runBlocking {
