@@ -187,6 +187,10 @@ class DataWatcherTest() {
           .unpack<WorkItemParams>()
           .appParams
           .unpack<VidLabelingDispatchWorkItemParams>()
+      assertThat(
+          requests.allValues[0].workItem.workItemParams.unpack<WorkItemParams>().dataPathParams
+        )
+        .isEqualTo(ordinary.source)
       assertThat(ordinary.hasSource()).isTrue()
       assertThat(ordinary.hasRecovery()).isFalse()
       val params = requests.allValues[1].workItem.workItemParams.unpack<WorkItemParams>()
@@ -222,6 +226,119 @@ class DataWatcherTest() {
     assertThat(requests.allValues[0].workItemId).isEqualTo(requests.allValues[1].workItemId)
     assertThat(requests.allValues.map { it.workItemId }.toSet()).hasSize(3)
   }
+
+  @Test
+  fun `ordinary dispatch preserves indexed source and complete application source`() =
+    runBlocking<Unit> {
+      dispatchWatcher().receivePath("gs://raw/day/done", sourceMetadata())
+      val requests = argumentCaptor<EnsureWorkItemRequest>()
+      verifyBlocking(workItemsServiceMock, times(1)) { ensureWorkItem(requests.capture()) }
+      val frame = requests.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
+      val app = frame.appParams.unpack<VidLabelingDispatchWorkItemParams>()
+      assertThat(frame.hasDataPathParams()).isTrue()
+      assertThat(frame.dataPathParams).isEqualTo(app.source)
+      assertThat(frame.dataPathParams.dataPath).isEqualTo("gs://raw/day/done")
+      assertThat(frame.dataPathParams.generation).isEqualTo(42L)
+      assertThat(frame.dataPathParams.createTime)
+        .isEqualTo(Instant.parse(SOURCE_CREATE_TIME).toProtoTime())
+      assertThat(app.hasRecovery()).isFalse()
+    }
+
+  @Test
+  fun `legacy app-only dispatch redelivery preserves stored parameters and trace`() =
+    runBlocking<Unit> {
+      val path = "gs://raw/day/done"
+      val storedTrace = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+      val existing =
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+          name = "workItems/legacy-dispatch"
+          queue = VidLabelingDispatchWorkItems.QUEUE
+          workItemParams =
+            workItemParams {
+                appParams =
+                  vidLabelingDispatchWorkItemParams {
+                      dataProvider = "dataProviders/provider"
+                      source = sourceDataPathParams(path)
+                    }
+                    .pack()
+                traceContext["traceparent"] = storedTrace
+              }
+              .pack()
+        }
+      workItemsServiceMock.stub {
+        onBlocking { ensureWorkItem(any()) } doThrow
+          Status.ALREADY_EXISTS.asRuntimeException() doReturn
+          existing
+        onBlocking { getWorkItem(any()) } doReturn existing
+      }
+      val config = watchedPath {
+        identifier = "vid-labeling-dispatch"
+        sourcePathRegex = "gs://raw/.*/done"
+        controlPlaneQueueSink = controlPlaneQueueSink {
+          queue = VidLabelingDispatchWorkItems.QUEUE
+          appParams = vidLabelingDispatcherParams { dataProvider = "dataProviders/provider" }.pack()
+        }
+      }
+      DataWatcher(
+          workItemsStub,
+          listOf(config),
+          workItemIdGenerator = { "legacy-dispatch" },
+          idTokenProvider = mockIdTokenProvider,
+          controlPlaneThrottler = rpcThrottlers.controlPlane,
+        )
+        .receivePath(path, sourceMetadata())
+      val requests = argumentCaptor<EnsureWorkItemRequest>()
+      verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requests.capture()) }
+      val proposed = requests.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
+      val reused = requests.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
+      assertThat(proposed.hasDataPathParams()).isTrue()
+      assertThat(reused.hasDataPathParams()).isFalse()
+      assertThat(reused.appParams).isEqualTo(proposed.appParams)
+      assertThat(reused.traceContextMap).containsExactly("traceparent", storedTrace)
+      assertThat(requests.allValues.map { it.workItemId })
+        .containsExactly("legacy-dispatch", "legacy-dispatch")
+      verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `legacy source compatibility rejects a different application generation`() =
+    runBlocking<Unit> {
+      val path = "gs://raw/day/done"
+      val existing =
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+          name = "workItems/legacy-dispatch"
+          queue = VidLabelingDispatchWorkItems.QUEUE
+          workItemParams =
+            workItemParams {
+                appParams =
+                  vidLabelingDispatchWorkItemParams {
+                      dataProvider = "dataProviders/provider"
+                      source = dataPathParams {
+                        dataPath = path
+                        generation = 43L
+                        createTime = Instant.parse(SOURCE_CREATE_TIME).toProtoTime()
+                        eventType =
+                          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+                            .WorkItemParams
+                            .DataPathParams
+                            .StorageEventType
+                            .FINALIZED
+                      }
+                    }
+                    .pack()
+              }
+              .pack()
+        }
+      workItemsServiceMock.stub {
+        onBlocking { ensureWorkItem(any()) } doThrow Status.ALREADY_EXISTS.asRuntimeException()
+        onBlocking { getWorkItem(any()) } doReturn existing
+      }
+      assertFailsWith<IllegalStateException> {
+        dispatchWatcher().receivePath(path, sourceMetadata())
+      }
+      verifyBlocking(workItemsServiceMock, times(1)) { ensureWorkItem(any()) }
+      verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
+    }
 
   @Test
   fun `permanent dispatch handoff failure remains unacknowledged`() = runBlocking {
