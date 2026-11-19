@@ -41,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.parquetValue
 
@@ -327,6 +328,34 @@ class ParquetImpressionConverterTest {
         }
       )
       .isTrue()
+  }
+
+  @Test
+  fun `convert excludes rejected raw values from validation exceptions`() {
+    val converter = ParquetImpressionConverter(eventDescriptor, POPULATION_ATTRIBUTE_WRITER)
+    val mapping =
+      config.copy {
+        labelerInputFieldMapping +=
+          org.wfanet.measurement.edpaggregator.v1alpha.labelerInputFieldMapping {
+            fieldPath = "profile_info.email_user_info.demo.demo_bucket.gender"
+            scalar = org.wfanet.measurement.edpaggregator.v1alpha.scalarColumn { column = "input" }
+          }
+      }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        converter.convert(
+          digestedEvent(
+            mapOf(
+              "eid" to parquetValue { stringValue = "event-1" },
+              "input" to parquetValue { stringValue = "SYNTHETIC_PRIVATE_VALUE" },
+            )
+          ),
+          mapping,
+        )
+      }
+    assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(failure).hasMessageThat().contains("column=input")
+    assertThat(failure).hasMessageThat().contains("UNKNOWN_ENUM_VALUE")
   }
 
   @Test
