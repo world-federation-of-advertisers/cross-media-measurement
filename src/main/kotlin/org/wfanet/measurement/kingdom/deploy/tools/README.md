@@ -229,9 +229,21 @@ ModelRepository \
       model-lines create --parent=modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs \
       --display-name=name --description=description \
       --active-start-time=2035-09-04T09:04:00Z --active-end-time=2035-09-12T11:05:00Z \
-      --type=DEV \
+      --type=DEV --event-template-version=1 \
       --holdback-model-line=modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs \
       --population=dataProviders/AAAAAAAAAHs/populations/AAAAAAAAAHs
+    ```
+
+*   Initialize a historical ModelLine's event-template version
+
+    Use the version under which its PopulationSpec and VID labels were defined.
+    The value is immutable once initialized; repeating the same value is safe.
+    See the [migration guide](../../../../../../../../../docs/operations/model-line-event-template-version-migration.md).
+
+    ```shell
+    ModelRepository <connection-and-TLS-flags> model-lines set-event-template-version \
+      --name=modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs \
+      --event-template-version=1
     ```
 
 *   Set ModelLine's active end time

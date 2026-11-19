@@ -76,6 +76,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.SetModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineTypeRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
@@ -107,6 +108,7 @@ import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineTypeRequest
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -175,6 +177,7 @@ class ModelRepositoryTest {
 
   private val modelLinesServiceMock: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService {
     onBlocking { createModelLine(any()) }.thenReturn(MODEL_LINE)
+    onBlocking { setModelLineEventTemplateVersion(any()) }.thenReturn(MODEL_LINE)
     onBlocking { setModelLineActiveEndTime(any()) }
       .thenReturn(MODEL_LINE.copy { activeEndTime = Timestamps.parse(ACTIVE_END_TIME_2) })
     onBlocking { setModelLineType(any()) }
@@ -484,6 +487,7 @@ class ModelRepositoryTest {
           "--active-start-time=$ACTIVE_START_TIME",
           "--active-end-time=$ACTIVE_END_TIME",
           "--type=$MODEL_LINE_TYPE_DEV",
+          "--event-template-version=1",
           "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME",
           "--population=$POPULATION_NAME",
         )
@@ -508,6 +512,29 @@ class ModelRepositoryTest {
     assertThat(parseTextProto(output.reader(), ModelLine.getDefaultInstance()))
       .comparingExpectedFieldsOnly()
       .isEqualTo(MODEL_LINE)
+  }
+
+  @Test
+  fun `modelLines set-event-template-version initializes repository metadata`() {
+    callCli(
+      commonArgs +
+        arrayOf(
+          "model-lines",
+          "set-event-template-version",
+          "--name=$MODEL_LINE_NAME",
+          "--event-template-version=1",
+        )
+    )
+    val request: SetModelLineEventTemplateVersionRequest = captureFirst {
+      runBlocking { verify(modelLinesServiceMock).setModelLineEventTemplateVersion(capture()) }
+    }
+    assertThat(request)
+      .isEqualTo(
+        setModelLineEventTemplateVersionRequest {
+          name = MODEL_LINE_NAME
+          eventTemplateVersion = 1
+        }
+      )
   }
 
   @Test
@@ -792,6 +819,7 @@ class ModelRepositoryTest {
       activeStartTime = Timestamps.parse(ACTIVE_START_TIME)
       activeEndTime = Timestamps.parse(ACTIVE_END_TIME)
       type = ModelLine.Type.DEV
+      eventTemplateVersion = 1
       holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
       createTime = CREATE_TIME
     }

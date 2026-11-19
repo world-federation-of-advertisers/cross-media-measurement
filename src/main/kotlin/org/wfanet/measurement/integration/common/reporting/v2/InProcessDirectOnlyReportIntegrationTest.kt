@@ -1992,6 +1992,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
           createModelLineRequest {
             parent = modelSuiteName
             modelLine = modelLine {
+              eventTemplateVersion = 1
               type = ModelLine.Type.PROD
               activeStartTime = timestamp {
                 seconds = legacy.activeStartTime.seconds + 1
@@ -2005,6 +2006,7 @@ abstract class InProcessDirectOnlyReportIntegrationTest(
           createModelLineRequest {
             parent = modelSuiteName
             modelLine = modelLine {
+              eventTemplateVersion = 1
               type = ModelLine.Type.DEV
               activeStartTime = legacy.activeStartTime
             }
