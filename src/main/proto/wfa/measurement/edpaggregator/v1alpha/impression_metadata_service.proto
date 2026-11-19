@@ -309,6 +309,10 @@ message ListImpressionMetadataRequest {
 
   // Whether to include soft-deleted entries in addition to active entries.
   bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
+
+  // Fields to return. Defaults to FULL for compatibility with existing callers.
+  // BASIC omits entity_keys without changing which entries match the filter.
+  ImpressionMetadataView view = 6 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the `ListImpressionMetadata` method.

@@ -48,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRollout
@@ -247,6 +248,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
+        ModelLinesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         buildEventQuery(TEST_CONFIG.eventDataProvidersList),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,

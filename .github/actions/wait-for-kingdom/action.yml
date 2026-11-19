@@ -40,7 +40,7 @@ runs:
   - name: Build MeasurementSystem API tool
     shell: bash
     run: >-
-      bazelisk build
+      tools/bazel-with-results bazelisk build
       --remote_download_outputs=toplevel
       //src/main/kotlin/org/wfanet/measurement/api/v2alpha/tools:MeasurementSystem_deploy.jar
 

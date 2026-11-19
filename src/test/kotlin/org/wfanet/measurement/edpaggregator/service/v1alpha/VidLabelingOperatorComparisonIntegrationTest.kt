@@ -202,6 +202,7 @@ class VidLabelingOperatorComparisonIntegrationTest :
             parent = modelSuite
             modelLine = modelLine {
               this.type = type
+              eventTemplateVersion = 1
               activeStartTime =
                 FIRST_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
             }

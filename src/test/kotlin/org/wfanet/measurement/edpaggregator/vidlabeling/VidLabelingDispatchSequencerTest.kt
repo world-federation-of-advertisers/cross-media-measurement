@@ -42,14 +42,19 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.never
+import org.mockito.kotlin.reset
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
@@ -243,6 +248,9 @@ class VidLabelingDispatchSequencerTest {
     )
   }
 
+  private var configuredModelLineConfigs = MODEL_LINE_CONFIGS
+  private var descriptorReadError: Exception? = null
+
   private fun createSequencer(
     numberOfShards: Int = NUMBER_OF_SHARDS,
     subpoolAssignerParamsTemplate: SubpoolAssignerParams = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
@@ -265,7 +273,15 @@ class VidLabelingDispatchSequencerTest {
       queueName = QUEUE_NAME,
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = numberOfShards,
-      modelLineConfigs = MODEL_LINE_CONFIGS,
+      modelLineConfigs = configuredModelLineConfigs,
+      validateEventTemplateVersion = { config, version ->
+        descriptorReadError?.let { throw it }
+        val descriptor =
+          if (config.eventTemplateType == VersionedEvent.getDescriptor().fullName) {
+            VersionedEvent.getDescriptor()
+          } else TestEvent.getDescriptor()
+        EventTemplates.getPopulationFields(descriptor, version)
+      },
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
@@ -3093,6 +3109,217 @@ class VidLabelingDispatchSequencerTest {
     assertThat(shardInfo).isNull()
   }
 
+  private suspend fun dispatchWithVersions(
+    memoized: Boolean,
+    repositoryVersion: Int?,
+    localVersion: Int?,
+    repositoryReadError: Status?,
+  ) {
+    reset(modelLinesService)
+    clearInvocations(workItemsService, rawImpressionUploadModelLineService)
+    stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
+    stubModelLines(createdModelLine())
+    if (memoized) stubMemoizedDispatch()
+    else {
+      stubShardResolution(memoized = false)
+      stubNonMemoizedFilesAndJobs()
+      stubMarkTransitions()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    }
+    configuredModelLineConfigs =
+      MODEL_LINE_CONFIGS.mapValues { (_, config) ->
+        config.copy {
+          eventTemplateVersion = localVersion ?: 0
+          eventTemplateType = VersionedEvent.getDescriptor().fullName
+        }
+      }
+    whenever(modelLinesService.getModelLine(any()))
+      .thenReturn(
+        modelLine {
+          name = MODEL_LINE
+          activeStartTime = ACTIVE_START_TIME
+          activeEndTime = ACTIVE_END_TIME
+          if (repositoryVersion != null) eventTemplateVersion = repositoryVersion
+        }
+      )
+    if (repositoryReadError != null) {
+      whenever(modelLinesService.getModelLine(any()))
+        .thenThrow(repositoryReadError.asRuntimeException())
+    }
+    createSequencer().dispatchNext()
+  }
+
+  private suspend fun assertDispatchAcrossBackfill(memoized: Boolean) {
+    for ((repositoryVersion, localVersion) in listOf(null to 3, 3 to 3, 3 to null)) {
+      dispatchWithVersions(memoized, repositoryVersion, localVersion, null)
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      for (request in captor.allValues) {
+        val appParams = request.workItem.workItemParams.unpack<WorkItemParams>().appParams
+        val pinnedVersion =
+          if (memoized) appParams.unpack<SubpoolAssignerParams>().eventTemplateVersion
+          else
+            appParams
+              .unpack<VidLabelerParams>()
+              .modelLineConfigsMap
+              .getValue(MODEL_LINE)
+              .eventTemplateVersion
+        assertThat(pinnedVersion).isEqualTo(3)
+      }
+      if (memoized) {
+        verifyBlocking(rawImpressionUploadModelLineService) {
+          markRawImpressionUploadModelLinePoolAssigning(any())
+        }
+      } else {
+        verifyBlocking(rawImpressionUploadModelLineService) {
+          markRawImpressionUploadModelLineLabeling(any())
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `memoized dispatch preserves pinned version across backfill and config removal`() =
+    runBlocking {
+      assertDispatchAcrossBackfill(true)
+    }
+
+  @Test
+  fun `non-memoized dispatch preserves pinned version across backfill and config removal`() =
+    runBlocking {
+      assertDispatchAcrossBackfill(false)
+    }
+
+  private suspend fun assertInvalidVersionsLeaveWorkUnclaimed(
+    memoized: Boolean,
+    repositoryVersion: Int?,
+    localVersion: Int?,
+    message: String,
+  ) {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        dispatchWithVersions(memoized, repositoryVersion, localVersion, null)
+      }
+    assertThat(exception.message).contains(message)
+    assertNoVersionDispatch()
+  }
+
+  private suspend fun assertNoVersionDispatch() {
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      markRawImpressionUploadModelLineLabeling(any())
+    }
+    verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
+    verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+  }
+
+  @Test
+  fun `memoized dispatch rejects conflicting versions before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(true, 3, 1, "does not match")
+  }
+
+  @Test
+  fun `non-memoized dispatch rejects conflicting versions before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(false, 3, 1, "does not match")
+  }
+
+  @Test
+  fun `memoized dispatch rejects missing versions before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(true, null, null, "missing")
+  }
+
+  @Test
+  fun `non-memoized dispatch rejects missing versions before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(false, null, null, "missing")
+  }
+
+  @Test
+  fun `memoized dispatch rejects present invalid repository versions despite local fallback`() =
+    runBlocking {
+      for (version in listOf(0, -1)) {
+        assertInvalidVersionsLeaveWorkUnclaimed(true, version, 1, "positive")
+      }
+    }
+
+  @Test
+  fun `non-memoized dispatch rejects present invalid repository versions despite local fallback`() =
+    runBlocking {
+      for (version in listOf(0, -1)) {
+        assertInvalidVersionsLeaveWorkUnclaimed(false, version, 1, "positive")
+      }
+    }
+
+  @Test
+  fun `memoized dispatch rejects invalid local configuration before claiming work`() = runBlocking {
+    assertInvalidVersionsLeaveWorkUnclaimed(true, null, -1, "positive")
+  }
+
+  @Test
+  fun `non-memoized dispatch rejects invalid local configuration before claiming work`() =
+    runBlocking {
+      assertInvalidVersionsLeaveWorkUnclaimed(false, null, -1, "positive")
+    }
+
+  @Test
+  fun `memoized dispatch rejects unsupported descriptor versions before claiming work`() =
+    runBlocking {
+      for ((repositoryVersion, localVersion) in listOf(4 to null, null to 4, 4 to 4)) {
+        assertInvalidVersionsLeaveWorkUnclaimed(
+          true,
+          repositoryVersion,
+          localVersion,
+          "exceeds current version",
+        )
+      }
+    }
+
+  @Test
+  fun `non-memoized dispatch rejects unsupported descriptor versions before claiming work`() =
+    runBlocking {
+      for ((repositoryVersion, localVersion) in listOf(4 to null, null to 4, 4 to 4)) {
+        assertInvalidVersionsLeaveWorkUnclaimed(
+          false,
+          repositoryVersion,
+          localVersion,
+          "exceeds current version",
+        )
+      }
+    }
+
+  @Test
+  fun `descriptor read failure leaves memoized and non-memoized work unclaimed`() = runBlocking {
+    descriptorReadError = java.io.IOException("Descriptor unavailable")
+    for (memoized in listOf(true, false)) {
+      val error =
+        assertFailsWith<java.io.IOException> { dispatchWithVersions(memoized, 3, null, null) }
+      assertThat(error.message).contains("Descriptor unavailable")
+      assertNoVersionDispatch()
+    }
+  }
+
+  private suspend fun assertRepositoryFailureLeavesWorkUnclaimed(memoized: Boolean) {
+    for (status in listOf(Status.UNAVAILABLE, Status.NOT_FOUND)) {
+      val exception =
+        assertFailsWith<StatusException> { dispatchWithVersions(memoized, null, 3, status) }
+      assertThat(exception.status.code).isEqualTo(status.code)
+      assertNoVersionDispatch()
+    }
+  }
+
+  @Test
+  fun `memoized dispatch does not use local fallback on repository read failure`() = runBlocking {
+    assertRepositoryFailureLeavesWorkUnclaimed(true)
+  }
+
+  @Test
+  fun `non-memoized dispatch does not use local fallback on repository read failure`() =
+    runBlocking {
+      assertRepositoryFailureLeavesWorkUnclaimed(false)
+    }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp123"
     private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
@@ -3189,6 +3416,7 @@ class VidLabelingDispatchSequencerTest {
           },
         MODEL_LINE_2 to
           VidLabelerParamsKt.modelLineConfig {
+            eventTemplateVersion = EVENT_TEMPLATE_VERSION
             labelerInputFieldMapping +=
               LabelerInputFieldMapping.newBuilder()
                 .setFieldPath("age")

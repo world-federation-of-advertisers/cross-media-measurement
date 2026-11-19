@@ -121,21 +121,21 @@ class AwaitVidLabelingRule(private val expectedDoneBlobs: () -> Map<String, Long
     }
   }
 
-  private fun buildEdpaChannel(): ManagedChannel {
-    val secretFiles: Path =
-      checkNotNull(getRuntimePath(WORKSPACE_PATH.resolve(SECRET_FILES_PATH))) {
-        "secretfiles runtime path not found"
-      }
-    val signingCerts =
-      SigningCerts.fromPemFiles(
-        secretFiles.resolve(EDP_CERT_FILE).toFile(),
-        secretFiles.resolve(EDP_KEY_FILE).toFile(),
-        secretFiles.resolve(EDPA_TRUSTED_CERTS_FILE).toFile(),
-      )
-    return buildMutualTlsChannel(EDPA_PUBLIC_API_TARGET, signingCerts, EDPA_PUBLIC_API_CERT_HOST)
-  }
-
   companion object {
+    internal fun buildEdpaChannel(): ManagedChannel {
+      val secretFiles: Path =
+        checkNotNull(getRuntimePath(WORKSPACE_PATH.resolve(SECRET_FILES_PATH))) {
+          "secretfiles runtime path not found"
+        }
+      val signingCerts =
+        SigningCerts.fromPemFiles(
+          secretFiles.resolve(EDP_CERT_FILE).toFile(),
+          secretFiles.resolve(EDP_KEY_FILE).toFile(),
+          secretFiles.resolve(EDPA_TRUSTED_CERTS_FILE).toFile(),
+        )
+      return buildMutualTlsChannel(EDPA_PUBLIC_API_TARGET, signingCerts, EDPA_PUBLIC_API_CERT_HOST)
+    }
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")

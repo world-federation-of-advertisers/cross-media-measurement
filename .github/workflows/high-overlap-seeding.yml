@@ -82,9 +82,15 @@ jobs:
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
       - name: Test AWS web identity renewal
+        id: run-tests
         run: >
-          bazel test --test_output=errors
+          tools/bazel-with-results bazel test --test_output=errors
           //src/test/python/wfa/measurement/tools:aws_web_identity_test
+
+      - name: Upload Bazel testlogs
+        continue-on-error: true
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+        if: ${{ !cancelled() && (steps.run-tests.outcome == 'success' || steps.run-tests.outcome == 'failure') }}
 
       # The AWS SDK renews STS sessions and rereads its token file. Keep that file
       # fresh throughout seeding, which can outlast Google's one-hour ID token.
