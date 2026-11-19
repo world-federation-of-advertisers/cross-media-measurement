@@ -113,6 +113,7 @@ class VidLabelerAppRunner :
 
     val vidLabelerApp =
       VidLabelerApp(
+        immutableOutputPublication = true,
         subscriptionId = subscriptionId,
         queueSubscriber = queueSubscriber,
         parser = WorkItem.parser(),

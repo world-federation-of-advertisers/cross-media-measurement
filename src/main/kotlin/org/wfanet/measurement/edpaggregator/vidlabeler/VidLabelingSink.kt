@@ -36,6 +36,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -85,17 +86,14 @@ data class LabeledOutputPublication(
  * labeled output, amplified by co-viewing) be processed without OOM. There is one encrypted output
  * blob per model line, each with its own DEK.
  *
- * Output blob keys are derived deterministically from the input blob URI so a retried input file
- * overwrites its previous output rather than duplicating it (the reader's per-blob guarantee
- * requires idempotent output naming).
+ * With an output attempt path, data and metadata are created once in a private namespace. A
+ * completed job manifest selects their exact generations; a failed or losing attempt cannot
+ * overwrite the selected output. Legacy callers retain deterministic keys and replacement writes.
  *
- * **Failure semantics.** [commit] writes each group's `.metadata.binpb` sidecar only after that
- * group's data blob has been fully written. This ordering is load-bearing: consumers
- * (`DataAvailabilitySync`, then the ResultsFulfiller) discover impressions blobs *only* through
- * their metadata sidecars, never by listing the impressions directory. So if labeling fails partway
- * through, the partially written data blob has no sidecar, is invisible to every consumer, and is
- * overwritten by the complete blob on retry (deterministic key). [close] simply cancels the open
- * writers; no partial output can leak into a measurement.
+ * **Failure semantics.** [commit] writes a group's metadata only after its encrypted data write
+ * succeeds. A failure before the complete attempt is selected leaves unreferenced output. The
+ * caller retries with a fresh namespace. [close] cancels open writers without publishing a
+ * manifest.
  *
  * **Concurrency contract.** The [RawImpressionSource.BlobSink] protocol guarantees [commit] and
  * [close] run only after every [processBatch] call for this blob has returned. That quiescence is
@@ -293,6 +291,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
    */
   private inner class GroupWriter(private val key: OutputGroupKey) {
     private val channel = Channel<LabeledImpression>(WRITER_CHANNEL_CAPACITY)
+    @Volatile private var writerFailure: Throwable? = null
 
     private var earliest: Timestamp? = null
     private var latest: Timestamp? = null
@@ -320,7 +319,13 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     /** The draining/writing coroutine. Started eagerly so the blob is opened as records arrive. */
     val deferred: Deferred<Unit> = writerScope.async { runWriter() }
 
-    suspend fun send(impression: LabeledImpression) = channel.send(impression)
+    suspend fun send(impression: LabeledImpression) {
+      try {
+        channel.send(impression)
+      } catch (e: CancellationException) {
+        throw writerFailure ?: e
+      }
+    }
 
     /** Signals end-of-input so the draining coroutine can finalize the blob. */
     fun finish() {
@@ -354,20 +359,29 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               )
               .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
           }
-        // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
-        // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
-        MesosRecordIoStorageClient(aeadStorageClient)
-          .writeBlob(
-            SelectedStorageClient.parseBlobUri(outputBlobUri).key,
-            channel.consumeAsFlow().map { impression ->
-              updateAggregates(impression)
-              impression.toByteString()
-            },
-          )
+        val records =
+          channel.consumeAsFlow().map { impression ->
+            updateAggregates(impression)
+            impression.toByteString()
+          }
+        val client = MesosRecordIoStorageClient(aeadStorageClient)
+        val key = SelectedStorageClient.parseBlobUri(outputBlobUri).key
+        if (outputAttemptPath == null) {
+          client.writeBlob(key, records)
+        } else {
+          client.writeBlobIfNotFound(key, records)
+        }
       } catch (e: CancellationException) {
+        channel.cancel(e)
         // Writer scope cancelled (e.g. via close() on the failure path); not a labeling error.
         throw e
       } catch (e: Exception) {
+        // Cancelling aborts already suspended sends; closing alone leaves them queued.
+        // Preserve the writer error so producers can still recover a storage collision.
+        writerFailure = e
+        channel.cancel(
+          CancellationException("Labeled-output writer failed").also { it.initCause(e) }
+        )
         metrics.labelingErrorsCounter.add(1, labelAttributes(key.modelLine))
         logger.log(
           java.util.logging.Level.SEVERE,
@@ -442,16 +456,18 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               }
             }
         }
-        // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
-        // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
-        // labeled-impressions write: the metadata key is deterministic, so concurrent VMs labeling
-        // the same input file would race here too.
-        SelectedStorageClient(
+        val client =
+          SelectedStorageClient(
             SelectedStorageClient.parseBlobUri(metadataUri),
             storageConfig.rootDirectory,
             storageConfig.projectId,
           )
-          .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
+        val key = SelectedStorageClient.parseBlobUri(metadataUri).key
+        if (outputAttemptPath == null) {
+          client.writeBlob(key, details.toByteString())
+        } else {
+          client.writeBlobIfNotFound(key, flowOf(details.toByteString()))
+        }
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
