@@ -166,8 +166,8 @@ message MarkPoolAssignmentJobSucceededRequest {
   // A request ID provided by the client to ensure idempotency.
   string request_id = 5;
 
-  // DEK that encrypts this shard's SubpoolFingerprints blobs; persisted on the
-  // job.
+  // DEK for this shard's SubpoolFingerprints blobs. Required when pool_offsets
+  // is nonempty; otherwise the finalizer may reuse a persisted shard key.
   EncryptedDek encrypted_dek = 6;
 
   // Subpool offsets discovered by this shard during Phase 0; unioned across
@@ -178,6 +178,9 @@ message MarkPoolAssignmentJobSucceededRequest {
   // a maximum across shards by the service. Unset for a shard that wrote no
   // impressions.
   google.type.Date max_event_date = 8;
+
+  // KEK URI for VID-labeled output. Defaults to encrypted_dek.kek_uri.
+  string output_kek_uri = 9;
 }
 
 // Response message for MarkPoolAssignmentJobSucceeded.
