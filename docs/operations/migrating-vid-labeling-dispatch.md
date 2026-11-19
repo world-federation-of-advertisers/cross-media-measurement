@@ -13,10 +13,12 @@ deadline, up to 100 approximate delivery attempts, and 10–600-second backoff.
 It carries provider and exact source URI/generation/creation time/event type. Its
 optional recovery message carries ModelLine names, the source upload resource name,
 and the complete UploadHealingOperation resource name.
-Source metadata is inside these opaque application parameters. Generic outer
-`data_path_params` is unset: the control plane's monotonic source admission would
-otherwise suppress an approved replay of the same or a historical generation.
-The dispatcher retains its own authoritative stale-generation and recovery checks.
+Ordinary dispatch also populates outer `data_path_params` with the same source
+identity, enabling generic source admission and indexed lookup. Recovery leaves
+that outer source unset so an approved replay of the same or a historical
+generation is not suppressed. The dispatcher validates recovery authorization
+and retains its own authoritative source checks. Older app-only ordinary jobs
+remain readable; duplicate intake reuses their stored parameters and trace.
 
 The stable intake ID includes source identity and dispatch intent. Ordinary intake
 and approved correction replay of one generation are distinct jobs. Equivalent
@@ -33,8 +35,9 @@ its committed Terraform queue configuration.
 
 ## Deploy in order
 
-1. Deploy the lease-aware control plane and updated dispatcher worker, DataWatcher,
-   and healing controller while retaining the existing watcher configuration.
+1. Deploy the compatible dispatcher worker before updating DataWatcher intake.
+   Then deploy the lease-aware control plane, DataWatcher, and healing controller
+   while retaining the existing watcher configuration.
 2. Provision the queue, authenticated push delivery, queue registry entry, and generic
    DLQ listener. Terraform orders watcher config publication after worker/queue readiness.
 3. Validate an isolated test provider's queued dispatch and recovery. Then adopt the
