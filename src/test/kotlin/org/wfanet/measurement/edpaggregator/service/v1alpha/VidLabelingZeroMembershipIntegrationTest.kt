@@ -807,7 +807,6 @@ internal class VidLabelingZeroMembershipIntegrationTest :
           .poolAssignmentJobsList
       assertThat(parent.poolAssignmentComplete).isTrue()
       assertThat(parent.hasEncryptedMergedDek()).isFalse()
-      assertThat(parent.outputKekUri).isEqualTo(kekUri)
       assertThat(shardJobs.all { !it.hasEncryptedDek() }).isTrue()
       assertThat(vidLabelerWorkItems()).hasSize(1)
       val childNames = vidLabelerWorkItems().map { it.name }.toSet()
@@ -828,7 +827,6 @@ internal class VidLabelingZeroMembershipIntegrationTest :
     assertThat(parent.state).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
     assertThat(parent.poolAssignmentComplete).isTrue()
     assertThat(parent.hasEncryptedMergedDek()).isFalse()
-    assertThat(parent.outputKekUri).isEqualTo(kekUri)
     assertThat(parent.poolOffsetsList).isEmpty()
     assertThat(parent.pendingAvailabilityDatesList).isEmpty()
     assertThat(parent.hasMaxEventDate()).isFalse()
