@@ -281,7 +281,9 @@ class DataWatcher(
     val workItemParams =
       workItemParams {
           appParams = dispatchParams?.pack() ?: queueConfig.appParams
-          if (dispatchParams == null) this.dataPathParams = sourceIdentity
+          if (dispatchParams == null || !dispatchParams.hasRecovery()) {
+            this.dataPathParams = sourceIdentity
+          }
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
@@ -369,11 +371,24 @@ class DataWatcher(
           !existingParams.dataPathParams.hasCreateTime() ||
           !requestedParams.dataPathParams.hasGeneration() ||
           !requestedParams.dataPathParams.hasCreateTime())
+    val requestedDispatch =
+      if (requestedParams.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java)) {
+        requestedParams.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+      } else null
+    // Older VID dispatch items stored the complete source only in application parameters.
+    val matchingLegacyDispatchSource =
+      existing.queue == VidLabelingDispatchWorkItems.QUEUE &&
+        !existingParams.hasDataPathParams() &&
+        requestedParams.hasDataPathParams() &&
+        requestedDispatch != null &&
+        !requestedDispatch.hasRecovery() &&
+        requestedDispatch.hasSource() &&
+        requestedDispatch.source == requestedParams.dataPathParams
     check(
       existing.queue == requestedWorkItem.queue &&
         existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
-        existingParams.dataPathParams.copy {
+        (existingParams.dataPathParams.copy {
           if (partialSourceIdentity) {
             clearGeneration()
             clearCreateTime()
@@ -384,7 +399,7 @@ class DataWatcher(
               clearGeneration()
               clearCreateTime()
             }
-          }
+          } || matchingLegacyDispatchSource)
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }
