@@ -215,10 +215,10 @@ class DataWatcherTest() {
         )
       for (type in
         listOf(DataWatcher.DELETED_EVENT_TYPE, "google.cloud.storage.object.v1.archived", null)) {
-        watcher.receivePath(
-          "test-schema://test-bucket/path-to-watch/source",
-          type?.let { mapOf(DataWatcher.EVENT_TYPE_METADATA_KEY to it) } ?: emptyMap(),
-        )
+        val metadata = sourceMetadata().toMutableMap()
+        metadata.remove(DataWatcher.EVENT_TYPE_METADATA_KEY)
+        if (type != null) metadata[DataWatcher.EVENT_TYPE_METADATA_KEY] = type
+        watcher.receivePath("test-schema://test-bucket/path-to-watch/source", metadata)
       }
       verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
       verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }

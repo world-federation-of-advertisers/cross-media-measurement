@@ -15,6 +15,8 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
+import com.google.protobuf.UnknownFieldSet
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import java.time.Instant
@@ -90,6 +92,77 @@ class DataAvailabilitySyncWorkItemPublisherTest {
     assertThat(client.items.getValue(original.workItemName).generation).isEqualTo(2L)
     assertThat(client.retryRequests.single().expectedWorkItemGeneration).isEqualTo(1L)
     assertThat(client.rpcThrottlers.controlPlane.invocationCount).isEqualTo(4)
+  }
+
+  @Test
+  fun `ensure retries failed WorkItems with either old event type field`() = runBlocking {
+    for (fieldNumber in listOf(4, 5)) {
+      val client = FakeClient()
+      val publisher = client.publisher()
+      val original = publisher.ensure(traceContext = mapOf("traceparent" to "first"))
+      val stored = client.items.getValue(original.workItemName)
+      val params = stored.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      val legacyParams =
+        params.copy {
+          dataPathParams =
+            dataPathParams
+              .toBuilder()
+              .setUnknownFields(
+                UnknownFieldSet.newBuilder()
+                  .addField(fieldNumber, UnknownFieldSet.Field.newBuilder().addVarint(1L).build())
+                  .build()
+              )
+              .build()
+        }
+      val legacyPayload = Any.pack(legacyParams)
+      client.items[original.workItemName] =
+        stored.copy {
+          state = WorkItem.State.FAILED
+          workItemParams = legacyPayload
+        }
+
+      val successor = publisher.ensure(traceContext = mapOf("traceparent" to "second"))
+
+      assertThat(successor.workItemName).isEqualTo(original.workItemName)
+      assertThat(successor.outcome).isEqualTo("retried")
+      assertThat(client.items).hasSize(1)
+      val retried = client.items.getValue(original.workItemName)
+      assertThat(retried.generation).isEqualTo(2L)
+      assertThat(retried.workItemParams).isEqualTo(legacyPayload)
+      assertThat(client.retryRequests.single().expectedWorkItemGeneration).isEqualTo(1L)
+    }
+  }
+
+  @Test
+  fun `ensure rejects other unknown identity fields before retrying`() = runBlocking {
+    val client = FakeClient()
+    val publisher = client.publisher()
+    val original = publisher.ensure()
+    val stored = client.items.getValue(original.workItemName)
+    val params = stored.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    val conflictingParams =
+      params.copy {
+        dataPathParams =
+          dataPathParams
+            .toBuilder()
+            .setUnknownFields(
+              UnknownFieldSet.newBuilder()
+                .addField(99, UnknownFieldSet.Field.newBuilder().addVarint(1L).build())
+                .build()
+            )
+            .build()
+      }
+    client.items[original.workItemName] =
+      stored.copy {
+        state = WorkItem.State.FAILED
+        workItemParams = Any.pack(conflictingParams)
+      }
+
+    val exception = assertFailsWith<IllegalStateException> { publisher.ensure() }
+
+    assertThat(exception).hasMessageThat().contains("does not match")
+    assertThat(client.retryRequests).isEmpty()
+    assertThat(client.items.getValue(original.workItemName).generation).isEqualTo(1L)
   }
 
   @Test
