@@ -27,10 +27,14 @@ import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Instant
 import java.time.LocalDate
+import java.util.concurrent.ForkJoinTask
 import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.seconds
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -121,6 +125,91 @@ class EventProcessingIntegrationTest {
     // Create EventProcessingOrchestrator
     eventProcessingOrchestrator =
       EventProcessingOrchestrator(privateEncryptionKey = privateEncryptionKey)
+  }
+
+  @Test
+  fun `run propagates processing failure without logging impression values`() = runBlocking {
+    val date = LocalDate.of(2025, 1, 1)
+    val requisitions =
+      listOf(
+        createRequisition(
+          name = "requisitions/private-row",
+          eventGroupsMap = mapOf("event-group-1" to createTimeRange(date)),
+          filter = "common.gender == 1",
+        )
+      )
+    val population = loadPopulationSpecFromFile(TEST_DATA_RUNTIME_PATH.toString(), true)
+    val failure =
+      IllegalStateException(
+          "SYNTHETIC_PRIVATE_VALUE",
+          IllegalArgumentException("SYNTHETIC_PRIVATE_CAUSE"),
+        )
+        .apply { addSuppressed(IllegalStateException("SYNTHETIC_PRIVATE_SUPPRESSED")) }
+    val uncaughtRecord = CompletableDeferred<java.util.logging.LogRecord>()
+    val source =
+      object : EventSource<Message> {
+        override fun generateEventBatches(): Flow<EventBatch<Message>> = flow {
+          checkNotNull(ForkJoinTask.getPool()).execute(Runnable { throw failure })
+          withTimeout(10.seconds) { uncaughtRecord.await() }
+          throw failure
+        }
+      }
+    val output = java.util.concurrent.CopyOnWriteArrayList<String>()
+    val handler =
+      object : java.util.logging.Handler() {
+        override fun publish(record: java.util.logging.LogRecord) {
+          output += java.util.logging.SimpleFormatter().format(record)
+          if (record.message.startsWith("Uncaught exception in thread pool:")) {
+            uncaughtRecord.complete(record)
+          }
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = java.util.logging.Logger.getLogger("")
+    logger.addHandler(handler)
+    try {
+      val thrown =
+        assertFailsWith<IllegalStateException> {
+          eventProcessingOrchestrator.run(
+            eventSource = source,
+            vidIndexMap = InMemoryVidIndexMap.build(population),
+            populationSpec = population,
+            requisitions = requisitions,
+            resolvedEventGroups =
+              createResolvedEventGroups(
+                eventGroupReferenceIdMap = createEventGroupReferenceIdMap(requisitions),
+                entityKeyMap = emptyMap(),
+              ),
+            config =
+              PipelineConfiguration(
+                batchSize = 10,
+                channelCapacity = 10,
+                threadPoolSize = 1,
+                workers = 1,
+                readConcurrency = 1,
+              ),
+            eventDescriptor = TestEvent.getDescriptor(),
+          )
+        }
+      assertThat(thrown.message).isEqualTo("SYNTHETIC_PRIVATE_VALUE")
+      assertThat(generateSequence<Throwable>(thrown) { it.cause }.any { it === failure }).isTrue()
+      val workerOutput = java.util.logging.SimpleFormatter().format(uncaughtRecord.await())
+      assertThat(workerOutput).contains("Uncaught exception in thread pool:")
+      for (marker in
+        listOf(
+          "SYNTHETIC_PRIVATE_VALUE",
+          "SYNTHETIC_PRIVATE_CAUSE",
+          "SYNTHETIC_PRIVATE_SUPPRESSED",
+        )) {
+        assertThat(workerOutput).doesNotContain(marker)
+        assertThat(output.joinToString("\n")).doesNotContain(marker)
+      }
+    } finally {
+      logger.removeHandler(handler)
+    }
   }
 
   @Test

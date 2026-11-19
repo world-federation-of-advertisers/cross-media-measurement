@@ -51,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -246,7 +247,7 @@ class ResultsFulfiller(
     ReportTraceLogging.log(
       logger,
       Level.SEVERE,
-      error,
+      ExceptionDiagnostics.forLogging(error),
       "edp_aggregator.results_fulfiller.group_failed",
       ReportTraceAttributes.BASIC_REPORT_NAME_STRING to groupedRequisitions.basicReport,
       ReportTraceAttributes.REPORT_NAME_STRING to groupedRequisitions.report,
@@ -675,12 +676,12 @@ class ResultsFulfiller(
           requisitionName = requisition.name,
           outcome = "refused",
         )
-        logger.log(Level.WARNING, e) {
+        logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
           "Refused requisition ${requisition.name} for report=$reportId " +
             "groupId=${groupedRequisitions.groupId}"
         }
         val metadataForRefusal = processingMetadata ?: requisitionMetadata
-        signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
+        signalRequisitionRefused(metadataForRefusal, refusalDiagnostic(e))
         refuseRequisitionInCmms(requisition, e)
         false
       } catch (e: CancellationException) {
@@ -829,7 +830,7 @@ class ResultsFulfiller(
               refusal =
                 RequisitionKt.refusal {
                   justification = e.justification
-                  message = e.message ?: "Requisition refused"
+                  message = refusalDiagnostic(e)
                 }
             }
           )
@@ -839,16 +840,13 @@ class ResultsFulfiller(
         throw cancellation
       } catch (refusalError: Exception) {
         span
-          .setStatus(
-            io.opentelemetry.api.trace.StatusCode.ERROR,
-            refusalError.message ?: refusalError::class.java.name,
-          )
+          .setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "Refusal reporting failed")
           .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
           .setAttribute(
             ReportTraceAttributes.ERROR_TYPE,
             ReportTraceAttributes.errorType(refusalError),
           )
-          .recordException(refusalError)
+          .recordException(ExceptionDiagnostics.forLogging(refusalError))
         val errorCode = ReportTraceAttributes.errorCode(refusalError)
         if (errorCode != null) {
           span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
@@ -856,7 +854,7 @@ class ResultsFulfiller(
         logger.log(
           Level.SEVERE,
           "Failed to refuse requisition ${requisition.name} in CMMS",
-          refusalError,
+          ExceptionDiagnostics.forLogging(refusalError),
         )
       }
     }
@@ -987,8 +985,11 @@ class ResultsFulfiller(
     metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
   }
 
+  private fun refusalDiagnostic(error: RequisitionRefusalException): String =
+    "Requisition refused; justification=${error.justification.name}; ${ExceptionDiagnostics.summary(error)}"
+
   private class RequisitionProcessingException(val failure: Exception) :
-    Exception(failure.message, failure)
+    Exception("Requisition processing failed", failure)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

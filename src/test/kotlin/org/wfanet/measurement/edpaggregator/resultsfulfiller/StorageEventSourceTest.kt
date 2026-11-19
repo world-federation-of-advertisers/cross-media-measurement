@@ -39,8 +39,10 @@ import java.time.ZoneId
 import java.util.Base64
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -2366,18 +2368,119 @@ class StorageEventSourceTest {
             override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
               // Fail transiently on the first two attempts, then succeed with an empty read.
               if (attempts.incrementAndGet() < 3) {
-                throw IOException("transient read failure")
+                throw IOException(
+                  "SYNTHETIC_PRIVATE_VALUE",
+                  IllegalStateException("SYNTHETIC_PRIVATE_VALUE"),
+                )
               }
             }
           }
         },
       )
 
-    val batches = eventSource.generateEventBatches().toList()
+    val output = java.util.concurrent.CopyOnWriteArrayList<String>()
+    val handler =
+      object : java.util.logging.Handler() {
+        override fun publish(record: java.util.logging.LogRecord) {
+          output += java.util.logging.SimpleFormatter().format(record)
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = java.util.logging.Logger.getLogger("")
+    logger.addHandler(handler)
+    val batches =
+      try {
+        eventSource.generateEventBatches().toList()
+      } finally {
+        logger.removeHandler(handler)
+      }
+    assertThat(output.joinToString("\n")).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(output.joinToString("\n")).contains("Transient failure opening")
 
     assertThat(batches).isEmpty()
     assertThat(attempts.get()).isEqualTo(3)
   }
+
+  @Test
+  fun `generateEventBatches does not retry a transient failure after emitting a batch`(): Unit =
+    runBlocking {
+      val date = LocalDate.of(2025, 1, 1)
+      val metadataTmpPath = tmp.newFolder("metadata-partial-read")
+      seedMetadataSources(metadataTmpPath, date, listOf("partial-group"))
+      val attempts = AtomicInteger(0)
+      val observed = CompletableDeferred<Unit>()
+      val failure = IOException("SYNTHETIC_PRIVATE_VALUE")
+      val event =
+        LabeledEvent<Message>(
+          timestamp = date.atStartOfDay(ZoneId.of("UTC")).toInstant(),
+          vid = 1L,
+          message = TestEvent.getDefaultInstance(),
+          entityKeys = emptyList(),
+        )
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          resolvedEventGroups =
+            resolveEventGroups(
+              eventGroupDetailsList =
+                listOf(
+                  createEventGroupDetails("partial-group", date, date.plusDays(1), ZoneId.of("UTC"))
+                ),
+              mapping = null,
+              wholeBlobEntityTypes = emptySet(),
+            ),
+          modelLine = modelLine,
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          readMaxAttempts = 3,
+          readRetryBackoff = FAST_BACKOFF,
+          eventReaderFactory = { _ ->
+            object : EventReader<Message> {
+              override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+                attempts.incrementAndGet()
+                emit(listOf(event))
+                observed.await()
+                throw failure
+              }
+            }
+          },
+        )
+      val output = java.util.concurrent.CopyOnWriteArrayList<String>()
+      val handler =
+        object : java.util.logging.Handler() {
+          override fun publish(record: java.util.logging.LogRecord) {
+            output += java.util.logging.SimpleFormatter().format(record)
+          }
+
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val logger = java.util.logging.Logger.getLogger("")
+      val batches = mutableListOf<EventBatch<Message>>()
+      logger.addHandler(handler)
+      val thrown =
+        try {
+          assertFailsWith<IOException> {
+            eventSource.generateEventBatches().collect { batch ->
+              batches += batch
+              observed.complete(Unit)
+            }
+          }
+        } finally {
+          logger.removeHandler(handler)
+        }
+      assertThat(generateSequence<Throwable>(thrown) { it.cause }.any { it === failure }).isTrue()
+      assertThat(attempts.get()).isEqualTo(1)
+      assertThat(batches).hasSize(1)
+      assertThat(batches.single().events).containsExactly(event)
+      assertThat(output.joinToString("\n")).doesNotContain("Transient failure opening")
+    }
 
   @Test
   fun `generateEventBatches does not retry a non-transient per-blob read failure`(): Unit =
