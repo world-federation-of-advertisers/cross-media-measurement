@@ -1418,16 +1418,12 @@ resource "google_pubsub_subscription_iam_member" "vid_dispatch_dlq_subscriber" {
   member       = var.pubsub_iam_service_account_member
 }
 
-resource "google_pubsub_topic_iam_member" "vid_dispatch_operator_publisher" {
-  for_each = module.vid_labeling_dispatch_work_item_queue
-  topic    = each.value.pubsub_topic.id
-  role     = "roles/pubsub.publisher"
-  member   = module.edp_aggregator_internal.iam_service_account.member
-}
-
-resource "google_pubsub_subscription_iam_member" "vid_dispatch_operator_dlq_subscriber" {
-  for_each     = module.vid_labeling_dispatch_work_item_queue
-  subscription = each.value.dead_letter_subscription.name
-  role         = "roles/pubsub.subscriber"
-  member       = module.edp_aggregator_internal.iam_service_account.member
+# TODO(world-federation-of-advertisers/cross-media-measurement#4912):
+# Configure approved channels and verify receipt before queued dispatch cutover.
+module "vid_labeling_dispatch_monitoring" {
+  source                      = "../edp-aggregator-dispatch-monitoring"
+  for_each                    = module.vid_labeling_dispatch_work_item_queue
+  project_id                  = local.google_project_id
+  dead_letter_subscription_id = each.value.dead_letter_subscription.name
+  notification_channels       = var.vid_labeling_healing_alert_notification_channels
 }
