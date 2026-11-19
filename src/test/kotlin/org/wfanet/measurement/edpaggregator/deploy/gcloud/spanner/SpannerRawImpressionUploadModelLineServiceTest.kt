@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -55,6 +56,7 @@ import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceSta
 import org.wfanet.measurement.internal.edpaggregator.commitRawImpressionUploadModelLineMergedOutputRequest
 import org.wfanet.measurement.internal.edpaggregator.createPoolAssignmentJobRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.internal.edpaggregator.encryptedDek
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySyncingRequest
@@ -1473,6 +1475,84 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
         }
       )
   }
+
+  @Test
+  fun `committed nonempty pool output cannot bypass ranking`() =
+    runBlocking<Unit> {
+      var execution = createOutputExecution()
+      val pools = SpannerPoolAssignmentJobService(spannerDatabase.databaseClient)
+      val job =
+        pools.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = execution.dataProviderResourceId
+              rawImpressionUploadResourceId = execution.rawImpressionUploadResourceId
+              cmmsModelLine = execution.cmmsModelLine
+            }
+          }
+        )
+      pools.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          dataProviderResourceId = job.dataProviderResourceId
+          rawImpressionUploadResourceId = job.rawImpressionUploadResourceId
+          poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+          etag = job.etag
+          requestId = UUID.randomUUID().toString()
+          poolOffsets += 7L
+          maxEventDate = date {
+            year = 2026
+            month = 11
+            day = 19
+          }
+          encryptedDek = encryptedDek {
+            kekUri = "kek"
+            ciphertext = ByteString.copyFromUtf8("wrapped-key")
+          }
+          outputManifest = outputBlobReference {
+            blobUri = "gs://bucket/shard/manifest"
+            blobGeneration = 1L
+          }
+        }
+      )
+      val service = newService(IdGenerator.Default)
+      val get = getRawImpressionUploadModelLineRequest {
+        dataProviderResourceId = execution.dataProviderResourceId
+        rawImpressionUploadResourceId = execution.rawImpressionUploadResourceId
+        rawImpressionUploadModelLineResourceId = execution.rawImpressionUploadModelLineResourceId
+      }
+      execution = service.getRawImpressionUploadModelLine(get)
+      val selected =
+        service.commitRawImpressionUploadModelLineMergedOutput(
+          commitRawImpressionUploadModelLineMergedOutputRequest {
+            dataProviderResourceId = execution.dataProviderResourceId
+            rawImpressionUploadResourceId = execution.rawImpressionUploadResourceId
+            rawImpressionUploadModelLineResourceId =
+              execution.rawImpressionUploadModelLineResourceId
+            etag = execution.etag
+            requestId = UUID.randomUUID().toString()
+            outputManifest = outputBlobReference {
+              blobUri = "gs://bucket/merged/manifest"
+              blobGeneration = 2L
+            }
+          }
+        )
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineLabeling(
+            markRawImpressionUploadModelLineLabelingRequest {
+              dataProviderResourceId = selected.dataProviderResourceId
+              rawImpressionUploadResourceId = selected.rawImpressionUploadResourceId
+              rawImpressionUploadModelLineResourceId =
+                selected.rawImpressionUploadModelLineResourceId
+              etag = selected.etag
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(service.getRawImpressionUploadModelLine(get)).isEqualTo(selected)
+    }
 
   @Test
   fun `commitMergedOutput rejects absent jobs instead of treating them as empty success`() =
