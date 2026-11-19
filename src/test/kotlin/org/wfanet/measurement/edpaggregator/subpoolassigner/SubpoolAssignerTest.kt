@@ -274,7 +274,6 @@ class SubpoolAssignerTest {
     state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
     etag = "completed-phase0"
     poolAssignmentComplete = true
-    outputKekUri = DEK_MERGED.kekUri
   }
 
   private fun completedShard(index: Int = 0) = poolAssignmentJob {
@@ -466,7 +465,7 @@ class SubpoolAssignerTest {
   fun `empty recovery does not require merged encryption material`() =
     runBlocking<Unit> {
       val store = storeMock()
-      val models = emptyModels(emptyParent().copy { outputKekUri = "" })
+      val models = emptyModels(emptyParent())
       assertThat(assigner(store, emptyJobs(), models).assign().lastShardOut).isTrue()
       verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
       verify(store, never()).generateDek(any())
