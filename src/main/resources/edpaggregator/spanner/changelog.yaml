@@ -127,3 +127,6 @@ databaseChangeLog:
   - include:
       file: create-report-routing-decision-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-active-rank-index-uniqueness.sql
+      relativeToChangeLogFile: true
