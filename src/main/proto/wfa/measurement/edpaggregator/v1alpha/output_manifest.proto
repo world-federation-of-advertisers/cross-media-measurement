@@ -55,8 +55,8 @@ message OutputManifestRecord {
   }
   // One durable subpool blob.
   message SubpoolBlob {
-    // Subpool offset.
-    int64 pool_offset = 1 [(google.api.field_behavior) = REQUIRED];
+    // Subpool offset, including zero.
+    optional int64 pool_offset = 1 [(google.api.field_behavior) = REQUIRED];
     // Exact encrypted blob version.
     OutputBlobReference blob = 2 [(google.api.field_behavior) = REQUIRED];
   }

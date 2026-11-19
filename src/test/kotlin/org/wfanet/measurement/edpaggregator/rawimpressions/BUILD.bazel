@@ -183,6 +183,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStoreTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:output_manifest_store",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:output_manifest_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",

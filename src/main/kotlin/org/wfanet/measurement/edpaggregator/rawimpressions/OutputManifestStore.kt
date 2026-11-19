@@ -195,7 +195,9 @@ class OutputManifestStore(
         ) {
           "Encrypted subpool output has no wrapped key"
         }
-        check(record.subpoolBlob.poolOffset >= 0L)
+        check(record.subpoolBlob.hasPoolOffset() && record.subpoolBlob.poolOffset >= 0L) {
+          "Subpool output has no valid pool offset"
+        }
         validateReference(record.subpoolBlob.blob, header)
       }
       OutputManifestRecord.BodyCase.LABELED_BLOB -> {

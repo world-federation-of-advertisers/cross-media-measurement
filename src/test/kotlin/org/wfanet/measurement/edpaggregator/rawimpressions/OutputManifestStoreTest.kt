@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.ByteString
+import java.security.MessageDigest
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
@@ -27,6 +29,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecordKt
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.outputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.outputManifestRecord
 import org.wfanet.measurement.storage.BlobChangedException
@@ -55,6 +59,75 @@ class OutputManifestStoreTest {
         modelLine = model
       }
   }
+
+  private val poolHeader =
+    header.copy {
+      phase = OutputManifestRecord.Header.Phase.POOL_ASSIGNMENT
+      owner = "$upload/poolAssignmentJobs/job"
+      encryptedDek = encryptedDek {
+        kekUri = "kek"
+        ciphertext = ByteString.copyFromUtf8("wrapped-key")
+      }
+    }
+
+  private fun subpoolRecord(includeOffset: Boolean) = outputManifestRecord {
+    subpoolBlob =
+      OutputManifestRecordKt.subpoolBlob {
+        if (includeOffset) poolOffset = 0L
+        blob = outputBlobReference {
+          blobUri = "gs://bucket/output/$attempt/subpool"
+          blobGeneration = 1L
+        }
+      }
+  }
+
+  @Test
+  fun `explicit zero subpool offset survives serialization and manifest reading`() =
+    runBlocking<Unit> {
+      val store = OutputManifestStore(InMemoryStorageClient(), "gs://bucket/output")
+      val record = subpoolRecord(includeOffset = true)
+      val reference = store.write(uri, poolHeader, flowOf(record))
+      val restored = store.read(reference).toList().last().subpoolBlob
+      assertThat(restored.hasPoolOffset()).isTrue()
+      assertThat(restored.poolOffset).isEqualTo(0L)
+    }
+
+  @Test
+  fun `manifest writing rejects an omitted subpool offset`() =
+    runBlocking<Unit> {
+      val store = OutputManifestStore(InMemoryStorageClient(), "gs://bucket/output")
+      assertFailsWith<IllegalStateException> {
+        store.write(uri, poolHeader, flowOf(subpoolRecord(includeOffset = false)))
+      }
+    }
+
+  @Test
+  fun `manifest reading rejects an omitted subpool offset with a valid checksum`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      val store = OutputManifestStore(storage, "gs://bucket/output")
+      val records =
+        listOf(
+          outputManifestRecord { header = poolHeader }.toByteString(),
+          subpoolRecord(includeOffset = false).toByteString(),
+        )
+      val digest = MessageDigest.getInstance("SHA-256")
+      for (record in records) digest.update(record.asReadOnlyByteBuffer())
+      val footer = outputManifestRecord {
+        footer =
+          OutputManifestRecordKt.footer {
+            recordCount = records.size.toLong()
+            checksum = ByteString.copyFrom(digest.digest())
+          }
+      }
+      val blob =
+        MesosRecordIoStorageClient(storage)
+          .writeBlob(
+            "output/$attempt/manifest",
+            flowOf(*(records + listOf(footer.toByteString())).toTypedArray()),
+          )
+      assertFailsWith<IllegalStateException> { store.read(store.reference(uri, blob)).toList() }
+    }
 
   @Test
   fun `write and read preserve complete empty output without an encryption key`() =
