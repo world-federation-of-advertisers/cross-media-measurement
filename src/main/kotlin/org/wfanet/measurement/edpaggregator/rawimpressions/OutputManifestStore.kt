@@ -20,6 +20,7 @@ import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flow
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord.Header
@@ -203,9 +204,9 @@ class OutputManifestStore(
       OutputManifestRecord.BodyCase.LABELED_BLOB -> {
         check(header.phase == Header.Phase.VID_LABELING)
         check(
-          record.labeledBlob.rawImpressionUploadFile.startsWith(
-            header.rawImpressionUpload + "/rawImpressionUploadFiles/"
-          )
+          RawImpressionUploadFileKey.fromName(record.labeledBlob.rawImpressionUploadFile)
+            ?.parentKey
+            ?.toName() == header.rawImpressionUpload
         )
         check(record.labeledBlob.modelLine in header.modelLinesList)
         check(record.labeledBlob.hasEventDate())
@@ -219,9 +220,9 @@ class OutputManifestStore(
       OutputManifestRecord.BodyCase.FILE_COMPLETED -> {
         check(header.phase == Header.Phase.VID_LABELING)
         check(
-          record.fileCompleted.rawImpressionUploadFile.startsWith(
-            header.rawImpressionUpload + "/rawImpressionUploadFiles/"
-          )
+          RawImpressionUploadFileKey.fromName(record.fileCompleted.rawImpressionUploadFile)
+            ?.parentKey
+            ?.toName() == header.rawImpressionUpload
         )
         check(record.fileCompleted.modelLine in header.modelLinesList)
       }

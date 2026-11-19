@@ -88,7 +88,7 @@ class CommittedOutputServiceTest {
             vidLabelingJobResourceId = request.vidLabelingJobResourceId
             cmmsModelLines += "modelProviders/provider/modelSuites/suite/modelLines/line"
             rawImpressionUploadFiles +=
-              "dataProviders/provider/rawImpressionUploads/upload/rawImpressionUploadFiles/file"
+              "dataProviders/provider/rawImpressionUploads/upload/files/file"
             state =
               org.wfanet.measurement.internal.edpaggregator.VidLabelingState
                 .VID_LABELING_STATE_SUCCEEDED

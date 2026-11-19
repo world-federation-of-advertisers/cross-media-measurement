@@ -295,12 +295,14 @@ class MissingImpressionMetadataRecovery(
       val root = BlobUris.buildUri(storageRootUri, edpImpressionPath)
       val output = reader.committedOutputs(modelLine, date, marker.blobKey, root) ?: continue
       val selected = linkedSetOf<String>()
+      val expectedGenerations = mutableMapOf<String, Long>()
       for (entry in
         output.labeledBlobs.filter {
           LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) == date
         }) {
         for (reference in listOf(entry.metadata, entry.impressions)) {
           val key = SelectedStorageClient.parseBlobUri(reference.blobUri).key
+          expectedGenerations[key] = reference.blobGeneration
           val live =
             checkNotNull(storageClient.getBlob(key)) { "Committed recovery output is missing" }
           check(
@@ -334,17 +336,36 @@ class MissingImpressionMetadataRecovery(
               ImpressionMetadata.State.DELETED
           }
           .toSet()
+      val unsynced =
+        selected
+          .filter { key ->
+            !DataAvailabilityBlobs.isSynced(checkNotNull(storageClient.getBlob(key)))
+          }
+          .toSet()
       if (
         missing.isEmpty() &&
           deleted.isEmpty() &&
+          unsynced.isEmpty() &&
           DataAvailabilityBlobs.isDataAvailabilityPublished(marker)
       )
         continue
       val doneUri = BlobUris.buildUri(storageRootUri, marker.blobKey)
       val processed = sync(doneUri, selected)
       val latestDone = storageClient.getBlob(marker.blobKey)
+      val selectedVersionsIntact =
+        expectedGenerations.all { (key, generation) ->
+          val live = storageClient.getBlob(key)
+          live != null &&
+            (live as ConditionalOperationStorageClient.Blob).freshnessToken == generation.toString()
+        }
+      val selectedSynchronized =
+        selected.all { key ->
+          storageClient.getBlob(key)?.let(DataAvailabilityBlobs::isSynced) == true
+        }
       val publicationComplete =
-        latestDone != null &&
+        selectedVersionsIntact &&
+          selectedSynchronized &&
+          latestDone != null &&
           (latestDone as ConditionalOperationStorageClient.Blob).freshnessToken ==
             (marker as ConditionalOperationStorageClient.Blob).freshnessToken &&
           DataAvailabilityBlobs.isDataAvailabilityPublished(latestDone)

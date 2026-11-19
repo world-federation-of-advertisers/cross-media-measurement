@@ -1660,7 +1660,7 @@ class EvictUploaderTest {
         CommittedOutputResolver.Result(
           listOf(
             OutputManifestRecordKt.labeledBlob {
-              rawImpressionUploadFile = "${uploadName("up1")}/rawImpressionUploadFiles/file1"
+              rawImpressionUploadFile = "${uploadName("up1")}/files/file1"
               modelLine = MODEL_LINE
               this.eventDate = date {
                 year = 2026
@@ -1703,7 +1703,7 @@ class EvictUploaderTest {
         .thenReturn(
           listRawImpressionUploadFilesResponse {
             rawImpressionUploadFiles += rawImpressionUploadFile {
-              name = "${uploadName("up1")}/rawImpressionUploadFiles/file1"
+              name = "${uploadName("up1")}/files/file1"
               blobUri = "gs://raw-bucket/day/file.parquet"
               this.eventDate = date {
                 year = 2026

@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
 import io.grpc.StatusException
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
@@ -70,7 +71,7 @@ class CommittedOutputResolver(
     for (job in selected.filter { it.state == VidLabelingJob.State.SUCCEEDED }) {
       val inputs = linkedMapOf<String, RawImpressionUploadFile>()
       for (name in job.rawImpressionUploadFilesList) {
-        check(name.startsWith(upload + "/rawImpressionUploadFiles/")) {
+        check(RawImpressionUploadFileKey.fromName(name)?.parentKey?.toName() == upload) {
           "Job input belongs to another upload"
         }
         inputs[name] = callMetadata {

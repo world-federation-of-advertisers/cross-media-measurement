@@ -56,10 +56,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UndeleteImpressionMetadataRe
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.outputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.outputManifestRecord
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -955,7 +957,7 @@ class MissingImpressionMetadataRecoveryTest {
             outputManifestRecord {
               fileCompleted =
                 OutputManifestRecordKt.fileCompleted {
-                  rawImpressionUploadFile = "$upload/rawImpressionUploadFiles/file"
+                  rawImpressionUploadFile = "$upload/files/file"
                   modelLine = model
                 }
             }
@@ -1011,6 +1013,148 @@ class MissingImpressionMetadataRecoveryTest {
       )
     return recovery.recover()
   }
+
+  private suspend fun recoverUnsyncedManagedSelected(
+    completeSync: Boolean
+  ): MissingImpressionMetadataRecovery.RecoveryResult {
+    val storage = InMemoryStorageClient()
+    val date = LocalDate.of(2026, 8, 1)
+    val upload = "$DATA_PROVIDER_NAME/rawImpressionUploads/upload"
+    val model = "modelProviders/provider/modelSuites/suite/modelLines/model-line-1"
+    val attempt = UUID.randomUUID().toString()
+    val datePrefix = "$EDP_IMPRESSION_PATH/model-line/model-line-1/$date/"
+    val dataKey = datePrefix + ".attempts/$attempt/selected"
+    val metadataKey = dataKey + ".metadata.binpb"
+    val orphanKey = datePrefix + ".attempts/$attempt/orphan.metadata.binpb"
+    val data = storage.writeBlob(dataKey, ByteString.copyFromUtf8("data"))
+    val metadata = storage.writeBlob(metadataKey, ByteString.copyFromUtf8("metadata"))
+    storage.writeBlob(orphanKey, ByteString.copyFromUtf8("orphan"))
+    fun reference(key: String, blob: org.wfanet.measurement.storage.StorageClient.Blob) =
+      outputBlobReference {
+        blobUri = "$BUCKET_URI/$key"
+        blobGeneration = (blob as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
+      }
+    val dataRef = reference(dataKey, data)
+    val metadataRef = reference(metadataKey, metadata)
+    registeredMetadata[metadataRef.blobUri] = impressionMetadata {
+      name = "$DATA_PROVIDER_NAME/impressionMetadata/selected"
+      blobUri = metadataRef.blobUri
+      modelLine = model
+      state = ImpressionMetadata.State.ACTIVE
+    }
+    val doneKey = "$EDP_IMPRESSION_PATH/" + LabeledImpressionsBlobKeys.forDone(upload, model, date)
+    storage.writeBlob(doneKey, ByteString.EMPTY)
+    storage.updateBlobMetadata(
+      doneKey,
+      metadata =
+        mapOf(
+          DataAvailabilityBlobs.SYNC_ID_KEY to "published",
+          DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "published",
+        ),
+    )
+    val reader =
+      object : ManagedDoneObjectResolver {
+        override val resolvesCommittedOutputs = true
+
+        override suspend fun modelLineFor(eventDate: LocalDate, blobKey: String) = model
+
+        override suspend fun resolve(modelLine: String, eventDate: LocalDate, blobKey: String) =
+          ManagedDoneObjectDisposition.CURRENT
+
+        override suspend fun committedOutputs(
+          modelLine: String,
+          eventDate: LocalDate,
+          blobKey: String,
+          storageRoot: String,
+        ) =
+          CommittedOutputResolver.Result(
+            listOf(
+              OutputManifestRecordKt.labeledBlob {
+                rawImpressionUploadFile = "$upload/files/file"
+                this.modelLine = model
+                this.eventDate =
+                  com.google.type.date {
+                    year = date.year
+                    month = date.monthValue
+                    day = date.dayOfMonth
+                  }
+                impressions = dataRef
+                this.metadata = metadataRef
+              }
+            ),
+            emptyList(),
+            emptyList(),
+            true,
+            upload,
+          )
+      }
+    var syncCalls = 0
+    val recovery =
+      MissingImpressionMetadataRecovery(
+        storage,
+        BlobUri("gs", BUCKET_NAME, ""),
+        EDP_IMPRESSION_PATH,
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        object : Throttler {
+          override suspend fun <T> onReady(block: suspend () -> T): T = block()
+        },
+        100,
+        DataDateSelection.SelectedDates(setOf(date)),
+        {},
+        sync = { _, selected ->
+          syncCalls++
+          assertThat(selected).containsExactly(metadataKey)
+          if (completeSync)
+            storage.updateBlobMetadata(
+              metadataKey,
+              metadata =
+                mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+            )
+          selected
+        },
+        metrics = metrics,
+        managedDoneObjectResolver = { reader },
+      )
+    val result = recovery.recover()
+    assertThat(syncCalls).isEqualTo(1)
+    assertThat(
+        (checkNotNull(storage.getBlob(dataKey)) as ConditionalOperationStorageClient.Blob)
+          .freshnessToken
+      )
+      .isEqualTo(dataRef.blobGeneration.toString())
+    assertThat(
+        (checkNotNull(storage.getBlob(metadataKey)) as ConditionalOperationStorageClient.Blob)
+          .freshnessToken
+      )
+      .isEqualTo(metadataRef.blobGeneration.toString())
+    assertThat(DataAvailabilityBlobs.isSynced(checkNotNull(storage.getBlob(metadataKey))))
+      .isEqualTo(completeSync)
+    assertThat(DataAvailabilityBlobs.isSynced(checkNotNull(storage.getBlob(orphanKey)))).isFalse()
+    return result
+  }
+
+  @Test
+  fun `managed recovery repairs an unsynced selected sidecar with active metadata and published done`() =
+    runBlocking<Unit> {
+      val result = recoverUnsyncedManagedSelected(true)
+      assertThat(result.dateFoldersResynced).isEqualTo(1)
+      assertThat(result.incompleteFullSyncFolders).isEqualTo(0)
+      assertThat(result.errors).isEmpty()
+      assertThat(result.finalizedMetadataBlobs).isEqualTo(1)
+      assertThat(result.missingBlobs).isEqualTo(0)
+      assertThat(undeleteRequests).isEmpty()
+    }
+
+  @Test
+  fun `managed recovery rejects a completed verdict while selected sidecar remains unsynced`() =
+    runBlocking<Unit> {
+      val result = recoverUnsyncedManagedSelected(false)
+      assertThat(result.dateFoldersResynced).isEqualTo(0)
+      assertThat(result.incompleteFullSyncFolders).isEqualTo(1)
+      assertThat(result.errors).hasSize(1)
+    }
 
   @Test
   fun `managed empty recovery reports success only after marker publication`() =

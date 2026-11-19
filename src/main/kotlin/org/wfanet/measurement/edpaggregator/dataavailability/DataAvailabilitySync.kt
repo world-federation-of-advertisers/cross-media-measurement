@@ -1980,8 +1980,7 @@ class DataAvailabilitySync(
     if (legacyUris.isNotEmpty()) {
       discoverVidLabelerMetadataBlobs(
           DiscoveryMode.VidLabelerOutputs(
-            rawImpressionUpload =
-              output.legacyFiles.first().name.substringBefore("/rawImpressionUploadFiles/"),
+            rawImpressionUpload = output.rawImpressionUpload,
             rawImpressionBlobUris = legacyUris,
             modelLine = modelLine,
             eventDate = eventDate,

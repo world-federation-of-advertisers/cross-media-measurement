@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.rawimpressions
+package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
@@ -22,16 +22,18 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.RuleChain
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
-import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
 import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecordKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
@@ -40,13 +42,24 @@ import org.wfanet.measurement.edpaggregator.v1alpha.outputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.outputManifestRecord
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadFileRequest as InternalGetFile
+import org.wfanet.measurement.internal.edpaggregator.ListVidLabelingJobsRequest as InternalListJobs
+import org.wfanet.measurement.internal.edpaggregator.ListVidLabelingJobsResponse as InternalListJobsResponse
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFile as InternalFile
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt as InternalFiles
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt as InternalJobs
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingState
+import org.wfanet.measurement.internal.edpaggregator.listVidLabelingJobsResponse as internalJobsResponse
+import org.wfanet.measurement.internal.edpaggregator.outputBlobReference as internalReference
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadFile as internalFile
+import org.wfanet.measurement.internal.edpaggregator.vidLabelingJob as internalJob
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
 class CommittedOutputResolverTest {
   private val upload = "dataProviders/provider/rawImpressionUploads/upload"
   private val owner = "$upload/vidLabelingJobs/job"
-  private val inputName = "$upload/rawImpressionUploadFiles/file"
+  private val inputName = RawImpressionUploadFileKey("provider", "upload", "file").toName()
   private val model = "modelProviders/provider/modelSuites/suite/modelLines/line"
   private val attempt = "00000000-0000-4000-8000-000000000001"
   private val manifestUri = "gs://bucket/output/$attempt/manifest"
@@ -96,18 +109,54 @@ class CommittedOutputResolverTest {
         request: ListVidLabelingJobsRequest
       ): ListVidLabelingJobsResponse = listVidLabelingJobsResponse { vidLabelingJobs += value }
     }
-  private val files =
-    object :
-      RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase() {
-      override suspend fun getRawImpressionUploadFile(
-        request: GetRawImpressionUploadFileRequest
-      ): RawImpressionUploadFile = input
-    }
-  @get:Rule
-  val server = GrpcTestServerRule {
-    addService(jobs)
-    addService(files)
+  private val internalServer = GrpcTestServerRule {
+    addService(
+      object : InternalFiles.RawImpressionUploadFileServiceCoroutineImplBase() {
+        override suspend fun getRawImpressionUploadFile(request: InternalGetFile): InternalFile =
+          internalFile {
+            dataProviderResourceId = request.dataProviderResourceId
+            rawImpressionUploadResourceId = request.rawImpressionUploadResourceId
+            fileResourceId = request.fileResourceId
+            blobUri = input.blobUri
+            blobGeneration = 1L
+            eventDate = input.eventDate
+          }
+      }
+    )
+    addService(
+      object : InternalJobs.VidLabelingJobServiceCoroutineImplBase() {
+        override suspend fun listVidLabelingJobs(
+          request: InternalListJobs
+        ): InternalListJobsResponse = internalJobsResponse {
+          vidLabelingJobs += internalJob {
+            dataProviderResourceId = "provider"
+            rawImpressionUploadResourceId = "upload"
+            vidLabelingJobResourceId = "job"
+            state = VidLabelingState.VID_LABELING_STATE_SUCCEEDED
+            cmmsModelLines += jobs.value.cmmsModelLinesList
+            rawImpressionUploadFiles += jobs.value.rawImpressionUploadFilesList
+            if (jobs.value.hasOutputManifest())
+              outputManifest = internalReference {
+                blobUri = jobs.value.outputManifest.blobUri
+                blobGeneration = jobs.value.outputManifest.blobGeneration
+              }
+          }
+        }
+      }
+    )
   }
+  private val server = GrpcTestServerRule {
+    addService(
+      RawImpressionUploadFileService(
+        InternalFiles.RawImpressionUploadFileServiceCoroutineStub(internalServer.channel)
+      )
+    )
+    addService(
+      VidLabelingJobService(InternalJobs.VidLabelingJobServiceCoroutineStub(internalServer.channel))
+    )
+  }
+
+  @get:Rule val rules: RuleChain = RuleChain.outerRule(internalServer).around(server)
 
   private fun resolver() =
     CommittedOutputResolver(
@@ -129,6 +178,24 @@ class CommittedOutputResolverTest {
       outputManifest = reference
     }
   }
+
+  @Test
+  fun `resolve rejects foreign parents and the incorrect file collection through public jobs`() =
+    runBlocking<Unit> {
+      for (name in
+        listOf(
+          "dataProviders/foreign/rawImpressionUploads/upload/files/file",
+          "$upload/rawImpressionUploadFiles/file",
+        )) {
+        jobs.value = vidLabelingJob {
+          this.name = owner
+          state = VidLabelingJob.State.SUCCEEDED
+          cmmsModelLines += model
+          rawImpressionUploadFiles += name
+        }
+        assertFailsWith<IllegalStateException> { resolver().resolve(upload, model) }
+      }
+    }
 
   @Test
   fun `resolve accepts completed empty files without inventing an output blob`() =
@@ -194,5 +261,6 @@ class CommittedOutputResolverTest {
       val result = resolver().resolve(upload, model)
       assertThat(result.hasCommittedManifests).isFalse()
       assertThat(result.legacyFiles.single().blobUri).isEqualTo(input.blobUri)
+      assertThat(result.legacyFiles.single().name).isEqualTo("$upload/files/file")
     }
 }

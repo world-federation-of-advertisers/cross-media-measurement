@@ -7760,7 +7760,7 @@ class DataAvailabilitySyncTest {
         dataGeneration = data.freshnessToken.toLong()
         metadataGeneration = metadataVersion.freshnessToken.toLong()
         OutputManifestRecordKt.labeledBlob {
-          rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/rawImpressionUploadFiles/file"
+          rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/files/file"
           modelLine = MODEL_LINE
           eventDate = eventDate.toBuilder().setYear(2026).setMonth(3).setDay(14).build()
           impressions = outputBlobReference {
@@ -7778,7 +7778,7 @@ class DataAvailabilitySyncTest {
     records += outputManifestRecord {
       fileCompleted =
         OutputManifestRecordKt.fileCompleted {
-          rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/rawImpressionUploadFiles/file"
+          rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/files/file"
           modelLine = MODEL_LINE
         }
     }

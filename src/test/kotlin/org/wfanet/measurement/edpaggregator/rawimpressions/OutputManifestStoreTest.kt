@@ -55,7 +55,7 @@ class OutputManifestStoreTest {
   private val completed = outputManifestRecord {
     fileCompleted =
       OutputManifestRecordKt.fileCompleted {
-        rawImpressionUploadFile = "$upload/rawImpressionUploadFiles/file"
+        rawImpressionUploadFile = "$upload/files/file"
         modelLine = model
       }
   }
