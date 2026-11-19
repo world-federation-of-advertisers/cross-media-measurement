@@ -19,6 +19,9 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import java.time.Instant
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
@@ -301,5 +304,42 @@ class VidLabelingDispatcherWorkItemProcessorTest {
       }
       verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
       verifyBlocking(items, times(0)) { failWorkItem(any()) }
+    }
+
+  @Test
+  fun `early dispatch failure emits payload free task and attempt lifecycle evidence`() =
+    runBlocking<Unit> {
+      val records = mutableListOf<LogRecord>()
+      val logger = Logger.getLogger(VidLabelingDispatcherWorkItemProcessor::class.java.name)
+      val handler =
+        object : Handler() {
+          override fun publish(record: LogRecord) {
+            records += record
+          }
+
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      logger.addHandler(handler)
+      try {
+        processor { _, _ -> throw IllegalArgumentException("secret gs://private/payload") }
+          .process(task())
+        val messages = records.map { it.message }
+        assertThat(messages.any { it.contains("xmm.outcome=started") }).isTrue()
+        assertThat(
+            messages.any {
+              it.contains("xmm.outcome=failed") &&
+                it.contains("xmm.work_item.name=workItems/task") &&
+                it.contains("xmm.work_item_attempt.name=" + active.name)
+            }
+          )
+          .isTrue()
+        assertThat(messages.joinToString()).doesNotContain("gs://")
+        assertThat(messages.joinToString()).doesNotContain("secret")
+        verifyBlocking(items, times(1)) { failWorkItem(any()) }
+      } finally {
+        logger.removeHandler(handler)
+      }
     }
 }
