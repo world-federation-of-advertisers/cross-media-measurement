@@ -973,6 +973,17 @@ abstract class VidLabelingPipelineTestHarness(
             }
           }
         },
+        readBlobDetails = { uri, generation ->
+          val key = blobKey(uri)
+          val blob = fileStorage.getBlob(key) as? ConditionalOperationStorageClient.Blob
+          if (blob == null || blob.freshnessToken.toLong() != generation) {
+            null
+          } else {
+            val bytes = blob.read().flatten()
+            if (fileStorage.getFreshnessToken(key)?.toLong() != generation) null
+            else BlobDetails.parseFrom(bytes)
+          }
+        },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     val operationStore =

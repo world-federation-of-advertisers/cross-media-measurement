@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
@@ -188,6 +189,7 @@ class VidLabelingHealingControllerFunction(
               labeledOutputPrefix(config),
               labeledOutputStore::getGeneration,
               labeledOutputStore::delete,
+              labeledOutputStore::readBlobDetails,
               rpcThrottlers = rpcThrottlers,
             )
         }
@@ -306,6 +308,19 @@ internal class GcsLabeledOutputStore(private val storage: Storage) {
     withContext(Dispatchers.IO) {
       val parsed = GcsUri.parse(uri)
       storage.get(BlobId.of(parsed.bucket, parsed.key))?.generation
+    }
+
+  suspend fun readBlobDetails(uri: String, generation: Long): BlobDetails? =
+    withContext(Dispatchers.IO) {
+      val parsed = GcsUri.parse(uri)
+      try {
+        BlobDetails.parseFrom(
+          storage.readAllBytes(BlobId.of(parsed.bucket, parsed.key, generation))
+        )
+      } catch (e: StorageException) {
+        if (e.code != 404) throw e
+        null
+      }
     }
 
   suspend fun delete(uri: String, generation: Long): Boolean =

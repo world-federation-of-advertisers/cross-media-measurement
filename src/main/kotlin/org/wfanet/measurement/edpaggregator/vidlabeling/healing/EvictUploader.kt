@@ -32,6 +32,7 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.RankIndexBlobKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
@@ -96,6 +97,7 @@ class EvictUploader(
   labeledImpressionsBlobPrefix: String,
   private val getBlobGeneration: suspend (String) -> Long?,
   private val deleteBlob: suspend (String, Long) -> Boolean,
+  private val readBlobDetails: suspend (String, Long) -> BlobDetails?,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
 ) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
@@ -462,7 +464,14 @@ class EvictUploader(
     val cascade =
       plan.cascade.map { entry ->
         val expectedUris = resolveLabeledOutputUris(entry.uploadName, entry.cmmsModelLine)
-        require(entry.labeledOutputManifest.blobsList.map { it.blobUri } == expectedUris) {
+        val manifestUris = entry.labeledOutputManifest.blobsList.map { it.blobUri }
+        require(
+          manifestUris.size == expectedUris.size &&
+            expectedUris.chunked(2).all { pair ->
+              pair[0] in manifestUris &&
+                manifestUris.count { LabeledImpressionsBlobKeys.matchesInputUri(it, pair[1]) } == 1
+            }
+        ) {
           "Labeled-output URI scope changed for ${entry.modelLineName}"
         }
         val finalized = resolveLabeledOutputManifest(entry, captureGeneration = true)
@@ -705,16 +714,48 @@ class EvictUploader(
             semaphore.withPermit {
               LabeledOutputManifestKt.blobVersion {
                 this.blobUri = blobUri
-                if (captureGeneration) {
-                  getBlobGeneration(blobUri)?.let { generation = it }
-                }
+                if (captureGeneration) getBlobGeneration(blobUri)?.let { generation = it }
               }
             }
           }
         }
         .awaitAll()
     }
-    return labeledOutputManifest { blobs += versions }
+    if (!captureGeneration) return labeledOutputManifest { blobs += versions }
+    val selected = coroutineScope {
+      versions
+        .chunked(2)
+        .map { pair ->
+          async {
+            semaphore.withPermit {
+              val metadata = pair[0]
+              val legacyData = pair[1]
+              if (!metadata.hasGeneration()) return@withPermit pair
+              val details =
+                checkNotNull(readBlobDetails(metadata.blobUri, metadata.generation)) {
+                  "Captured labeled-output sidecar is missing: ${metadata.blobUri}"
+                }
+              require(
+                LabeledImpressionsBlobKeys.matchesInputUri(details.blobUri, legacyData.blobUri)
+              ) {
+                "Labeled-output sidecar points outside the approved input scope"
+              }
+              val data =
+                if (details.blobUri == legacyData.blobUri) legacyData
+                else {
+                  LabeledOutputManifestKt.blobVersion {
+                    blobUri = details.blobUri
+                    getBlobGeneration(blobUri)?.let { generation = it }
+                  }
+                }
+              listOf(metadata, data)
+            }
+          }
+        }
+        .awaitAll()
+        .flatten()
+    }
+    return labeledOutputManifest { blobs += selected }
   }
 
   private suspend fun resolveLabeledOutputUris(
@@ -774,7 +815,7 @@ class EvictUploader(
       versionsByUri.keys.filterNot { it.endsWith(LABELED_OUTPUT_METADATA_SUFFIX) }.sorted()
     if (expectedImpressionsBlobUris.isEmpty()) return OutputCleanupResult(0, 0)
     val expectedMetadataBlobUris =
-      expectedImpressionsBlobUris.map { it + LABELED_OUTPUT_METADATA_SUFFIX }
+      versionsByUri.keys.filter { it.endsWith(LABELED_OUTPUT_METADATA_SUFFIX) }.sorted()
     val expectedMetadataBlobUriSet = expectedMetadataBlobUris.toSet()
     val matchingMetadata =
       listImpressionMetadata(dataProviderOf(entry.uploadName), expectedMetadataBlobUris)
@@ -794,8 +835,12 @@ class EvictUploader(
     }
 
     val blobVersionPairs =
-      expectedMetadataBlobUris.zip(expectedImpressionsBlobUris).mapNotNull {
-        (metadataBlobUri, impressionsBlobUri) ->
+      expectedMetadataBlobUris.mapNotNull { metadataBlobUri ->
+        val canonicalUri = metadataBlobUri.removeSuffix(LABELED_OUTPUT_METADATA_SUFFIX)
+        val impressionsBlobUri =
+          expectedImpressionsBlobUris.single {
+            LabeledImpressionsBlobKeys.matchesInputUri(it, canonicalUri)
+          }
         listOfNotNull(versionsByUri[metadataBlobUri], versionsByUri[impressionsBlobUri])
           .filter { cleanedBlobUris.add(it.blobUri) }
           .takeIf { it.isNotEmpty() }

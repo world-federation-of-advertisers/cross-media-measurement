@@ -74,6 +74,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEv
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
@@ -243,6 +244,9 @@ class VidLabelingHealingChronologyIntegrationTest {
             "Eviction attempted to delete a blob outside the labeled-output prefix: $blobUri"
           }
           outputBlobUris.remove(blobUri)
+        },
+        readBlobDetails = { uri, _ ->
+          blobDetails { blobUri = uri.removeSuffix(".metadata.binpb") }
         },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
@@ -495,6 +499,9 @@ class VidLabelingHealingChronologyIntegrationTest {
           deleteBlob = { _, _ ->
             deletedOutputs++
             true
+          },
+          readBlobDetails = { uri, _ ->
+            blobDetails { blobUri = uri.removeSuffix(".metadata.binpb") }
           },
           rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
         )
