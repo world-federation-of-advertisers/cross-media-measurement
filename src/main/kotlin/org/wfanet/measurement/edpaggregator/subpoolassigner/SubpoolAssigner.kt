@@ -300,7 +300,6 @@ class SubpoolAssigner(
             // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
             requestId = deterministicUuid("$poolAssignmentJob|succeeded")
             if (dek != null) encryptedDek = dek
-            outputKekUri = kekUri
             poolOffsets += subpoolIds
             sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
           }
