@@ -53,6 +53,7 @@ import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
@@ -175,6 +176,7 @@ class SubpoolAssignerTest {
     cmmsModelLine = MODEL_LINE
     this.state = state
     this.poolOffsets += poolOffsets
+    poolAssignmentComplete = poolOffsets.isNotEmpty()
     maxEventDate = date {
       year = 2026
       month = 6
@@ -271,7 +273,8 @@ class SubpoolAssignerTest {
     cmmsModelLine = MODEL_LINE
     state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
     etag = "completed-phase0"
-    encryptedMergedDek = DEK_MERGED
+    poolAssignmentComplete = true
+    outputKekUri = DEK_MERGED.kekUri
   }
 
   private fun completedShard(index: Int = 0) = poolAssignmentJob {
@@ -386,7 +389,7 @@ class SubpoolAssignerTest {
   @Test
   fun `empty recovery without completion proof remains a non-last shard`() =
     runBlocking<Unit> {
-      val models = emptyModels(emptyParent().copy { clearEncryptedMergedDek() })
+      val models = emptyModels(emptyParent().copy { poolAssignmentComplete = false })
       assertThat(assigner(storeMock(), emptyJobs(), models).assign().lastShardOut).isFalse()
       assertThat(order).isEmpty()
       verifyBlocking(models, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
@@ -460,27 +463,26 @@ class SubpoolAssignerTest {
     }
 
   @Test
-  fun `empty recovery rejects missing completion KEK`() =
+  fun `empty recovery does not require merged encryption material`() =
     runBlocking<Unit> {
-      val models =
-        emptyModels(emptyParent().copy { encryptedMergedDek = DEK_MERGED.copy { kekUri = "" } })
-      assertFailsWith<IllegalStateException> { assigner(storeMock(), emptyJobs(), models).assign() }
-      assertThat(order).isEmpty()
-      verifyBlocking(models, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+      val store = storeMock()
+      val models = emptyModels(emptyParent().copy { outputKekUri = "" })
+      assertThat(assigner(store, emptyJobs(), models).assign().lastShardOut).isTrue()
+      verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
+      verify(store, never()).generateDek(any())
+      verifyBlocking(models) { markRawImpressionUploadModelLineLabeling(any(), any()) }
     }
 
   @Test
-  fun `empty recovery rejects missing completion ciphertext`() =
+  fun `fresh empty completion does not generate encryption material`() =
     runBlocking<Unit> {
-      val models =
-        emptyModels(
-          emptyParent().copy {
-            encryptedMergedDek = DEK_MERGED.copy { ciphertext = ByteString.EMPTY }
-          }
-        )
-      assertFailsWith<IllegalStateException> { assigner(storeMock(), emptyJobs(), models).assign() }
-      assertThat(order).isEmpty()
-      verifyBlocking(models, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+      val store = storeMock()
+      val models = emptyModels()
+      val jobs = emptyJobs(fresh = true)
+      assertThat(assigner(store, jobs, models).assign().lastShardOut).isTrue()
+      verify(store, never()).generateDek(any())
+      verifyBlocking(store, never()) { writeBlob(any(), any(), any(), any()) }
+      verifyBlocking(models) { markRawImpressionUploadModelLineLabeling(any(), any()) }
     }
 
   @Test
@@ -721,6 +723,7 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
                 shardIndex = 0
                 state = PoolAssignmentJob.State.SUCCEEDED
                 encryptedDek = DEK_SHARD0
@@ -735,6 +738,7 @@ class SubpoolAssignerTest {
                 name = PARENT_NAME
                 cmmsModelLine = MODEL_LINE
                 state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+                poolAssignmentComplete = true
                 encryptedMergedDek = DEK_MERGED
               }
             }
@@ -774,7 +778,7 @@ class SubpoolAssignerTest {
   }
 
   @Test
-  fun `last shard out merges with own DEK, fans out, then deletes after the flip`() = runBlocking {
+  fun `last shard out uses the persisted response DEK and deletes after the flip`() = runBlocking {
     val store = storeMock()
     val ranker = rankerStubMock()
     val workItems = workItemsStubMock()
@@ -784,12 +788,14 @@ class SubpoolAssignerTest {
           jobResponse(PoolAssignmentJob.State.CREATED)
         onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
           markPoolAssignmentJobSucceededResponse {
+            poolAssignmentJob = poolAssignmentJob { encryptedDek = DEK_MERGED }
             lastShardResult =
               MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
           }
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
             poolAssignmentJobs += poolAssignmentJob {
+              state = PoolAssignmentJob.State.SUCCEEDED
               shardIndex = 0
               encryptedDek = DEK_SHARD0
             }
@@ -828,10 +834,10 @@ class SubpoolAssignerTest {
     assertThat(order)
       .containsExactly("write", "merge", "ranker", "workitem", "flip", "delete")
       .inOrder()
-    // Normal path merges with this VM's freshly generated DEK.
+    // A replay must use the stored key returned by the successful mark.
     val dekCaptor = argumentCaptor<EncryptedDek>()
     verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture(), any()) }
-    assertThat(dekCaptor.firstValue).isEqualTo(DEK_GEN)
+    assertThat(dekCaptor.firstValue).isEqualTo(DEK_MERGED)
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
     assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
@@ -848,12 +854,14 @@ class SubpoolAssignerTest {
             jobResponse(PoolAssignmentJob.State.CREATED)
           onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
             markPoolAssignmentJobSucceededResponse {
+              poolAssignmentJob = poolAssignmentJob { encryptedDek = DEK_GEN }
               lastShardResult =
                 MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
             }
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
                 shardIndex = 0
                 encryptedDek = DEK_SHARD0
               }
@@ -896,16 +904,19 @@ class SubpoolAssignerTest {
             jobResponse(PoolAssignmentJob.State.CREATED)
           onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
             markPoolAssignmentJobSucceededResponse {
+              poolAssignmentJob = poolAssignmentJob { encryptedDek = DEK_GEN }
               lastShardResult =
                 MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
             }
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
                 shardIndex = 0
                 encryptedDek = DEK_SHARD0
               }
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
                 shardIndex = 1
                 encryptedDek = DEK_SHARD0
               }
@@ -946,6 +957,7 @@ class SubpoolAssignerTest {
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
             poolAssignmentJobs += poolAssignmentJob {
+              state = PoolAssignmentJob.State.SUCCEEDED
               shardIndex = 0
               encryptedDek = DEK_SHARD0
             }
@@ -1099,6 +1111,7 @@ class SubpoolAssignerTest {
           jobResponse(PoolAssignmentJob.State.CREATED)
         onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
           markPoolAssignmentJobSucceededResponse {
+            poolAssignmentJob = poolAssignmentJob { encryptedDek = DEK_GEN }
             lastShardResult =
               MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
           }
@@ -1122,6 +1135,19 @@ class SubpoolAssignerTest {
   }
 
   @Test
+  fun `ranked recovery waits for explicit Phase-0 completion`() =
+    runBlocking<Unit> {
+      val store = storeMock()
+      val model =
+        parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING, listOf(7L), withMergedDek = true)
+          .copy { poolAssignmentComplete = false }
+      val models = emptyModels(model)
+      assertThat(assigner(store, emptyJobs(), models).assign().lastShardOut).isFalse()
+      verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
+      verifyBlocking(models, never()) { markRawImpressionUploadModelLineRanking(any(), any()) }
+    }
+
+  @Test
   fun `recovery re-runs the last-shard-out reusing the persisted merged DEK`() = runBlocking {
     val store = storeMock()
     val ranker = rankerStubMock()
@@ -1133,6 +1159,7 @@ class SubpoolAssignerTest {
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
             poolAssignmentJobs += poolAssignmentJob {
+              state = PoolAssignmentJob.State.SUCCEEDED
               shardIndex = 0
               encryptedDek = DEK_SHARD0
             }
@@ -1212,6 +1239,7 @@ class SubpoolAssignerTest {
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
             poolAssignmentJobs += poolAssignmentJob {
+              state = PoolAssignmentJob.State.SUCCEEDED
               shardIndex = 0
               encryptedDek = DEK_SHARD0
             }
@@ -1264,6 +1292,7 @@ class SubpoolAssignerTest {
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
             poolAssignmentJobs += poolAssignmentJob {
+              state = PoolAssignmentJob.State.SUCCEEDED
               shardIndex = 0
               encryptedDek = DEK_SHARD0
             }
@@ -1304,6 +1333,7 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
                 shardIndex = 0
                 encryptedDek = DEK_SHARD0
               }
@@ -1343,6 +1373,7 @@ class SubpoolAssignerTest {
             jobResponse(PoolAssignmentJob.State.CREATED)
           onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
             markPoolAssignmentJobSucceededResponse {
+              poolAssignmentJob = poolAssignmentJob { encryptedDek = DEK_GEN }
               lastShardResult =
                 MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
                   poolOffsets += listOf(7L, 11L)
@@ -1351,6 +1382,7 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
                 shardIndex = 0
                 encryptedDek = DEK_SHARD0
               }
@@ -1526,10 +1558,12 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
                 shardIndex = 0
                 encryptedDek = dek0
               }
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
                 shardIndex = 1
                 encryptedDek = dek1
               }
@@ -1550,6 +1584,7 @@ class SubpoolAssignerTest {
                   month = 6
                   day = 15
                 }
+                poolAssignmentComplete = true
                 encryptedMergedDek = mergedDek
               }
               nextPageToken = ""

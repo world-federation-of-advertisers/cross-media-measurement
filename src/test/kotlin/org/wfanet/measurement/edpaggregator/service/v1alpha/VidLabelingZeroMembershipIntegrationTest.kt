@@ -409,7 +409,7 @@ internal class VidLabelingZeroMembershipIntegrationTest :
       workItemTransport.republishWorkItem(originals[0].name)
       awaitPipelineIdle()
       val upload = listUploads().single()
-      assertThat(listModelLines(upload.name).single().hasEncryptedMergedDek()).isFalse()
+      assertThat(listModelLines(upload.name).single().poolAssignmentComplete).isFalse()
       assertThat(vidLabelerWorkItems()).isEmpty()
       edpaBeforeCallFaults.arm(
         "wfa.measurement.edpaggregator.v1alpha.VidLabelingJobService/BatchCreateVidLabelingJobs"
@@ -419,7 +419,8 @@ internal class VidLabelingZeroMembershipIntegrationTest :
       awaitHeldPoolAssignmentRedelivery()
       val stuck = listModelLines(upload.name).single()
       assertThat(stuck.state).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
-      assertThat(stuck.hasEncryptedMergedDek()).isTrue()
+      assertThat(stuck.poolAssignmentComplete).isTrue()
+      assertThat(stuck.hasEncryptedMergedDek()).isFalse()
       val monitor =
         buildVidLabelingMonitor(
           stalenessThreshold = Duration.ofSeconds(1),
@@ -705,7 +706,7 @@ internal class VidLabelingZeroMembershipIntegrationTest :
       awaitPipelineIdle()
       val upload = listUploads().single()
       val workItem = vidLabelerWorkItems().single()
-      assertThat(listModelLines(upload.name).single().hasEncryptedMergedDek()).isTrue()
+      assertThat(listModelLines(upload.name).single().poolAssignmentComplete).isTrue()
       assertThat(listModelLines(upload.name).single().state)
         .isEqualTo(RawImpressionUploadModelLine.State.LABELING)
       assertFailsWith<DateTimeException> {
@@ -791,7 +792,7 @@ internal class VidLabelingZeroMembershipIntegrationTest :
         }
       workItemTransport.republishWorkItem(originals[1].name)
       awaitPipelineIdle()
-      assertThat(listModelLines(upload.name).single().hasEncryptedMergedDek()).isFalse()
+      assertThat(listModelLines(upload.name).single().poolAssignmentComplete).isFalse()
       assertThat(listModelLines(upload.name).single().state)
         .isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
       assertThat(vidLabelerWorkItems()).isEmpty()
@@ -804,8 +805,10 @@ internal class VidLabelingZeroMembershipIntegrationTest :
         PoolAssignmentJobServiceCoroutineStub(edpaPublicServer.channel)
           .listPoolAssignmentJobs(listPoolAssignmentJobsRequest { this.parent = upload.name })
           .poolAssignmentJobsList
-      assertThat(parent.encryptedMergedDek)
-        .isEqualTo(shardJobs.single { it.shardIndex == 0 }.encryptedDek)
+      assertThat(parent.poolAssignmentComplete).isTrue()
+      assertThat(parent.hasEncryptedMergedDek()).isFalse()
+      assertThat(parent.outputKekUri).isEqualTo(kekUri)
+      assertThat(shardJobs.all { !it.hasEncryptedDek() }).isTrue()
       assertThat(vidLabelerWorkItems()).hasSize(1)
       val childNames = vidLabelerWorkItems().map { it.name }.toSet()
       republishQueuedVidLabelers()
@@ -823,8 +826,9 @@ internal class VidLabelingZeroMembershipIntegrationTest :
     assertThat(upload.state).isEqualTo(RawImpressionUpload.State.COMPLETED)
     val parent = listModelLines(upload.name).single()
     assertThat(parent.state).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
-    assertThat(parent.hasEncryptedMergedDek()).isTrue()
-    assertThat(parent.encryptedMergedDek.kekUri).isEqualTo(kekUri)
+    assertThat(parent.poolAssignmentComplete).isTrue()
+    assertThat(parent.hasEncryptedMergedDek()).isFalse()
+    assertThat(parent.outputKekUri).isEqualTo(kekUri)
     assertThat(parent.poolOffsetsList).isEmpty()
     assertThat(parent.pendingAvailabilityDatesList).isEmpty()
     assertThat(parent.hasMaxEventDate()).isFalse()
