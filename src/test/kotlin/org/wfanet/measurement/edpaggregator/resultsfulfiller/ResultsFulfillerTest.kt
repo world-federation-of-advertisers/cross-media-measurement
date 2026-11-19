@@ -73,7 +73,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -461,7 +463,7 @@ class ResultsFulfillerTest {
       whenever(requisitionsServiceMock.getRequisition(any())).thenAnswer {
         val request = it.arguments[0] as org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
         if (request.name == DIRECT_RNF_REQUISITION.name) {
-          throw Status.UNAVAILABLE.asRuntimeException()
+          throw Status.UNAVAILABLE.withDescription("SYNTHETIC_PRIVATE_VALUE").asRuntimeException()
         }
         requisition { state = Requisition.State.UNFULFILLED }
       }
@@ -522,6 +524,8 @@ class ResultsFulfillerTest {
         }
       assertThat(failureLog.level).isEqualTo(Level.SEVERE)
       assertThat(failureLog.thrown).isNotNull()
+      assertThat(java.util.logging.SimpleFormatter().format(failureLog))
+        .doesNotContain("SYNTHETIC_PRIVATE_VALUE")
       assertThat(failureLog.message).contains("xmm.report.name=report-name")
       assertThat(failureLog.message).contains("xmm.edpa.group_id=preflight-group")
       assertThat(failureLog.message).contains("xmm.lifecycle.stage=results_fulfillment")
@@ -2724,7 +2728,7 @@ class ResultsFulfillerTest {
     whenever(requisitionsServiceMock.getRequisition(any()))
       .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
     whenever(requisitionsServiceMock.refuseRequisition(any()))
-      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      .thenThrow(Status.UNAVAILABLE.withDescription("SYNTHETIC_PRIVATE_VALUE").asRuntimeException())
     whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
       .thenReturn(requisitionMetadata {})
 
@@ -2816,6 +2820,137 @@ class ResultsFulfillerTest {
       .isEqualTo("StatusException")
     assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
       .isEqualTo("grpc.UNAVAILABLE")
+    assertThat(refusalSpan.toString()).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+  }
+
+  @Test
+  fun `fulfillRequisitions excludes processed values from refusal reports`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.refuseRequisition(any())).thenReturn(requisition {})
+    whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
+      .thenReturn(requisitionMetadata {})
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(TRUSTEE_NO_NOISE_REQUISITION),
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val failure =
+      RequisitionRefusalException.Default(
+          Requisition.Refusal.Justification.UNFULFILLABLE,
+          "SYNTHETIC_PRIVATE_VALUE",
+          IllegalArgumentException("SYNTHETIC_PRIVATE_VALUE"),
+        )
+        .apply { addSuppressed(IllegalArgumentException("SYNTHETIC_PRIVATE_VALUE")) }
+    val fulfillerSelector = mock<FulfillerSelector>()
+    whenever(fulfillerSelector.selectFulfiller(any(), any(), any(), any(), any(), anyOrNull()))
+      .thenAnswer { throw failure }
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
+        metrics = metrics,
+      )
+
+    val output = java.util.concurrent.CopyOnWriteArrayList<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          output += java.util.logging.SimpleFormatter().format(record)
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger("")
+    logger.addHandler(handler)
+    try {
+      resultsFulfiller.fulfillRequisitions()
+    } finally {
+      logger.removeHandler(handler)
+    }
+    val metadataRequest =
+      argumentCaptor<
+        org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
+      >()
+    verifyBlocking(requisitionMetadataServiceMock) {
+      refuseRequisitionMetadata(metadataRequest.capture())
+    }
+    assertThat(metadataRequest.firstValue.refusalMessage).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(metadataRequest.firstValue.refusalMessage).contains("UNFULFILLABLE")
+    val kingdomRequest =
+      argumentCaptor<org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest>()
+    verifyBlocking(requisitionsServiceMock) { refuseRequisition(kingdomRequest.capture()) }
+    assertThat(kingdomRequest.firstValue.refusal.message).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(kingdomRequest.firstValue.refusal.justification).isEqualTo(failure.justification)
+    assertThat(output.joinToString("\n")).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(output.joinToString("\n")).contains("Refused requisition")
+    assertThat(collectSpans().joinToString()).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(failure.message).isEqualTo("SYNTHETIC_PRIVATE_VALUE")
   }
 
   @Test
