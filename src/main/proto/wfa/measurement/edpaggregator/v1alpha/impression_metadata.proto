@@ -154,7 +154,8 @@ message ImpressionMetadata {
 
 // Fields returned for an ImpressionMetadata resource.
 enum ImpressionMetadataView {
-  // Defaults to FULL for compatibility with existing callers.
+  // Valid default per AIP-157; uses FULL for compatibility with existing
+  // callers.
   IMPRESSION_METADATA_VIEW_UNSPECIFIED = 0;
 
   // All fields except entity_keys.
