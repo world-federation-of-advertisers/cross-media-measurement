@@ -36,6 +36,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -401,7 +402,7 @@ class VidLabelerApp(
           if (current.state != VidLabelingJob.State.SUCCEEDED) throw e
           return LabelingRunResult("already_completed", job.rawImpressionUploadFilesCount)
         } finally {
-          attempt?.close()
+          withContext(NonCancellable + Dispatchers.IO) { attempt?.close() }
         }
 
       val finalized =
@@ -499,7 +500,7 @@ class VidLabelerApp(
           if (current.state != VidLabelingJob.State.SUCCEEDED) throw e
           return LabelingRunResult("already_completed", job.rawImpressionUploadFilesCount)
         } finally {
-          attempt?.close()
+          withContext(NonCancellable + Dispatchers.IO) { attempt?.close() }
         }
 
       val finalized =
@@ -528,24 +529,25 @@ class VidLabelerApp(
     }
   }
 
-  private fun newOutputAttempt(params: VidLabelerParams): LabelingOutputAttempt {
-    val cfg = getStorageConfig(params.vidLabeledImpressionsStorageParams)
-    val rootUri = params.vidLabeledImpressionsStorageParams.impressionsBlobPrefix
-    val storage =
-      SelectedStorageClient(
-          SelectedStorageClient.parseBlobUri(rootUri),
-          cfg.rootDirectory,
-          cfg.projectId,
-        )
-        .underlyingClient
-    return LabelingOutputAttempt(
-      storage,
-      rootUri,
-      params.vidLabelingJob,
-      params.modelLinesList,
-      newOutputAttemptId(),
-    )
-  }
+  private suspend fun newOutputAttempt(params: VidLabelerParams): LabelingOutputAttempt =
+    withContext(Dispatchers.IO) {
+      val cfg = getStorageConfig(params.vidLabeledImpressionsStorageParams)
+      val rootUri = params.vidLabeledImpressionsStorageParams.impressionsBlobPrefix
+      val storage =
+        SelectedStorageClient(
+            SelectedStorageClient.parseBlobUri(rootUri),
+            cfg.rootDirectory,
+            cfg.projectId,
+          )
+          .underlyingClient
+      LabelingOutputAttempt(
+        storage,
+        rootUri,
+        params.vidLabelingJob,
+        params.modelLinesList,
+        newOutputAttemptId(),
+      )
+    }
 
   private suspend fun emptyCompletedRankIndex(
     params: VidLabelerParams,

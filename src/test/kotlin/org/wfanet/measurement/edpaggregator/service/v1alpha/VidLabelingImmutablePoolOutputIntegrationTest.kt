@@ -25,6 +25,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.selects.select
 import org.junit.Test
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
@@ -86,53 +87,7 @@ internal class VidLabelingImmutablePoolOutputIntegrationTest :
         .containsExactly(PoolAssignmentJob.State.CREATED, PoolAssignmentJob.State.CREATED)
       assertThat(attempts.awaitAll().all { it.isSuccess }).isTrue()
       awaitPipelineIdle()
-      val selectedJob = job(work)
-      val store = OutputManifestStore(mapStorage, params(work).subpoolMapStorageParams.blobPrefix)
-      val shardRecords = store.read(selectedJob.outputManifest).toList()
-      assertThat(shardRecords.first().header.encryptedDek).isEqualTo(selectedJob.encryptedDek)
-      val fingerprints = SubpoolFingerprintsStore(mapStorage, kmsClient)
-      for (entry in shardRecords.drop(1)) {
-        val ref = entry.subpoolBlob.blob
-        val records =
-          fingerprints
-            .readBlob(
-              SelectedStorageClient.parseBlobUri(ref.blobUri).key,
-              shardRecords.first().header.encryptedDek,
-              ref.blobGeneration,
-            )
-            .toList()
-        assertThat(records.sumOf { it.fingerprints.size() / 12 }).isEqualTo(1)
-      }
-      val parent = listModelLines(upload).single()
-      val mergeRecords = store.read(parent.mergedOutputManifest).toList()
-      val merged =
-        mergeRecords.drop(1).associate { it.subpoolBlob.poolOffset to it.subpoolBlob.blob }
-      val rankParams =
-        rankBuilderWorkItems()
-          .single()
-          .workItemParams
-          .unpack(WorkItemParams::class.java)
-          .appParams
-          .unpack(VidRankBuilderParams::class.java)
-      assertThat(rankParams.subpoolMapBlobUrisMap)
-        .containsExactlyEntriesIn(merged.mapValues { it.value.blobUri })
-      assertThat(rankParams.encryptedSubpoolMapsDek)
-        .isEqualTo(mergeRecords.first().header.encryptedDek)
-      for (entry in mergeRecords.drop(1)) {
-        val ref = entry.subpoolBlob.blob
-        val records =
-          fingerprints
-            .readBlob(
-              SelectedStorageClient.parseBlobUri(ref.blobUri).key,
-              mergeRecords.first().header.encryptedDek,
-              ref.blobGeneration,
-            )
-            .toList()
-        assertThat(records.sumOf { it.fingerprints.size() / 12 }).isEqualTo(1)
-      }
-      assertThat(readLabeledPeople(MEMOIZED_MODEL_LINE).map { it.personId })
-        .containsExactly("person")
-      assertThat(listMetadata().map { it.rawImpressionUpload }.toSet()).containsExactly(upload)
+      verifySelectedInputs(work, upload)
     }
 
   @Test
@@ -233,4 +188,143 @@ internal class VidLabelingImmutablePoolOutputIntegrationTest :
       assertThat(readLabeledPeople(MEMOIZED_MODEL_LINE).map { it.personId })
         .containsExactly("person")
     }
+
+  private suspend fun verifySelectedInputs(work: WorkItem, upload: String) {
+    val selectedJob = job(work)
+    val store = OutputManifestStore(mapStorage, params(work).subpoolMapStorageParams.blobPrefix)
+    val shardRecords = store.read(selectedJob.outputManifest).toList()
+    assertThat(shardRecords.first().header.encryptedDek).isEqualTo(selectedJob.encryptedDek)
+    val fingerprints = SubpoolFingerprintsStore(mapStorage, kmsClient)
+    for (entry in shardRecords.drop(1)) {
+      val ref = entry.subpoolBlob.blob
+      val records =
+        fingerprints
+          .readBlob(
+            SelectedStorageClient.parseBlobUri(ref.blobUri).key,
+            shardRecords.first().header.encryptedDek,
+            ref.blobGeneration,
+          )
+          .toList()
+      assertThat(records.sumOf { it.fingerprints.size() / 12 }).isEqualTo(1)
+    }
+    val parent = listModelLines(upload).single()
+    val mergeRecords = store.read(parent.mergedOutputManifest).toList()
+    val merged = mergeRecords.drop(1).associate { it.subpoolBlob.poolOffset to it.subpoolBlob.blob }
+    val rankParams =
+      rankBuilderWorkItems()
+        .single()
+        .workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(VidRankBuilderParams::class.java)
+    assertThat(rankParams.subpoolMapBlobUrisMap)
+      .containsExactlyEntriesIn(merged.mapValues { it.value.blobUri })
+    assertThat(rankParams.encryptedSubpoolMapsDek)
+      .isEqualTo(mergeRecords.first().header.encryptedDek)
+    for (entry in mergeRecords.drop(1)) {
+      val ref = entry.subpoolBlob.blob
+      val records =
+        fingerprints
+          .readBlob(
+            SelectedStorageClient.parseBlobUri(ref.blobUri).key,
+            mergeRecords.first().header.encryptedDek,
+            ref.blobGeneration,
+          )
+          .toList()
+      assertThat(records.sumOf { it.fingerprints.size() / 12 }).isEqualTo(1)
+    }
+    assertThat(readLabeledPeople(MEMOIZED_MODEL_LINE).map { it.personId }).containsExactly("person")
+    assertThat(listMetadata().map { it.rawImpressionUpload }.toSet()).containsExactly(upload)
+  }
+
+  @Test
+  fun `stale pool worker colliding with a successful winner makes no success mutation`() =
+    runBlocking<Unit> {
+      val (work, upload) = prepare("successful-pool-collision")
+      forcedPoolAttemptId = "00000000-0000-4000-8000-000000000099"
+      val before = responseGates.callCount(markMethod)
+      val gate = responseGates.arm(getMethod, holdSecond = true)
+      val attempts =
+        List(2) { async(Dispatchers.Default) { runCatching { runPoolAssignerDirect(work) } } }
+      gate.awaitBoth()
+      assertThat(gate.messages.map { (it as PoolAssignmentJob).state })
+        .containsExactly(PoolAssignmentJob.State.CREATED, PoolAssignmentJob.State.CREATED)
+      val first = select { attempts.forEach { it.onAwait { result -> result } } }
+      assertThat(first.isSuccess).isTrue()
+      awaitPipelineIdle()
+      val selected = job(work)
+      val parent = listModelLines(upload).single()
+      val generations = outputGenerations(MEMOIZED_MODEL_LINE)
+      gate.releaseSecond()
+      assertThat(attempts.awaitAll().all { it.isSuccess }).isTrue()
+      assertThat(responseGates.callCount(markMethod)).isEqualTo(before + 1)
+      assertThat(job(work)).isEqualTo(selected)
+      assertThat(listModelLines(upload).single()).isEqualTo(parent)
+      assertThat(outputGenerations(MEMOIZED_MODEL_LINE)).containsExactlyEntriesIn(generations)
+      forcedPoolAttemptId = null
+      verifySelectedInputs(work, upload)
+    }
+
+  @Test
+  fun `complete shard manifest before selection remains orphaned after a fresh retry`() =
+    runBlocking<Unit> { recoverBeforeSelection("shard") }
+
+  @Test
+  fun `complete merge manifest before selection remains orphaned after a fresh retry`() =
+    runBlocking<Unit> { recoverBeforeSelection("merge") }
+
+  private suspend fun recoverBeforeSelection(phase: String) {
+    val (work, upload) = prepare("unselected-pool-" + phase)
+    val p = params(work)
+    val root = SelectedStorageClient.parseBlobUri(p.subpoolMapStorageParams.blobPrefix)
+    val id = "00000000-0000-4000-8000-000000000099"
+    forcedPoolAttemptId = id
+    edpaBeforeCallFaults.arm(
+      if (phase == "shard") markMethod
+      else
+        "wfa.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineService/CommitRawImpressionUploadModelLineMergedOutput"
+    )
+    assertThat(runCatching { runPoolAssignerDirect(work) }.isFailure).isTrue()
+    val parent = listModelLines(upload).single()
+    assertThat(parent.hasMergedOutputManifest()).isFalse()
+    if (phase == "shard") {
+      assertThat(job(work).state).isEqualTo(PoolAssignmentJob.State.CREATED)
+      assertThat(job(work).hasOutputManifest()).isFalse()
+    } else {
+      assertThat(job(work).state).isEqualTo(PoolAssignmentJob.State.SUCCEEDED)
+    }
+    val key =
+      (if (phase == "shard")
+        SubpoolFingerprintsStore.shardSubpoolKey(
+          root.key,
+          p.rawImpressionUpload,
+          p.modelLine,
+          p.shardIndex,
+          0L,
+        )
+      else
+        SubpoolFingerprintsStore.mergedSubpoolKey(
+          root.key,
+          p.rawImpressionUpload,
+          p.modelLine,
+          0L,
+        )) + "/attempt/" + id + "/manifest"
+    val blob = checkNotNull(mapStorage.getBlob(key))
+    val generation = mapStorage.getFreshnessToken(key)
+    val store = OutputManifestStore(mapStorage, p.subpoolMapStorageParams.blobPrefix)
+    val uri = root.scheme + "://" + root.bucket + "/" + key
+    val orphan = store.reference(uri, blob)
+    assertThat(store.read(orphan).toList().first().header.attemptId).isEqualTo(id)
+    assertThat(rankBuilderWorkItems()).isEmpty()
+    assertThat(listMetadata()).isEmpty()
+    forcedPoolAttemptId = null
+    runPoolAssignerDirect(work)
+    awaitPipelineIdle()
+    val selected =
+      if (phase == "shard") job(work).outputManifest
+      else listModelLines(upload).single().mergedOutputManifest
+    assertThat(selected).isNotEqualTo(orphan)
+    assertThat(mapStorage.getFreshnessToken(key)).isEqualTo(generation)
+    verifySelectedInputs(work, upload)
+  }
 }

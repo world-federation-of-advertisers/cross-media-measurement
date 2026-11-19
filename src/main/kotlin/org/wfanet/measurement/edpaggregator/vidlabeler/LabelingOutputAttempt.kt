@@ -23,6 +23,7 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
@@ -134,10 +135,12 @@ class LabelingOutputAttempt(
 
   /** Uploads the complete manifest once labeling has returned successfully for every input. */
   suspend fun publish(): OutputBlobReference {
-    synchronized(output) {
-      check(!sealed)
-      sealed = true
-      output.close()
+    withContext(Dispatchers.IO) {
+      synchronized(output) {
+        check(!sealed)
+        sealed = true
+        output.close()
+      }
     }
     val uri =
       rootUri.trimEnd('/') +
