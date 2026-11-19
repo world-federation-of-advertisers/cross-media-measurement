@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineIm
 import org.wfanet.measurement.api.v2alpha.ModelProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.ModelSuiteKey
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.SetModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineTypeRequest
 import org.wfanet.measurement.api.v2alpha.copy
@@ -67,6 +68,7 @@ import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesRequest
 import org.wfanet.measurement.internal.kingdom.getModelLineRequest
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setModelLineEventTemplateVersionRequest as internalSetModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineTypeRequest as internalSetModelLineTypeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest
@@ -108,6 +110,11 @@ class ModelLinesService(
         .asRuntimeException()
     }
 
+    grpcRequire(
+      request.modelLine.hasEventTemplateVersion() && request.modelLine.eventTemplateVersion > 0
+    ) {
+      "event_template_version must be positive for a new ModelLine"
+    }
     val createModelLineRequest = request.modelLine.toInternal(parentKey)
     return try {
       internalClient.createModelLine(createModelLineRequest).toModelLine()
@@ -116,6 +123,39 @@ class ModelLinesService(
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
         else -> Status.UNKNOWN
+      }.toExternalStatusRuntimeException(e)
+    }
+  }
+
+  override suspend fun setModelLineEventTemplateVersion(
+    request: SetModelLineEventTemplateVersionRequest
+  ): ModelLine {
+    val key =
+      grpcRequireNotNull(ModelLineKey.fromName(request.name)) { "name is unspecified or invalid" }
+    when (val principal: MeasurementPrincipal = principalFromCurrentContext) {
+      is ModelProviderPrincipal -> {
+        if (principal.resourceKey.modelProviderId != key.modelProviderId) {
+          failGrpc(Status.PERMISSION_DENIED) { "Cannot update ModelLine for another ModelProvider" }
+        }
+      }
+      else ->
+        failGrpc(Status.PERMISSION_DENIED) { "Caller does not have permission to update ModelLine" }
+    }
+    grpcRequire(request.eventTemplateVersion > 0) { "event_template_version must be positive" }
+    val internalRequest = internalSetModelLineEventTemplateVersionRequest {
+      externalModelProviderId = apiIdToExternalId(key.modelProviderId)
+      externalModelSuiteId = apiIdToExternalId(key.modelSuiteId)
+      externalModelLineId = apiIdToExternalId(key.modelLineId)
+      eventTemplateVersion = request.eventTemplateVersion
+    }
+    return try {
+      internalClient.setModelLineEventTemplateVersion(internalRequest).toModelLine()
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+        Status.Code.NOT_FOUND -> Status.NOT_FOUND
+        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+        else -> Status.INTERNAL
       }.toExternalStatusRuntimeException(e)
     }
   }

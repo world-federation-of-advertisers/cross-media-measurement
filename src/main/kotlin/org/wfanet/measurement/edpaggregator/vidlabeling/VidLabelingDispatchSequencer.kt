@@ -29,6 +29,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineEventTemplateVersions
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
@@ -147,6 +148,8 @@ private data class HealingDispatchDependencies(
  * @param poolAssignerQueueName resource name of the queue for Phase-0 SubpoolAssigner WorkItems.
  * @param numberOfShards static number of shards per memoized model line (Phase-0 fan-out).
  * @param modelLineConfigs field-mapping configuration keyed by model line resource name.
+ * @param validateEventTemplateVersion validates the resolved version against the configured
+ *   descriptor before claiming work.
  * @param rawImpressionUploadFileStub stub for listing an upload's files to bin-pack (non-memoized).
  * @param vidLabelingJobStub stub for creating Phase-2 `VidLabelingJob`s (non-memoized).
  * @param maxFileBatchSizeBytes bin-packing threshold for non-memoized `VidLabelingJob`s.
@@ -174,6 +177,7 @@ class VidLabelingDispatchSequencer(
   private val poolAssignerQueueName: String,
   private val numberOfShards: Int,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
+  private val validateEventTemplateVersion: suspend (VidLabelerParams.ModelLineConfig, Int) -> Unit,
   private val rawImpressionUploadFileStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
@@ -816,6 +820,27 @@ class VidLabelingDispatchSequencer(
     }
     val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
 
+    // The active window is read per ModelLine so the TEE can drop out-of-window impressions; the
+    // model blob path comes from each line's resolved ModelShard.
+    val resolvedModelLines: Map<String, ModelLine> =
+      bundle
+        .map { it.modelLine.cmmsModelLine }
+        .distinct()
+        .associateWith { modelLineName ->
+          val resolved = getModelLine(modelLineName)
+          val config =
+            requireNotNull(modelLineConfigs[modelLineName]) {
+              "No ModelLineConfig found for model line: $modelLineName"
+            }
+          val version =
+            ModelLineEventTemplateVersions.resolve(
+              resolved,
+              config.eventTemplateVersion.takeUnless { it == 0 },
+            )
+          validateEventTemplateVersion(config, version)
+          resolved
+        }
+
     val claimedBundle =
       if (alreadyClaimed) {
         bundle
@@ -828,10 +853,6 @@ class VidLabelingDispatchSequencer(
       }
     if (claimedBundle.isEmpty()) return false
     val modelLineNames: List<String> = claimedBundle.map { it.modelLine.cmmsModelLine }
-    // The active window is read per ModelLine so the TEE can drop out-of-window impressions; the
-    // model blob path comes from each line's resolved ModelShard.
-    val resolvedModelLines: Map<String, ModelLine> =
-      modelLineNames.associateWith { getModelLine(it) }
     val modelBlobPathByLine: Map<String, String> =
       claimedBundle.associate { it.modelLine.cmmsModelLine to it.shardInfo.modelBlobPath }
 
@@ -1007,6 +1028,12 @@ class VidLabelingDispatchSequencer(
       }
     // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
     val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
+    val version =
+      ModelLineEventTemplateVersions.resolve(
+        resolvedModelLine,
+        modelLineConfig.eventTemplateVersion.takeUnless { it == 0 },
+      )
+    validateEventTemplateVersion(modelLineConfig, version)
 
     if (!alreadyClaimed && !markPoolAssigning(modelLine.name, modelLine.etag)) return false
 
@@ -1255,7 +1282,11 @@ class VidLabelingDispatchSequencer(
           // Phase-2 resolves each assigned VID's population attributes from this spec, and rejects
           // a WorkItem without it. Like the fields above, it is dropped unless copied explicitly.
           populationSpecBlobUri = modelLineConfig.populationSpecBlobUri
-          eventTemplateVersion = modelLineConfig.eventTemplateVersion
+          eventTemplateVersion =
+            ModelLineEventTemplateVersions.resolve(
+              resolvedModelLine,
+              modelLineConfig.eventTemplateVersion.takeUnless { it == 0 },
+            )
           // The active window lets the TEE drop out-of-window impressions before labeling.
           activeStartTime = resolvedModelLine.activeStartTime
           if (resolvedModelLine.hasActiveEndTime()) {
@@ -1461,7 +1492,7 @@ class VidLabelingDispatchSequencer(
     }
   }
 
-  /** Fetches the `ModelLine` to read its active window (`active_start_time`/`active_end_time`). */
+  /** Fetches the `ModelLine` to read its active window and event-template version. */
   private suspend fun getModelLine(modelLineName: String): ModelLine =
     rpcThrottlers.kingdom.onReady {
       modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
@@ -1570,7 +1601,11 @@ class VidLabelingDispatchSequencer(
         // Pass-through for the same reason: Phase-2 resolves each assigned VID's population
         // attributes from this spec and rejects a WorkItem without it.
         populationSpecBlobUri = modelLineConfig.populationSpecBlobUri
-        eventTemplateVersion = modelLineConfig.eventTemplateVersion
+        eventTemplateVersion =
+          ModelLineEventTemplateVersions.resolve(
+            resolvedModelLine,
+            modelLineConfig.eventTemplateVersion.takeUnless { it == 0 },
+          )
         // Pass-through so the Phase-1 last-out can stamp the per-impression entity-key columns on
         // the memoized VidLabeler ModelLineConfig.
         requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)
