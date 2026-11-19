@@ -21,6 +21,7 @@ import com.google.protobuf.timestamp
 import com.google.type.date
 import java.time.Instant
 import java.time.LocalDate
+import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -40,7 +41,9 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
@@ -54,7 +57,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
@@ -120,6 +125,7 @@ class EvictUploaderTest {
   private val deletedBlobUris = mutableListOf<String>()
   private val deletedBlobVersions = mutableListOf<Pair<String, Long>>()
   private val blobGenerations = mutableMapOf<String, Long?>()
+  private val sidecarDetails = mutableMapOf<String, BlobDetails>()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -146,6 +152,9 @@ class EvictUploaderTest {
         deletedBlobVersions += blobUri to generation
         deletedBlobUris.add(blobUri)
       },
+      readBlobDetails = { uri, _ ->
+        sidecarDetails[uri] ?: blobDetails { blobUri = uri.removeSuffix(".metadata.binpb") }
+      },
       rpcThrottlers = recordingThrottlers.throttlers,
     )
   }
@@ -157,6 +166,7 @@ class EvictUploaderTest {
     deletedBlobUris.clear()
     deletedBlobVersions.clear()
     blobGenerations.clear()
+    sidecarDetails.clear()
     whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
       .thenReturn(listRawImpressionUploadFilesResponse {})
     whenever(impressionMetadataService.listImpressionMetadata(any()))
@@ -248,6 +258,87 @@ class EvictUploaderTest {
     reason: String,
   ): EvictUploader.EvictionResult =
     evictUploader.evict(evictUploader.finalizeOutputManifests(plan), reason) {}
+
+  @Test
+  fun `finalization captures the sidecar selected attempt and supports replay`() =
+    runBlocking<Unit> {
+      val rawUri = "gs://raw/day/file.parquet"
+      val eventDate = LocalDate.of(2026, 7, 1)
+      val canonical =
+        LabeledImpressionsBlobKeys.forInputUri(
+          LABELED_IMPRESSIONS_BLOB_PREFIX,
+          rawUri,
+          MODEL_LINE,
+          eventDate,
+        )
+      val metadata = "$canonical.metadata.binpb"
+      val data =
+        LabeledImpressionsBlobKeys.forAttemptUri(
+          canonical,
+          UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+        )
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(listRawImpressionUploadModelLinesResponse {})
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              blobUri = rawUri
+              this.eventDate = date {
+                year = 2026
+                month = 7
+                day = 1
+              }
+            }
+          }
+        )
+      blobGenerations[metadata] = 42L
+      blobGenerations[canonical] = null
+      blobGenerations[data] = 84L
+      sidecarDetails[metadata] = blobDetails { blobUri = data }
+      val entry =
+        EvictUploader.CascadeEntry(
+          uploadName("up1"),
+          modelLineName("up1"),
+          MODEL_LINE,
+          memoized = false,
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+          recoveryPredecessorUploadName = "",
+          labeledOutputManifest =
+            labeledOutputManifest {
+              blobs += LabeledOutputManifestKt.blobVersion { blobUri = metadata }
+              blobs += LabeledOutputManifestKt.blobVersion { blobUri = canonical }
+            },
+        )
+      val plan =
+        EvictUploader.EvictionPlan(
+          listOf(entry),
+          emptyList(),
+          emptySet(),
+          setOf(MODEL_LINE),
+          listOf(uploadName("up1")),
+          "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+          emptyList(),
+          outputManifestsFinalized = false,
+        )
+      val finalized = evictUploader.finalizeOutputManifests(plan)
+      assertThat(finalized.cascade.single().labeledOutputManifest.blobsList)
+        .containsExactly(
+          LabeledOutputManifestKt.blobVersion {
+            blobUri = metadata
+            generation = 42L
+          },
+          LabeledOutputManifestKt.blobVersion {
+            blobUri = data
+            generation = 84L
+          },
+        )
+        .inOrder()
+      assertThat(evictUploader.finalizeOutputManifests(finalized)).isEqualTo(finalized)
+      sidecarDetails[metadata] = blobDetails { blobUri = "gs://foreign/other" }
+      assertFailsWith<IllegalArgumentException> { evictUploader.finalizeOutputManifests(plan) }
+      assertThat(deletedBlobUris).isEmpty()
+    }
 
   @Test
   fun `planCorrection builds a forward cascade and evict fails them and soft-deletes snapshots`() {
