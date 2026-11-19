@@ -252,9 +252,6 @@ message MarkPoolAssignmentJobSucceededRequest {
   // `RawImpressionUploadModelLine.max_event_date`. Unset for a shard that wrote
   // no impressions.
   google.type.Date max_event_date = 6 [(google.api.field_behavior) = OPTIONAL];
-
-  // KEK URI for VID-labeled output. Defaults to `encrypted_dek.kek_uri`.
-  string output_kek_uri = 7 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for the
