@@ -29,6 +29,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolFingerprints
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolFingerprints
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 
 /**
  * Reads and writes the per-subpool `SubpoolFingerprints` maps as **RecordIO** blobs.
@@ -61,35 +63,28 @@ class SubpoolFingerprintsStore(
   kmsClient: KmsClient,
 ) : EncryptedRecordIoStore(storageClient, kmsClient) {
   /** One shard's encrypted blob for a subpool, used as a merge input. */
-  data class SubpoolBlob(val blobKey: String, val encryptedDek: EncryptedDek)
+  data class SubpoolBlob(
+    val blobKey: String,
+    val encryptedDek: EncryptedDek,
+    val expectedGeneration: Long? = null,
+  )
 
   /**
    * Writes [fingerprintChunks] for [poolOffset] to [blobKey], one RecordIO `SubpoolFingerprints`
    * record per emitted chunk (each chunk a multiple of 12 packed bytes), envelope-encrypted with
    * [encryptedDek]. The chunk stream is consumed lazily, so memory stays bounded.
    *
-   * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): this write is intentionally
-   * unconditional. common-jvm#389's write-if-absent primitive (`writeBlobIfNotFound`) IS available
-   * now, but adopting it on this deterministic key would be UNSAFE for these blobs: each is
-   * envelope-encrypted with a per-attempt random DEK (+ AES-GCM random IV), so no retry ever
-   * reproduces the bytes. A writer that crashes after this write but before
-   * `MarkPoolAssignmentJobSucceeded` is auto-recovered today (the retry re-writes, then marks);
-   * with write-if-absent the orphan ciphertext would fail every retry with a 412 and, since the job
-   * never reaches SUCCEEDED, strand the shard permanently (DLQ -> FAILED). The clobber it would
-   * prevent — a `WorkItem` delivered to two live VMs whose distinct DEKs desync from the
-   * mark-winner's row DEK — is real but narrow. A fix that avoids BOTH needs a retry to recover the
-   * winner's DEK: row-first DEK persistence, or per-attempt-UUID keys (as [RankIndexStore] uses)
-   * with the winning key stored on the `PoolAssignmentJob` row — i.e. an API change. Left
-   * unconditional deliberately.
+   * The caller supplies a fresh attempt key and selects its immutable reference only after every
+   * output is durable. A precommit crash therefore leaves an orphan without blocking retries.
    */
   suspend fun writeBlob(
     blobKey: String,
     encryptedDek: EncryptedDek,
     poolOffset: Long,
     fingerprintChunks: Flow<ByteString>,
-  ) {
+  ): StorageClient.Blob =
     encryptedClient(encryptedDek)
-      .writeBlob(
+      .writeBlobIfNotFound(
         blobKey,
         fingerprintChunks.map { chunk ->
           subpoolFingerprints {
@@ -99,11 +94,14 @@ class SubpoolFingerprintsStore(
             .toByteString()
         },
       )
-  }
 
   /** Streams the `SubpoolFingerprints` records of [blobKey], decrypting with [encryptedDek]. */
-  fun readBlob(blobKey: String, encryptedDek: EncryptedDek): Flow<SubpoolFingerprints> = flow {
-    val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return@flow
+  fun readBlob(
+    blobKey: String,
+    encryptedDek: EncryptedDek,
+    expectedGeneration: Long? = null,
+  ): Flow<SubpoolFingerprints> = flow {
+    val blob = openInput(SubpoolBlob(blobKey, encryptedDek, expectedGeneration)) ?: return@flow
     blob.read().collect { record -> emit(SubpoolFingerprints.parseFrom(record)) }
   }
 
@@ -113,8 +111,11 @@ class SubpoolFingerprintsStore(
    * merged blob is duplicate-free and its fingerprint count is approximately `size /
    * EventIdDigestBytes.WIDTH`.
    */
-  suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
-    encryptedClient(encryptedDek).getBlob(blobKey)?.size ?: 0L
+  suspend fun blobSize(
+    blobKey: String,
+    encryptedDek: EncryptedDek,
+    expectedGeneration: Long? = null,
+  ): Long = openInput(SubpoolBlob(blobKey, encryptedDek, expectedGeneration))?.size ?: 0L
 
   /**
    * Streams every record from each [inputs] blob into a single merged blob at [outputKey],
@@ -128,33 +129,53 @@ class SubpoolFingerprintsStore(
    * through and [channelFlow]'s bounded buffer applies backpressure; the single [writeBlob] is the
    * only writer.
    *
-   * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): also written
-   * unconditionally, for the same reason as [writeBlob]. The merge is deliberately idempotent —
-   * [SubpoolAssigner]'s last-shard-out recovery re-runs it on redelivery, and re-writing the merged
-   * blob is how that recovery works — so a write-if-absent precondition here would break the very
-   * recovery it is meant to support.
+   * The caller supplies a fresh attempt key and selects its immutable reference only after every
+   * output is durable. A precommit crash therefore leaves an orphan without blocking retries.
    */
   suspend fun mergeSubpool(
     inputs: List<SubpoolBlob>,
     outputKey: String,
     outputEncryptedDek: EncryptedDek,
     readSemaphore: Semaphore,
-  ) {
+  ): StorageClient.Blob =
     encryptedClient(outputEncryptedDek)
-      .writeBlob(
+      .writeBlobIfNotFound(
         outputKey,
         channelFlow {
           for (input in inputs) {
             launch {
               readSemaphore.withPermit {
-                val blob =
-                  encryptedClient(input.encryptedDek).getBlob(input.blobKey) ?: return@withPermit
+                val blob = openInput(input) ?: return@withPermit
                 blob.read().collect { record -> send(record) }
               }
             }
           }
         },
       )
+
+  private suspend fun openInput(input: SubpoolBlob): StorageClient.Blob? {
+    val client = encryptedClient(input.encryptedDek)
+    val normalizedKey =
+      if (input.blobKey.startsWith("gs://") || input.blobKey.startsWith("file:///")) {
+        SelectedStorageClient.parseBlobUri(input.blobKey).key
+      } else input.blobKey
+    // Historical Phase-0 workers used a full URI as a bucket-relative object key.
+    // Keep that exact key/AAD as a fallback only for legacy references.
+    val blob =
+      client.getBlob(normalizedKey)
+        ?: if (input.expectedGeneration == null && normalizedKey != input.blobKey) {
+          client.getBlob(input.blobKey)
+        } else null
+    if (input.expectedGeneration != null) {
+      checkNotNull(blob) { "Selected subpool output is missing" }
+      check(
+        (blob as ConditionalOperationStorageClient.Blob).freshnessToken.toLongOrNull() ==
+          input.expectedGeneration
+      ) {
+        "Selected subpool output generation changed"
+      }
+    }
+    return blob
   }
 
   /** Deletes [blobKey] if present (used to clean up temp per-shard blobs after a merge). */

@@ -54,18 +54,22 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.CommitRawImpressionUploadModelLineMergedOutputRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededResponseKt
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
@@ -73,8 +77,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
@@ -86,6 +92,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
 
@@ -99,9 +107,18 @@ private const val QUEUE = "queues/vid-rank-builder"
 private val TRACE_CONTEXT =
   mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
-private val DEK_GEN = encryptedDek { kekUri = "kek-gen" }
-private val DEK_MERGED = encryptedDek { kekUri = "kek-merged" }
-private val DEK_SHARD0 = encryptedDek { kekUri = "kek-shard0" }
+private val DEK_GEN = encryptedDek {
+  kekUri = "kek-gen"
+  ciphertext = ByteString.copyFromUtf8("wrapped-gen")
+}
+private val DEK_MERGED = encryptedDek {
+  kekUri = "kek-merged"
+  ciphertext = ByteString.copyFromUtf8("wrapped-merged")
+}
+private val DEK_SHARD0 = encryptedDek {
+  kekUri = "kek-shard0"
+  ciphertext = ByteString.copyFromUtf8("wrapped-shard")
+}
 
 private val TEMPLATE: VidRankBuilderParams = vidRankBuilderParams {
   dataProvider = "dataProviders/dp"
@@ -112,6 +129,8 @@ private val TEMPLATE: VidRankBuilderParams = vidRankBuilderParams {
 
 @RunWith(JUnit4::class)
 class SubpoolAssignerTest {
+  private val manifestStorage = InMemoryStorageClient()
+  private var selectedMergedManifest: OutputBlobReference? = null
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
   private val logRecords = mutableListOf<LogRecord>()
@@ -156,6 +175,8 @@ class SubpoolAssignerTest {
   private val order = mutableListOf<String>()
 
   private fun jobResponse(state: PoolAssignmentJob.State) = poolAssignmentJob {
+    this.state = PoolAssignmentJob.State.SUCCEEDED
+    name = POOL_ASSIGNMENT_JOB
     this.state = state
     etag = "etag-1"
   }
@@ -163,7 +184,7 @@ class SubpoolAssignerTest {
   private fun parent(
     state: RawImpressionUploadModelLine.State,
     poolOffsets: List<Long> = emptyList(),
-    withMergedDek: Boolean = false,
+    withMergedDek: Boolean = poolOffsets.isNotEmpty(),
   ) = rawImpressionUploadModelLine {
     name = PARENT_NAME
     cmmsModelLine = MODEL_LINE
@@ -185,12 +206,16 @@ class SubpoolAssignerTest {
     onBlocking { writeBlob(any(), any(), any(), any()) } doAnswer
       {
         order.add("write")
-        Unit
+        kotlinx.coroutines.runBlocking {
+          manifestStorage.writeBlob(it.getArgument<String>(0), ByteString.EMPTY)
+        }
       }
     onBlocking { mergeSubpool(any(), any(), any(), any()) } doAnswer
       {
         order.add("merge")
-        Unit
+        kotlinx.coroutines.runBlocking {
+          manifestStorage.writeBlob(it.getArgument<String>(1), ByteString.EMPTY)
+        }
       }
     onBlocking { delete(any()) } doAnswer
       {
@@ -222,12 +247,32 @@ class SubpoolAssignerTest {
     rankerStub: RankerJobServiceCoroutineStub = rankerStubMock(),
     workItemsStub: WorkItemsCoroutineStub = workItemsStubMock(),
     source: RawImpressionSource<ParquetDigestedEvent> = mock(),
+    publicationStorage: ConditionalOperationStorageClient = manifestStorage,
     accumulator: SubpoolFingerprintsAccumulator = SubpoolFingerprintsAccumulator(),
     totalShards: Int = 1,
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     traceContextProvider: () -> Map<String, String> = { emptyMap() },
-  ) =
-    SubpoolAssigner(
+  ): SubpoolAssigner {
+    runBlocking {
+      whenever(modelLinesStub.commitRawImpressionUploadModelLineMergedOutput(any(), any()))
+        .thenAnswer { invocation ->
+          val request =
+            invocation.getArgument<CommitRawImpressionUploadModelLineMergedOutputRequest>(0)
+          order.add("commit")
+          selectedMergedManifest = request.outputManifest
+          runBlocking {
+            val current =
+              modelLinesStub
+                .listRawImpressionUploadModelLines(
+                  listRawImpressionUploadModelLinesRequest { parent = UPLOAD }
+                )
+                .rawImpressionUploadModelLinesList
+                .single()
+            current.copy { mergedOutputManifest = request.outputManifest }
+          }
+        }
+    }
+    return SubpoolAssigner(
       rawImpressionSource = source,
       mapper = mock<LabelerInputMapper>(),
       labeler = FakePoolEmitLabeler,
@@ -248,12 +293,86 @@ class SubpoolAssignerTest {
       vidRankBuilderQueue = QUEUE,
       vidRankBuilderParamsTemplate = TEMPLATE,
       rpcThrottlers = rpcThrottlers,
+      outputManifestStore = OutputManifestStore(publicationStorage, "gs://bucket/maps"),
+      outputBlobPrefixUri = "gs://bucket/maps",
+      dispatchLabeling = { 0 },
       accumulator = accumulator,
       traceContextProvider = traceContextProvider,
     )
+  }
 
   private fun accumulatorWith(subpoolId: Long): SubpoolFingerprintsAccumulator =
     SubpoolFingerprintsAccumulator().apply { add(subpoolId, 1L, 1) }
+
+  @Test
+  fun `merge election uses captured etag and key and never refreshes stale scope without recomputing`() =
+    runBlocking<Unit> {
+      val original =
+        parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING, listOf(7L)).copy {
+          etag = "parent-before"
+        }
+      val updated =
+        original.copy {
+          etag = "parent-after"
+          poolOffsets += 11L
+          encryptedMergedDek = DEK_GEN
+        }
+      val current = AtomicReference(original)
+      val store = storeMock()
+      whenever(store.mergeSubpool(any(), any(), any(), any())).thenAnswer { invocation ->
+        val used = invocation.getArgument<EncryptedDek>(2)
+        assertThat(used).isEqualTo(original.encryptedMergedDek)
+        current.set(updated)
+        runBlocking {
+          manifestStorage.writeBlob(invocation.getArgument<String>(1), ByteString.EMPTY)
+        }
+      }
+      val jobs =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.SUCCEEDED)
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
+            }
+        }
+      val parents =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+            {
+              listRawImpressionUploadModelLinesResponse {
+                rawImpressionUploadModelLines += current.get()
+              }
+            }
+        }
+      val rankers = rankerStubMock()
+      val workItems = workItemsStubMock()
+      val worker = assigner(store, jobs, parents, rankers, workItems)
+      val elections = mutableListOf<CommitRawImpressionUploadModelLineMergedOutputRequest>()
+      whenever(parents.commitRawImpressionUploadModelLineMergedOutput(any(), any())).thenAnswer {
+        invocation ->
+        elections +=
+          invocation.getArgument<CommitRawImpressionUploadModelLineMergedOutputRequest>(0)
+        throw Status.ABORTED.asException()
+      }
+      assertFailsWith<StatusException> { worker.assign() }
+      assertThat(elections).hasSize(1)
+      assertThat(elections.single().etag).isEqualTo("parent-before")
+      val manifest =
+        OutputManifestStore(manifestStorage, "gs://bucket/maps")
+          .read(elections.single().outputManifest)
+          .toList()
+      assertThat(manifest.first().header.encryptedDek).isEqualTo(original.encryptedMergedDek)
+      assertThat(manifest.filter { it.hasSubpoolBlob() }.map { it.subpoolBlob.poolOffset })
+        .containsExactly(7L)
+      verifyBlocking(rankers, never()) { createRankerJob(any(), any()) }
+      verifyBlocking(workItems, never()) { createWorkItem(any(), any()) }
+    }
 
   @Test
   fun `non-last shard writes its blobs and marks succeeded without fan-out`() = runBlocking {
@@ -283,69 +402,72 @@ class SubpoolAssignerTest {
   }
 
   @Test
-  fun `last shard out merges with own DEK, fans out, then deletes after the flip`() = runBlocking {
-    val store = storeMock()
-    val ranker = rankerStubMock()
-    val workItems = workItemsStubMock()
-    val paj =
-      mock<PoolAssignmentJobServiceCoroutineStub> {
-        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
-          jobResponse(PoolAssignmentJob.State.CREATED)
-        onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
-          markPoolAssignmentJobSucceededResponse {
-            lastShardResult =
-              MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
-          }
-        onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
-          listPoolAssignmentJobsResponse {
-            poolAssignmentJobs += poolAssignmentJob {
-              shardIndex = 0
-              encryptedDek = DEK_SHARD0
+  fun `last shard out selects the persisted merge key before fan-out and retains inputs`() =
+    runBlocking {
+      val store = storeMock()
+      val ranker = rankerStubMock()
+      val workItems = workItemsStubMock()
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.CREATED)
+          onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
+            markPoolAssignmentJobSucceededResponse {
+              lastShardResult =
+                MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
             }
-            nextPageToken = ""
-          }
-      }
-    val ruml =
-      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-          listRawImpressionUploadModelLinesResponse {
-            rawImpressionUploadModelLines +=
-              parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING, listOf(7L))
-            nextPageToken = ""
-          }
-        onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doAnswer
-          {
-            order.add("flip")
-            parent(RawImpressionUploadModelLine.State.RANKING, listOf(7L))
-          }
-      }
-    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
+              nextPageToken = ""
+            }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines +=
+                parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING, listOf(7L))
+              nextPageToken = ""
+            }
+          onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doAnswer
+            {
+              order.add("flip")
+              parent(RawImpressionUploadModelLine.State.RANKING, listOf(7L))
+            }
+        }
+      val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val result =
-      assigner(
-          store,
-          paj,
-          ruml,
-          ranker,
-          workItems,
-          accumulator = accumulatorWith(7L),
-          rpcThrottlers = recordingThrottlers.throttlers,
-        )
-        .assign()
+      val result =
+        assigner(
+            store,
+            paj,
+            ruml,
+            ranker,
+            workItems,
+            accumulator = accumulatorWith(7L),
+            rpcThrottlers = recordingThrottlers.throttlers,
+          )
+          .assign()
 
-    assertThat(result.lastShardOut).isTrue()
-    assertThat(order)
-      .containsExactly("write", "merge", "ranker", "workitem", "flip", "delete")
-      .inOrder()
-    // Normal path merges with this VM's freshly generated DEK.
-    val dekCaptor = argumentCaptor<EncryptedDek>()
-    verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture(), any()) }
-    assertThat(dekCaptor.firstValue).isEqualTo(DEK_GEN)
-    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
-    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
-    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
-  }
+      assertThat(result.lastShardOut).isTrue()
+      assertThat(order)
+        .containsExactly("write", "merge", "commit", "ranker", "workitem", "flip")
+        .inOrder()
+      // Fan-out uses the key persisted on the captured parent, regardless of the shard's own key.
+      val dekCaptor = argumentCaptor<EncryptedDek>()
+      verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture(), any()) }
+      assertThat(dekCaptor.firstValue).isEqualTo(DEK_MERGED)
+      assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(4)
+      assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
+    }
 
   @Test
   fun `missing shard DEK records merge failure identity`() =
@@ -363,6 +485,8 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
                 shardIndex = 0
                 encryptedDek = DEK_SHARD0
               }
@@ -377,7 +501,7 @@ class SubpoolAssignerTest {
             }
         }
 
-      assertFailsWith<IllegalArgumentException> {
+      assertFailsWith<IllegalStateException> {
         assigner(store, paj, ruml, accumulator = accumulatorWith(7L), totalShards = 2).assign()
       }
 
@@ -386,7 +510,7 @@ class SubpoolAssignerTest {
       assertThat(failureLog.message).contains("xmm.edpa.shard_index=1")
       assertThat(failureLog.message).contains("xmm.lifecycle.stage=pool_assignment_merge")
       assertThat(failureLog.message).contains("xmm.outcome=failed")
-      assertThat(failureLog.message).contains("xmm.error.type=IllegalArgumentException")
+      assertThat(failureLog.message).contains("xmm.error.type=IllegalStateException")
       assertThat(failureLog.message).doesNotContain("xmm.error.code=")
     }
 
@@ -396,7 +520,12 @@ class SubpoolAssignerTest {
       val store =
         mock<SubpoolFingerprintsStore> {
           on { generateDek(any()) } doReturn DEK_GEN
-          onBlocking { writeBlob(any(), any(), any(), any()) } doReturn Unit
+          onBlocking { writeBlob(any(), any(), any(), any()) } doAnswer
+            { invocation ->
+              runBlocking {
+                manifestStorage.writeBlob(invocation.getArgument<String>(0), ByteString.EMPTY)
+              }
+            }
           onBlocking { mergeSubpool(any(), any(), any(), any()) } doAnswer { error("merge failed") }
         }
       val paj =
@@ -411,10 +540,14 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
                 shardIndex = 0
                 encryptedDek = DEK_SHARD0
               }
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
                 shardIndex = 1
                 encryptedDek = DEK_SHARD0
               }
@@ -455,6 +588,8 @@ class SubpoolAssignerTest {
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
             poolAssignmentJobs += poolAssignmentJob {
+              state = PoolAssignmentJob.State.SUCCEEDED
+              name = POOL_ASSIGNMENT_JOB
               shardIndex = 0
               encryptedDek = DEK_SHARD0
             }
@@ -490,40 +625,54 @@ class SubpoolAssignerTest {
   }
 
   @Test
-  fun `recovery on already-succeeded shard that was not last-out does nothing`() = runBlocking {
-    val store = storeMock()
-    val ranker = rankerStubMock()
-    val workItems = workItemsStubMock()
-    val paj =
-      mock<PoolAssignmentJobServiceCoroutineStub> {
-        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
-          jobResponse(PoolAssignmentJob.State.SUCCEEDED)
-      }
-    val ruml =
-      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-          listRawImpressionUploadModelLinesResponse {
-            // Empty pool_offsets -> this shard was not the last out.
-            rawImpressionUploadModelLines +=
-              parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
-            nextPageToken = ""
-          }
-      }
+  fun `a completed child cannot finalize while another declared shard is incomplete`() =
+    runBlocking {
+      val store = storeMock()
+      val ranker = rankerStubMock()
+      val workItems = workItemsStubMock()
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.SUCCEEDED)
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
+                shardIndex = 0
+              }
+              poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.CREATED
+                name = "$UPLOAD/poolAssignmentJobs/paj-1"
+                shardIndex = 1
+              }
+            }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              // No selected merge and an unfinished peer prevent premature finalization.
+              rawImpressionUploadModelLines +=
+                parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+              nextPageToken = ""
+            }
+        }
 
-    val result = assigner(store, paj, ruml, ranker, workItems).assign()
+      val result = assigner(store, paj, ruml, ranker, workItems, totalShards = 2).assign()
 
-    assertThat(result.lastShardOut).isFalse()
-    assertThat(result.outcome).isEqualTo("already_completed")
-    assertThat(
-        spanExporter.finishedSpanItems
-          .single { it.name == "edpa.vid_labeling.pool_assignment" }
-          .attributes
-          .get(XmmTraceAttributes.OUTCOME)
-      )
-      .isEqualTo("already_completed")
-    verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
-    verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
-  }
+      assertThat(result.lastShardOut).isFalse()
+      assertThat(result.outcome).isEqualTo("already_completed")
+      assertThat(
+          spanExporter.finishedSpanItems
+            .single { it.name == "edpa.vid_labeling.pool_assignment" }
+            .attributes
+            .get(XmmTraceAttributes.OUTCOME)
+        )
+        .isEqualTo("already_completed")
+      verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
+      verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
+    }
 
   @Test
   fun `completed shard output remains in trace when a sibling write fails`() =
@@ -534,7 +683,11 @@ class SubpoolAssignerTest {
           on { generateDek(any()) } doReturn DEK_GEN
           onBlocking { writeBlob(any(), any(), any(), any()) } doAnswer
             {
-              if (writes.incrementAndGet() == 1) Unit else error("write failed")
+              if (writes.incrementAndGet() == 1) {
+                runBlocking {
+                  manifestStorage.writeBlob(it.getArgument<String>(0), ByteString.EMPTY)
+                }
+              } else error("write failed")
             }
         }
       val paj =
@@ -642,6 +795,8 @@ class SubpoolAssignerTest {
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
             poolAssignmentJobs += poolAssignmentJob {
+              state = PoolAssignmentJob.State.SUCCEEDED
+              name = POOL_ASSIGNMENT_JOB
               shardIndex = 0
               encryptedDek = DEK_SHARD0
             }
@@ -672,7 +827,7 @@ class SubpoolAssignerTest {
     assertThat(result.lastShardOut).isTrue()
     // No re-read/re-write of per-shard blobs; delete happens AFTER the flip (#3999 regression
     // guard).
-    assertThat(order).containsExactly("merge", "ranker", "workitem", "flip", "delete").inOrder()
+    assertThat(order).containsExactly("merge", "commit", "ranker", "workitem", "flip").inOrder()
     // Re-merge reuses the persisted DEK so it stays consistent with the already-written blobs.
     val dekCaptor = argumentCaptor<EncryptedDek>()
     verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture(), any()) }
@@ -687,6 +842,15 @@ class SubpoolAssignerTest {
         mock<PoolAssignmentJobServiceCoroutineStub> {
           onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
             jobResponse(PoolAssignmentJob.State.SUCCEEDED)
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                this.state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
+            }
         }
       val ruml =
         mock<RawImpressionUploadModelLineServiceCoroutineStub> {
@@ -694,7 +858,11 @@ class SubpoolAssignerTest {
             listRawImpressionUploadModelLinesResponse {
               // pool_offsets set but no encrypted_merged_dek.
               rawImpressionUploadModelLines +=
-                parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING, listOf(7L))
+                parent(
+                  RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+                  listOf(7L),
+                  withMergedDek = false,
+                )
               nextPageToken = ""
             }
         }
@@ -707,7 +875,7 @@ class SubpoolAssignerTest {
           e
         }
 
-      assertThat(thrown).isInstanceOf(IllegalArgumentException::class.java)
+      assertThat(thrown).isInstanceOf(IllegalStateException::class.java)
       verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
     }
 
@@ -721,6 +889,8 @@ class SubpoolAssignerTest {
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
             poolAssignmentJobs += poolAssignmentJob {
+              state = PoolAssignmentJob.State.SUCCEEDED
+              name = POOL_ASSIGNMENT_JOB
               shardIndex = 0
               encryptedDek = DEK_SHARD0
             }
@@ -763,44 +933,47 @@ class SubpoolAssignerTest {
   }
 
   @Test
-  fun `already-advanced flip precondition is swallowed and cleanup still runs`() = runBlocking {
-    val store = storeMock()
-    val parentState = AtomicReference(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
-    val paj =
-      mock<PoolAssignmentJobServiceCoroutineStub> {
-        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
-          jobResponse(PoolAssignmentJob.State.SUCCEEDED)
-        onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
-          listPoolAssignmentJobsResponse {
-            poolAssignmentJobs += poolAssignmentJob {
-              shardIndex = 0
-              encryptedDek = DEK_SHARD0
-            }
-            nextPageToken = ""
-          }
-      }
-    val ruml =
-      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
-          {
-            listRawImpressionUploadModelLinesResponse {
-              rawImpressionUploadModelLines +=
-                parent(parentState.get(), listOf(7L), withMergedDek = true)
+  fun `already-advanced flip precondition is swallowed and selected inputs remain available`() =
+    runBlocking {
+      val store = storeMock()
+      val parentState = AtomicReference(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.SUCCEEDED)
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
               nextPageToken = ""
             }
-          }
-        onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doAnswer
-          {
-            parentState.set(RawImpressionUploadModelLine.State.RANKING)
-            throw StatusException(Status.FAILED_PRECONDITION)
-          }
-      }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+            {
+              listRawImpressionUploadModelLinesResponse {
+                rawImpressionUploadModelLines +=
+                  parent(parentState.get(), listOf(7L), withMergedDek = true)
+                nextPageToken = ""
+              }
+            }
+          onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doAnswer
+            {
+              parentState.set(RawImpressionUploadModelLine.State.RANKING)
+              throw StatusException(Status.FAILED_PRECONDITION)
+            }
+        }
 
-    val result = assigner(store, paj, ruml).assign()
+      val result = assigner(store, paj, ruml).assign()
 
-    assertThat(result.lastShardOut).isTrue()
-    verifyBlocking(store) { delete(any()) }
-  }
+      assertThat(result.lastShardOut).isTrue()
+      verifyBlocking(store, never()) { delete(any()) }
+    }
 
   @Test
   fun `ranking transition conflict propagates while the parent remains POOL_ASSIGNING`() =
@@ -813,6 +986,8 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
                 shardIndex = 0
                 encryptedDek = DEK_SHARD0
               }
@@ -860,6 +1035,8 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
                 shardIndex = 0
                 encryptedDek = DEK_SHARD0
               }
@@ -1035,10 +1212,14 @@ class SubpoolAssignerTest {
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
             listPoolAssignmentJobsResponse {
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
                 shardIndex = 0
                 encryptedDek = dek0
               }
               poolAssignmentJobs += poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                name = POOL_ASSIGNMENT_JOB
                 shardIndex = 1
                 encryptedDek = dek1
               }
@@ -1067,12 +1248,12 @@ class SubpoolAssignerTest {
             parent(RawImpressionUploadModelLine.State.RANKING, listOf(7L, 8L), withMergedDek = true)
         }
 
-      assigner(store, paj, ruml, totalShards = 2).assign()
+      assigner(store, paj, ruml, totalShards = 2, publicationStorage = storageClient).assign()
 
       // Each merged subpool blob is the disjoint union of its shards, order-independent.
-      assertThat(fingerprintSet(store, mergedKey(7L), mergedDek))
+      assertThat(fingerprintSet(store, selectedKey(7L, storageClient), mergedDek))
         .containsExactly(bs(fp(0x11)), bs(fp(0x22)), bs(fp(0x33)))
-      assertThat(fingerprintSet(store, mergedKey(8L), mergedDek))
+      assertThat(fingerprintSet(store, selectedKey(8L, storageClient), mergedDek))
         .containsExactly(bs(fp(0x44)), bs(fp(0x55)), bs(fp(0x66)))
     }
 
@@ -1088,6 +1269,19 @@ class SubpoolAssignerTest {
   private fun fp(fill: Int): ByteArray = ByteArray(12) { fill.toByte() }
 
   private fun bs(bytes: ByteArray): ByteString = ByteString.copyFrom(bytes)
+
+  private suspend fun selectedKey(
+    offset: Long,
+    storage: ConditionalOperationStorageClient,
+  ): String {
+    val records =
+      OutputManifestStore(storage, "gs://bucket/maps")
+        .read(checkNotNull(selectedMergedManifest))
+        .toList()
+    val reference =
+      records.single { it.hasSubpoolBlob() && it.subpoolBlob.poolOffset == offset }.subpoolBlob.blob
+    return SelectedStorageClient.parseBlobUri(reference.blobUri).key
+  }
 
   private fun mergedKey(offset: Long): String =
     SubpoolFingerprintsStore.mergedSubpoolKey("maps", UPLOAD, MODEL_LINE, offset)

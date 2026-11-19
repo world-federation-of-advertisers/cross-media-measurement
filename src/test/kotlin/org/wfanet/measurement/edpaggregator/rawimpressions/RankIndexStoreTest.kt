@@ -34,6 +34,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -61,6 +62,31 @@ class RankIndexStoreTest {
       this.rankedSize = rankedSize
       fingerprints = ByteString.copyFrom(ByteArray(ranks.size * 12) { (it % 251).toByte() })
       ranks.forEach { this.ranks += it }
+    }
+
+  @Test
+  fun `a rank write collision preserves the selected ciphertext key checksum and ranks`() =
+    runBlocking<Unit> {
+      val store = RankIndexStore(storageClient, kmsClient)
+      val firstDek = store.generateDek(kekUri)
+      val first = record(7L, 100, 0, 1)
+      val checksum = store.writeBlob("snapshot/attempt/first", firstDek, flowOf(first))
+      val generation = storageClient.getFreshnessToken("snapshot/attempt/first")
+      assertFailsWith<BlobChangedException> {
+        store.writeBlob(
+          "snapshot/attempt/first",
+          store.generateDek(kekUri),
+          flowOf(record(7L, 100, 50, 51)),
+        )
+      }
+      assertThat(storageClient.getFreshnessToken("snapshot/attempt/first")).isEqualTo(generation)
+      assertThat(store.readBlob("snapshot/attempt/first", firstDek, checksum).toList())
+        .containsExactly(first)
+      val retryDek = store.generateDek(kekUri)
+      val retry = record(7L, 100, 50, 51)
+      val retryChecksum = store.writeBlob("snapshot/attempt/retry", retryDek, flowOf(retry))
+      assertThat(store.readBlob("snapshot/attempt/retry", retryDek, retryChecksum).toList())
+        .containsExactly(retry)
     }
 
   @Test

@@ -181,6 +181,7 @@ class SubpoolRanker(
   private val retentionDays: Int,
   private val today: LocalDate,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val mergedBlobGenerations: Map<Long, Long> = emptyMap(),
   private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
   private val stripes: Int = ConcurrentRankAllocator.DEFAULT_STRIPES,
   private val maxInFlightRecords: Int = maxOf(2, ConcurrentRankAllocator.DEFAULT_STRIPES * 2),
@@ -305,8 +306,11 @@ class SubpoolRanker(
     // safe over-estimate), fixing the warm-dispatch resize-during-load caveat
     // (world-federation-of-advertisers/cross-media-measurement#4015).
     val todayEntries =
-      subpoolFingerprintsStore.blobSize(subpoolBlobUri, encryptedSubpoolMapsDek) /
-        EventIdDigestBytes.WIDTH
+      subpoolFingerprintsStore.blobSize(
+        subpoolBlobUri,
+        encryptedSubpoolMapsDek,
+        mergedBlobGenerations[poolOffset],
+      ) / EventIdDigestBytes.WIDTH
     val priorEntries =
       if (priorSnapshot != null) {
         rankIndexStore.blobSize(priorSnapshot.blobUri, priorSnapshot.encryptedDek) /
@@ -337,46 +341,47 @@ class SubpoolRanker(
     coroutineScope {
       val inFlight = Semaphore(maxInFlightRecords)
       launch(Dispatchers.IO) {
-        subpoolFingerprintsStore.readBlob(subpoolBlobUri, encryptedSubpoolMapsDek).collect { record
-          ->
-          inFlight.acquire()
-          launch(cpuDispatcher) {
-            try {
-              val fps = record.fingerprints
-              val count = fps.size() / EventIdDigestBytes.WIDTH
-              // Two-pass fill is worth it at ~1M fps/record (DEFAULT_CHUNK_ENTRIES): exact-sized
-              // primitive buffers beat an ArrayList grow. If the chunk size ever drops below ~1K
-              // fps, revisit — a single-pass per-fingerprint addToday may become cheaper.
-              // Pass 1: count this record's fingerprints per stripe (same routing as addToday).
-              val counts = IntArray(stripes)
-              var off = 0
-              repeat(count) {
-                counts[allocator.stripeOf(EventIdDigestBytes.readHi(fps, off))]++
-                off += EventIdDigestBytes.WIDTH
+        subpoolFingerprintsStore
+          .readBlob(subpoolBlobUri, encryptedSubpoolMapsDek, mergedBlobGenerations[poolOffset])
+          .collect { record ->
+            inFlight.acquire()
+            launch(cpuDispatcher) {
+              try {
+                val fps = record.fingerprints
+                val count = fps.size() / EventIdDigestBytes.WIDTH
+                // Two-pass fill is worth it at ~1M fps/record (DEFAULT_CHUNK_ENTRIES): exact-sized
+                // primitive buffers beat an ArrayList grow. If the chunk size ever drops below ~1K
+                // fps, revisit — a single-pass per-fingerprint addToday may become cheaper.
+                // Pass 1: count this record's fingerprints per stripe (same routing as addToday).
+                val counts = IntArray(stripes)
+                var off = 0
+                repeat(count) {
+                  counts[allocator.stripeOf(EventIdDigestBytes.readHi(fps, off))]++
+                  off += EventIdDigestBytes.WIDTH
+                }
+                // Pass 2: fill exact-size per-stripe primitive buffers.
+                val bufHi = Array(stripes) { LongArray(counts[it]) }
+                val bufLo = Array(stripes) { IntArray(counts[it]) }
+                val filled = IntArray(stripes)
+                off = 0
+                repeat(count) {
+                  val hi = EventIdDigestBytes.readHi(fps, off)
+                  val lo = EventIdDigestBytes.readLo(fps, off + 8)
+                  val s = allocator.stripeOf(hi)
+                  val j = filled[s]
+                  bufHi[s][j] = hi
+                  bufLo[s][j] = lo
+                  filled[s] = j + 1
+                  off += EventIdDigestBytes.WIDTH
+                }
+                for (s in 0 until stripes) {
+                  if (counts[s] > 0) allocator.addTodayBulk(s, bufHi[s], bufLo[s], counts[s])
+                }
+              } finally {
+                inFlight.release()
               }
-              // Pass 2: fill exact-size per-stripe primitive buffers.
-              val bufHi = Array(stripes) { LongArray(counts[it]) }
-              val bufLo = Array(stripes) { IntArray(counts[it]) }
-              val filled = IntArray(stripes)
-              off = 0
-              repeat(count) {
-                val hi = EventIdDigestBytes.readHi(fps, off)
-                val lo = EventIdDigestBytes.readLo(fps, off + 8)
-                val s = allocator.stripeOf(hi)
-                val j = filled[s]
-                bufHi[s][j] = hi
-                bufLo[s][j] = lo
-                filled[s] = j + 1
-                off += EventIdDigestBytes.WIDTH
-              }
-              for (s in 0 until stripes) {
-                if (counts[s] > 0) allocator.addTodayBulk(s, bufHi[s], bufLo[s], counts[s])
-              }
-            } finally {
-              inFlight.release()
             }
           }
-        }
       }
     }
 
@@ -455,19 +460,21 @@ class SubpoolRanker(
     // Materialize this dispatch's fingerprint set for the subpool from the Phase-0 merged blob,
     // before the allocator so its element count can pre-size the allocator's heap maps.
     val todayFps = Bytes12IntMap()
-    subpoolFingerprintsStore.readBlob(subpoolBlobUri, encryptedSubpoolMapsDek).collect { record ->
-      val fps = record.fingerprints
-      val count = fps.size() / EventIdDigestBytes.WIDTH
-      var off = 0
-      repeat(count) {
-        todayFps.put(
-          EventIdDigestBytes.readHi(fps, off),
-          EventIdDigestBytes.readLo(fps, off + 8),
-          1,
-        )
-        off += EventIdDigestBytes.WIDTH
+    subpoolFingerprintsStore
+      .readBlob(subpoolBlobUri, encryptedSubpoolMapsDek, mergedBlobGenerations[poolOffset])
+      .collect { record ->
+        val fps = record.fingerprints
+        val count = fps.size() / EventIdDigestBytes.WIDTH
+        var off = 0
+        repeat(count) {
+          todayFps.put(
+            EventIdDigestBytes.readHi(fps, off),
+            EventIdDigestBytes.readLo(fps, off + 8),
+            1,
+          )
+          off += EventIdDigestBytes.WIDTH
+        }
       }
-    }
 
     // Pre-size the allocator's maps: dayOnly to this dispatch's fingerprint count, and the
     // cumulative to prior-snapshot-plus-today so it does not resize during load

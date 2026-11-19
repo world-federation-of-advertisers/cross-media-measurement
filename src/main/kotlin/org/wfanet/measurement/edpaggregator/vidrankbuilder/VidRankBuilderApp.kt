@@ -23,19 +23,24 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.getRankerJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -143,11 +148,9 @@ class VidRankBuilderApp(
         "$retentionDays"
     }
 
-    val subpoolFingerprintsStore =
-      SubpoolFingerprintsStore(
-        buildSubpoolMapStorageClient(params.subpoolMapStorageParams),
-        kmsClient,
-      )
+    val subpoolStorage = buildSubpoolMapStorageClient(params.subpoolMapStorageParams)
+    val mergedGenerations = selectedMergedGenerations(params, subpoolStorage)
+    val subpoolFingerprintsStore = SubpoolFingerprintsStore(subpoolStorage, kmsClient)
     val rankIndexStore =
       RankIndexStore(buildVidRankMapStorageClient(params.vidRankMapStorageParams), kmsClient)
 
@@ -183,6 +186,7 @@ class VidRankBuilderApp(
         retentionDays = retentionDays,
         today = runDate,
         rpcThrottlers = rpcThrottlers,
+        mergedBlobGenerations = mergedGenerations,
         workerDispatcher = workerDispatcher,
         stripes = rankStripes,
         maxInFlightRecords = maxInFlightRecords,
@@ -210,80 +214,72 @@ class VidRankBuilderApp(
       .run()
   }
 
+  private suspend fun selectedMergedGenerations(
+    params: VidRankBuilderParams,
+    storage: ConditionalOperationStorageClient,
+  ): Map<Long, Long> {
+    val job =
+      rpcThrottlers.metadataRead.onReady {
+        rankerJobsStub.getRankerJob(getRankerJobRequest { name = params.rankerJob })
+      }
+    if (job.state == RankerJob.State.SUCCEEDED) return emptyMap()
+    var token = ""
+    var parent: org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine? = null
+    do {
+      val page =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionUploadModelLinesStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              this.parent = params.rawImpressionUpload
+              filter =
+                ListRawImpressionUploadModelLinesRequestKt.filter {
+                  cmmsModelLine = params.modelLine
+                }
+              pageToken = token
+            }
+          )
+        }
+      parent =
+        page.rawImpressionUploadModelLinesList.singleOrNull { it.cmmsModelLine == params.modelLine }
+          ?: parent
+      token = page.nextPageToken
+    } while (token.isNotEmpty())
+    val selected = parent ?: return emptyMap()
+    if (!selected.hasMergedOutputManifest()) return emptyMap()
+    val store = OutputManifestStore(storage, params.subpoolMapStorageParams.blobPrefix)
+    val records = store.read(selected.mergedOutputManifest).toList()
+    val header = records.first().header
+    check(
+      header.phase == OutputManifestRecord.Header.Phase.POOL_MERGE &&
+        header.owner == selected.name &&
+        header.rawImpressionUpload == params.rawImpressionUpload &&
+        header.modelLinesList == listOf(params.modelLine) &&
+        header.encryptedDek == params.encryptedSubpoolMapsDek
+    ) {
+      "Ranker payload disagrees with selected merge"
+    }
+    val refs =
+      records.drop(1).associate {
+        check(it.hasSubpoolBlob()) { "Unexpected merged output record" }
+        it.subpoolBlob.poolOffset to it.subpoolBlob.blob
+      }
+    check(refs.size == records.size - 1 && refs.keys == selected.poolOffsetsList.toSet())
+    check(params.subpoolMapBlobUrisMap.keys == job.poolOffsetsList.toSet())
+    return params.subpoolMapBlobUrisMap.mapValues { (offset, uri) ->
+      val ref = checkNotNull(refs[offset]) { "Ranker input is absent from selected merge" }
+      check(ref.blobUri == uri) { "Ranker URI disagrees with selected merge" }
+      store.readBlob(ref)
+      ref.blobGeneration
+    }
+  }
+
   /**
    * Builds the memoized [VidLabelerParams] template for the Phase-2 fan-out from the pass-through
    * fields the SubpoolAssigner stamped on [params]. The last-`RankerJob`-out copies it per
    * `VidLabelingJob`, filling the job's name and its files; the Phase-2 TEE resolves the rank-index
    * blobs from the `RankIndexBlobService` rather than receiving their URIs here.
    */
-  private fun buildVidLabelerParamsTemplate(params: VidRankBuilderParams): VidLabelerParams {
-    require(params.modelBlobPath.isNotEmpty()) { "model_blob_path must be set" }
-    require(params.hasRawImpressionStorageParams()) { "raw_impression_storage_params must be set" }
-    require(params.hasVidLabeledImpressionsStorageParams()) {
-      "vid_labeled_impressions_storage_params must be set"
-    }
-    require(params.hasModelStorageParams()) { "model_storage_params must be set" }
-    // Fail here rather than in the Phase-2 TEE: an unset value means a producer in the Phase-0 ->
-    // Phase-1 chain dropped the pass-through, which would otherwise surface only as a
-    // crash-looping VidLabeler nacking every fan-out WorkItem.
-    require(params.populationSpecBlobUri.isNotEmpty()) { "population_spec_blob_uri must be set" }
-    require(params.eventTemplateVersion > 0) { "event_template_version must be set" }
-    return vidLabelerParams {
-      dataProvider = params.dataProvider
-      rawImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
-          gcsProjectId = params.rawImpressionStorageParams.gcsProjectId
-          impressionsBlobPrefix = params.rawImpressionStorageParams.blobPrefix
-        }
-      vidLabeledImpressionsStorageParams =
-        VidLabelerParamsKt.storageParams {
-          gcsProjectId = params.vidLabeledImpressionsStorageParams.gcsProjectId
-          impressionsBlobPrefix = params.vidLabeledImpressionsStorageParams.blobPrefix
-        }
-      modelLineConfigs.put(
-        params.modelLine,
-        VidLabelerParamsKt.modelLineConfig {
-          labelerInputFieldMapping.addAll(params.labelerInputFieldMappingList)
-          eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
-          // Phase-2 requires the event-template descriptor to build the labeled output; stamp it
-          // (and its type) onto the memoized VidLabeler ModelLineConfig.
-          eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
-          eventTemplateType = params.eventTemplateType
-          // Phase-2 resolves each assigned VID's population attributes from this spec and rejects
-          // a WorkItem without it; stamp it alongside the descriptor.
-          populationSpecBlobUri = params.populationSpecBlobUri
-          eventTemplateVersion = params.eventTemplateVersion
-          // Per-impression entity-key columns for Phase-2 (read per row from these columns).
-          requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
-          optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)
-          // Active-window pass-through (OPTIONAL): Phase-2 drops impressions outside this window.
-          if (params.hasActiveStartTime()) {
-            activeStartTime = params.activeStartTime
-          }
-          if (params.hasActiveEndTime()) {
-            activeEndTime = params.activeEndTime
-          }
-        },
-      )
-      // Shared payload at the top level (both Phase-2 paths); the memoized WorkItem covers exactly
-      // one model line. `vid_labeling_job` is stamped per fan-out WorkItem by the ranker.
-      modelLines += params.modelLine
-      modelBlobPaths.put(params.modelLine, params.modelBlobPath)
-      modelStorageParams =
-        VidLabelerParamsKt.storageParams {
-          gcsProjectId = params.modelStorageParams.gcsProjectId
-          impressionsBlobPrefix = params.modelStorageParams.blobPrefix
-        }
-      // MemoizedParams carries only the memoized-specific rank-index storage; its presence selects
-      // the memoized path.
-      memoizedParams =
-        VidLabelerParamsKt.memoizedParams {
-          vidRankMapStorageParams =
-            VidLabelerParamsKt.storageParams {
-              gcsProjectId = params.vidRankMapStorageParams.gcsProjectId
-              impressionsBlobPrefix = params.vidRankMapStorageParams.blobPrefix
-            }
-        }
-    }
-  }
+  private fun buildVidLabelerParamsTemplate(params: VidRankBuilderParams): VidLabelerParams =
+    org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingPhaseDispatcher
+      .templateFromRankBuilder(params)
 }

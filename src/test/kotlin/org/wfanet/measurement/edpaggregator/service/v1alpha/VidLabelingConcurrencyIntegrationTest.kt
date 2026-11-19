@@ -23,10 +23,12 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.DIRECT_MODEL_LINE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -136,6 +138,13 @@ internal class VidLabelingConcurrencyIntegrationTest : VidLabelingPipelineTestHa
         }
       )
       .isEqualTo(1)
+    val selectedKeys = rankRows.map { it.encryptedDek }.toSet()
+    assertThat(selectedKeys).hasSize(1)
+    val store = RankIndexStore(mapStorage, kmsClient)
+    for (row in rankRows) {
+      val records = store.readBlob(row.blobUri, row.encryptedDek, row.blobChecksum).toList()
+      assertThat(records.sumOf { it.ranksCount }).isEqualTo(1)
+    }
     assertThat(vidLabelerWorkItems()).hasSize(1)
     assertThat(listMetadata()).hasSize(1)
   }

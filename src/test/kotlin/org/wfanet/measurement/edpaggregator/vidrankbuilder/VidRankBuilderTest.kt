@@ -43,6 +43,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
@@ -75,6 +76,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.BlobChangedException
 
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
 private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
@@ -311,6 +313,49 @@ class VidRankBuilderTest {
       rpcThrottlers = rpcThrottlers,
       traceContextProvider = traceContextProvider,
     )
+
+  @Test
+  fun `completed rank job acknowledges a blob collision without any success mutation`() =
+    runBlocking<Unit> {
+      val collision = BlobChangedException("attempt key already exists")
+      val ranker =
+        mock<SubpoolRanker> {
+          onBlocking { rank(any(), any(), any()) } doAnswer { throw collision }
+        }
+      val jobs = rankerJobsMock()
+      whenever(jobs.getRankerJob(any(), any()))
+        .thenReturn(
+          rankerJob {
+            name = RANKER_JOB
+            state = RankerJob.State.CREATED
+            etag = "before"
+          },
+          rankerJob {
+            name = RANKER_JOB
+            state = RankerJob.State.SUCCEEDED
+            etag = "after"
+          },
+        )
+      val workItems = mock<WorkItemsCoroutineStub>()
+      val result = builder(ranker, jobs, workItemsStub = workItems).run()
+      assertThat(result.outcome).isEqualTo("already_completed")
+      verifyBlocking(jobs, never()) { markRankerJobSucceeded(any(), any()) }
+      verifyBlocking(workItems, never()) { createWorkItem(any(), any()) }
+    }
+
+  @Test
+  fun `incomplete rank job propagates a blob collision for a fresh attempt`() =
+    runBlocking<Unit> {
+      val collision = BlobChangedException("orphan attempt key")
+      val ranker =
+        mock<SubpoolRanker> {
+          onBlocking { rank(any(), any(), any()) } doAnswer { throw collision }
+        }
+      val jobs = rankerJobsMock()
+      val thrown = assertFailsWith<BlobChangedException> { builder(ranker, jobs).run() }
+      assertThat(thrown.message).isEqualTo(collision.message)
+      verifyBlocking(jobs, never()) { markRankerJobSucceeded(any(), any()) }
+    }
 
   @Test
   fun `non-last job ranks its subpools and marks succeeded without fan-out`() = runBlocking {

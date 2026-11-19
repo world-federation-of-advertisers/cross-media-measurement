@@ -40,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -113,6 +114,7 @@ class SubpoolAssignerAppTest {
           workItemsClient = mock<WorkItemsCoroutineStub>(),
           workItemAttemptsClient = mock<WorkItemAttemptsCoroutineStub>(),
           vidRankBuilderQueue = "queues/vid-rank-builder",
+          vidLabelerQueue = "queues/vid-labeler",
           kmsClients = mapOf(DATA_PROVIDER to mock<KmsClient>()),
           getSubpoolMapStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
           getRawImpressionsStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
@@ -123,6 +125,7 @@ class SubpoolAssignerAppTest {
           rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
           poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
           rawImpressionUploadFilesStub = filesStub,
+          vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
           buildParquetStorageClient = { _, _ -> parquetStorageClient },
           buildSubpoolMapStorageClient = { mock<ConditionalOperationStorageClient>() },
           loadPoolEmitLabeler = { _, _ -> throw modelFailure },

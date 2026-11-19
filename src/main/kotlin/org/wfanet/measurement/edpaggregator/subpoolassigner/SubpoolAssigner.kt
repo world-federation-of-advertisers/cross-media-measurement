@@ -34,7 +34,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -44,6 +46,7 @@ import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
@@ -53,6 +56,9 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputBlobReference
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecordKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
@@ -61,13 +67,17 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.v1alpha.commitRawImpressionUploadModelLineMergedOutputRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.outputManifestRecord
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -76,6 +86,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.BlobChangedException
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * Phase-0 per-WorkItem logic for the memoized VID assignment pipeline (analog of
@@ -124,9 +136,13 @@ class SubpoolAssigner(
   private val vidRankBuilderQueue: String,
   private val vidRankBuilderParamsTemplate: VidRankBuilderParams,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val outputManifestStore: OutputManifestStore,
+  private val outputBlobPrefixUri: String,
+  private val dispatchLabeling: suspend () -> Int,
   private val accumulator: SubpoolFingerprintsAccumulator = SubpoolFingerprintsAccumulator(),
   private val metrics: SubpoolAssignerMetrics = SubpoolAssignerMetrics(),
   private val traceContextProvider: () -> Map<String, String> = W3CTraceContext::inject,
+  private val newAttemptId: () -> String = { UUID.randomUUID().toString() },
 ) {
   /**
    * @property subpoolCount number of non-empty subpools this shard wrote.
@@ -202,176 +218,205 @@ class SubpoolAssigner(
     // Phase 0 has no entity keys; ignore the per-file footer metadata.
     rawImpressionSource.streamBlobs(openSink = { _, _ -> sink })
 
-    // 2. Generate this shard's DEK and stream each subpool to its own RecordIO blob, freeing the
-    // subpool's in-memory map as soon as its blob is durable.
-    // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): the per-shard write below
-    //   is intentionally unconditional (not write-if-absent) — see
-    // SubpoolFingerprintsStore.writeBlob.
-    //   For these envelope-encrypted blobs (per-attempt random DEK + IV) a write-if-absent
-    // precondition
-    //   would turn a crash between the write and MarkPoolAssignmentJobSucceeded — today
-    // auto-recovered
-    //   by re-writing — into a permanent FAILED, since the orphan ciphertext fails every retry's
-    // 412
-    //   and the job never reaches SUCCEEDED. A correct fix (recover the winner's DEK on retry:
-    //   row-first DEK, or key-on-row) is an API change; kept unconditional for now.
-    val dek: EncryptedDek = store.generateDek(kekUri)
+    // Every retry gets fresh keys. Only a complete manifest becomes authoritative.
+    val attemptId = newAttemptId()
     val subpoolIds = accumulator.subpoolIds().toList()
-    // Write the per-subpool blobs with bounded concurrency (up to SUBPOOL_UPLOAD_CONCURRENCY at
-    // once). subpoolIds is deduplicated, so each async block owns a DISTINCT subpool id: the
-    // concurrent accumulator.remove(subpoolId) calls therefore only ever run across DIFFERENT
-    // subpools — same-subpool remove is impossible here, which is exactly the callsite invariant
-    // that makes the snapshot-based accumulator safe (see SubpoolFingerprintsAccumulator.remove).
-    // Each writeBlob builds its OWN encrypted client (encryptedClient is not shared/cached across
-    // calls), so concurrent writes never interleave on shared client state; streamChunks/remove
-    // touch disjoint buckets. This runs after the read/label stream has fully drained, so it uses a
-    // separate, ephemeral scope — never the row-processing worker pool. Each subpool's map is freed
-    // as soon as its blob is durable, so peak memory is unchanged (all maps are already resident).
-    coroutineScope {
-      val uploadSemaphore = Semaphore(SUBPOOL_UPLOAD_CONCURRENCY)
-      subpoolIds
-        .map { subpoolId ->
-          async {
-            uploadSemaphore.withPermit {
-              try {
-                store.writeBlob(
-                  shardSubpoolKey(shardIndex, subpoolId),
-                  dek,
-                  subpoolId,
-                  accumulator.streamChunks(subpoolId),
-                )
-              } catch (e: CancellationException) {
-                throw e
-              } catch (e: Exception) {
-                logPoolUnit(
-                  Level.WARNING,
-                  "edpa.vid_labeling.pool_assignment.shard_output_failed",
-                  "pool_assignment_output",
-                  "failed",
-                  subpoolId,
-                  e,
-                )
-                throw e
+    val dek = if (subpoolIds.isEmpty()) null else store.generateDek(kekUri)
+    val records =
+      try {
+        coroutineScope {
+          val uploads = Semaphore(SUBPOOL_UPLOAD_CONCURRENCY)
+          subpoolIds
+            .map { offset ->
+              async {
+                uploads.withPermit {
+                  val key = shardSubpoolKey(shardIndex, offset) + "/attempt/" + attemptId
+                  val blob =
+                    try {
+                      store.writeBlob(
+                        key,
+                        checkNotNull(dek),
+                        offset,
+                        accumulator.streamChunks(offset),
+                      )
+                    } catch (e: CancellationException) {
+                      throw e
+                    } catch (e: Exception) {
+                      logPoolUnit(
+                        Level.WARNING,
+                        "edpa.vid_labeling.pool_assignment.shard_output_failed",
+                        "pool_assignment_output",
+                        "failed",
+                        offset,
+                        e,
+                      )
+                      throw e
+                    }
+                  Span.current()
+                    .addEvent(
+                      "edpa.vid_labeling.pool_assignment.shard_output",
+                      Attributes.builder()
+                        .put(POOL_OFFSET, offset)
+                        .put(SHARD_INDEX, shardIndex.toLong())
+                        .put(XmmTraceAttributes.OUTCOME, "written")
+                        .build(),
+                    )
+                  val reference = outputManifestStore.reference(uriFor(key), blob)
+                  accumulator.remove(offset)
+                  logPoolUnit(
+                    Level.INFO,
+                    "edpa.vid_labeling.pool_assignment.shard_output",
+                    "pool_assignment_output",
+                    "written",
+                    offset,
+                  )
+                  outputManifestRecord {
+                    subpoolBlob =
+                      OutputManifestRecordKt.subpoolBlob {
+                        poolOffset = offset
+                        this.blob = reference
+                      }
+                  }
+                }
               }
-              Span.current()
-                .addEvent(
-                  "edpa.vid_labeling.pool_assignment.shard_output",
-                  Attributes.builder()
-                    .put(POOL_OFFSET, subpoolId)
-                    .put(SHARD_INDEX, shardIndex.toLong())
-                    .put(XmmTraceAttributes.OUTCOME, "written")
-                    .build(),
-                )
-              logPoolUnit(
-                Level.INFO,
-                "edpa.vid_labeling.pool_assignment.shard_output",
-                "pool_assignment_output",
-                "written",
-                subpoolId,
-              )
-              accumulator.remove(subpoolId)
             }
-          }
+            .awaitAll()
         }
-        .awaitAll()
+      } catch (e: BlobChangedException) {
+        return recoverCollision(e)
+      }
+    val manifest =
+      try {
+        outputManifestStore.write(
+          uriFor(shardSubpoolKey(shardIndex, 0L) + "/attempt/" + attemptId + "/manifest"),
+          manifestHeader(
+            OutputManifestRecord.Header.Phase.POOL_ASSIGNMENT,
+            poolAssignmentJob,
+            attemptId,
+            dek,
+          ),
+          records.asFlow(),
+        )
+      } catch (e: BlobChangedException) {
+        return recoverCollision(e)
+      }
+    val markResponse =
+      try {
+        rpcThrottlers.metadataWrite.onReady {
+          poolAssignmentJobsStub.markPoolAssignmentJobSucceeded(
+            markPoolAssignmentJobSucceededRequest {
+              name = poolAssignmentJob
+              etag = job.etag
+              requestId = deterministicUuid("$poolAssignmentJob|succeeded")
+              outputManifest = manifest
+              if (dek != null) encryptedDek = dek
+              poolOffsets += subpoolIds
+              sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
+            }
+          )
+        }
+      } catch (e: StatusException) {
+        if (
+          e.status.code != Status.Code.ABORTED && e.status.code != Status.Code.FAILED_PRECONDITION
+        )
+          throw e
+        val selected = getJob()
+        if (selected.state != PoolAssignmentJob.State.SUCCEEDED) throw e
+        return recoverIfLastShardOut()
+      }
+    // The service may replay another attempt's original success. Recover using only elected state.
+    val lastShardOut = markResponse.hasLastShardResult() || getJob().lastShard
+    if (lastShardOut) {
+      val parent = requireNotNull(getParent()) { "Pool-assignment parent is missing" }
+      runLastShardOut(parent)
     }
     val subpoolCount = subpoolIds.size
-
-    logger.info(
-      "Shard $shardIndex/$totalShards for $modelLine: wrote $subpoolCount subpools " +
-        "(labeled=${sink.labeled}, droppedOutsideWindow=${sink.droppedOutsideWindow}, " +
-        "unrouted=${sink.unrouted})"
-    )
-
-    // 3. Mark this shard SUCCEEDED, reporting its discovered subpool offsets and latest event date
-    // so the service can union the offsets and reduce the dates to a max across shards, persisting
-    // both on the parent RawImpressionUploadModelLine.
-    val markResponse =
-      rpcThrottlers.metadataWrite.onReady {
-        poolAssignmentJobsStub.markPoolAssignmentJobSucceeded(
-          markPoolAssignmentJobSucceededRequest {
-            name = poolAssignmentJob
-            etag = job.etag
-            // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
-            // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
-            requestId = deterministicUuid("$poolAssignmentJob|succeeded")
-            encryptedDek = dek
-            poolOffsets += subpoolIds
-            sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
-          }
-        )
-      }
-
-    // 4. Last-shard-out: merge per-shard blobs into one blob per subpool, then fan out Phase 1.
-    val lastShardOut = markResponse.hasLastShardResult()
-    if (lastShardOut) {
-      val parent =
-        requireNotNull(getParent()) {
-          "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
-        }
-      runLastShardOut(
-        parent,
-        markResponse.lastShardResult.poolOffsetsList,
-        markResponse.lastShardResult.maxEventDate,
-        mergedDek = dek,
-      )
-    }
     return summary(subpoolCount, sink, lastShardOut)
   }
 
-  /**
-   * Recovers the last-shard-out on Pub/Sub redelivery of an already-SUCCEEDED shard. The union of
-   * discovered subpool offsets, the max event date, and the merged-blob DEK were persisted on the
-   * parent `RawImpressionUploadModelLine` by the last-shard-out's `MarkPoolAssignmentJobSucceeded`,
-   * so we read them back:
-   * - empty `pool_offsets` -> this shard was not the last out; nothing to do,
-   * - parent state already `RANKING`/`LABELING`/`COMPLETED` -> the last-shard-out fully finished
-   *   (the state flip is its last step), so there is nothing to recover,
-   * - parent state `FAILED` -> this is a stale delivery for an upload that must remain terminal,
-   * - otherwise -> a crash interrupted the last-shard-out; re-run it. The merge, RankerJob
-   *   creation, and WorkItem publish are all idempotent, so re-running is safe.
-   *
-   * The merge reuses the persisted `encrypted_merged_dek` (not a freshly generated DEK): the merged
-   * blobs and every published `VidRankBuilderParams.encrypted_subpool_maps_dek` must agree on the
-   * DEK across re-runs, so the re-merge must re-encrypt with the exact DEK the first run used.
-   */
-  private suspend fun recoverIfLastShardOut(): Result {
-    val parent = getParent()
-    if (parent == null || parent.poolOffsetsList.isEmpty()) {
-      logger.info("PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; not last-shard-out")
-      return Result(0, 0, 0, 0, lastShardOut = false, outcome = "already_completed")
-    }
-    if (parent.state in NOOP_FANOUT_STATES) {
-      logger.info(
-        "PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; last-shard-out already complete " +
-          "(parent state=${parent.state})"
+  private suspend fun getJob(): PoolAssignmentJob =
+    rpcThrottlers.metadataRead.onReady {
+      poolAssignmentJobsStub.getPoolAssignmentJob(
+        getPoolAssignmentJobRequest { name = poolAssignmentJob }
       )
-      return Result(0, 0, 0, 0, lastShardOut = true, outcome = "already_completed")
     }
-    require(parent.hasEncryptedMergedDek()) {
-      "RawImpressionUploadModelLine ${parent.name} has pool_offsets but no encrypted_merged_dek; " +
-        "cannot recover the merge with a consistent DEK"
-    }
-    logger.info("PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; recovering last-shard-out")
-    runLastShardOut(
-      parent,
-      parent.poolOffsetsList,
-      parent.maxEventDate,
-      mergedDek = parent.encryptedMergedDek,
-    )
-    return Result(0, 0, 0, 0, lastShardOut = true, outcome = "recovered")
+
+  private suspend fun recoverCollision(error: BlobChangedException): Result {
+    val selected = getJob()
+    // An incomplete job must retry with a fresh namespace, never acknowledge lost work.
+    if (selected.state != PoolAssignmentJob.State.SUCCEEDED) throw error
+    return Result(0, 0, 0, 0, false, "already_completed")
   }
 
-  /**
-   * Merges every shard's per-subpool blobs into one blob per subpool (encrypted with [mergedDek],
-   * this last VM's own DEK), deletes the temp per-shard blobs, then fans out Phase 1.
-   */
-  private suspend fun runLastShardOut(
-    parent: RawImpressionUploadModelLine,
-    poolOffsets: List<Long>,
-    maxEventDate: Date,
-    mergedDek: EncryptedDek,
+  private suspend fun recoverIfLastShardOut(): Result {
+    val parent = getParent() ?: return Result(0, 0, 0, 0, false, "already_completed")
+    if (parent.state in NOOP_FANOUT_STATES) {
+      return Result(0, 0, 0, 0, true, "already_completed")
+    }
+    val jobs = listShardJobs()
+    if (jobs.isEmpty() || jobs.any { it.state != PoolAssignmentJob.State.SUCCEEDED }) {
+      return Result(0, 0, 0, 0, false, "already_completed")
+    }
+    runLastShardOut(parent)
+    return Result(0, 0, 0, 0, true, "recovered")
+  }
+
+  private fun uriFor(key: String): String {
+    val root = SelectedStorageClient.parseBlobUri(outputBlobPrefixUri)
+    val separator = if (root.scheme == "file") ":///" else "://"
+    return root.scheme + separator + root.bucket + "/" + key
+  }
+
+  private fun manifestHeader(
+    phase: OutputManifestRecord.Header.Phase,
+    owner: String,
+    attemptId: String,
+    dek: EncryptedDek?,
   ) =
+    OutputManifestRecordKt.header {
+      this.phase = phase
+      rawImpressionUpload = this@SubpoolAssigner.rawImpressionUpload
+      this.owner = owner
+      modelLines += modelLine
+      this.attemptId = attemptId
+      if (dek != null) encryptedDek = dek
+    }
+
+  private data class Publication(
+    val header: OutputManifestRecord.Header,
+    val blobs: Map<Long, OutputBlobReference>,
+  )
+
+  private suspend fun readPublication(
+    reference: OutputBlobReference,
+    owner: String,
+    phase: OutputManifestRecord.Header.Phase,
+  ): Publication {
+    var header: OutputManifestRecord.Header? = null
+    val blobs = mutableMapOf<Long, OutputBlobReference>()
+    outputManifestStore.read(reference).collect { record ->
+      if (record.hasHeader()) {
+        check(
+          record.header.owner == owner &&
+            record.header.rawImpressionUpload == rawImpressionUpload &&
+            record.header.phase == phase &&
+            record.header.modelLinesList == listOf(modelLine)
+        ) {
+          "Pool output manifest scope does not match its owner"
+        }
+        header = record.header
+      } else {
+        check(record.hasSubpoolBlob()) { "Unexpected pool manifest record" }
+        check(blobs.put(record.subpoolBlob.poolOffset, record.subpoolBlob.blob) == null) {
+          "Duplicate subpool output"
+        }
+        outputManifestStore.readBlob(record.subpoolBlob.blob)
+      }
+    }
+    return Publication(checkNotNull(header), blobs)
+  }
+
+  private suspend fun runLastShardOut(parent: RawImpressionUploadModelLine) =
     Tracing.traceSuspending(
       spanName = "edpa.vid_labeling.pool_assignment.finalize",
       attributes =
@@ -383,7 +428,7 @@ class SubpoolAssigner(
           .put(XmmTraceAttributes.OUTCOME, "started")
           .build(),
     ) {
-      val finalized = runLastShardOutInternal(parent, poolOffsets, maxEventDate, mergedDek)
+      val finalized = runLastShardOutInternal(parent)
       Span.current()
         .setAttribute(
           XmmTraceAttributes.OUTCOME,
@@ -391,104 +436,227 @@ class SubpoolAssigner(
         )
     }
 
-  private suspend fun runLastShardOutInternal(
-    parent: RawImpressionUploadModelLine,
-    poolOffsets: List<Long>,
-    maxEventDate: Date,
-    mergedDek: EncryptedDek,
-  ): Boolean {
-    if (parent.state in NOOP_FANOUT_STATES) {
-      logger.info("Skipping last-shard-out for ${parent.name}: parent state is ${parent.state}")
-      return false
-    }
+  private suspend fun runLastShardOutInternal(parent: RawImpressionUploadModelLine): Boolean {
+    if (parent.state in NOOP_FANOUT_STATES) return false
     check(parent.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
-      "Parent ${parent.name} has not reached POOL_ASSIGNING; retry this WorkItem after the " +
-        "dispatcher commits the phase transition"
+      "Parent has not reached POOL_ASSIGNING; retry after the dispatcher transition"
     }
+    val selectedParent = if (parent.hasMergedOutputManifest()) parent else commitMerge(parent)
+    val selected =
+      readPublication(
+        selectedParent.mergedOutputManifest,
+        selectedParent.name,
+        OutputManifestRecord.Header.Phase.POOL_MERGE,
+      )
+    check(selected.blobs.keys == selectedParent.poolOffsetsList.toSet()) {
+      "Selected merge does not cover the parent's subpools"
+    }
+    if (selected.blobs.isEmpty()) {
+      fanOutEmptyLabeling(selectedParent)
+      return true
+    } else {
+      return fanOutRanking(
+        selectedParent,
+        selectedParent.poolOffsetsList,
+        selectedParent.maxEventDate,
+        selected.header.encryptedDek,
+        selected.blobs.mapValues { it.value.blobUri },
+      )
+    }
+    // Selected shard files remain available for interrupted finalizers and audit; lifecycle owns
+    // cleanup.
+  }
 
-    logger.info(
-      "Shard $shardIndex is last-out for $modelLine; merging ${poolOffsets.size} subpools"
-    )
-
-    // Each shard encrypted its blobs with its own DEK, persisted on its PoolAssignmentJob row by
-    // MarkPoolAssignmentJobSucceeded; recover them via ListPoolAssignmentJobs for this model line.
-    val shardDeks: Map<Int, EncryptedDek> = listShardDeks()
-
-    // Merge the subpools CONCURRENTLY, all sharing one Semaphore so the TOTAL number of in-flight
-    // shard reads across every subpool merge is bounded by MERGE_READ_CONCURRENCY, keeping merge
-    // memory bounded regardless of the subpool/shard fan-out.
-    val readSemaphore = Semaphore(MERGE_READ_CONCURRENCY)
-    coroutineScope {
-      poolOffsets
-        .map { poolOffset ->
-          async {
-            var failureShard: Int? = null
-            // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool
-            //   writes unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery
-            //   path re-runs the merge idempotently by re-writing the merged blob, which a
-            //   write-if-absent precondition would break, so the merge is deliberately left
-            //   unconditional.
-            try {
-              val inputs =
-                (0 until totalShards).map { shard ->
-                  failureShard = shard
-                  SubpoolFingerprintsStore.SubpoolBlob(
-                    shardSubpoolKey(shard, poolOffset),
-                    requireNotNull(shardDeks[shard]) {
-                      "Missing DEK for shard $shard; cannot merge"
-                    },
-                  )
-                }
-              failureShard = null
-              store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore)
-            } catch (e: CancellationException) {
-              throw e
-            } catch (e: Exception) {
-              logPoolUnit(
-                Level.WARNING,
-                "edpa.vid_labeling.pool_assignment.merge_failed",
-                "pool_assignment_merge",
-                "failed",
-                poolOffset,
-                e,
-                failureShard,
+  private suspend fun commitMerge(
+    parent: RawImpressionUploadModelLine
+  ): RawImpressionUploadModelLine {
+    val jobs = listShardJobs()
+    check(jobs.isNotEmpty() && jobs.all { it.state == PoolAssignmentJob.State.SUCCEEDED }) {
+      "Cannot merge incomplete pool assignment"
+    }
+    val expectedShards = (0 until totalShards).toSet()
+    val actualShards = jobs.map { it.shardIndex }.toSet()
+    if (jobs.size != totalShards || actualShards != expectedShards) {
+      val error = IllegalStateException("Pool assignment is missing a declared shard")
+      logPoolUnit(
+        Level.WARNING,
+        "edpa.vid_labeling.pool_assignment.merge_failed",
+        "pool_assignment_merge",
+        "failed",
+        parent.poolOffsetsList.firstOrNull(),
+        error,
+        failureShard = (expectedShards - actualShards).firstOrNull(),
+      )
+      throw error
+    }
+    val inputs = mutableMapOf<Long, MutableList<SubpoolFingerprintsStore.SubpoolBlob>>()
+    for (job in jobs) {
+      if (job.hasOutputManifest()) {
+        val shard =
+          readPublication(
+            job.outputManifest,
+            job.name,
+            OutputManifestRecord.Header.Phase.POOL_ASSIGNMENT,
+          )
+        for ((offset, ref) in shard.blobs) {
+          inputs
+            .getOrPut(offset) { mutableListOf() }
+            .add(
+              SubpoolFingerprintsStore.SubpoolBlob(
+                SelectedStorageClient.parseBlobUri(ref.blobUri).key,
+                shard.header.encryptedDek,
+                ref.blobGeneration,
               )
-              throw e
-            }
-            Span.current()
-              .addEvent(
-                "edpa.vid_labeling.pool_assignment.merged_subpool",
-                Attributes.builder()
-                  .put(POOL_OFFSET, poolOffset)
-                  .put(XmmTraceAttributes.OUTCOME, "written")
-                  .build(),
-              )
-            logPoolUnit(
-              Level.INFO,
-              "edpa.vid_labeling.pool_assignment.merged_subpool",
-              "pool_assignment_merge",
-              "written",
-              poolOffset,
             )
+        }
+      } else {
+        // Old shard layouts are sparse and carry no manifest; preserve their original key and AAD.
+        for (offset in parent.poolOffsetsList) {
+          val legacyKey =
+            SubpoolFingerprintsStore.shardSubpoolKey(
+              outputBlobPrefixUri,
+              rawImpressionUpload,
+              modelLine,
+              job.shardIndex,
+              offset,
+            )
+          inputs
+            .getOrPut(offset) { mutableListOf() }
+            .add(SubpoolFingerprintsStore.SubpoolBlob(legacyKey, job.encryptedDek))
+        }
+      }
+    }
+    check(inputs.keys == parent.poolOffsetsList.toSet()) {
+      "Shard manifests disagree with parent pool offsets"
+    }
+    val dek =
+      if (inputs.isEmpty()) null
+      else {
+        check(parent.hasEncryptedMergedDek()) { "Nonempty merge has no persisted encryption key" }
+        parent.encryptedMergedDek
+      }
+    val attemptId = newAttemptId()
+    val readSemaphore = Semaphore(MERGE_READ_CONCURRENCY)
+    val records = coroutineScope {
+      val writes = Semaphore(SUBPOOL_UPLOAD_CONCURRENCY)
+      parent.poolOffsetsList
+        .map { offset ->
+          async {
+            writes.withPermit {
+              val key = mergedSubpoolKey(offset) + "/attempt/" + attemptId
+              val blob =
+                try {
+                  store.mergeSubpool(
+                    checkNotNull(inputs[offset]),
+                    key,
+                    checkNotNull(dek),
+                    readSemaphore,
+                  )
+                } catch (e: CancellationException) {
+                  throw e
+                } catch (e: Exception) {
+                  logPoolUnit(
+                    Level.WARNING,
+                    "edpa.vid_labeling.pool_assignment.merge_failed",
+                    "pool_assignment_merge",
+                    "failed",
+                    offset,
+                    e,
+                    failureShard = null,
+                  )
+                  throw e
+                }
+              Span.current()
+                .addEvent(
+                  "edpa.vid_labeling.pool_assignment.merged_subpool",
+                  Attributes.builder()
+                    .put(POOL_OFFSET, offset)
+                    .put(XmmTraceAttributes.OUTCOME, "written")
+                    .build(),
+                )
+              logPoolUnit(
+                Level.INFO,
+                "edpa.vid_labeling.pool_assignment.merged_subpool",
+                "pool_assignment_merge",
+                "written",
+                offset,
+                failureShard = null,
+              )
+              outputManifestRecord {
+                subpoolBlob =
+                  OutputManifestRecordKt.subpoolBlob {
+                    poolOffset = offset
+                    this.blob = outputManifestStore.reference(uriFor(key), blob)
+                  }
+              }
+            }
           }
         }
         .awaitAll()
     }
-    val transitioned = fanOutRanking(parent, poolOffsets, maxEventDate, mergedDek)
+    val manifest =
+      outputManifestStore.write(
+        uriFor(mergedSubpoolKey(0L) + "/attempt/" + attemptId + "/manifest"),
+        manifestHeader(OutputManifestRecord.Header.Phase.POOL_MERGE, parent.name, attemptId, dek),
+        records.asFlow(),
+      )
+    return try {
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.commitRawImpressionUploadModelLineMergedOutput(
+          commitRawImpressionUploadModelLineMergedOutputRequest {
+            name = parent.name
+            etag = parent.etag
+            requestId = deterministicUuid("${parent.name}|merged-output")
+            outputManifest = manifest
+          }
+        )
+      }
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.ABORTED && e.status.code != Status.Code.FAILED_PRECONDITION)
+        throw e
+      val current = getParent()
+      if (current != null && current.hasMergedOutputManifest()) current else throw e
+    }
+  }
 
-    // Clean up the temp per-shard blobs only AFTER fanOutRanking flips the parent to RANKING.
-    // recovery re-runs the last-shard-out only while the parent is still POOL_ASSIGNING (pre-flip),
-    // so deferring the delete to here guarantees a recovery re-merge still finds its inputs; once
-    // the flip lands, recovery short-circuits on the completed state and never re-merges. A crash
-    // in
-    // the narrow post-flip/pre-delete window leaks the temp blobs (no corruption) — they are
-    // reclaimed by the monitor (#3958) or the bucket lifecycle policy.
-    for (shard in 0 until totalShards) {
-      for (poolOffset in poolOffsets) {
-        store.delete(shardSubpoolKey(shard, poolOffset))
+  private suspend fun fanOutEmptyLabeling(parent: RawImpressionUploadModelLine) {
+    val count = dispatchLabeling()
+    try {
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            name = parent.name
+            etag = parent.etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(parent.name)
+          }
+        )
+      }
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.ABORTED && e.status.code != Status.Code.FAILED_PRECONDITION)
+        throw e
+      if (
+        getParent()?.state !in
+          setOf(
+            RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      )
+        throw e
+    }
+    if (count == 0) {
+      val labeled = checkNotNull(getParent())
+      if (labeled.state == RawImpressionUploadModelLine.State.LABELING) {
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
+            markRawImpressionUploadModelLineCompletedRequest {
+              name = labeled.name
+              etag = labeled.etag
+              requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(labeled.name)
+            }
+          )
+        }
       }
     }
-    return transitioned
   }
 
   /**
@@ -510,6 +678,7 @@ class SubpoolAssigner(
     poolOffsets: List<Long>,
     maxEventDate: Date,
     mergedDek: EncryptedDek,
+    mergedBlobUris: Map<Long, String>,
   ): Boolean {
     for (poolOffset in poolOffsets) {
       val offsets = listOf(poolOffset)
@@ -533,7 +702,7 @@ class SubpoolAssigner(
         XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "pool_assignment_finalize",
         XmmTraceAttributes.OUTCOME_STRING to "resolved",
       )
-      publishVidRankBuilderWorkItem(rankerJob, offsets, maxEventDate, mergedDek)
+      publishVidRankBuilderWorkItem(rankerJob, offsets, maxEventDate, mergedDek, mergedBlobUris)
     }
 
     val transitioned = markParentRanking(parent)
@@ -594,13 +763,14 @@ class SubpoolAssigner(
     offsets: List<Long>,
     maxEventDate: Date,
     mergedDek: EncryptedDek,
+    mergedBlobUris: Map<Long, String>,
   ) {
     val params =
       vidRankBuilderParamsTemplate.copy {
         encryptedSubpoolMapsDek = mergedDek
         this.rankerJob = rankerJob.name
         this.maxEventDate = maxEventDate
-        offsets.forEach { subpoolMapBlobUris.put(it, mergedSubpoolKey(it)) }
+        offsets.forEach { subpoolMapBlobUris.put(it, checkNotNull(mergedBlobUris[it])) }
         offsets.forEach { subpoolRankedSizes.put(it, labeler.rankedSize(it)) }
       }
     val workItemId = WorkItemIds.forVidRankBuilder(rankerJob.name)
@@ -691,13 +861,8 @@ class SubpoolAssigner(
     }
   }
 
-  /**
-   * Returns each shard's DEK keyed by `shard_index`, read from the `PoolAssignmentJob` rows of this
-   * (`RawImpressionUpload`, `ModelLine`) via `ListPoolAssignmentJobs` (paged). Each row carries the
-   * DEK its shard's `MarkPoolAssignmentJobSucceeded` persisted.
-   */
-  private suspend fun listShardDeks(): Map<Int, EncryptedDek> {
-    val deks = HashMap<Int, EncryptedDek>(totalShards)
+  private suspend fun listShardJobs(): List<PoolAssignmentJob> {
+    val jobs = mutableListOf<PoolAssignmentJob>()
     poolAssignmentJobsStub
       .listResources { pageToken: String ->
         val response =
@@ -712,8 +877,8 @@ class SubpoolAssigner(
           }
         ResourceList(response.poolAssignmentJobsList, response.nextPageToken)
       }
-      .collect { page -> page.forEach { job -> deks[job.shardIndex] = job.encryptedDek } }
-    return deks
+      .collect { page -> jobs.addAll(page) }
+    return jobs
   }
 
   /**
@@ -815,7 +980,7 @@ class SubpoolAssigner(
     event: String,
     lifecycleStage: String,
     outcome: String,
-    poolOffset: Long,
+    poolOffset: Long?,
     error: Throwable? = null,
     failureShard: Int? = shardIndex,
   ) {
@@ -826,7 +991,7 @@ class SubpoolAssigner(
       VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
       VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
       VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
-      VidLabelingTraceAttributes.POOL_OFFSET_STRING to poolOffset.toString(),
+      VidLabelingTraceAttributes.POOL_OFFSET_STRING to poolOffset?.toString(),
       VidLabelingTraceAttributes.SHARD_INDEX_STRING to failureShard?.toString(),
       XmmTraceAttributes.LIFECYCLE_STAGE_STRING to lifecycleStage,
       XmmTraceAttributes.OUTCOME_STRING to outcome,

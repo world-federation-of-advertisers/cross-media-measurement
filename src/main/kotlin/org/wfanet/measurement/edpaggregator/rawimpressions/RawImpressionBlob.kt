@@ -19,7 +19,11 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
 import java.net.URI
 
 /** One registered raw-impression object and the immutable GCS generation it must be read from. */
-data class RawImpressionBlob(val blobUri: String, val blobGeneration: Long) {
+data class RawImpressionBlob(
+  val blobUri: String,
+  val blobGeneration: Long,
+  val rawImpressionUploadFile: String = "",
+) {
   val generationMatchedBlobUri: String = generationMatchedBlobUri(blobUri, blobGeneration)
 }
 

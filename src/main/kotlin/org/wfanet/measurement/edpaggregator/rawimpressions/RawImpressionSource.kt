@@ -304,6 +304,11 @@ class RawImpressionSource<E : ParquetRawEvent>(
 
   suspend fun streamBlobs(
     openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink<E>
+  ) = streamRegisteredBlobs { blob, footerMetadata -> openSink(blob.blobUri, footerMetadata) }
+
+  /** Streams registered inputs while preserving their control-plane resource identity. */
+  suspend fun streamRegisteredBlobs(
+    openSink: suspend (blob: RawImpressionBlob, footerMetadata: Map<String, String>) -> BlobSink<E>
   ) {
     val blobs = discoverBlobs()
     logger.info(
@@ -335,7 +340,7 @@ class RawImpressionSource<E : ParquetRawEvent>(
    */
   private suspend fun processBlob(
     blob: RawImpressionBlob,
-    openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink<E>,
+    openSink: suspend (blob: RawImpressionBlob, footerMetadata: Map<String, String>) -> BlobSink<E>,
     cpuDispatcher: CoroutineDispatcher,
     inFlight: Semaphore,
     progress: ProgressTracker,
@@ -348,7 +353,7 @@ class RawImpressionSource<E : ParquetRawEvent>(
         ?: error("Raw-impression blob not found: $blobUri")
     // Read the file's plaintext footer key-value metadata once and hand it to the sink factory; the
     // Phase-2 sink derives its entity keys from it ("Option Y"). Phase-0/1 sinks ignore it.
-    val sink = openSink(blobUri, parquetBlob.readKeyValueMetadata())
+    val sink = openSink(blob, parquetBlob.readKeyValueMetadata())
     var primary: Throwable? = null
     try {
       // The per-file scope owns this file's batch jobs; it returns the reader's
@@ -508,7 +513,7 @@ class RawImpressionSource<E : ParquetRawEvent>(
   }
 
   private fun org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
-    .toRawImpressionBlob(): RawImpressionBlob = RawImpressionBlob(blobUri, blobGeneration)
+    .toRawImpressionBlob(): RawImpressionBlob = RawImpressionBlob(blobUri, blobGeneration, name)
 
   /**
    * Reads the [eventIdColumn] from [row] as bytes. Parquet may surface it either as a

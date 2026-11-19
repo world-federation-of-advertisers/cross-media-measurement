@@ -25,6 +25,7 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.flowOf
@@ -38,6 +39,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.storage.BlobChangedException
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -101,6 +104,65 @@ class SubpoolFingerprintsStoreTest {
     }
     return set
   }
+
+  @Test
+  fun `shard and merge collisions preserve decryptable winning output and allow a fresh retry`() =
+    runBlocking<Unit> {
+      val store = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val firstDek = store.generateDek(kekUri)
+      val first = pack(listOf(fp(0x11)))
+      val shard = store.writeBlob("shard/attempt/first", firstDek, 0L, flowOf(first))
+      val generation = (shard as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
+      assertFailsWith<BlobChangedException> {
+        store.writeBlob(
+          "shard/attempt/first",
+          store.generateDek(kekUri),
+          0L,
+          flowOf(pack(listOf(fp(0x22)))),
+        )
+      }
+      assertThat(readAll(store, "shard/attempt/first", firstDek)).isEqualTo(first)
+      val inputs =
+        listOf(SubpoolFingerprintsStore.SubpoolBlob("shard/attempt/first", firstDek, generation))
+      val mergedDek = store.generateDek(kekUri)
+      val merged = store.mergeSubpool(inputs, "merge/attempt/first", mergedDek, Semaphore(1))
+      val mergeGeneration = (merged as ConditionalOperationStorageClient.Blob).freshnessToken
+      assertFailsWith<BlobChangedException> {
+        store.mergeSubpool(inputs, "merge/attempt/first", store.generateDek(kekUri), Semaphore(1))
+      }
+      assertThat(storageClient.getFreshnessToken("merge/attempt/first")).isEqualTo(mergeGeneration)
+      assertThat(readAll(store, "merge/attempt/first", mergedDek)).isEqualTo(first)
+      store.mergeSubpool(inputs, "merge/attempt/retry", mergedDek, Semaphore(1))
+      assertThat(readAll(store, "merge/attempt/retry", mergedDek)).isEqualTo(first)
+    }
+
+  @Test
+  fun `selected subpool inputs reject missing and replaced generations while legacy sparse inputs remain valid`() =
+    runBlocking<Unit> {
+      val store = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val dek = store.generateDek(kekUri)
+      val blob = store.writeBlob("shard/selected", dek, 0L, flowOf(pack(listOf(fp(0x11)))))
+      val generation = (blob as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
+      storageClient.writeBlob("shard/selected", flowOf(ByteString.copyFromUtf8("replacement")))
+      assertFailsWith<IllegalStateException> {
+        store.readBlob("shard/selected", dek, generation).toList()
+      }
+      assertFailsWith<IllegalStateException> {
+        store.mergeSubpool(
+          listOf(SubpoolFingerprintsStore.SubpoolBlob("missing", dek, 1L)),
+          "merge/missing",
+          dek,
+          Semaphore(1),
+        )
+      }
+      store.mergeSubpool(
+        listOf(SubpoolFingerprintsStore.SubpoolBlob("missing", dek)),
+        "merge/legacy-sparse",
+        dek,
+        Semaphore(1),
+      )
+      assertThat(readAll(store, "merge/legacy-sparse", dek)).isEmpty()
+    }
 
   @Test
   fun `writeBlob writes one record per chunk and readBlob round-trips`() = runBlocking {

@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.EVENT_DATE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
@@ -219,18 +220,23 @@ internal class VidLabelingRankRetentionIntegrationTest :
       Breakage.CORRUPT_CIPHERTEXT ->
         mapStorage.writeBlob(snapshot.blobUri, flowOf(ByteString.copyFromUtf8("corrupt")))
       Breakage.CHECKSUM_MISMATCH ->
-        RankIndexStore(mapStorage, kmsClient)
+        EncryptedStorage.buildEncryptedMesosStorageClient(
+            mapStorage,
+            kmsClient,
+            snapshot.encryptedDek.kekUri,
+            snapshot.encryptedDek,
+          )
           .writeBlob(
             snapshot.blobUri,
-            snapshot.encryptedDek,
             flowOf(
               rankIndexMap {
-                poolOffset = snapshot.poolOffset
-                rankedSize = 90
-                fingerprints = ByteString.copyFrom(ByteArray(12))
-                ranks += 0
-                lastSeenDays = ByteString.copyFrom(byteArrayOf(0, 1))
-              }
+                  poolOffset = snapshot.poolOffset
+                  rankedSize = 90
+                  fingerprints = ByteString.copyFrom(ByteArray(12))
+                  ranks += 0
+                  lastSeenDays = ByteString.copyFrom(byteArrayOf(0, 1))
+                }
+                .toByteString()
             ),
           )
     }

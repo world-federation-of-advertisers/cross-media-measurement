@@ -59,7 +59,7 @@ class VidLabelerTest {
     }
 
     val rawImpressionSource: RawImpressionSource<ParquetUndigestedEvent> = mock()
-    whenever(rawImpressionSource.streamBlobs(any())).then {}
+    whenever(rawImpressionSource.streamRegisteredBlobs(any())).then {}
 
     val labeler =
       VidLabeler(
@@ -93,7 +93,7 @@ class VidLabelerTest {
     }
 
     val rawImpressionSource: RawImpressionSource<ParquetUndigestedEvent> = mock()
-    whenever(rawImpressionSource.streamBlobs(any())).then {}
+    whenever(rawImpressionSource.streamRegisteredBlobs(any())).then {}
 
     val labeler =
       VidLabeler(

@@ -20,12 +20,14 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import java.time.Instant
+import java.util.UUID
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
@@ -37,10 +39,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingPhaseDispatcher
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -49,6 +53,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * Phase-0 TEE/queue adapter for the memoized VID assignment pipeline.
@@ -104,6 +109,7 @@ class SubpoolAssignerApp(
   private val workItemsClient: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub,
   private val vidRankBuilderQueue: String,
+  private val vidLabelerQueue: String,
   private val kmsClients: Map<String, KmsClient>,
   private val getSubpoolMapStorageConfig: (StorageParams) -> StorageConfig,
   private val getRawImpressionsStorageConfig: (StorageParams) -> StorageConfig,
@@ -113,6 +119,7 @@ class SubpoolAssignerApp(
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val buildParquetStorageClient: (StorageConfig, KmsClient) -> ParquetStorageClient,
   private val buildSubpoolMapStorageClient: (StorageConfig) -> ConditionalOperationStorageClient,
   private val loadPoolEmitLabeler:
@@ -120,6 +127,7 @@ class SubpoolAssignerApp(
   private val getSubpoolMapKekUri: (dataProvider: String) -> String,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
+  private val newOutputAttemptId: () -> String = { UUID.randomUUID().toString() },
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -190,13 +198,11 @@ class SubpoolAssignerApp(
             params.activeStartTime.toInstant(),
             if (params.hasActiveEndTime()) params.activeEndTime.toInstant() else null,
           )
-        val store =
-          SubpoolFingerprintsStore(
-            buildSubpoolMapStorageClient(
-              getSubpoolMapStorageConfig(params.subpoolMapStorageParams)
-            ),
-            kmsClient,
-          )
+        val subpoolStorage =
+          buildSubpoolMapStorageClient(getSubpoolMapStorageConfig(params.subpoolMapStorageParams))
+        val store = SubpoolFingerprintsStore(subpoolStorage, kmsClient)
+        val outputManifestStore =
+          OutputManifestStore(subpoolStorage, params.subpoolMapStorageParams.blobPrefix)
 
         // Static Phase-1 params, passed through from this shard's SubpoolAssignerParams. The
         // last-shard-out fan-out fills in the per-RankerJob fields (encrypted_subpool_maps_dek,
@@ -210,7 +216,8 @@ class SubpoolAssignerApp(
             activeWindow = activeWindow,
             store = store,
             kekUri = getSubpoolMapKekUri(dataProvider),
-            blobPrefix = params.subpoolMapStorageParams.blobPrefix,
+            blobPrefix =
+              SelectedStorageClient.parseBlobUri(params.subpoolMapStorageParams.blobPrefix).key,
             poolAssignmentJobsStub = poolAssignmentJobsStub,
             rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
             rankerJobsStub = rankerJobsStub,
@@ -224,6 +231,23 @@ class SubpoolAssignerApp(
             vidRankBuilderQueue = vidRankBuilderQueue,
             vidRankBuilderParamsTemplate = vidRankBuilderParamsTemplate,
             rpcThrottlers = rpcThrottlers,
+            newAttemptId = newOutputAttemptId,
+            outputManifestStore = outputManifestStore,
+            outputBlobPrefixUri = params.subpoolMapStorageParams.blobPrefix,
+            dispatchLabeling = {
+              VidLabelingPhaseDispatcher(
+                  params.rawImpressionUpload,
+                  params.modelLine,
+                  vidLabelerQueue,
+                  VidLabelingPhaseDispatcher.templateFromRankBuilder(vidRankBuilderParamsTemplate),
+                  params.maxFileBatchSizeBytes,
+                  rawImpressionUploadFilesStub,
+                  vidLabelingJobsStub,
+                  workItemsClient,
+                  rpcThrottlers,
+                )
+                .dispatch()
+            },
           )
           .assign()
       }

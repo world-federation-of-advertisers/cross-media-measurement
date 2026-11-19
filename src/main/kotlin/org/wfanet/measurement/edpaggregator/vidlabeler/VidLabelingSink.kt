@@ -143,6 +143,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
   private val metrics: VidLabelerMetrics,
   private val encryptionKeySemaphore: Semaphore,
   private val publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  private val outputAttemptPath: String? = null,
 ) : RawImpressionSource.BlobSink<E> {
 
   /**
@@ -298,12 +299,22 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     private val entityIdsByType = LinkedHashMap<String, LinkedHashSet<String>>()
 
     private val outputBlobUri =
-      LabeledImpressionsBlobKeys.forInputUri(
-        outputStorageParams.impressionsBlobPrefix,
-        inputBlobUri,
-        key.modelLine,
-        fileMetadata.eventDate,
-      )
+      if (outputAttemptPath == null) {
+        LabeledImpressionsBlobKeys.forInputUri(
+          outputStorageParams.impressionsBlobPrefix,
+          inputBlobUri,
+          key.modelLine,
+          fileMetadata.eventDate,
+        )
+      } else {
+        LabeledImpressionsBlobKeys.forAttemptInputUri(
+          outputStorageParams.impressionsBlobPrefix,
+          inputBlobUri,
+          key.modelLine,
+          fileMetadata.eventDate,
+          outputAttemptPath,
+        )
+      }
     private lateinit var outputEncryptedDek: EncryptedDek
 
     /** The draining/writing coroutine. Started eagerly so the blob is opened as records arrive. */
@@ -530,6 +541,7 @@ class MemoizedVidLabelingSink(
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
   publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  outputAttemptPath: String? = null,
 ) :
   BaseVidLabelingSink<ParquetDigestedEvent>(
     inputBlobUri,
@@ -544,6 +556,7 @@ class MemoizedVidLabelingSink(
     metrics,
     encryptionKeySemaphore,
     publicationObserver,
+    outputAttemptPath,
   ) {
   override fun resolveLabelerInput(
     event: ParquetDigestedEvent,
@@ -589,6 +602,7 @@ class PlainVidLabelingSink(
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
   publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  outputAttemptPath: String? = null,
 ) :
   BaseVidLabelingSink<ParquetUndigestedEvent>(
     inputBlobUri,
@@ -603,6 +617,7 @@ class PlainVidLabelingSink(
     metrics,
     encryptionKeySemaphore,
     publicationObserver,
+    outputAttemptPath,
   ) {
   override fun resolveLabelerInput(
     event: ParquetUndigestedEvent,

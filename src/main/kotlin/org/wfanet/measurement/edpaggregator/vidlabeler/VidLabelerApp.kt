@@ -31,10 +31,12 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.time.Instant
 import java.time.LocalDate
+import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
@@ -46,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
@@ -58,6 +61,8 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputBlobReference
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -89,6 +94,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -169,6 +175,8 @@ class VidLabelerApp(
   private val buildImpressionConverter:
     suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val immutableOutputPublication: Boolean = false,
+  private val newOutputAttemptId: () -> String = { UUID.randomUUID().toString() },
   private val writeGcsObject:
     suspend (
       projectId: String?, blobInfo: BlobInfo, content: ByteArray, expectedGeneration: Long,
@@ -362,20 +370,38 @@ class VidLabelerApp(
           VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT,
           job.rawImpressionUploadFilesCount.toLong(),
         )
+      val attempt =
+        if (immutableOutputPublication && job.state != VidLabelingJob.State.SUCCEEDED) {
+          newOutputAttempt(params)
+        } else null
+      var outputManifest: OutputBlobReference? = null
       val observedEventDates: Set<LocalDate> =
-        if (job.state != VidLabelingJob.State.SUCCEEDED) {
-          labelMemoized(
-            params,
-            mp,
-            modelLine,
-            config,
-            dataProvider,
-            kmsClient,
-            job.rawImpressionUploadFilesList,
-          )
-        } else {
-          logger.info("VidLabelingJob $vidLabelingJob already SUCCEEDED; skipping relabel")
-          emptySet()
+        try {
+          if (job.state != VidLabelingJob.State.SUCCEEDED) {
+              labelMemoized(
+                params,
+                mp,
+                modelLine,
+                config,
+                dataProvider,
+                kmsClient,
+                job.rawImpressionUploadFilesList,
+                attempt,
+              )
+            } else {
+              logger.info("VidLabelingJob $vidLabelingJob already SUCCEEDED; skipping relabel")
+              emptySet()
+            }
+            .also { outputManifest = attempt?.publish() }
+        } catch (e: BlobChangedException) {
+          val current =
+            rpcThrottlers.metadataRead.onReady {
+              vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = job.name })
+            }
+          if (current.state != VidLabelingJob.State.SUCCEEDED) throw e
+          return LabelingRunResult("already_completed", job.rawImpressionUploadFilesCount)
+        } finally {
+          attempt?.close()
         }
 
       val finalized =
@@ -389,6 +415,7 @@ class VidLabelerApp(
           job.rawImpressionUploadFilesList,
           kmsClient,
           replay = job.state == VidLabelingJob.State.SUCCEEDED,
+          outputManifest = outputManifest ?: job.outputManifest.takeIf { job.hasOutputManifest() },
         )
       // Count only successful completions; a thrown failure skips this and nacks the message.
       metrics.workItemsProcessedCounter.add(1, attributes)
@@ -441,18 +468,38 @@ class VidLabelerApp(
           VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT,
           job.rawImpressionUploadFilesCount.toLong(),
         )
+      val attempt =
+        if (immutableOutputPublication && job.state != VidLabelingJob.State.SUCCEEDED) {
+          newOutputAttempt(params)
+        } else null
+      var outputManifest: OutputBlobReference? = null
       val observedEventDates: Set<LocalDate> =
-        if (job.state != VidLabelingJob.State.SUCCEEDED) {
-          labelNonMemoized(
-            params,
-            dataProvider,
-            kmsClient,
-            encryptKekUri,
-            job.rawImpressionUploadFilesList,
-          )
-        } else {
-          logger.info("VidLabelingJob ${params.vidLabelingJob} already SUCCEEDED; skipping relabel")
-          emptySet()
+        try {
+          if (job.state != VidLabelingJob.State.SUCCEEDED) {
+              labelNonMemoized(
+                params,
+                dataProvider,
+                kmsClient,
+                encryptKekUri,
+                job.rawImpressionUploadFilesList,
+                attempt,
+              )
+            } else {
+              logger.info(
+                "VidLabelingJob ${params.vidLabelingJob} already SUCCEEDED; skipping relabel"
+              )
+              emptySet()
+            }
+            .also { outputManifest = attempt?.publish() }
+        } catch (e: BlobChangedException) {
+          val current =
+            rpcThrottlers.metadataRead.onReady {
+              vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = job.name })
+            }
+          if (current.state != VidLabelingJob.State.SUCCEEDED) throw e
+          return LabelingRunResult("already_completed", job.rawImpressionUploadFilesCount)
+        } finally {
+          attempt?.close()
         }
 
       val finalized =
@@ -466,6 +513,7 @@ class VidLabelerApp(
           job.rawImpressionUploadFilesList,
           kmsClient,
           replay = job.state == VidLabelingJob.State.SUCCEEDED,
+          outputManifest = outputManifest ?: job.outputManifest.takeIf { job.hasOutputManifest() },
         )
       metrics.workItemsProcessedCounter.add(1, attributes)
       return LabelingRunResult(
@@ -480,6 +528,68 @@ class VidLabelerApp(
     }
   }
 
+  private fun newOutputAttempt(params: VidLabelerParams): LabelingOutputAttempt {
+    val cfg = getStorageConfig(params.vidLabeledImpressionsStorageParams)
+    val rootUri = params.vidLabeledImpressionsStorageParams.impressionsBlobPrefix
+    val storage =
+      SelectedStorageClient(
+          SelectedStorageClient.parseBlobUri(rootUri),
+          cfg.rootDirectory,
+          cfg.projectId,
+        )
+        .underlyingClient
+    return LabelingOutputAttempt(
+      storage,
+      rootUri,
+      params.vidLabelingJob,
+      params.modelLinesList,
+      newOutputAttemptId(),
+    )
+  }
+
+  private suspend fun emptyCompletedRankIndex(
+    params: VidLabelerParams,
+    dataProvider: String,
+    modelLine: String,
+  ): MemoizedRankIndex? {
+    val upload = parentUpload(params.vidLabelingJob)
+    val parent =
+      listAllModelLines(upload).singleOrNull { it.cmmsModelLine == modelLine } ?: return null
+    if (!parent.hasMergedOutputManifest() || parent.poolOffsetsCount != 0) return null
+    check(
+      parent.state == RawImpressionUploadModelLine.State.LABELING ||
+        parent.state == RawImpressionUploadModelLine.State.COMPLETED ||
+        parent.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+    ) {
+      "Empty pool output has not completed its labeling handoff"
+    }
+    val parsed = SelectedStorageClient.parseBlobUri(parent.mergedOutputManifest.blobUri)
+    val schemeSeparator = if (parsed.scheme == "file") ":///" else "://"
+    val root =
+      parsed.scheme + schemeSeparator + parsed.bucket + "/" + parsed.key.substringBeforeLast('/')
+    val cfg =
+      getStorageConfig(params.memoizedParams.vidRankMapStorageParams).copy(blobPrefix = root)
+    val storage = buildVidRankMapStorageClient(cfg)
+    val records = OutputManifestStore(storage, root).read(parent.mergedOutputManifest).toList()
+    check(records.size == 1 && records.single().hasHeader()) {
+      "Empty pool manifest contains payload"
+    }
+    val header = records.single().header
+    check(
+      header.phase == OutputManifestRecord.Header.Phase.POOL_MERGE &&
+        header.owner == parent.name &&
+        header.rawImpressionUpload == upload &&
+        header.modelLinesList == listOf(modelLine)
+    ) {
+      "Empty pool manifest scope mismatch"
+    }
+    val kekUri =
+      requireNotNull(encryptKekUris[dataProvider]) {
+        "Output KEK is not configured for $dataProvider"
+      }
+    return MemoizedRankIndex.fromMaps(emptyMap(), kekUri)
+  }
+
   /** Labels this WorkItem's raw-impression files for [mp]'s single model line (memoized path). */
   private suspend fun labelMemoized(
     params: VidLabelerParams,
@@ -489,7 +599,19 @@ class VidLabelerApp(
     dataProvider: String,
     kmsClient: KmsClient,
     inputFiles: List<String>,
+    attempt: LabelingOutputAttempt?,
   ): Set<LocalDate> {
+    val registeredInputs =
+      if (attempt == null) emptyMap()
+      else
+        inputFiles.associateWith { name ->
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.getRawImpressionUploadFile(
+              getRawImpressionUploadFileRequest { this.name = name }
+            )
+          }
+        }
+
     val rankIndexStore =
       RankIndexStore(
         buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
@@ -502,17 +624,25 @@ class VidLabelerApp(
     // a metadata-service roll (UNAVAILABLE / DEADLINE_EXCEEDED) fails every WorkItem's fast path
     // until it recovers. If it becomes a hotspot, cache the result with a short TTL to share one
     // call across a burst of WorkItems, or retry-on-transient before falling through to a rebuild.
-    val resolvedBlobs =
-      MemoizedRankIndex.resolveLatestBlobs(
-        rankIndexBlobsStub,
-        dataProvider,
-        modelLine,
-        rpcThrottlers.metadataRead,
-      )
     val rankIndex =
-      memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
-        MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
-      }
+      emptyCompletedRankIndex(params, dataProvider, modelLine)
+        ?: run {
+          val resolvedBlobs =
+            MemoizedRankIndex.resolveLatestBlobs(
+              rankIndexBlobsStub,
+              dataProvider,
+              modelLine,
+              rpcThrottlers.metadataRead,
+            )
+          memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
+            MemoizedRankIndex.buildFrom(
+              rankIndexStore,
+              dataProvider,
+              modelLine,
+              resolvedBlobs.blobs,
+            )
+          }
+        }
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
     val eventIdColumn = resolveEventIdColumn(config)
@@ -597,20 +727,31 @@ class VidLabelerApp(
           provider,
           sinkMetrics,
           semaphore ->
-          MemoizedVidLabelingSink(
-            inputBlobUri,
-            contexts,
-            converter,
-            metadata,
-            client,
-            kekUri,
-            storageParams,
-            storageConfig,
-            provider,
-            sinkMetrics,
-            semaphore,
-            publicationObserver,
-          )
+          val registeredFile =
+            if (attempt == null) null
+            else
+              checkNotNull(registeredInputs[metadata.rawImpressionUploadFile]) {
+                "Input sink has no registered resource identity"
+              }
+          val sink =
+            MemoizedVidLabelingSink(
+              inputBlobUri,
+              contexts,
+              converter,
+              metadata,
+              client,
+              kekUri,
+              storageParams,
+              storageConfig,
+              provider,
+              sinkMetrics,
+              semaphore,
+              publicationObserver,
+              outputAttemptPath = registeredFile?.let { attempt?.path(it.name) },
+            )
+          if (attempt != null && registeredFile != null)
+            attempt.wrap(sink, registeredFile, metadata.eventDate)
+          else sink
         },
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
@@ -631,7 +772,19 @@ class VidLabelerApp(
     kmsClient: KmsClient,
     encryptKekUri: String,
     inputFiles: List<String>,
+    attempt: LabelingOutputAttempt?,
   ): Set<LocalDate> {
+    val registeredInputs =
+      if (attempt == null) emptyMap()
+      else
+        inputFiles.associateWith { name ->
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.getRawImpressionUploadFile(
+              getRawImpressionUploadFileRequest { this.name = name }
+            )
+          }
+        }
+
     val modelLines = params.modelLinesList
     val configsByModelLine =
       modelLines.associateWith { modelLine ->
@@ -728,20 +881,31 @@ class VidLabelerApp(
           provider,
           sinkMetrics,
           semaphore ->
-          PlainVidLabelingSink(
-            inputBlobUri,
-            contexts,
-            converter,
-            metadata,
-            client,
-            kekUri,
-            storageParams,
-            storageConfig,
-            provider,
-            sinkMetrics,
-            semaphore,
-            publicationObserver,
-          )
+          val registeredFile =
+            if (attempt == null) null
+            else
+              checkNotNull(registeredInputs[metadata.rawImpressionUploadFile]) {
+                "Input sink has no registered resource identity"
+              }
+          val sink =
+            PlainVidLabelingSink(
+              inputBlobUri,
+              contexts,
+              converter,
+              metadata,
+              client,
+              kekUri,
+              storageParams,
+              storageConfig,
+              provider,
+              sinkMetrics,
+              semaphore,
+              publicationObserver,
+              outputAttemptPath = registeredFile?.let { attempt?.path(it.name) },
+            )
+          if (attempt != null && registeredFile != null)
+            attempt.wrap(sink, registeredFile, metadata.eventDate)
+          else sink
         },
         outputStorageParams = params.vidLabeledImpressionsStorageParams,
         storageConfig = getStorageConfig(params.vidLabeledImpressionsStorageParams),
@@ -779,6 +943,7 @@ class VidLabelerApp(
     inputFiles: List<String>,
     kmsClient: KmsClient,
     replay: Boolean,
+    outputManifest: OutputBlobReference?,
   ): FinalizationResult =
     Tracing.traceSuspending(
       spanName = "edpa.vid_labeling.label.finalize",
@@ -804,6 +969,7 @@ class VidLabelerApp(
             inputFiles,
             kmsClient,
             replay,
+            outputManifest,
           )
           .also { result ->
             Span.current()
@@ -867,6 +1033,7 @@ class VidLabelerApp(
     inputFiles: List<String>,
     kmsClient: KmsClient,
     replay: Boolean,
+    outputManifest: OutputBlobReference?,
   ): FinalizationResult {
     val response =
       try {
@@ -874,6 +1041,7 @@ class VidLabelerApp(
           vidLabelingJobsStub.markVidLabelingJobSucceeded(
             markVidLabelingJobSucceededRequest {
               name = vidLabelingJob
+              if (outputManifest != null) this.outputManifest = outputManifest
               // [etag] was captured from GetVidLabelingJob before label(); together with the
               // deterministic request_id below it covers Pub/Sub *redelivery* under the
               // single-writer assumption (only this worker mutates the job), NOT a concurrent

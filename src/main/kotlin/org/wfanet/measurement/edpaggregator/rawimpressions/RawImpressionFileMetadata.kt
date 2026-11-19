@@ -31,7 +31,10 @@ import java.time.format.DateTimeParseException
  *   day of events). Places the labeled output under `model-line/<id>/<YYYY-MM-DD>/` so
  *   `DataAvailabilitySync` can classify it by date.
  */
-data class RawImpressionFileMetadata(val eventDate: LocalDate) {
+data class RawImpressionFileMetadata(
+  val eventDate: LocalDate,
+  val rawImpressionUploadFile: String = "",
+) {
   companion object {
     /** Footer key holding the file's event date (one day per file) as an ISO `YYYY-MM-DD` (UTC). */
     const val EVENT_DATE_KEY = "event_date"

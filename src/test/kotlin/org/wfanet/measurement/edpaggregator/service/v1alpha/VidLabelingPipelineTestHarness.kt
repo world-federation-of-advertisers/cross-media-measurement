@@ -48,6 +48,9 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -77,6 +80,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FSDataInputStream
@@ -142,9 +146,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataA
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.validateWorkItemDoneObjectGeneration
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices as EdpaInternalApiServices
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata as EdpaSchemata
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.GENERATION_PATH_PREFIX
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
@@ -276,6 +282,7 @@ import org.wfanet.virtualpeople.common.Gender
 
 data class PipelineHarnessConfig(
   val dataProviderName: String = "dataProviders/dp1",
+  val immutableOutputPublication: Boolean = false,
   val eventDescriptor: Descriptors.Descriptor = TestEvent.getDescriptor(),
   val populationSpec: PopulationSpec? = null,
   val eventTemplateFieldMapping: Map<String, String> = emptyMap(),
@@ -418,9 +425,14 @@ abstract class VidLabelingPipelineTestHarness(
   protected val dataProvidersService =
     RecordingDataProvidersService(pipelineConfig.publishAvailability)
   protected val edpaBeforeCallFaults = BeforeCallFaultInterceptor()
+  protected val responseGates = ReadResponseGateInterceptor()
+  private lateinit var poolApplication: SubpoolAssignerApp
+  private lateinit var labelingApplication: VidLabelerApp
+  @Volatile protected var forcedPoolAttemptId: String? = null
+  @Volatile protected var forcedLabelingAttemptId: String? = null
   protected val edpaPublicServer = GrpcTestServerRule {
     Services.build(edpaInternalServer.channel).toList().forEach {
-      addService(ServerInterceptors.intercept(it, edpaBeforeCallFaults))
+      addService(ServerInterceptors.intercept(it, edpaBeforeCallFaults, responseGates))
     }
     addService(modelLinesService)
     addService(modelRolloutsService)
@@ -690,6 +702,7 @@ abstract class VidLabelingPipelineTestHarness(
               edpaPublicServer.channel
             ),
             ImmediateThrottler,
+            manifestStore = { root -> OutputManifestStore(metadataStorage, root) },
           )
         },
         errorIfGapsExist = pipelineConfig.errorIfGapsExist,
@@ -735,6 +748,7 @@ abstract class VidLabelingPipelineTestHarness(
               edpaPublicServer.channel
             ),
             ImmediateThrottler,
+            manifestStore = { root -> OutputManifestStore(metadataStorage, root) },
           )
         },
         errorIfGapsExist = pipelineConfig.errorIfGapsExist,
@@ -917,6 +931,17 @@ abstract class VidLabelingPipelineTestHarness(
           }
         },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        resolveCommittedOutput = { upload, model ->
+          CommittedOutputResolver(
+              VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
+                edpaPublicServer.channel
+              ),
+              filesStub,
+              OutputManifestStore(metadataStorage, outputPrefix),
+              ImmediateThrottler,
+            )
+            .resolve(upload, model, requireCompleted = false)
+        },
       )
     val operationStore =
       GrpcHealingOperationStore(
@@ -1133,6 +1158,12 @@ abstract class VidLabelingPipelineTestHarness(
       VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       uploadsStub,
     )
+
+  protected suspend fun runPoolAssignerDirect(workItem: WorkItem) =
+    poolApplication.runWork(workItem.workItemParams)
+
+  protected suspend fun runVidLabelerDirect(workItem: WorkItem) =
+    labelingApplication.runWork(workItem.workItemParams)
 
   protected suspend fun runRankBuilderDirect(workItem: WorkItem): VidRankBuilder.Result {
     val params =
@@ -1416,39 +1447,46 @@ abstract class VidLabelingPipelineTestHarness(
     val apps =
       listOf(
         SubpoolAssignerApp(
-          subscriptionId = POOL_ASSIGNER_QUEUE,
-          queueSubscriber = workItemTransport,
-          parser = WorkItem.parser(),
-          workItemsClient = workItemsStub,
-          workItemAttemptsClient = workItemAttemptsStub,
-          vidRankBuilderQueue = RANK_BUILDER_QUEUE,
-          kmsClients = mapOf(providerName to kmsClient),
-          getSubpoolMapStorageConfig = {
-            StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
-          },
-          getRawImpressionsStorageConfig = {
-            StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
-          },
-          getModelStorageConfig = {
-            StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
-          },
-          rawImpressionUploadsStub = uploadsStub,
-          rawImpressionUploadModelLinesStub = modelLineRowsStub,
-          rankerJobsStub =
-            RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
-          poolAssignmentJobsStub =
-            PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
-              edpaPublicServer.channel
-            ),
-          rawImpressionUploadFilesStub = filesStub,
-          buildParquetStorageClient = rawParquetClient,
-          buildSubpoolMapStorageClient = { mapStorage },
-          loadPoolEmitLabeler = { _, uri ->
-            VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBytes(uri))
-          },
-          getSubpoolMapKekUri = { kekUri },
-          rpcThrottlers = throttlers,
-        ),
+            subscriptionId = POOL_ASSIGNER_QUEUE,
+            queueSubscriber = workItemTransport,
+            parser = WorkItem.parser(),
+            workItemsClient = workItemsStub,
+            workItemAttemptsClient = workItemAttemptsStub,
+            vidRankBuilderQueue = RANK_BUILDER_QUEUE,
+            vidLabelerQueue = VID_LABELER_QUEUE,
+            kmsClients = mapOf(providerName to kmsClient),
+            getSubpoolMapStorageConfig = {
+              StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
+            },
+            getRawImpressionsStorageConfig = {
+              StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
+            },
+            getModelStorageConfig = {
+              StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
+            },
+            rawImpressionUploadsStub = uploadsStub,
+            rawImpressionUploadModelLinesStub = modelLineRowsStub,
+            rankerJobsStub =
+              RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
+            poolAssignmentJobsStub =
+              PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+                edpaPublicServer.channel
+              ),
+            rawImpressionUploadFilesStub = filesStub,
+            vidLabelingJobsStub =
+              VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
+                edpaPublicServer.channel
+              ),
+            buildParquetStorageClient = rawParquetClient,
+            buildSubpoolMapStorageClient = { mapStorage },
+            loadPoolEmitLabeler = { _, uri ->
+              VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBytes(uri))
+            },
+            getSubpoolMapKekUri = { kekUri },
+            rpcThrottlers = throttlers,
+            newOutputAttemptId = { forcedPoolAttemptId ?: UUID.randomUUID().toString() },
+          )
+          .also { poolApplication = it },
         VidRankBuilderApp(
           subscriptionId = RANK_BUILDER_QUEUE,
           queueSubscriber = workItemTransport,
@@ -1475,38 +1513,41 @@ abstract class VidLabelingPipelineTestHarness(
           maxInFlightRecords = 2,
         ),
         VidLabelerApp(
-          subscriptionId = VID_LABELER_QUEUE,
-          queueSubscriber = workItemTransport,
-          parser = WorkItem.parser(),
-          workItemsClient = workItemsStub,
-          workItemAttemptsClient = workItemAttemptsStub,
-          kmsClients = mapOf(providerName to kmsClient),
-          encryptKekUris = mapOf(providerName to kekUri),
-          getStorageConfig = {
-            StorageConfig(rootDirectory = File("/"), blobPrefix = it.impressionsBlobPrefix)
-          },
-          vidLabelingJobsStub =
-            VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
-              edpaPublicServer.channel
-            ),
-          rawImpressionUploadModelLinesStub = modelLineRowsStub,
-          rankIndexBlobsStub = rankIndexBlobsStub,
-          rawImpressionUploadFilesStub = filesStub,
-          rawImpressionUploadsStub = uploadsStub,
-          uploadHealingOperationsStub = operationsStub,
-          buildParquetStorageClient = rawParquetClient,
-          buildVidRankMapStorageClient = { mapStorage },
-          loadAssigner = { _, uri ->
-            VirtualPeopleVidAssigner.fromCompiledNodeBlob(modelBytes(uri))
-          },
-          buildImpressionConverter = { _, _ ->
-            ParquetImpressionConverter(
-              pipelineConfig.eventDescriptor,
-              PopulationAttributeWriter(pipelineConfig.eventDescriptor, comparisonPopulationSpec),
-            )
-          },
-          rpcThrottlers = throttlers,
-        ),
+            subscriptionId = VID_LABELER_QUEUE,
+            queueSubscriber = workItemTransport,
+            parser = WorkItem.parser(),
+            workItemsClient = workItemsStub,
+            workItemAttemptsClient = workItemAttemptsStub,
+            kmsClients = mapOf(providerName to kmsClient),
+            encryptKekUris = mapOf(providerName to kekUri),
+            getStorageConfig = {
+              StorageConfig(rootDirectory = File("/"), blobPrefix = it.impressionsBlobPrefix)
+            },
+            vidLabelingJobsStub =
+              VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
+                edpaPublicServer.channel
+              ),
+            rawImpressionUploadModelLinesStub = modelLineRowsStub,
+            rankIndexBlobsStub = rankIndexBlobsStub,
+            rawImpressionUploadFilesStub = filesStub,
+            rawImpressionUploadsStub = uploadsStub,
+            uploadHealingOperationsStub = operationsStub,
+            buildParquetStorageClient = rawParquetClient,
+            buildVidRankMapStorageClient = { mapStorage },
+            loadAssigner = { _, uri ->
+              VirtualPeopleVidAssigner.fromCompiledNodeBlob(modelBytes(uri))
+            },
+            buildImpressionConverter = { _, _ ->
+              ParquetImpressionConverter(
+                pipelineConfig.eventDescriptor,
+                PopulationAttributeWriter(pipelineConfig.eventDescriptor, comparisonPopulationSpec),
+              )
+            },
+            rpcThrottlers = throttlers,
+            immutableOutputPublication = pipelineConfig.immutableOutputPublication,
+            newOutputAttemptId = { forcedLabelingAttemptId ?: UUID.randomUUID().toString() },
+          )
+          .also { labelingApplication = it },
       )
     appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     appJobs += apps.map { appScope.launch { it.run() } }
@@ -2295,6 +2336,63 @@ abstract class VidLabelingPipelineTestHarness(
         name = request.name
         dataAvailabilityIntervals += request.dataAvailabilityIntervalsList
       }
+    }
+  }
+
+  /** Forces real concurrent readers to observe the same unmodified job before either writes. */
+  protected class ReadResponseGateInterceptor : ServerInterceptor {
+    class Gate(val method: String, val holdSecond: Boolean) {
+      val assigned = AtomicInteger()
+      val arrived = CountDownLatch(2)
+      val release = CountDownLatch(if (holdSecond) 1 else 0)
+      val messages = ConcurrentLinkedQueue<Any>()
+
+      suspend fun awaitBoth() {
+        withContext(Dispatchers.IO) {
+          check(arrived.await(30, TimeUnit.SECONDS)) { "Readers did not reach response barrier" }
+        }
+      }
+
+      fun releaseSecond() = release.countDown()
+    }
+
+    private val gate = AtomicReference<Gate?>()
+    private val calls = ConcurrentHashMap<String, AtomicInteger>()
+
+    fun arm(method: String, holdSecond: Boolean = false): Gate {
+      val next = Gate(method, holdSecond)
+      check(gate.compareAndSet(null, next))
+      return next
+    }
+
+    fun callCount(method: String): Int = calls[method]?.get() ?: 0
+
+    override fun <ReqT : Any, RespT : Any> interceptCall(
+      call: ServerCall<ReqT, RespT>,
+      headers: Metadata,
+      next: ServerCallHandler<ReqT, RespT>,
+    ): ServerCall.Listener<ReqT> {
+      val method = call.methodDescriptor.fullMethodName
+      calls.computeIfAbsent(method) { AtomicInteger() }.incrementAndGet()
+      val active = gate.get()?.takeIf { it.method == method }
+      val index = active?.assigned?.incrementAndGet()
+      if (active == null || index == null || index > 2) return next.startCall(call, headers)
+      if (index == 2) gate.compareAndSet(active, null)
+      val wrapped =
+        object : ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
+          override fun sendMessage(message: RespT) {
+            active.messages.add(message)
+            active.arrived.countDown()
+            check(active.arrived.await(30, TimeUnit.SECONDS)) {
+              "Readers did not reach response barrier"
+            }
+            if (index == 2 && active.holdSecond) {
+              check(active.release.await(30, TimeUnit.SECONDS)) { "Held response was not released" }
+            }
+            super.sendMessage(message)
+          }
+        }
+      return next.startCall(wrapped, headers)
     }
   }
 

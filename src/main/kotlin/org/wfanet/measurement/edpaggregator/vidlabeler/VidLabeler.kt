@@ -111,14 +111,16 @@ class VidLabeler<E : ParquetRawEvent>(
     // TODO(world-federation-of-advertisers/cross-media-measurement#4010): Switch to file-batching
     // contract. RawImpressionSource currently shards by fingerprint; once VidLabelerApp is wired
     // up, pass VidLabelingJob.raw_impression_upload_files directly and remove fingerprint sharding.
-    rawImpressionSource.streamBlobs { blobUri, footerMetadata ->
+    rawImpressionSource.streamRegisteredBlobs { blob, footerMetadata ->
       // The file's plaintext Parquet footer carries the event date; read it here and hand it to
       // the file's sink. Entity keys are NOT in the footer — they are read per impression from
       // dedicated columns by the converter (EntityKeyMapper).
-      val fileMetadata = RawImpressionFileMetadata.fromFooterMetadata(footerMetadata)
+      val fileMetadata =
+        RawImpressionFileMetadata.fromFooterMetadata(footerMetadata)
+          .copy(rawImpressionUploadFile = blob.rawImpressionUploadFile)
       observedEventDates.add(fileMetadata.eventDate)
       newSink(
-        blobUri,
+        blob.blobUri,
         contexts,
         impressionConverter,
         fileMetadata,
