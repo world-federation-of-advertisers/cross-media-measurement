@@ -218,7 +218,7 @@ jobs:
             bazel-testlogs
 
   build-test:
-    name: Build and test
+    name: ${{ inputs.test_layout == 'serial' && 'Serial baseline result' || 'Build and test' }}
     if: ${{ always() }}
     needs: [build, tests, correctness, serial]
     runs-on: ubuntu-24.04
