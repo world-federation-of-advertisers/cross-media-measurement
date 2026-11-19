@@ -20,6 +20,8 @@ import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.EnumValueDescriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
+import org.wfanet.measurement.common.ExceptionDiagnostics.Category
+import org.wfanet.measurement.common.ExceptionDiagnostics.ValidationFailure
 import org.wfanet.measurement.edpaggregator.v1alpha.AgeRange
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.storage.ParquetValue
@@ -61,9 +63,8 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
 
   init {
     val fieldPaths = mappings.map { it.fieldPath }
-    require(fieldPaths.size == fieldPaths.toSet().size) {
-      "duplicate field_path in labeler_input_field_mapping: " +
-        fieldPaths.groupingBy { it }.eachCount().filterValues { it > 1 }.keys
+    if (fieldPaths.size != fieldPaths.toSet().size) {
+      throw ValidationFailure(Category.INVALID_CONFIGURATION, expectedType = "UNIQUE_FIELD_PATH")
     }
     for (requiredPath in REQUIRED_FIELD_PATHS) {
       require(requiredPath in fieldPaths) {
@@ -134,34 +135,49 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           // non-existent enum value fails fast here at startup instead of on the first
           // matching row.
           val rawToEnumValue: Map<String, EnumValueDescriptor> =
-            lookup.lookupTableMap.mapValues { (raw, enumName) ->
-              requireNotNull(enumType.findValueByName(enumName)) {
-                "enum_lookup maps '$raw' to '$enumName', which is not a ${enumType.name} value " +
-                  "($fieldPath)"
-              }
+            lookup.lookupTableMap.mapValues { (_, enumName) ->
+              enumType.findValueByName(enumName)
+                ?: throw ValidationFailure(
+                  Category.INVALID_CONFIGURATION,
+                  column,
+                  fieldPath,
+                  enumType.fullName,
+                )
             }
           val defaultEnumValue: EnumValueDescriptor? =
             lookup.defaultEnumValue
               .takeIf { it.isNotEmpty() }
               ?.let { enumName ->
-                requireNotNull(enumType.findValueByName(enumName)) {
-                  "enum_lookup default '$enumName' is not a ${enumType.name} value ($fieldPath)"
-                }
+                enumType.findValueByName(enumName)
+                  ?: throw ValidationFailure(
+                    Category.INVALID_CONFIGURATION,
+                    column,
+                    fieldPath,
+                    enumType.fullName,
+                  )
               }
           record(columnKinds, column, setOf(KindCase.STRING_VALUE))
           Applier { row, builder ->
             val value = presentValue(row, column) ?: return@Applier
-            require(value.kindCase == KindCase.STRING_VALUE) {
-              "enum_lookup column '$column' (${value.kindCase}) must be a string"
+            if (value.kindCase != KindCase.STRING_VALUE) {
+              throw ValidationFailure(
+                Category.INCOMPATIBLE_TYPE,
+                column,
+                fieldPath,
+                "STRING_VALUE",
+                value.kindCase.name,
+              )
             }
             val raw = value.stringValue
             if (raw.isEmpty()) return@Applier
             val enumValue =
               rawToEnumValue[raw]
                 ?: defaultEnumValue
-                ?: throw IllegalArgumentException(
-                  "Column '$column' value '$raw' has no entry in enum_lookup.lookup_table for " +
-                    "'$fieldPath' (and no default_enum_value)"
+                ?: throw ValidationFailure(
+                  Category.UNKNOWN_LOOKUP_VALUE,
+                  column,
+                  fieldPath,
+                  enumType.fullName,
                 )
             ProtoRowProjector.setLeaf(builder, path, enumValue)
           }
@@ -186,8 +202,11 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
         }
         LabelerInputFieldMapping.SourceCase.COMPOSITE_IDENTITY -> {
           val composite = mapping.compositeIdentity
-          require(composite.columnsList.isNotEmpty()) {
-            "composite_identity for '$fieldPath' must list at least one column"
+          if (composite.columnsList.isEmpty()) {
+            throw ValidationFailure(
+              Category.INVALID_CONFIGURATION,
+              expectedType = "COMPOSITE_IDENTITY_COLUMNS",
+            )
           }
           val path = ProtoRowProjector.resolvePath(ROOT, fieldPath)
           for (column in composite.columnsList) {
@@ -206,8 +225,10 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           }
         }
         LabelerInputFieldMapping.SourceCase.SOURCE_NOT_SET ->
-          throw IllegalArgumentException(
-            "labeler_input_field_mapping entry for '$fieldPath' has no source set"
+          throw ValidationFailure(
+            Category.INVALID_CONFIGURATION,
+            expectedType = "MAPPING_SOURCE",
+            actualType = mapping.sourceCase.name,
           )
       }
     }
@@ -273,19 +294,30 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           AgeRange.SourceCase.BUCKET_LOOKUP -> {
             val lookup = ageRange.bucketLookup
             val value = presentValue(row, lookup.column) ?: return
-            require(value.kindCase == KindCase.STRING_VALUE) {
-              "age bucket column '${lookup.column}' (${value.kindCase}) must be a string"
+            if (value.kindCase != KindCase.STRING_VALUE) {
+              throw ValidationFailure(
+                Category.INCOMPATIBLE_TYPE,
+                lookup.column,
+                expectedType = "STRING_VALUE",
+                actualType = value.kindCase.name,
+              )
             }
             val key = value.stringValue
             if (key.isEmpty()) return
             val bucket =
               lookup.bucketTableMap[key]
-                ?: throw IllegalArgumentException(
-                  "Column '${lookup.column}' value '$key' has no entry in " +
-                    "age_range.bucket_lookup.bucket_table"
+                ?: throw ValidationFailure(
+                  Category.UNKNOWN_LOOKUP_VALUE,
+                  lookup.column,
+                  fieldPath = path.joinToString(".") { it.name },
                 )
-            require(bucket.minAge >= 0 && bucket.maxAge >= 0) {
-              "age_range.bucket_lookup bucket '$key' has negative min_age/max_age"
+            if (bucket.minAge < 0 || bucket.maxAge < 0) {
+              throw ValidationFailure(
+                Category.INVALID_CONFIGURATION,
+                lookup.column,
+                fieldPath = path.joinToString(".") { it.name },
+                expectedType = "NON_NEGATIVE_AGE",
+              )
             }
             bucket.minAge to bucket.maxAge
           }
@@ -304,8 +336,8 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
     /** Reads a non-negative age from an integral [value], via the shared coercion. */
     private fun age(value: ParquetValue, column: String): Int {
       val longValue = ProtoRowProjector.asLong(value, column)
-      require(longValue in 0L..Int.MAX_VALUE.toLong()) {
-        "Column '$column' age $longValue is out of range for a uint32 age field"
+      if (longValue !in 0L..Int.MAX_VALUE.toLong()) {
+        throw ValidationFailure(Category.OUT_OF_RANGE, column, expectedType = "UINT32_AGE")
       }
       return longValue.toInt()
     }
