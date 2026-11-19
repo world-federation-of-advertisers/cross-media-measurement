@@ -373,6 +373,9 @@ class VidRankBuilderAppTest {
 
       val labelerParams = publishedParams(published.single())
       assertThat(labelerParams.dataProvider).isEqualTo(DATA_PROVIDER)
+      assertThat(labelerParams.rawImpressionUpload).isEqualTo(UPLOAD)
+      assertThat(labelerParams.vidLabelingJob.substringBeforeLast("/vidLabelingJobs/"))
+        .isEqualTo(labelerParams.rawImpressionUpload)
       assertThat(labelerParams.modelLinesList).containsExactly(MODEL_LINE)
       assertThat(labelerParams.modelBlobPathsMap.getValue(MODEL_LINE)).isEqualTo("model/blob")
       assertThat(labelerParams.modelStorageParams.gcsProjectId).isEqualTo("test-project")

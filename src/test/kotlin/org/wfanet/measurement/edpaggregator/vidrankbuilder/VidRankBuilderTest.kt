@@ -386,6 +386,9 @@ class VidRankBuilderTest {
       verifyBlocking(vidLabelingJobs) { batchCreateVidLabelingJobs(any(), any()) }
       assertThat(published).hasSize(1)
       val params = publishedParams(published.single())
+      assertThat(params.rawImpressionUpload).isEqualTo(UPLOAD)
+      assertThat(params.vidLabelingJob.substringBeforeLast("/vidLabelingJobs/"))
+        .isEqualTo(params.rawImpressionUpload)
       assertThat(params.vidLabelingJob).isNotEmpty()
       assertThat(
           published
