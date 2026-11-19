@@ -18,7 +18,9 @@ A repository read failure does not select the local config. The PDP uses
 `PopulationRequisitionFulfillerConfig.model_line_event_template_versions`; the
 EDPA dispatcher and monitor use `VidLabelingConfig.model_line_configs[*].event_template_version`.
 EDPA pins the resolved version into each WorkItem and carries it through the
-memoized labeling phases.
+memoized labeling phases. The dispatcher and monitor validate descriptor support
+before claiming work and must have read access to each configured event-template
+descriptor blob.
 
 ## Deployment order
 

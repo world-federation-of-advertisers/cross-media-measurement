@@ -93,6 +93,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.api.v2alpha.ListModelLinesRequest
@@ -614,6 +615,9 @@ abstract class VidLabelingPipelineTestHarness(
         poolAssignerQueueName = POOL_ASSIGNER_QUEUE,
         numberOfShards = pipelineConfig.numberOfShards,
         modelLineConfigs = modelLineFixtures.associate { it.name to modelLineConfig },
+        validateEventTemplateVersion = { _, version ->
+          EventTemplates.getPopulationFields(pipelineConfig.eventDescriptor, version)
+        },
         rawImpressionUploadFileStub = filesStub,
         vidLabelingJobStub =
           VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),

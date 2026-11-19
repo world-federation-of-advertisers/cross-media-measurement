@@ -148,6 +148,8 @@ private data class HealingDispatchDependencies(
  * @param poolAssignerQueueName resource name of the queue for Phase-0 SubpoolAssigner WorkItems.
  * @param numberOfShards static number of shards per memoized model line (Phase-0 fan-out).
  * @param modelLineConfigs field-mapping configuration keyed by model line resource name.
+ * @param validateEventTemplateVersion validates the resolved version against the configured
+ *   descriptor before claiming work.
  * @param rawImpressionUploadFileStub stub for listing an upload's files to bin-pack (non-memoized).
  * @param vidLabelingJobStub stub for creating Phase-2 `VidLabelingJob`s (non-memoized).
  * @param maxFileBatchSizeBytes bin-packing threshold for non-memoized `VidLabelingJob`s.
@@ -175,6 +177,7 @@ class VidLabelingDispatchSequencer(
   private val poolAssignerQueueName: String,
   private val numberOfShards: Int,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
+  private val validateEventTemplateVersion: suspend (VidLabelerParams.ModelLineConfig, Int) -> Unit,
   private val rawImpressionUploadFileStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
@@ -829,10 +832,12 @@ class VidLabelingDispatchSequencer(
             requireNotNull(modelLineConfigs[modelLineName]) {
               "No ModelLineConfig found for model line: $modelLineName"
             }
-          ModelLineEventTemplateVersions.resolve(
-            resolved,
-            config.eventTemplateVersion.takeUnless { it == 0 },
-          )
+          val version =
+            ModelLineEventTemplateVersions.resolve(
+              resolved,
+              config.eventTemplateVersion.takeUnless { it == 0 },
+            )
+          validateEventTemplateVersion(config, version)
           resolved
         }
 
@@ -1023,10 +1028,12 @@ class VidLabelingDispatchSequencer(
       }
     // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
     val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
-    ModelLineEventTemplateVersions.resolve(
-      resolvedModelLine,
-      modelLineConfig.eventTemplateVersion.takeUnless { it == 0 },
-    )
+    val version =
+      ModelLineEventTemplateVersions.resolve(
+        resolvedModelLine,
+        modelLineConfig.eventTemplateVersion.takeUnless { it == 0 },
+      )
+    validateEventTemplateVersion(modelLineConfig, version)
 
     if (!alreadyClaimed && !markPoolAssigning(modelLine.name, modelLine.etag)) return false
 

@@ -48,10 +48,13 @@ import org.mockito.kotlin.reset
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
@@ -246,6 +249,7 @@ class VidLabelingDispatchSequencerTest {
   }
 
   private var configuredModelLineConfigs = MODEL_LINE_CONFIGS
+  private var descriptorReadError: Exception? = null
 
   private fun createSequencer(
     numberOfShards: Int = NUMBER_OF_SHARDS,
@@ -270,6 +274,14 @@ class VidLabelingDispatchSequencerTest {
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = numberOfShards,
       modelLineConfigs = configuredModelLineConfigs,
+      validateEventTemplateVersion = { config, version ->
+        descriptorReadError?.let { throw it }
+        val descriptor =
+          if (config.eventTemplateType == VersionedEvent.getDescriptor().fullName) {
+            VersionedEvent.getDescriptor()
+          } else TestEvent.getDescriptor()
+        EventTemplates.getPopulationFields(descriptor, version)
+      },
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
@@ -3116,7 +3128,10 @@ class VidLabelingDispatchSequencerTest {
     }
     configuredModelLineConfigs =
       MODEL_LINE_CONFIGS.mapValues { (_, config) ->
-        config.copy { eventTemplateVersion = localVersion ?: 0 }
+        config.copy {
+          eventTemplateVersion = localVersion ?: 0
+          eventTemplateType = VersionedEvent.getDescriptor().fullName
+        }
       }
     whenever(modelLinesService.getModelLine(any()))
       .thenReturn(
@@ -3247,6 +3262,43 @@ class VidLabelingDispatchSequencerTest {
     runBlocking {
       assertInvalidVersionsLeaveWorkUnclaimed(false, null, -1, "positive")
     }
+
+  @Test
+  fun `memoized dispatch rejects unsupported descriptor versions before claiming work`() =
+    runBlocking {
+      for ((repositoryVersion, localVersion) in listOf(4 to null, null to 4, 4 to 4)) {
+        assertInvalidVersionsLeaveWorkUnclaimed(
+          true,
+          repositoryVersion,
+          localVersion,
+          "exceeds current version",
+        )
+      }
+    }
+
+  @Test
+  fun `non-memoized dispatch rejects unsupported descriptor versions before claiming work`() =
+    runBlocking {
+      for ((repositoryVersion, localVersion) in listOf(4 to null, null to 4, 4 to 4)) {
+        assertInvalidVersionsLeaveWorkUnclaimed(
+          false,
+          repositoryVersion,
+          localVersion,
+          "exceeds current version",
+        )
+      }
+    }
+
+  @Test
+  fun `descriptor read failure leaves memoized and non-memoized work unclaimed`() = runBlocking {
+    descriptorReadError = java.io.IOException("Descriptor unavailable")
+    for (memoized in listOf(true, false)) {
+      val error =
+        assertFailsWith<java.io.IOException> { dispatchWithVersions(memoized, 3, null, null) }
+      assertThat(error.message).contains("Descriptor unavailable")
+      assertNoVersionDispatch()
+    }
+  }
 
   private suspend fun assertRepositoryFailureLeavesWorkUnclaimed(memoized: Boolean) {
     for (status in listOf(Status.UNAVAILABLE, Status.NOT_FOUND)) {

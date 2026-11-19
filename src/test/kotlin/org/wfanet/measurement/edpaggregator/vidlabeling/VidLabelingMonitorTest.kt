@@ -69,10 +69,12 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.modelRollout
@@ -1501,6 +1503,9 @@ class VidLabelingMonitorTest {
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = NUMBER_OF_SHARDS,
       modelLineConfigs = MODEL_LINE_CONFIGS,
+      validateEventTemplateVersion = { _, version ->
+        EventTemplates.getPopulationFields(TestEvent.getDescriptor(), version)
+      },
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,

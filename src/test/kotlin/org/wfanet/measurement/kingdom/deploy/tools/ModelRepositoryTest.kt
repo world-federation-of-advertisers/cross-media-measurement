@@ -18,6 +18,8 @@ package org.wfanet.measurement.kingdom.deploy.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import io.grpc.Server
@@ -38,7 +40,9 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CreateModelLineRequest
 import org.wfanet.measurement.api.v2alpha.CreateModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.CreatePopulationRequest
@@ -74,6 +78,8 @@ import org.wfanet.measurement.api.v2alpha.ModelSuitesGrpcKt.ModelSuitesCoroutine
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt
 import org.wfanet.measurement.api.v2alpha.SetModelLineActiveEndTimeRequest
 import org.wfanet.measurement.api.v2alpha.SetModelLineEventTemplateVersionRequest
@@ -83,7 +89,10 @@ import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedCommon
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getModelProviderRequest
 import org.wfanet.measurement.api.v2alpha.getModelSuiteRequest
@@ -439,6 +448,65 @@ class ModelRepositoryTest {
     // Assert fails due to invalid PopulationSpec.
     CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
     assertThat(capturedOutput.err).contains("PopulationSpec")
+  }
+
+  private fun versionedPopulationCreateArgs(version: Int): Array<String> {
+    val descriptorFiles = linkedMapOf<String, Descriptors.FileDescriptor>()
+    fun collect(file: Descriptors.FileDescriptor) {
+      if (file.name in descriptorFiles) return
+      file.dependencies.forEach(::collect)
+      descriptorFiles[file.name] = file
+    }
+    collect(VersionedEvent.getDescriptor().file)
+    val descriptorFile = tempDir.root.resolve("versioned-event-descriptor-set.binpb")
+    descriptorFile.writeBytes(
+      DescriptorProtos.FileDescriptorSet.newBuilder()
+        .addAllFile(descriptorFiles.values.map { it.toProto() })
+        .build()
+        .toByteArray()
+    )
+    val specification = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 100
+        }
+        attributes +=
+          versionedCommon {
+              original = VersionedCommon.Segment.SEGMENT_A
+              retired = VersionedCommon.Segment.SEGMENT_B
+            }
+            .pack()
+      }
+    }
+    val specFile = tempDir.root.resolve("historical-population.binpb")
+    specFile.writeBytes(specification.toByteArray())
+    return commonArgs +
+      arrayOf(
+        "populations",
+        "create",
+        "--parent=$DATA_PROVIDER_NAME",
+        "--description=$DESCRIPTION",
+        "--population-spec=${specFile.path}",
+        "--event-message-descriptor-set=${descriptorFile.path}",
+        "--event-message-type-url=type.googleapis.com/${VersionedEvent.getDescriptor().fullName}",
+        "--event-template-version=$version",
+      )
+  }
+
+  @Test
+  fun `population create accepts historical fields with a newer descriptor`() {
+    callCli(versionedPopulationCreateArgs(1))
+    verifyBlocking(populationsServiceMock) { createPopulation(any()) }
+  }
+
+  @Test
+  fun `population create rejects a population incompatible with the selected version`() {
+    val output =
+      CommandLineTesting.capturingOutput(versionedPopulationCreateArgs(3), ModelRepository::main)
+    CommandLineTesting.assertThat(output).status().isNotEqualTo(0)
+    assertThat(output.err).contains("later")
+    verifyBlocking(populationsServiceMock, never()) { createPopulation(any()) }
   }
 
   @Test
