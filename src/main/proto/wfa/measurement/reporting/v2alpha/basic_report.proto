@@ -19,6 +19,7 @@ package wfa.measurement.reporting.v2alpha;
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/reporting/v2alpha/compact_report_results.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
 import "wfa/measurement/reporting/v2alpha/reporting_interval.proto";
 import "wfa/measurement/reporting/v2alpha/result_group.proto";
@@ -120,9 +121,26 @@ message BasicReport {
     (google.api.field_behavior) = REQUIRED
   ];
 
-  // The report results
+  // Report results in the FULL view. Empty in the COMPACT view.
   repeated ResultGroup result_groups = 7
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Report results in the COMPACT view. Unset in the FULL view or when the
+  // report has no results. All other resource fields are shared by both views.
+  CompactReportResults compact_results = 15
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Result representation for a `BasicReport`.
+  enum View {
+    // Default value. `GetBasicReport` and `ListBasicReports` use FULL when
+    // unspecified, preserving their existing response representation.
+    VIEW_UNSPECIFIED = 0;
+    // Existing result representation in `result_groups`.
+    FULL = 1;
+    // Equivalent results using dictionaries and packed numeric columns in
+    // `compact_results`, with `result_groups` empty.
+    COMPACT = 2;
+  }
 
   // The time when the BasicReport was created.
   google.protobuf.Timestamp create_time = 8

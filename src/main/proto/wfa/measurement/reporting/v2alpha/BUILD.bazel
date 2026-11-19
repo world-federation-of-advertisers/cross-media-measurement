@@ -19,6 +19,7 @@ IMPORT_PREFIX = "/src/main/proto"
 
 MESSAGE_LIBS = [
     ":basic_report_proto",
+    ":compact_report_results_proto",
     ":date_interval_proto",
     ":event_filter_proto",
     ":event_group_proto",
@@ -46,8 +47,23 @@ proto_library(
     srcs = ["basic_report.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":compact_report_results_proto",
         ":reporting_impression_qualification_filter_proto",
         ":reporting_interval_proto",
+        ":result_group_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+proto_library(
+    name = "compact_report_results_proto",
+    srcs = ["compact_report_results.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":metric_frequency_spec_proto",
+        ":reporting_impression_qualification_filter_proto",
         ":result_group_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
