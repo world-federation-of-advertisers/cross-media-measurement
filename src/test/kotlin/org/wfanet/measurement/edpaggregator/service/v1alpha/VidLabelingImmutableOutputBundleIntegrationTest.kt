@@ -131,23 +131,25 @@ internal class VidLabelingImmutableOutputBundleIntegrationTest :
       .isEqualTo(entry.metadata.blobGeneration.toString())
     return entry.impressions.blobGeneration
   }
-}
 
-private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
-private const val SECOND_DIRECT_MODEL_LINE = "$MODEL_SUITE/modelLines/direct-2"
+  companion object {
+    private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
+    private const val SECOND_DIRECT_MODEL_LINE = "$MODEL_SUITE/modelLines/direct-2"
 
-private fun directBundleConfig(): PipelineHarnessConfig {
-  val secondLine =
-    ModelLineFixture(
-      SECOND_DIRECT_MODEL_LINE,
-      "$MODEL_SUITE/modelReleases/direct-2",
-      memoized = false,
-      activeStart = EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
-      activeEnd = EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
-    )
-  return PipelineHarnessConfig(
-    immutableOutputPublication = true,
-    extraModelLines = listOf(secondLine),
-    initiallyVisibleModelLines = setOf(DIRECT_MODEL_LINE, SECOND_DIRECT_MODEL_LINE),
-  )
+    private fun directBundleConfig(): PipelineHarnessConfig {
+      val secondLine =
+        ModelLineFixture(
+          SECOND_DIRECT_MODEL_LINE,
+          "$MODEL_SUITE/modelReleases/direct-2",
+          memoized = false,
+          activeStart = EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+          activeEnd = EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
+        )
+      return PipelineHarnessConfig(
+        immutableOutputPublication = true,
+        extraModelLines = listOf(secondLine),
+        initiallyVisibleModelLines = setOf(DIRECT_MODEL_LINE, SECOND_DIRECT_MODEL_LINE),
+      )
+    }
+  }
 }

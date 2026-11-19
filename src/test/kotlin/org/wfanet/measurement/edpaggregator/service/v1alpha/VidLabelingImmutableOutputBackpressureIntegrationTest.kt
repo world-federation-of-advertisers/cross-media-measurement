@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.Test
@@ -73,7 +74,9 @@ internal class VidLabelingImmutableOutputBackpressureIntegrationTest :
       val mark =
         "wfa.measurement.edpaggregator.v1alpha.VidLabelingJobService/MarkVidLabelingJobSucceeded"
       val calls = responseGates.callCount(mark)
-      assertFailsWith<BlobChangedException> { withTimeout(30_000) { runVidLabelerDirect(work) } }
+      assertFailsWith<BlobChangedException> {
+        withTimeout(30.seconds) { runVidLabelerDirect(work) }
+      }
       assertThat(jobs.getVidLabelingJob(get).state).isEqualTo(VidLabelingJob.State.CREATED)
       assertThat(responseGates.callCount(mark)).isEqualTo(calls)
       assertThat(fileStorage.getFreshnessToken(blobKey(uri))).isEqualTo(original)

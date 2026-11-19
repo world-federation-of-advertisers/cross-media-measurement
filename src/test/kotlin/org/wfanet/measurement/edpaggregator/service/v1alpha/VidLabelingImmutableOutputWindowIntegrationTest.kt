@@ -29,9 +29,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 
 internal class VidLabelingImmutableOutputWindowIntegrationTest :
   VidLabelingPipelineTestHarness(activeWindowConfig()) {
@@ -66,21 +68,15 @@ internal class VidLabelingImmutableOutputWindowIntegrationTest :
       val work = vidLabelerWorkItems().single()
       val outer = work.workItemParams.unpack(WorkItemParams::class.java)
       val params = outer.appParams.unpack(VidLabelerParams::class.java)
+
       val config =
-        params
-          .getModelLineConfigsOrThrow(OPEN_MODEL_LINE)
-          .toBuilder()
-          .setActiveStartTime(
+        params.getModelLineConfigsOrThrow(OPEN_MODEL_LINE).copy {
+          activeStartTime =
             EVENT_DATE.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-          )
-          .build()
-      val modified = params.toBuilder().putModelLineConfigs(OPEN_MODEL_LINE, config).build()
-      runVidLabelerDirect(
-        work
-          .toBuilder()
-          .setWorkItemParams(outer.toBuilder().setAppParams(modified.pack()).build().pack())
-          .build()
-      )
+        }
+      val modified = params.copy { modelLineConfigs[OPEN_MODEL_LINE] = config }
+      val modifiedOuter = outer.copy { appParams = modified.pack() }
+      runVidLabelerDirect(work.copy { workItemParams = modifiedOuter.pack() })
       awaitPipelineIdle()
       val job =
         VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel)
@@ -104,40 +100,42 @@ internal class VidLabelingImmutableOutputWindowIntegrationTest :
       assertThat(listAvailabilityTasks(upload.name).single().state)
         .isEqualTo(WorkItem.State.SUCCEEDED)
     }
-}
 
-private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
-private const val CLOSED_MODEL_LINE = "$MODEL_SUITE/modelLines/closed"
-private const val OPEN_MODEL_LINE = "$MODEL_SUITE/modelLines/open"
-private const val FUTURE_MODEL_LINE = "$MODEL_SUITE/modelLines/future"
+  companion object {
+    private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
+    private const val CLOSED_MODEL_LINE = "$MODEL_SUITE/modelLines/closed"
+    private const val OPEN_MODEL_LINE = "$MODEL_SUITE/modelLines/open"
+    private const val FUTURE_MODEL_LINE = "$MODEL_SUITE/modelLines/future"
 
-private fun activeWindowConfig(): PipelineHarnessConfig {
-  val now = EVENT_DATE.plusDays(2).atStartOfDay(ZoneOffset.UTC).toInstant()
-  val fixtures =
-    listOf(
-      ModelLineFixture(
-        CLOSED_MODEL_LINE,
-        "$MODEL_SUITE/modelReleases/closed",
-        memoized = false,
-        activeStart = now.minusSeconds(200),
-        activeEnd = now,
-      ),
-      ModelLineFixture(
-        OPEN_MODEL_LINE,
-        "$MODEL_SUITE/modelReleases/open",
-        memoized = false,
-        activeStart = EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
-      ),
-      ModelLineFixture(
-        FUTURE_MODEL_LINE,
-        "$MODEL_SUITE/modelReleases/future",
-        memoized = false,
-        activeStart = now.plusSeconds(100),
-      ),
-    )
-  return PipelineHarnessConfig(
-    immutableOutputPublication = true,
-    extraModelLines = fixtures,
-    initiallyVisibleModelLines = fixtures.mapTo(mutableSetOf()) { it.name },
-  )
+    private fun activeWindowConfig(): PipelineHarnessConfig {
+      val now = EVENT_DATE.plusDays(2).atStartOfDay(ZoneOffset.UTC).toInstant()
+      val fixtures =
+        listOf(
+          ModelLineFixture(
+            CLOSED_MODEL_LINE,
+            "$MODEL_SUITE/modelReleases/closed",
+            memoized = false,
+            activeStart = now.minusSeconds(200),
+            activeEnd = now,
+          ),
+          ModelLineFixture(
+            OPEN_MODEL_LINE,
+            "$MODEL_SUITE/modelReleases/open",
+            memoized = false,
+            activeStart = EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+          ),
+          ModelLineFixture(
+            FUTURE_MODEL_LINE,
+            "$MODEL_SUITE/modelReleases/future",
+            memoized = false,
+            activeStart = now.plusSeconds(100),
+          ),
+        )
+      return PipelineHarnessConfig(
+        immutableOutputPublication = true,
+        extraModelLines = fixtures,
+        initiallyVisibleModelLines = fixtures.mapTo(mutableSetOf()) { it.name },
+      )
+    }
+  }
 }
