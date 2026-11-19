@@ -149,6 +149,7 @@ abstract class InProcessDirectMeasurementIntegrationTest(
       modelLine.name,
       DEFAULT_POPULATION_FILTER_EXPRESSION,
       TestEvent.getDescriptor(),
+      configuredEventTemplateVersion = null,
     )
   }
 
