@@ -75,7 +75,7 @@ jobs:
 
       - name: Plan test groups
         run: |
-          bazel query 'tests(//...)' --output=xml > ci-test-query.xml
+          bazel query 'tests(//... except attr("tags", "(^|, |\\[)manual(,|\\])", //...))' --output=xml > ci-test-query.xml
           python3 .github/workflows/scripts/ci_test_groups.py plan \
             --query=ci-test-query.xml --output=ci-test-groups
 
@@ -192,7 +192,7 @@ jobs:
 
       - name: Plan test groups
         run: |
-          bazel query 'tests(//...)' --output=xml > ci-test-query.xml
+          bazel query 'tests(//... except attr("tags", "(^|, |\\[)manual(,|\\])", //...))' --output=xml > ci-test-query.xml
           python3 .github/workflows/scripts/ci_test_groups.py plan \
             --query=ci-test-query.xml --output=ci-test-groups
 
@@ -200,6 +200,7 @@ jobs:
         run: >
           python3 .github/workflows/scripts/ci_test_groups.py run
           --targets-file=ci-test-groups/all.txt
+          --target-pattern=//...
           --log-file=ci-results/all.log
           --force-test-execution="$FORCE_TEST_EXECUTION"
           --test-output=errors

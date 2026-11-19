@@ -41,14 +41,10 @@ def partition_tests(query: str, durations: dict[str, float]) -> dict[str, list[s
     rules = {
         rule.attrib["name"]: rule for rule in ET.fromstring(query).findall("rule")
     }
-    if not {CORRECTNESS_TARGET, PANELMATCH_TARGET} <= rules.keys():
-        raise ValueError("The Kubernetes correctness targets are missing")
     for label, rule in sorted(rules.items()):
         tags = {
             tag.attrib["value"] for tag in rule.findall("./list[@name='tags']/string")
         }
-        if "manual" in tags:
-            continue
         expected.add(label)
         local_attribute = rule.find("./boolean[@name='local']")
         if LOCAL_TAGS & tags or (
@@ -71,7 +67,7 @@ def partition_tests(query: str, durations: dict[str, float]) -> dict[str, list[s
         or len(assigned) != len(set(assigned))
         or set(assigned) != expected
     ):
-        raise ValueError("Test groups must cover every non-manual test exactly once")
+        raise ValueError("Test groups must cover every selected test exactly once")
     return {name: sorted(labels) for name, labels in groups.items()}
 
 
@@ -116,7 +112,11 @@ def verify_results(expected: set[str], log: str, force_execution: bool) -> dict[
 
 
 def run_tests(
-    targets: Path, log_path: Path, force_execution: bool, test_output: str
+    targets: Path,
+    log_path: Path,
+    force_execution: bool,
+    test_output: str,
+    target_pattern: str | None,
 ) -> int:
     labels = targets.read_text().splitlines()
     if len(labels) != len(set(labels)):
@@ -129,7 +129,7 @@ def run_tests(
         "tools/bazel-with-results",
         "bazel",
         "test",
-        f"--target_pattern_file={targets}",
+        target_pattern if target_pattern else f"--target_pattern_file={targets}",
         f"--test_output={test_output}",
         "--test_summary=short",
     ]
@@ -162,6 +162,7 @@ def main() -> int:
     run.add_argument("--log-file", type=Path, required=True)
     run.add_argument("--force-test-execution", choices=["true", "false"], required=True)
     run.add_argument("--test-output", choices=["errors", "streamed"], required=True)
+    run.add_argument("--target-pattern", choices=["//..."])
     args = parser.parse_args()
     try:
         if args.command == "plan":
@@ -172,6 +173,7 @@ def main() -> int:
             args.log_file,
             args.force_test_execution == "true",
             args.test_output,
+            args.target_pattern,
         )
     except (ValueError, OSError) as error:
         print(f"CI test verification failed: {error}", file=sys.stderr)

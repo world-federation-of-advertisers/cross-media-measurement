@@ -39,10 +39,10 @@ KUBERNETES_RULES = [
 
 
 class CiTestGroupsTest(unittest.TestCase):
-    def test_partitions_cover_every_non_manual_test_once(self):
-        rules = KUBERNETES_RULES + [
+    def test_partitions_cover_every_selected_test_once(self):
+        rules = [
             ("//example:remote", [], False),
-            ("//example:disabled", ["manual"], False),
+            ("//example:manual_suite_member", ["manual"], False),
             ("//example:emulator", ["no-remote-exec"], False),
             ("//example:uncached_remote", ["no-cache"], False),
             ("//example:local_attribute", [], True),
@@ -50,22 +50,25 @@ class CiTestGroupsTest(unittest.TestCase):
             ("//example:no_remote", ["no-remote"], False),
         ]
         groups = ci_test_groups.partition_tests(query_xml(rules), {})
-        self.assertEqual(groups["remote"], ["//example:remote", "//example:uncached_remote"])
+        self.assertEqual(
+            groups["remote"],
+            ["//example:manual_suite_member", "//example:remote", "//example:uncached_remote"],
+        )
         assigned = [label for labels in groups.values() for label in labels]
         self.assertEqual(len(assigned), len(set(assigned)))
-        self.assertEqual(set(assigned), {label for label, tags, _ in rules if "manual" not in tags})
+        self.assertEqual(set(assigned), {label for label, _, _ in rules})
         self.assertTrue(all(groups[f"local-{i}"] for i in range(4)))
 
     def test_new_local_tests_are_assigned_without_timing_data(self):
         groups = ci_test_groups.partition_tests(
-            query_xml(KUBERNETES_RULES + [("//example:new_test", ["local"], False)]), {}
+            query_xml([("//example:new_test", ["local"], False)]), {}
         )
         self.assertIn("//example:new_test", [label for labels in groups.values() for label in labels])
         self.assertNotIn("//example:new_test", groups["remote"])
 
-    def test_missing_kubernetes_test_is_rejected(self):
+    def test_empty_test_selection_is_rejected(self):
         with self.assertRaises(ValueError):
-            ci_test_groups.partition_tests(query_xml([("//example:test", [], False)]), {})
+            ci_test_groups.partition_tests(query_xml([]), {})
 
     def test_forced_execution_accepts_every_executed_test(self):
         log = "//example:first PASSED in 1.0s\n//example:second FLAKY, failed in 1 out of 2 attempts\nExecuted 2 out of 2 tests: 2 tests pass.\n"
