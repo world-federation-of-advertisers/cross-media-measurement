@@ -34,8 +34,8 @@ import org.wfanet.measurement.common.Instrumentation
  * per-subpool entry/ranked size) is a [LongGauge] set once per load; a latency is a
  * [DoubleHistogram]. Alerting is configured in Cloud Monitoring rather than here: the subpool count
  * is model-line-dependent (one entry per `RankedPopulationNode` leaf), so there is no fixed count
- * to assert in code. The actionable alerts are cold-start-duration regression and `entry_count /
- * ranked_size` saturation (surplus fingerprints fall back to the hash path).
+ * to assert in code. The entry count describes one upload's saved assignments, not cumulative pool
+ * occupancy.
  *
  * @param meter the OpenTelemetry [Meter] used to create instruments.
  */
@@ -70,8 +70,7 @@ class MemoizedRankIndexMetrics(meter: Meter = Instrumentation.meter) {
 
   /**
    * Configured ranked sub-range size for one subpool, from the model. Keyed additionally by
-   * [POOL_OFFSET_ATTR]. Pairs with [entryCountGauge]: `entry_count / ranked_size` approaching 1
-   * means the subpool is saturating and surplus fingerprints fall back to the hash path.
+   * [POOL_OFFSET_ATTR]. Not emitted when a valid empty DAY_ONLY has no record header.
    */
   val rankedSizeGauge: LongGauge =
     meter

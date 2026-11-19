@@ -116,7 +116,16 @@ class SubpoolRankerTest {
     allowedPriorSnapshotRawImpressionUploads: Set<String> = emptySet(),
   ): SubpoolRanker {
     val retention =
-      SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY, rpcThrottlers)
+      SubpoolRetention(
+        fake.stub,
+        rankStore,
+        DP,
+        MODEL_LINE,
+        RETENTION_DAYS,
+        TODAY,
+        rpcThrottlers,
+        rawImpressionUploadModelLinesStub = modelLinesStub(),
+      )
     return SubpoolRanker(
       subpoolFingerprintsStore = subpoolStore,
       rankIndexStore = rankStore,
@@ -144,6 +153,7 @@ class SubpoolRankerTest {
         val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
         listRawImpressionUploadModelLinesResponse {
           rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "${request.parent}/rawImpressionUploadModelLines/row"
             cmmsModelLine = MODEL_LINE
             state = modelLineStates[request.parent] ?: RawImpressionUploadModelLine.State.COMPLETED
           }

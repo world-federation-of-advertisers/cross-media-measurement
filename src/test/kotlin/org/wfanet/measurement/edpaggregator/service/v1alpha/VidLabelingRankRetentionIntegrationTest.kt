@@ -18,7 +18,10 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import io.grpc.Status
+import io.grpc.StatusException
 import java.io.IOException
+import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -30,6 +33,9 @@ import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineT
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
 import org.wfanet.measurement.edpaggregator.vidrankbuilder.SubpoolRetention
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -38,6 +44,60 @@ internal class VidLabelingRankRetentionIntegrationTest :
   VidLabelingPipelineTestHarness(
     PipelineHarnessConfig(initiallyVisibleModelLines = setOf(MEMOIZED_MODEL_LINE))
   ) {
+  @Test
+  fun `backfill labels with its saved historical rank and preserves the current assignment`() =
+    runBlocking {
+      setToday(EVENT_DATE)
+      val first = processSingleEventUpload("saved-rank-first", EVENT_DATE, "alice-event", "alice")
+      val historicalRank = rankFor(first, "alice-event", RankIndexBlob.BlobType.SNAPSHOT)
+      val historicalVid = vidFor(EVENT_DATE, "alice")
+
+      setToday(EVENT_DATE.plusDays(1))
+      processSingleEventUpload("saved-rank-renewal", EVENT_DATE.plusDays(1), "alice-event", "alice")
+
+      setToday(EVENT_DATE.plusDays(32))
+      val reuseDate = EVENT_DATE.plusDays(3)
+      val candidates =
+        (0 until 80).map { index ->
+          RawEventFixture("saved-rank-reuser-$index", "reuser-$index", reuseDate)
+        }
+      val reused = processUpload("saved-rank-reused", candidates)
+      assertThat(
+          rankEntries(reused, RankIndexBlob.BlobType.SNAPSHOT).any {
+            it.poolOffset == historicalRank.poolOffset &&
+              it.rank == historicalRank.rank &&
+              it.digest != historicalRank.digest
+          }
+        )
+        .isTrue()
+
+      setToday(EVENT_DATE.plusDays(33))
+      val currentDate = EVENT_DATE.plusDays(4)
+      val current =
+        processSingleEventUpload("saved-rank-current", currentDate, "alice-event", "alice")
+      val currentRank = rankFor(current, "alice-event", RankIndexBlob.BlobType.SNAPSHOT)
+      val currentVid = vidFor(currentDate, "alice")
+      assertThat(currentRank.rank).isNotEqualTo(historicalRank.rank)
+      assertThat(currentVid).isNotEqualTo(historicalVid)
+
+      val backfillDate = EVENT_DATE.plusDays(2)
+      val backfill =
+        processSingleEventUpload("saved-rank-backfill", backfillDate, "alice-event", "alice")
+      val savedRank = rankFor(backfill, "alice-event", RankIndexBlob.BlobType.DAY_ONLY)
+      val cumulativeRank = rankFor(backfill, "alice-event", RankIndexBlob.BlobType.SNAPSHOT)
+      assertThat(savedRank.rank).isEqualTo(historicalRank.rank)
+      assertThat(cumulativeRank.rank).isEqualTo(currentRank.rank)
+      assertThat(cumulativeRank.lastSeen).isEqualTo(currentRank.lastSeen)
+      assertThat(snapshotFor(backfill).maxEventDate).isEqualTo(snapshotFor(current).maxEventDate)
+      assertThat(vidFor(backfillDate, "alice")).isEqualTo(historicalVid)
+
+      val nextDate = EVENT_DATE.plusDays(5)
+      val next = processSingleEventUpload("saved-rank-next", nextDate, "alice-event", "alice")
+      assertThat(rankFor(next, "alice-event", RankIndexBlob.BlobType.SNAPSHOT).rank)
+        .isEqualTo(currentRank.rank)
+      assertThat(vidFor(nextDate, "alice")).isEqualTo(currentVid)
+    }
+
   @Test
   fun `historical backfill keeps the live snapshot date`() = runBlocking {
     setToday(EVENT_DATE)
@@ -144,6 +204,7 @@ internal class VidLabelingRankRetentionIntegrationTest :
         pipelineConfig.retentionDays,
         retentionDate,
         VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        rawImpressionUploadModelLinesStub = modelLineRowsStub,
       )
     fileStorage.failNextDelete(candidateKey)
 
@@ -175,6 +236,146 @@ internal class VidLabelingRankRetentionIntegrationTest :
   @Test
   fun `checksum invalid cumulative snapshot fails without publishing a successor`() = runBlocking {
     assertBrokenPriorSnapshot(Breakage.CHECKSUM_MISMATCH)
+  }
+
+  @Test
+  fun `empty saved daily indexes label overflow impressions in the unranked range`() = runBlocking {
+    val events =
+      (0 until 601).map { index ->
+        RawEventFixture("empty-index-event-$index", "empty-index-person-$index", EVENT_DATE)
+      }
+    val full = processUpload("empty-index-full", events)
+    val ranked = rankEntries(full, RankIndexBlob.BlobType.SNAPSHOT).map { it.digest }.toSet()
+    val overflow = events.first { digest(it.eventId) !in ranked }
+    val nextDate = EVENT_DATE.plusDays(1)
+    setToday(nextDate)
+    val upload = processUpload("empty-index-next", listOf(overflow.copy(eventDate = nextDate)))
+    assertThat(rankEntries(upload, RankIndexBlob.BlobType.DAY_ONLY)).isEmpty()
+    assertThat(rankEntries(upload, RankIndexBlob.BlobType.SNAPSHOT)).isNotEmpty()
+    assertThat(Math.floorMod(vidFor(nextDate, overflow.personId), 100L)).isAtLeast(90L)
+    assertThat(listModelLines(upload.name).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+  }
+
+  @Test
+  fun `retention preserves daily indexes through labeling failure and recovery`() = runBlocking {
+    withholdNextVidLabelerPublications()
+    writeRawEvents(
+      "protected-daily",
+      "input.parquet",
+      listOf(RawEventFixture("protected-event", "protected", EVENT_DATE)),
+    )
+    val generation = finalizeRawUpload("protected-daily")
+    workItemTransport.awaitIdle()
+    val upload = listUploads().single { it.doneBlobGeneration == generation }
+    val candidate =
+      listRankIndexBlobs(upload.name).single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
+    val retention =
+      SubpoolRetention(
+        rankIndexBlobsStub,
+        RankIndexStore(mapStorage, kmsClient),
+        "dataProviders/dp1",
+        MEMOIZED_MODEL_LINE,
+        pipelineConfig.retentionDays,
+        EVENT_DATE.plusDays(pipelineConfig.retentionDays.toLong() + 1L),
+        VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        modelLineRowsStub,
+      )
+    val owner = listModelLines(upload.name).single()
+    assertThat(owner.state).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    retention.deleteAgedBlobs(candidate.poolOffset)
+    assertThat(mapStorage.getBlob(candidate.blobUri)).isNotNull()
+
+    val failed =
+      modelLineRowsStub.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          name = owner.name
+          etag = owner.etag
+          requestId = UUID.randomUUID().toString()
+          failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+        }
+      )
+    retention.deleteAgedBlobs(candidate.poolOffset)
+    assertThat(mapStorage.getBlob(candidate.blobUri)).isNotNull()
+
+    modelLineRowsStub.markRawImpressionUploadModelLineLabeling(
+      markRawImpressionUploadModelLineLabelingRequest {
+        name = failed.name
+        etag = failed.etag
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+    republishQueuedVidLabelers()
+    awaitPipelineIdle()
+    assertThat(listModelLines(upload.name).single().state)
+      .isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+    retention.deleteAgedBlobs(candidate.poolOffset)
+    assertThat(mapStorage.getBlob(candidate.blobUri)).isNull()
+    assertThat(listRankIndexBlobs(upload.name).single().blobType)
+      .isEqualTo(RankIndexBlob.BlobType.SNAPSHOT)
+    assertThat(readLabeledPeople(MEMOIZED_MODEL_LINE).single().personId).isEqualTo("protected")
+    val completed = listModelLines(upload.name).single()
+    val processingFailure =
+      assertFailsWith<StatusException> {
+        modelLineRowsStub.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            name = completed.name
+            etag = completed.etag
+            requestId = UUID.randomUUID().toString()
+            failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+          }
+        )
+      }
+    assertThat(processingFailure.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val evicted =
+      modelLineRowsStub.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          name = completed.name
+          etag = completed.etag
+          requestId = UUID.randomUUID().toString()
+          failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+          evictionOperationId = UUID.randomUUID().toString()
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+        }
+      )
+    val retry =
+      assertFailsWith<StatusException> {
+        modelLineRowsStub.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            name = evicted.name
+            etag = evicted.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+    assertThat(retry.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `missing daily bytes fail labeling even with a live cumulative snapshot`() = runBlocking {
+    withholdNextVidLabelerPublications()
+    writeRawEvents(
+      "missing-daily",
+      "input.parquet",
+      listOf(RawEventFixture("missing-event", "missing", EVENT_DATE)),
+    )
+    val generation = finalizeRawUpload("missing-daily")
+    workItemTransport.awaitIdle()
+    val upload = listUploads().single { it.doneBlobGeneration == generation }
+    val candidate =
+      listRankIndexBlobs(upload.name).single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
+    mapStorage.getBlob(candidate.blobUri)!!.delete()
+    assertThat(
+        listRankIndexBlobs(upload.name).any { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
+      )
+      .isTrue()
+    republishQueuedVidLabelers()
+    workItemTransport.awaitIdle(allowFailures = true)
+    assertThat(vidLabelerWorkItems().single().state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(readLabeledPeople(MEMOIZED_MODEL_LINE)).isEmpty()
+    assertThat(listMetadata()).isEmpty()
+    assertThat(listAvailabilityTasks(upload.name)).isEmpty()
   }
 
   private suspend fun processSingleEventUpload(

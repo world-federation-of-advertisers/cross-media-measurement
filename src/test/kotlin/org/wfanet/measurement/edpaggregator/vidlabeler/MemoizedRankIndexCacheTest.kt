@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -34,7 +35,12 @@ class MemoizedRankIndexCacheTest {
     MemoizedRankIndex.fromMaps(mapOf(0L to Bytes12IntMap().apply { put(1L, 1, rank) }))
 
   private fun key(vararg uris: String): MemoizedRankIndex.Key =
-    MemoizedRankIndex.Key("dp", "ml", uris.toList())
+    MemoizedRankIndex.Key(
+      "dp",
+      "ml",
+      "upload",
+      uris.mapIndexed { index, uri -> MemoizedRankIndex.BlobKey(index.toLong(), uri) },
+    )
 
   @Test
   fun `getOrBuild builds once and reuses the index on a key match`() =
@@ -111,4 +117,42 @@ class MemoizedRankIndexCacheTest {
       assertThat(builds.get()).isEqualTo(1)
       assertThat(results.toSet()).hasSize(1)
     }
+
+  @Test
+  fun `getOrBuild separates uploads even with identical blob URI lists`() = runBlocking {
+    val cache = MemoizedRankIndexCache()
+    val historical =
+      cache.getOrBuild(key("same-uri").copy(rawImpressionUpload = "historical")) { index(7) }
+    val current =
+      cache.getOrBuild(key("same-uri").copy(rawImpressionUpload = "current")) { index(42) }
+    assertThat(current).isNotSameInstanceAs(historical)
+    assertThat(
+        historical
+          .lookup(org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest(1L, 1))
+          .single()
+          .localRank
+      )
+      .isEqualTo(7L)
+    assertThat(
+        current
+          .lookup(org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest(1L, 1))
+          .single()
+          .localRank
+      )
+      .isEqualTo(42L)
+  }
+
+  @Test
+  fun `getOrBuild retries a failed build`() = runBlocking {
+    val cache = MemoizedRankIndexCache()
+    assertFailsWith<IllegalStateException> { cache.getOrBuild(key("a")) { error("failed build") } }
+    val rebuilt = cache.getOrBuild(key("a")) { index(7) }
+    assertThat(
+        rebuilt
+          .lookup(org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest(1L, 1))
+          .single()
+          .localRank
+      )
+      .isEqualTo(7L)
+  }
 }

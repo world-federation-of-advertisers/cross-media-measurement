@@ -161,6 +161,7 @@ class VidRankBuilderApp(
         retentionDays = retentionDays,
         today = runDate,
         rpcThrottlers = rpcThrottlers,
+        rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
       )
 
     val subpoolRanker =

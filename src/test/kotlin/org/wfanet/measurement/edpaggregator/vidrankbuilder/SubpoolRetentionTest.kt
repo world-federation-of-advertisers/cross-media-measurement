@@ -47,11 +47,16 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -68,9 +73,15 @@ class SubpoolRetentionTest {
   private lateinit var kmsClient: FakeKmsClient
   private lateinit var storageClient: InMemoryStorageClient
   private lateinit var rankStore: RankIndexStore
+  private var ownerState = RawImpressionUploadModelLine.State.COMPLETED
+  private var ownerFailure = RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED
+  private var ownerExists = true
 
   @Before
   fun setUp() {
+    ownerState = RawImpressionUploadModelLine.State.COMPLETED
+    ownerFailure = RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED
+    ownerExists = true
     AeadConfig.register()
     // EncryptedRecordIoStore uses the StreamingAead template AES256_GCM_HKDF_1MB (via
     // EncryptedStorage), so the streaming-AEAD key manager must be registered too (peer tests such
@@ -87,12 +98,29 @@ class SubpoolRetentionTest {
     rankStore = RankIndexStore(storageClient, kmsClient)
   }
 
+  private fun ownerStub(): RawImpressionUploadModelLineServiceCoroutineStub = mock {
+    onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        listRawImpressionUploadModelLinesResponse {
+          if (ownerExists) {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "${request.parent}/rawImpressionUploadModelLines/owner"
+              cmmsModelLine = request.filter.cmmsModelLine
+              state = ownerState
+              failureReason = ownerFailure
+            }
+          }
+        }
+      }
+  }
+
   private suspend fun writeBlob(
     key: String,
     maxEventDate: Date = date {
-      year = 2000
+      year = 1970
       month = 1
-      day = 1
+      day = 2
     }, // old
   ): RankIndexBlob {
     val dek = rankStore.generateDek(kekUri)
@@ -108,7 +136,7 @@ class SubpoolRetentionTest {
         ),
       )
     return rankIndexBlob {
-      name = "dataProviders/dp/rawImpressionUploads/up0/rankIndexBlobs/$key"
+      name = "dataProviders/dp/rawImpressionUploads/up0/rankIndexBlobs/${key.replace("/", "-")}"
       blobType = RankIndexBlob.BlobType.DAY_ONLY
       cmmsModelLine = MODEL_LINE
       poolOffset = POOL
@@ -163,6 +191,7 @@ class SubpoolRetentionTest {
         retentionDays = 30,
         today = TODAY,
         rpcThrottlers = recordingThrottlers.throttlers,
+        rawImpressionUploadModelLinesStub = ownerStub(),
       )
 
     retention.deleteAgedBlobs(POOL)
@@ -170,7 +199,7 @@ class SubpoolRetentionTest {
     verifyBlocking(stub) { deleteRankIndexBlob(any(), any()) }
     assertThat(storageClient.getBlob("day/old")).isNull()
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(1)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
   }
@@ -190,6 +219,7 @@ class SubpoolRetentionTest {
         retentionDays = 30,
         today = TODAY,
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        rawImpressionUploadModelLinesStub = ownerStub(),
       )
 
     retention.deleteAgedBlobs(POOL)
@@ -208,7 +238,7 @@ class SubpoolRetentionTest {
     }
     val rankStoreThatFailsDelete = RankIndexStore(throwingStorage, kmsClient)
     val candidate = rankIndexBlob {
-      name = "dataProviders/dp/rawImpressionUploads/up0/rankIndexBlobs/day/leak"
+      name = "dataProviders/dp/rawImpressionUploads/up0/rankIndexBlobs/day-leak"
       blobType = RankIndexBlob.BlobType.DAY_ONLY
       cmmsModelLine = MODEL_LINE
       poolOffset = POOL
@@ -228,6 +258,7 @@ class SubpoolRetentionTest {
         retentionDays = 30,
         today = TODAY,
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        rawImpressionUploadModelLinesStub = ownerStub(),
       )
 
     assertFailsWith<IOException> { retention.deleteAgedBlobs(POOL) }
@@ -261,6 +292,7 @@ class SubpoolRetentionTest {
         retentionDays = 30,
         today = TODAY,
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        rawImpressionUploadModelLinesStub = ownerStub(),
       )
 
     assertFailsWith<StatusException> { retention.deleteAgedBlobs(POOL) }
@@ -289,6 +321,7 @@ class SubpoolRetentionTest {
         retentionDays = RETENTION_DAYS,
         today = TODAY,
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        rawImpressionUploadModelLinesStub = ownerStub(),
       )
 
     retention.deleteAgedBlobs(POOL)
@@ -311,12 +344,129 @@ class SubpoolRetentionTest {
         retentionDays = RETENTION_DAYS,
         today = TODAY,
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        rawImpressionUploadModelLinesStub = ownerStub(),
       )
 
     retention.deleteAgedBlobs(POOL)
 
     verifyBlocking(stub, never()) { deleteRankIndexBlob(any(), any()) }
     assertThat(rankStore.readBlob("day/boundary-keep", kept.encryptedDek).toList()).isNotEmpty()
+  }
+
+  @Test
+  fun `deleteAgedBlobs preserves pending and retryable labeling inputs`() = runBlocking {
+    val candidate = writeBlob("day/pending", epochDayToDate(TODAY.toEpochDay() - 31))
+    for (state in
+      listOf(
+        RawImpressionUploadModelLine.State.CREATED,
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+        RawImpressionUploadModelLine.State.RANKING,
+        RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+        RawImpressionUploadModelLine.State.FAILED,
+      )) {
+      ownerState = state
+      val stub = filteringStub(listOf(candidate))
+      val retention =
+        SubpoolRetention(
+          stub,
+          rankStore,
+          DP,
+          MODEL_LINE,
+          RETENTION_DAYS,
+          TODAY,
+          VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+          ownerStub(),
+        )
+      retention.deleteAgedBlobs(POOL)
+      assertThat(storageClient.getBlob(candidate.blobUri)).isNotNull()
+      verifyBlocking(stub, never()) { deleteRankIndexBlob(any(), any()) }
+    }
+    ownerFailure = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+    val stub = filteringStub(listOf(candidate))
+    SubpoolRetention(
+        stub,
+        rankStore,
+        DP,
+        MODEL_LINE,
+        RETENTION_DAYS,
+        TODAY,
+        VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        ownerStub(),
+      )
+      .deleteAgedBlobs(POOL)
+    assertThat(storageClient.getBlob(candidate.blobUri)).isNotNull()
+  }
+
+  @Test
+  fun `deleteAgedBlobs removes nonretryably evicted inputs`() = runBlocking {
+    val candidate = writeBlob("day/evicted", epochDayToDate(TODAY.toEpochDay() - 31))
+    ownerState = RawImpressionUploadModelLine.State.FAILED
+    ownerFailure = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+    val stub = filteringStub(listOf(candidate))
+    SubpoolRetention(
+        stub,
+        rankStore,
+        DP,
+        MODEL_LINE,
+        RETENTION_DAYS,
+        TODAY,
+        VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        ownerStub(),
+      )
+      .deleteAgedBlobs(POOL)
+    assertThat(storageClient.getBlob(candidate.blobUri)).isNull()
+    verifyBlocking(stub) { deleteRankIndexBlob(any(), any()) }
+  }
+
+  @Test
+  fun `deleteAgedBlobs preserves inputs when the owner is missing`() = runBlocking {
+    val candidate = writeBlob("day/missing-owner", epochDayToDate(TODAY.toEpochDay() - 31))
+    ownerExists = false
+    val stub = filteringStub(listOf(candidate))
+    assertFailsWith<IllegalStateException> {
+      SubpoolRetention(
+          stub,
+          rankStore,
+          DP,
+          MODEL_LINE,
+          RETENTION_DAYS,
+          TODAY,
+          VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+          ownerStub(),
+        )
+        .deleteAgedBlobs(POOL)
+    }
+    assertThat(storageClient.getBlob(candidate.blobUri)).isNotNull()
+    verifyBlocking(stub, never()) { deleteRankIndexBlob(any(), any()) }
+  }
+
+  @Test
+  fun `deleteAgedBlobs preserves inputs when owner metadata is unavailable`() = runBlocking {
+    val candidate = writeBlob("day/unavailable-owner", epochDayToDate(TODAY.toEpochDay() - 31))
+    val owners =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+          {
+            throw Status.UNAVAILABLE.asException()
+          }
+      }
+    val stub = filteringStub(listOf(candidate))
+    assertFailsWith<IllegalStateException> {
+      SubpoolRetention(
+          stub,
+          rankStore,
+          DP,
+          MODEL_LINE,
+          RETENTION_DAYS,
+          TODAY,
+          VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+          owners,
+        )
+        .deleteAgedBlobs(POOL)
+    }
+    assertThat(storageClient.getBlob(candidate.blobUri)).isNotNull()
+    verifyBlocking(stub, never()) { deleteRankIndexBlob(any(), any()) }
   }
 
   companion object {
