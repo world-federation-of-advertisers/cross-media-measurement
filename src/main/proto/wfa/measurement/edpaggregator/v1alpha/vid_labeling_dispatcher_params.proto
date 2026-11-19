@@ -45,21 +45,38 @@ message VidLabelingDispatchWorkItemParams {
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
 
-  // Model lines authorized by the recovery operation. Empty for ordinary
-  // uploads.
-  repeated string override_model_lines = 2
-      [(google.api.field_behavior) = OPTIONAL];
+  reserved 2, 3, 4;
+  reserved "override_model_lines", "recovery_source_upload",
+      "eviction_operation_id";
 
-  // Source upload authorized for recovery. Set together with the other recovery
-  // fields.
-  string recovery_source_upload = 3 [(google.api.field_behavior) = OPTIONAL];
-
-  // Eviction operation authorizing the replay. Set together with the other
-  // recovery fields.
-  string eviction_operation_id = 4 [(google.api.field_behavior) = OPTIONAL];
-  // Exact source version for this dispatch intent. Kept inside application
-  // parameters so approved historical replays are not suppressed by generic
-  // source-object fencing.
+  // Exact finalized source-object version.
   wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
       .DataPathParams source = 5 [(google.api.field_behavior) = REQUIRED];
+
+  // Authorization for a recovery replay. Absent for ordinary uploads.
+  RecoveryParams recovery = 6 [(google.api.field_behavior) = OPTIONAL];
+
+  // Authorization for replaying an evicted upload.
+  message RecoveryParams {
+    // Resource names of the ModelLines authorized for replay.
+    repeated string override_model_lines = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+    ];
+
+    // Resource name of the evicted RawImpressionUpload under data_provider.
+    string source_upload = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type =
+          "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    ];
+
+    // Resource name of the authorizing UploadHealingOperation under
+    // data_provider.
+    string upload_healing_operation = 3 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type =
+          "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    ];
+  }
 }
