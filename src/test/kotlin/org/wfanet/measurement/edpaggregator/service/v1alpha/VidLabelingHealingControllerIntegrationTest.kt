@@ -206,6 +206,7 @@ class VidLabelingHealingControllerIntegrationTest {
         LABELED_OUTPUT_PREFIX,
         getBlobGeneration = { null },
         deleteBlob = { _, _ -> true },
+        readBlobDetails = { _, _ -> null },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     val plan = evictUploader.planCorrection(listOf(d1.upload.name), Instant.EPOCH)

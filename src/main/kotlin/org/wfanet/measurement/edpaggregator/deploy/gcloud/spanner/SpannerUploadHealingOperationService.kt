@@ -64,6 +64,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawIm
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingOperationState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingStep
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateVidLabelingEvictionFenceState
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest
@@ -1058,17 +1059,33 @@ class SpannerUploadHealingOperationService(
         "the operation does not have provisional output manifests"
       }
     }
+    val selectionsByApprovedUri = mutableMapOf<String, Triple<String, Boolean, Long>>()
     for (step in operation.stepsList) {
       val finalized = manifestsByStepId.getValue(step.uploadHealingStepId)
       val approvedUris = step.labeledOutputManifest.blobsList.map { it.blobUri }
       val finalizedUris = finalized.blobsList.map { it.blobUri }
-      precondition(finalizedUris.isNotEmpty() && finalizedUris == approvedUris) {
+      precondition(
+        finalizedUris.isNotEmpty() &&
+          finalizedUris.size == approvedUris.size &&
+          finalizedUris.zip(approvedUris).all { (selected, approved) ->
+            if (approved.endsWith(".metadata.binpb")) {
+              selected == approved
+            } else {
+              LabeledImpressionsBlobKeys.matchesInputUri(selected, approved)
+            }
+          }
+      ) {
         "finalized output URIs do not match the approved scope for step ${step.uploadHealingStepId}"
       }
       precondition(finalizedUris.distinct().size == finalizedUris.size) {
         "finalized output URIs must be unique within each step"
       }
-      for (blob in finalized.blobsList) {
+      for ((blob, approvedUri) in finalized.blobsList.zip(approvedUris)) {
+        val selection = Triple(blob.blobUri, blob.hasGeneration(), blob.generation)
+        val previous = selectionsByApprovedUri.putIfAbsent(approvedUri, selection)
+        precondition(previous == null || previous == selection) {
+          "shared labeled output $approvedUri has mixed selections or versions"
+        }
         precondition(blob.blobUri.isNotBlank() && (!blob.hasGeneration() || blob.generation > 0L)) {
           "finalized output versions must have valid URIs and generations"
         }
