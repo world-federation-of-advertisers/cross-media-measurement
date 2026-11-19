@@ -52,8 +52,12 @@ class RateLimiterProvider(
         this.rateLimit
       } else {
         val rateLimitOverride = config.principalRateLimitOverrideMap[principalIdentifier]
-        if (rateLimitOverride == null) {
-          rateLimit
+        if (
+          rateLimitOverride == null ||
+            (!rateLimitOverride.hasDefaultRateLimit() &&
+              !rateLimitOverride.perMethodRateLimitMap.containsKey(methodName))
+        ) {
+          this.rateLimit
         } else {
           rateLimitOverrides.getOrPut(principalIdentifier) {
             RateLimit(rateLimitOverride, timeSource)
