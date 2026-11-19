@@ -89,6 +89,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
@@ -96,6 +97,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
@@ -106,6 +108,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
@@ -118,9 +122,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelL
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
@@ -266,6 +272,12 @@ class DataAvailabilitySyncFunctionTest {
 
   private val rawImpressionUploadFileServiceMock: RawImpressionUploadFileServiceCoroutineImplBase =
     mockService {
+      onBlocking { getRawImpressionUploadFile(any<GetRawImpressionUploadFileRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetRawImpressionUploadFileRequest>(0)
+          registeredFiles.values.flatten().single { it.name == request.name }
+        }
+
       onBlocking { listRawImpressionUploadFiles(any<ListRawImpressionUploadFilesRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
@@ -283,6 +295,22 @@ class DataAvailabilitySyncFunctionTest {
           }
         }
     }
+
+  private val vidLabelingJobServiceMock: VidLabelingJobServiceCoroutineImplBase = mockService {
+    onBlocking { listVidLabelingJobs(any<ListVidLabelingJobsRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListVidLabelingJobsRequest>(0)
+        val files = checkNotNull(registeredFiles[request.parent])
+        listVidLabelingJobsResponse {
+          vidLabelingJobs += vidLabelingJob {
+            name = request.parent + "/vidLabelingJobs/legacy"
+            state = VidLabelingJob.State.SUCCEEDED
+            cmmsModelLines += request.filter.cmmsModelLine
+            rawImpressionUploadFiles += files.map { it.name }
+          }
+        }
+      }
+  }
 
   private val rawImpressionUploadModelLineServiceMock:
     RawImpressionUploadModelLineServiceCoroutineImplBase =
@@ -453,6 +481,7 @@ class DataAvailabilitySyncFunctionTest {
     addService(
       ServerInterceptors.intercept(workItemAttemptsServiceMock, metadataCaptureInterceptor)
     )
+    addService(ServerInterceptors.intercept(vidLabelingJobServiceMock, metadataCaptureInterceptor))
     addService(ServerInterceptors.intercept(workItemsServiceMock, metadataCaptureInterceptor))
   }
 
@@ -498,6 +527,10 @@ class DataAvailabilitySyncFunctionTest {
               ),
               ServerInterceptors.intercept(
                 workItemAttemptsServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
+              ServerInterceptors.intercept(
+                vidLabelingJobServiceMock.bindService(),
                 metadataCaptureInterceptor,
               ),
               ServerInterceptors.intercept(
