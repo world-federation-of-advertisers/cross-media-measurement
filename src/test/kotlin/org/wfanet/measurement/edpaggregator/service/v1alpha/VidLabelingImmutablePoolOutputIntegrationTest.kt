@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import java.time.ZoneOffset
 import kotlin.test.assertFailsWith
@@ -39,9 +40,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -128,19 +131,7 @@ internal class VidLabelingImmutablePoolOutputIntegrationTest :
   fun `empty pool output fans out normal labeling jobs and publishes successful empty output`() =
     runBlocking<Unit> {
       val (work, upload) = prepare("empty-pool")
-      val outer = work.workItemParams.unpack(WorkItemParams::class.java)
-      val modified =
-        params(work)
-          .toBuilder()
-          .setActiveStartTime(
-            EVENT_DATE.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-          )
-          .build()
-      val delayedWindow =
-        work
-          .toBuilder()
-          .setWorkItemParams(outer.toBuilder().setAppParams(modified.pack()).build().pack())
-          .build()
+      val delayedWindow = outsideActiveWindow(work)
       runPoolAssignerDirect(delayedWindow)
       awaitPipelineIdle()
       val selectedJob = job(work)
@@ -354,17 +345,13 @@ internal class VidLabelingImmutablePoolOutputIntegrationTest :
 
   private fun outsideActiveWindow(work: WorkItem): WorkItem {
     val outer = work.workItemParams.unpack(WorkItemParams::class.java)
-    val p =
-      params(work)
-        .toBuilder()
-        .setActiveStartTime(
+    val changed =
+      params(work).copy {
+        activeStartTime =
           EVENT_DATE.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-        )
-        .build()
-    return work
-      .toBuilder()
-      .setWorkItemParams(outer.toBuilder().setAppParams(p.pack()).build().pack())
-      .build()
+      }
+    val changedOuter = outer.copy { appParams = changed.pack() }
+    return work.copy { workItemParams = changedOuter.pack() }
   }
 
   private suspend fun raceMergedCollision(empty: Boolean) =
