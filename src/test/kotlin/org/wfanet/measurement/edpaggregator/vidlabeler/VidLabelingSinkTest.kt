@@ -34,9 +34,13 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.max
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.withTimeout
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.junit.Rule
@@ -164,6 +168,249 @@ class VidLabelingSinkTest {
       config = VidLabelerParams.ModelLineConfig.getDefaultInstance(),
       rankIndex = rankIndex,
     )
+
+  @Test
+  fun `competing sink commits retain one sidecar and its decryptable data`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val publications = java.util.concurrent.CopyOnWriteArrayList<LabeledOutputPublication>()
+      val contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L)))
+      val first =
+        sink(
+          contexts,
+          fileMetadata = RawImpressionFileMetadata(LocalDate.of(1970, 1, 1)),
+          publicationObserver = { publications += it },
+        )
+      val second =
+        sink(
+          contexts,
+          fileMetadata = RawImpressionFileMetadata(LocalDate.of(1970, 1, 1)),
+          publicationObserver = { publications += it },
+        )
+      val input = listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1))
+      first.processBatch(input)
+      second.processBatch(input)
+      listOf(first, second)
+        .map { candidate -> async(Dispatchers.IO) { candidate.commit() } }
+        .awaitAll()
+      val details = readSoleBlobDetails()
+      assertThat(readImpressions(details)).hasSize(1)
+      assertThat(readImpressions(details).single().vid).isEqualTo(VID)
+      val files = tempFolder.root.walkTopDown().filter { it.isFile }.toList()
+      assertThat(files.filter { it.name.endsWith(".metadata.binpb") }).hasSize(1)
+      assertThat(files.filter { ".attempt-" in it.name && !it.name.endsWith(".metadata.binpb") })
+        .hasSize(2)
+      assertThat(
+          publications.count {
+            it.type == LabeledOutputPublication.Type.METADATA_SIDECAR &&
+              it.outcome == "already_completed"
+          }
+        )
+        .isEqualTo(1)
+      first.close()
+      second.close()
+    }
+
+  @Test
+  fun `retry adopts a completed sidecar while missing winning data remains a failure`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L)))
+      val input = listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1))
+      val first = sink(contexts, fileMetadata = RawImpressionFileMetadata(LocalDate.of(1970, 1, 1)))
+      first.processBatch(input)
+      first.commit()
+      first.close()
+      val original = readSoleBlobDetails()
+      val retry = sink(contexts, fileMetadata = RawImpressionFileMetadata(LocalDate.of(1970, 1, 1)))
+      retry.processBatch(input)
+      retry.commit()
+      retry.close()
+      assertThat(readSoleBlobDetails()).isEqualTo(original)
+      assertThat(readImpressions(original)).hasSize(1)
+      val dataLocation = SelectedStorageClient.parseBlobUri(original.blobUri)
+      checkNotNull(SelectedStorageClient(dataLocation, tempFolder.root).getBlob(dataLocation.key))
+        .delete()
+      val incomplete =
+        sink(contexts, fileMetadata = RawImpressionFileMetadata(LocalDate.of(1970, 1, 1)))
+      incomplete.processBatch(input)
+      assertFailsWith<IllegalStateException> { incomplete.commit() }
+      incomplete.close()
+      assertThat(readSoleBlobDetails()).isEqualTo(original)
+    }
+
+  @Test
+  fun `retry rejects malformed winning metadata and accepts legacy selectors`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L)))
+      val publications = mutableListOf<LabeledOutputPublication>()
+      fun candidate() =
+        sink(
+          contexts,
+          fileMetadata = RawImpressionFileMetadata(LocalDate.of(1970, 1, 1)),
+          publicationObserver = { publications += it },
+        )
+      val input = listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1))
+      val first = candidate()
+      first.processBatch(input)
+      first.commit()
+      first.close()
+      val original = readSoleBlobDetails()
+      val metadataFile =
+        tempFolder.root.walkTopDown().single { it.isFile && it.name.endsWith(".metadata.binpb") }
+      val invalid =
+        listOf(
+          original.toBuilder().clearInterval().build(),
+          original.toBuilder().setInterval(original.interval.toBuilder().clearStartTime()).build(),
+          original.toBuilder().setInterval(original.interval.toBuilder().clearEndTime()).build(),
+          original
+            .toBuilder()
+            .setInterval(
+              original.interval
+                .toBuilder()
+                .setStartTime(Timestamps.fromSeconds(86400L))
+                .setEndTime(Timestamps.fromSeconds(86401L))
+            )
+            .build(),
+          original
+            .toBuilder()
+            .setInterval(original.interval.toBuilder().setEndTime(original.interval.startTime))
+            .build(),
+          original.toBuilder().clearEntityKeys().clearEventGroupReferenceId().build(),
+          original.toBuilder().setModelLine(MODEL_LINE + "-other").build(),
+          original.toBuilder().setBlobUri("file:///labeled/foreign").build(),
+          original.toBuilder().clearEncryptedDek().build(),
+          original
+            .toBuilder()
+            .setEntityKeys(0, original.entityKeysList[0].toBuilder().clearEntityType())
+            .build(),
+          original
+            .toBuilder()
+            .setEntityKeys(0, original.entityKeysList[0].toBuilder().setEntityType(" "))
+            .build(),
+          original
+            .toBuilder()
+            .setEntityKeys(0, original.entityKeysList[0].toBuilder().clearEntityIds())
+            .build(),
+          original
+            .toBuilder()
+            .setEntityKeys(
+              0,
+              original.entityKeysList[0].toBuilder().clearEntityIds().addEntityIds(""),
+            )
+            .build(),
+          original.toBuilder().addEntityKeys(original.entityKeysList[0]).build(),
+          original
+            .toBuilder()
+            .setEntityKeys(
+              0,
+              original.entityKeysList[0]
+                .toBuilder()
+                .addEntityIds(original.entityKeysList[0].entityIdsList[0]),
+            )
+            .build(),
+        )
+      for (metadata in invalid) {
+        metadataFile.writeBytes(metadata.toByteArray())
+        publications.clear()
+        val retry = candidate()
+        retry.processBatch(input)
+        assertFailsWith<IllegalArgumentException> { retry.commit() }
+        retry.close()
+        assertThat(publications.none { it.outcome == "already_completed" }).isTrue()
+        assertThat(BlobDetails.parseFrom(metadataFile.readBytes())).isEqualTo(metadata)
+        assertThat(readImpressions(original)).hasSize(1)
+      }
+      val legacy =
+        original
+          .toBuilder()
+          .clearEntityKeys()
+          .setEventGroupReferenceId("legacy-event-group")
+          .build()
+      metadataFile.writeBytes(legacy.toByteArray())
+      val retry = candidate()
+      retry.processBatch(input)
+      retry.commit()
+      retry.close()
+      assertThat(readSoleBlobDetails()).isEqualTo(legacy)
+    }
+
+  @Test
+  fun `retry completes multiple groups after one sidecar publication fails`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val secondModel = MODEL_LINE.substringBeforeLast('/') + "/other-model"
+      val contexts =
+        listOf(
+          context(ActiveWindow(1_000L, 2_000L)),
+          context(ActiveWindow(1_000L, 2_000L), modelLine = secondModel),
+        )
+      val date = LocalDate.of(1970, 1, 1)
+      val blockedUri =
+        LabeledImpressionsBlobKeys.forInputUri(
+          "file:///labeled",
+          "file:///raw/file-1.parquet",
+          secondModel,
+          date,
+        ) + ".metadata.binpb"
+      val location = SelectedStorageClient.parseBlobUri(blockedUri)
+      val block = tempFolder.root.resolve(location.bucket).resolve(location.key)
+      block.mkdirs()
+      fun candidate() = sink(contexts, fileMetadata = RawImpressionFileMetadata(date))
+      val input = listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1))
+      val first = candidate()
+      first.processBatch(input)
+      assertFailsWith<Exception> { first.commit() }
+      first.close()
+      val winner = readSoleBlobDetails()
+      val retainedBytes =
+        tempFolder.root
+          .walkTopDown()
+          .single { it.isFile && it.name.endsWith(".metadata.binpb") }
+          .readBytes()
+      block.delete()
+      val retry = candidate()
+      retry.processBatch(input)
+      retry.commit()
+      retry.close()
+      val metadataFiles =
+        tempFolder.root
+          .walkTopDown()
+          .filter { it.isFile && it.name.endsWith(".metadata.binpb") }
+          .toList()
+      assertThat(metadataFiles).hasSize(2)
+      assertThat(metadataFiles.map { BlobDetails.parseFrom(it.readBytes()).modelLine })
+        .containsExactly(MODEL_LINE, secondModel)
+      assertThat(
+          metadataFiles
+            .single { BlobDetails.parseFrom(it.readBytes()).modelLine == MODEL_LINE }
+            .readBytes()
+        )
+        .isEqualTo(retainedBytes)
+      for (file in metadataFiles) assertThat(
+          readImpressions(BlobDetails.parseFrom(file.readBytes()))
+        )
+        .hasSize(1)
+      assertThat(readImpressions(winner)).hasSize(1)
+    }
+
+  @Test
+  fun `writer failure releases producers before the bounded channel fills`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").writeText("not a directory")
+      val broken = sink(listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))))
+      val failure =
+        assertFailsWith<Exception> {
+          withTimeout(5_000) {
+            broken.processBatch((1..500).map { rawEvent(eventTimeMicros = 1_500L, idByte = it) })
+            broken.commit()
+          }
+        }
+      assertThat(failure)
+        .isNotInstanceOf(kotlinx.coroutines.TimeoutCancellationException::class.java)
+      broken.close()
+    }
 
   @Test
   fun `commit preserves every hierarchy key from encrypted Parquet`() =
@@ -324,7 +571,8 @@ class VidLabelingSinkTest {
         .inOrder()
       assertThat(publications.map { it.outcome }).containsExactly("written", "written")
       assertThat(publications[0].uri).isEqualTo(blobDetails.blobUri)
-      assertThat(publications[1].uri).isEqualTo("${blobDetails.blobUri}.metadata.binpb")
+      assertThat(publications[1].uri)
+        .isEqualTo("${blobDetails.blobUri.substringBeforeLast(".attempt-")}.metadata.binpb")
     }
 
   @Test
