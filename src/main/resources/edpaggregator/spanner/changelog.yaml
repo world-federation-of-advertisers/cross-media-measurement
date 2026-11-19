@@ -127,3 +127,6 @@ databaseChangeLog:
   - include:
       file: create-report-routing-decision-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-pool-assignment-completion.sql
+      relativeToChangeLogFile: true

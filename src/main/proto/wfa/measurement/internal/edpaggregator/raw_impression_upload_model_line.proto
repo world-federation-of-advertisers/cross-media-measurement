@@ -66,9 +66,7 @@ message RawImpressionUploadModelLine {
   // populated on last-shard-out alongside `pool_offsets`.
   google.type.Date max_event_date = 11;
 
-  // DEK that encrypts the merged per-subpool SubpoolFingerprints blobs; the
-  // last shard's encrypted_dek, promoted on last-shard-out so a retrying
-  // SubpoolAssigner reuses it.
+  // DEK for merged SubpoolFingerprints blobs. Unset for empty ranked output.
   EncryptedDek encrypted_merged_dek = 12;
 
   // Request ID of the most recent transition to FAILED. Remains set until a
@@ -94,4 +92,9 @@ message RawImpressionUploadModelLine {
 
   // Event dates whose VID-labeled output has already been synchronized.
   repeated google.type.Date synchronized_availability_dates = 19;
+  // Whether every Phase-0 shard has completed successfully.
+  bool pool_assignment_complete = 20;
+
+  // KEK URI for VID-labeled output without rank snapshots.
+  string output_kek_uri = 21;
 }
