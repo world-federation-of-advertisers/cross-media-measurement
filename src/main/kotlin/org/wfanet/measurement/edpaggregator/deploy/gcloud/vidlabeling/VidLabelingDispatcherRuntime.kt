@@ -38,6 +38,7 @@ import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
@@ -284,7 +285,7 @@ internal class VidLabelingDispatcherRuntime {
       WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(channel)
   }
 
-  fun validateSource(input: VidLabelingDispatchInput) {
+  suspend fun validateSource(input: VidLabelingDispatchInput): Boolean {
     val config =
       requireNotNull(vidLabelingConfigsByDataProvider[input.appParams.dataProvider]) {
         "No VID labeling configuration for this provider"
@@ -302,6 +303,34 @@ internal class VidLabelingDispatcherRuntime {
         "Source lies outside the provider's raw input path"
       }
     }
+    val currentReader = createBlobMetadataReader(input.source.dataPath)
+    val metadata =
+      if (!fileSystemPath.isNullOrEmpty()) currentReader(uri.key)
+      else
+        try {
+          createBlobVersionMetadataReader(input.source.dataPath, currentReader)(
+            uri.key,
+            input.source.generation,
+          )
+        } catch (e: MissingRetainedBlobVersionException) {
+          // Ordinary notifications may outlive an overwritten, unretained generation.
+          // Recovery must still find and validate the authorized exact version.
+          if (
+            !input.appParams.hasRecovery() &&
+              currentReader(uri.key).generation != input.source.generation
+          )
+            return false
+          throw e
+        }
+    if (!input.appParams.hasRecovery() && metadata.generation != input.source.generation)
+      return false
+    require(metadata.generation == input.source.generation) {
+      "Dispatch source generation does not match storage"
+    }
+    require(metadata.createTime == input.source.createTime.toInstant()) {
+      "Dispatch source creation time does not match storage"
+    }
+    return true
   }
 
   companion object {
@@ -465,9 +494,8 @@ internal class VidLabelingDispatcherRuntime {
       return { key, generation ->
         withContext(Dispatchers.IO) {
           val blob =
-            checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, key, generation))) {
-              "The retained raw-object version is unavailable"
-            }
+            storage.get(BlobId.of(doneBlobUri.bucket, key, generation))
+              ?: throw MissingRetainedBlobVersionException()
           RawImpressionBlobMetadata(
             blob.generation,
             blob.size,
@@ -478,3 +506,6 @@ internal class VidLabelingDispatcherRuntime {
     }
   }
 }
+
+private class MissingRetainedBlobVersionException :
+  IllegalStateException("The retained raw-object version is unavailable")

@@ -25,8 +25,10 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.attribute.BasicFileAttributes
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
@@ -343,6 +345,10 @@ class VidLabelingDispatcherFunctionTest {
     provider: String,
     sourceUri: String,
     generation: Long = 11L,
+    sourceCreateTime: com.google.protobuf.Timestamp? = null,
+    appRecovery:
+      org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams.RecoveryParams? =
+      null,
   ): Int {
     val task = workItem {
       name = "workItems/dispatch"
@@ -353,10 +359,21 @@ class VidLabelingDispatcherFunctionTest {
             appParams =
               vidLabelingDispatchWorkItemParams {
                   dataProvider = provider
+                  if (appRecovery != null) this.recovery = appRecovery
                   source = dataPathParams {
                     dataPath = sourceUri
                     this.generation = generation
-                    createTime = Timestamps.fromMillis(1L)
+                    createTime =
+                      sourceCreateTime
+                        ?: run {
+                          val file = File(tempFolder.root, sourceUri.substringAfter("file:////"))
+                          if (file.exists())
+                            Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+                              .creationTime()
+                              .toInstant()
+                              .toProtoTime()
+                          else Timestamps.fromMillis(1L)
+                        }
                     eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
                   }
                 }
@@ -428,6 +445,85 @@ class VidLabelingDispatcherFunctionTest {
   }
 
   @Test
+  fun `queued function rejects altered source creation time before metadata mutations`() {
+    val file = File(tempFolder.root, "edp/edp_name/timestamp/done")
+    file.parentFile.mkdirs()
+    val parquetConf =
+      Configuration().apply { set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem") }
+    val parquetStorageClient =
+      ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
+    runBlocking {
+      parquetStorageClient.writeBlob(
+        "edp/edp_name/timestamp/impressions_001",
+        emptyFlow(),
+        mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01"),
+      )
+    }
+    file.writeText("")
+    val actualTime =
+      Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+        .creationTime()
+        .toInstant()
+    val port = startFunction()
+    assertThat(
+        queuedRequest(
+          port,
+          DATA_PROVIDER,
+          DONE_BLOB_URI,
+          file.lastModified(),
+          actualTime.plusNanos(1).toProtoTime(),
+        )
+      )
+      .isEqualTo(200)
+    verifyBlocking(items, times(1)) { failWorkItem(any()) }
+    verifyBlocking(attempts, times(1)) { failWorkItemAttempt(any()) }
+    verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
+    assertNoMetadataMutations()
+  }
+
+  @Test
+  fun `queued function completes superseded ordinary source without metadata mutations`() {
+    val file = File(tempFolder.root, "edp/edp_name/timestamp/done")
+    file.parentFile.mkdirs()
+    file.writeText("")
+    val port = startFunction()
+    assertThat(queuedRequest(port, DATA_PROVIDER, DONE_BLOB_URI, file.lastModified() - 1L))
+      .isEqualTo(200)
+    verifyBlocking(items, times(0)) { failWorkItem(any()) }
+    verifyBlocking(attempts, times(1)) { completeWorkItemAttempt(any()) }
+    assertNoMetadataMutations()
+  }
+
+  @Test
+  fun `queued recovery cannot substitute current source for missing retained version`() {
+    val file = File(tempFolder.root, "edp/edp_name/timestamp/done")
+    file.parentFile.mkdirs()
+    file.writeText("")
+    val recovery =
+      org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt
+        .recoveryParams {
+          overrideModelLines += MODEL_LINE
+          sourceUpload = RECOVERY_SOURCE_UPLOAD
+          uploadHealingOperation =
+            DATA_PROVIDER + "/uploadHealingOperations/" + EVICTION_OPERATION_ID
+        }
+    val port = startFunction()
+    assertThat(
+        queuedRequest(
+          port,
+          DATA_PROVIDER,
+          DONE_BLOB_URI,
+          file.lastModified() - 1L,
+          appRecovery = recovery,
+        )
+      )
+      .isEqualTo(200)
+    verifyBlocking(items, times(1)) { failWorkItem(any()) }
+    verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
+    assertNoMetadataMutations()
+  }
+
+  @Test
   fun `queued function loses its lease after metadata read and cannot publish writes`() {
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val storageClient = FileSystemStorageClient(tempFolder.root)
@@ -491,6 +587,58 @@ class VidLabelingDispatcherFunctionTest {
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())
 
     assertThat(response.statusCode()).isEqualTo(200)
+
+    verifyBlocking(rawImpressionUploadServiceMock, times(1)) { createRawImpressionUpload(any()) }
+    val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileServiceMock, times(1)) {
+      batchCreateRawImpressionUploadFiles(requestCaptor.capture())
+    }
+    assertThat(
+        requestCaptor.firstValue.requestsList.all { it.rawImpressionUploadFile.blobGeneration > 0L }
+      )
+      .isTrue()
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(1)) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+    val registrationRequestCaptor =
+      argumentCaptor<MarkRawImpressionUploadRegistrationCompleteRequest>()
+    verifyBlocking(rawImpressionUploadServiceMock, times(1)) {
+      markRawImpressionUploadRegistrationComplete(registrationRequestCaptor.capture())
+    }
+    assertThat(registrationRequestCaptor.firstValue.name)
+      .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    assertThat(registrationRequestCaptor.firstValue.etag).isEqualTo(UPLOAD_ETAG)
+    assertThat(registrationRequestCaptor.firstValue.requestId).isNotEmpty()
+    verifyBlocking(modelLinesServiceMock, times(1)) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `queued upload verifies matching source and registers upload files and model lines`() {
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    // Use RawLocalFileSystem so writes don't emit ".crc" checksum sidecars, which the dispatcher's
+    // directory listing would otherwise pick up as bogus raw-impression files.
+    val parquetConf =
+      Configuration().apply { set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem") }
+    val parquetStorageClient =
+      ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
+    // The dispatcher reads each raw-impression file's event_date from its plaintext Parquet footer,
+    // so the fixtures must be real Parquet files carrying the RawImpressionFileMetadata footer
+    // metadata.
+    val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
+    runBlocking {
+      parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
+      parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
+      // Finalize the upload only after every raw file has been written.
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
+    }
+    val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
+
+    val port = startFunction()
+
+    assertThat(queuedRequest(port, DATA_PROVIDER, DONE_BLOB_URI, doneGeneration)).isEqualTo(200)
+    verifyBlocking(attempts, times(1)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(items, times(0)) { failWorkItem(any()) }
 
     verifyBlocking(rawImpressionUploadServiceMock, times(1)) { createRawImpressionUpload(any()) }
     val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
