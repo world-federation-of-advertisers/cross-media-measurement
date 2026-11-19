@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher.UploadOutcome
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemCloudFunction
 import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemInvocation
@@ -114,18 +115,20 @@ class VidLabelingDispatcherFunction : WorkItemCloudFunction() {
         items,
         attempts,
         { input, guard ->
-          runtime.validateSource(input)
-          runtime
-            .createDispatcher(
-              input.appParams.dataProvider,
-              input.source.dataPath,
-              input.appParams.recovery.overrideModelLinesList,
-              input.appParams.recovery.sourceUpload.takeIf { it.isNotEmpty() },
-              UploadHealingOperationKey.fromName(input.appParams.recovery.uploadHealingOperation)
-                ?.uploadHealingOperationId,
-              guard,
-            )
-            .upload(input.source.dataPath, input.source.generation)
+          if (!runtime.validateSource(input)) {
+            UploadOutcome.STALE
+          } else
+            runtime
+              .createDispatcher(
+                input.appParams.dataProvider,
+                input.source.dataPath,
+                input.appParams.recovery.overrideModelLinesList,
+                input.appParams.recovery.sourceUpload.takeIf { it.isNotEmpty() },
+                UploadHealingOperationKey.fromName(input.appParams.recovery.uploadHealingOperation)
+                  ?.uploadHealingOperationId,
+                guard,
+              )
+              .upload(input.source.dataPath, input.source.generation)
         },
       )
       .createInvocation(workItem)
