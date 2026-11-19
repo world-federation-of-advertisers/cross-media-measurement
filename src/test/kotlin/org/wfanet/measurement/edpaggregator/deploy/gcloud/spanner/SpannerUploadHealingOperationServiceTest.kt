@@ -1531,12 +1531,22 @@ class SpannerUploadHealingOperationServiceTest {
 
   @Test
   fun `finalization closes provisional scope idempotently under evicting fence`() = runBlocking {
+    finalizeProvisionalScope(false)
+  }
+
+  @Test
+  fun `finalization persists selected attempt and rejects invalid scope`() = runBlocking {
+    finalizeProvisionalScope(true)
+  }
+
+  private suspend fun finalizeProvisionalScope(useAttempt: Boolean) {
     insertCorrectionCandidate(CANDIDATE_IDS[0])
     insertQueuedUpload()
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     val provisionalManifest = labeledOutputManifest {
       blobs += LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/source/data" }
-      blobs += LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/source/sidecar" }
+      blobs +=
+        LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/source/data.metadata.binpb" }
     }
     val created =
       service.reconcileUploadHealingOperation(
@@ -1616,12 +1626,14 @@ class SpannerUploadHealingOperationServiceTest {
         blobs.clear()
         blobs +=
           LabeledOutputManifestKt.blobVersion {
-            blobUri = "gs://output/source/data"
+            blobUri =
+              if (useAttempt) "gs://output/source/data.attempt-11111111-1111-4111-8111-111111111111"
+              else "gs://output/source/data"
             generation = 101L
           }
         blobs +=
           LabeledOutputManifestKt.blobVersion {
-            blobUri = "gs://output/source/sidecar"
+            blobUri = "gs://output/source/data.metadata.binpb"
             generation = 102L
           }
       }
@@ -1668,24 +1680,81 @@ class SpannerUploadHealingOperationServiceTest {
           request.copy {
             stepManifests[1] =
               stepManifests[1].copy {
-                labeledOutputManifest = labeledOutputManifest {
-                  blobs +=
-                    LabeledOutputManifestKt.blobVersion {
-                      blobUri = "gs://output/source/data"
-                      generation = 999L
-                    }
-                  blobs +=
-                    LabeledOutputManifestKt.blobVersion {
-                      blobUri = "gs://output/source/sidecar"
-                      generation = 102L
-                    }
-                }
+                labeledOutputManifest =
+                  finalizedManifest.copy { blobs[0] = blobs[0].copy { generation = 999L } }
               }
             requestId = "99999999-3333-4333-8333-333333333333"
           }
         )
       }
     assertThat(mixedVersionError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+    if (useAttempt) {
+      val differentSelectionError =
+        assertFailsWith<StatusRuntimeException> {
+          service.finalizeUploadHealingOperation(
+            request.copy {
+              stepManifests[0] =
+                stepManifests[0].copy {
+                  labeledOutputManifest =
+                    finalizedManifest.copy {
+                      blobs[0] =
+                        blobs[0].copy {
+                          blobUri =
+                            "gs://output/source/data.attempt-22222222-2222-4222-8222-222222222222"
+                        }
+                    }
+                }
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+      assertThat(differentSelectionError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      val invalidManifests =
+        listOf(
+          finalizedManifest.copy {
+            blobs[0] =
+              blobs[0].copy {
+                blobUri = "gs://output/foreign/data.attempt-11111111-1111-4111-8111-111111111111"
+              }
+          },
+          finalizedManifest.copy {
+            blobs[0] = blobs[0].copy { blobUri = "gs://output/source/data.attempt-invalid" }
+          },
+          finalizedManifest.copy { blobs[0] = blobs[0].copy { blobUri += "/extra" } },
+          finalizedManifest.copy {
+            blobs[1] = blobs[1].copy { blobUri += ".attempt-11111111-1111-4111-8111-111111111111" }
+          },
+          finalizedManifest.copy {
+            blobs.clear()
+            blobs += finalizedManifest.blobsList.reversed()
+          },
+          finalizedManifest.copy { blobs += finalizedManifest.blobsList[0] },
+          finalizedManifest.copy {
+            blobs +=
+              finalizedManifest.blobsList[0].copy { blobUri = "gs://output/unapproved-extra" }
+          },
+          finalizedManifest.copy { blobs[0] = blobs[0].copy { generation = 0L } },
+          finalizedManifest.copy { blobs[0] = blobs[0].copy { generation = -1L } },
+        )
+      for (invalid in invalidManifests) {
+        val error =
+          assertFailsWith<StatusRuntimeException> {
+            service.finalizeUploadHealingOperation(
+              request.copy {
+                // Both shared steps select the same invalid scope: shared-selection checks
+                // cannot mask a missing ordered scope validator.
+                for (index in stepManifests.indices) {
+                  stepManifests[index] =
+                    stepManifests[index].copy { labeledOutputManifest = invalid }
+                }
+                requestId = UUID.randomUUID().toString()
+              }
+            )
+          }
+        assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      }
+    }
 
     val finalized = service.finalizeUploadHealingOperation(request)
     val replayed = service.finalizeUploadHealingOperation(request)
@@ -1699,6 +1768,15 @@ class SpannerUploadHealingOperationServiceTest {
     assertThat(finalized.stepsList.map { it.labeledOutputManifest })
       .containsExactly(finalizedManifest, finalizedManifest)
     assertThat(replayed).isEqualTo(finalized)
+    val persisted =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    assertThat(persisted.stepsList.map { it.labeledOutputManifest })
+      .containsExactly(finalizedManifest, finalizedManifest)
   }
 
   @Test

@@ -16,12 +16,63 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
 import java.time.LocalDate
+import java.util.UUID
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 
 @RunWith(JUnit4::class)
 class LabeledImpressionsBlobKeyTest {
+  @Test
+  fun `attempt URIs belong only to the exact input output`() {
+    val canonical =
+      LabeledImpressionsBlobKeys.forInputUri(
+        OUTPUT_PREFIX,
+        "gs://raw-bucket/input.parquet",
+        MODEL_LINE,
+        EVENT_DATE,
+      )
+    val attempt = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+    val uri = LabeledImpressionsBlobKeys.forAttemptUri(canonical, attempt)
+    assertThat(LabeledImpressionsBlobKeys.matchesInputUri(canonical, canonical)).isTrue()
+    assertThat(LabeledImpressionsBlobKeys.matchesInputUri(uri, canonical)).isTrue()
+    assertThat(uri.substringBeforeLast('/')).isEqualTo(canonical.substringBeforeLast('/'))
+    for (invalid in
+      listOf(
+        "$canonical.attempt-1-1-1-1-1",
+        "$uri/extra",
+        "$uri.metadata.binpb",
+        uri.replace("gs://bucket/", "gs://other/"),
+        "$canonical-other.attempt-$attempt",
+      )) {
+      assertThat(LabeledImpressionsBlobKeys.matchesInputUri(invalid, canonical)).isFalse()
+    }
+    val otherInput =
+      LabeledImpressionsBlobKeys.forInputUri(
+        OUTPUT_PREFIX,
+        "gs://raw-bucket/other.parquet",
+        MODEL_LINE,
+        EVENT_DATE,
+      )
+    assertThat(LabeledImpressionsBlobKeys.matchesInputUri(uri, otherInput)).isFalse()
+    val otherDate =
+      LabeledImpressionsBlobKeys.forInputUri(
+        OUTPUT_PREFIX,
+        "gs://raw-bucket/input.parquet",
+        MODEL_LINE,
+        EVENT_DATE.plusDays(1),
+      )
+    assertThat(LabeledImpressionsBlobKeys.matchesInputUri(uri, otherDate)).isFalse()
+    val otherModel =
+      LabeledImpressionsBlobKeys.forInputUri(
+        OUTPUT_PREFIX,
+        "gs://raw-bucket/input.parquet",
+        "modelProviders/mp/modelSuites/ms/modelLines/ml2",
+        EVENT_DATE,
+      )
+    assertThat(LabeledImpressionsBlobKeys.matchesInputUri(uri, otherModel)).isFalse()
+  }
+
   @Test
   fun `output URIs share a directory when prefix has trailing slash`() {
     val dataUri =
