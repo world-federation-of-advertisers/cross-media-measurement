@@ -91,13 +91,23 @@ object EventFilters {
         else -> null
       }
     val selectedField = fieldPath(expr)
-    if (selectedField in unsupportedFields) {
+    val unsupportedField =
+      selectedField?.let { selected ->
+        unsupportedFields.firstOrNull { unsupported ->
+          selected == unsupported ||
+            selected.startsWith("$unsupported.") ||
+            unsupported.startsWith("$selected.")
+        }
+      }
+    if (unsupportedField != null) {
       throw EventFilterValidationException(
         EventFilterValidationException.Code.INVALID_CEL_EXPRESSION,
-        "Population field $selectedField is unavailable in the model line's event-template version",
+        "Population field $unsupportedField is unavailable in the model line's event-template version",
       )
     }
-    if (expr.hasSelectExpr())
+    // A resolved field path already includes its operands. Checking a supported leaf's template
+    // separately would reject it whenever another field in that template is unavailable.
+    if (expr.hasSelectExpr() && selectedField == null)
       requireSupportedPopulationFields(expr.selectExpr.operand, unsupportedFields)
     if (expr.hasCallExpr()) {
       if (expr.callExpr.hasTarget())

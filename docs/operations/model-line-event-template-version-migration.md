@@ -5,6 +5,10 @@ shared by the PDP and EDPA VID labeling. It selects the fields active in that
 version from a descriptor set that may contain newer fields. A descriptor must
 support the requested version.
 
+The version selects population fields within the CMMS instance's configured
+event-message schema. It does not select an event-message type or a descriptor
+set for each model line.
+
 ## Version resolution
 
 | Repository field | Local config | Result |

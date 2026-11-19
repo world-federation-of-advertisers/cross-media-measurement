@@ -446,6 +446,53 @@ class PopulationRequisitionFulfillerTest {
     }
 
   @Test
+  fun `historical population rejects whole template comparisons for either version source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
+        1,
+        versionedCommon {
+          original = VersionedCommon.Segment.SEGMENT_A
+          retired = VersionedCommon.Segment.SEGMENT_B
+        },
+        "versioned_common == ${VersionedCommon.getDescriptor().fullName}" +
+          "{original: 1, retired: 2, later: 0}",
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Population filter is invalid",
+      )
+    }
+
+  @Test
+  fun `current population rejects whole template comparisons with removed fields for either source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
+        3,
+        versionedCommon {
+          original = VersionedCommon.Segment.SEGMENT_A
+          later = VersionedCommon.Segment.SEGMENT_B
+        },
+        "versioned_common == ${VersionedCommon.getDescriptor().fullName}" +
+          "{original: 1, later: 2, retired: 0}",
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Population filter is invalid",
+      )
+    }
+
+  @Test
+  fun `whole template comparisons with all fields active survive backfill and config removal`() =
+    runBlocking {
+      assertPopulationAcrossBackfill(
+        2,
+        versionedCommon {
+          original = VersionedCommon.Segment.SEGMENT_A
+          later = VersionedCommon.Segment.SEGMENT_B
+          retired = VersionedCommon.Segment.SEGMENT_A
+        },
+        "versioned_common == ${VersionedCommon.getDescriptor().fullName}" +
+          "{original: 1, later: 2, retired: 1}",
+      )
+    }
+
+  @Test
   fun `repository lookup failure does not use local fallback`() = runBlocking {
     val fulfiller = versionedFulfiller(null, 1, VersionedCommon.getDefaultInstance(), "")
     modelLinesServiceMock.stub {
