@@ -312,7 +312,8 @@ internal class VidLabelingImmutablePoolOutputIntegrationTest :
     val blob = checkNotNull(mapStorage.getBlob(key))
     val generation = mapStorage.getFreshnessToken(key)
     val store = OutputManifestStore(mapStorage, p.subpoolMapStorageParams.blobPrefix)
-    val uri = root.scheme + "://" + root.bucket + "/" + key
+    val separator = if (root.scheme == "file") ":///" else "://"
+    val uri = root.scheme + separator + root.bucket + "/" + key
     val orphan = store.reference(uri, blob)
     assertThat(store.read(orphan).toList().first().header.attemptId).isEqualTo(id)
     assertThat(rankBuilderWorkItems()).isEmpty()
