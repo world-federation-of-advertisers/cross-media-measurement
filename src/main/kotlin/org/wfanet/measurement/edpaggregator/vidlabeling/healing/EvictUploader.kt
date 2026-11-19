@@ -98,7 +98,9 @@ class EvictUploader(
   private val getBlobGeneration: suspend (String) -> Long?,
   private val deleteBlob: suspend (String, Long) -> Boolean,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
-  private val committedOutputResolver: CommittedOutputResolver? = null,
+  private val resolveCommittedOutput:
+    (suspend (String, String) -> CommittedOutputResolver.Result?)? =
+    null,
 ) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
 
@@ -734,8 +736,7 @@ class EvictUploader(
     uploadName: String,
     cmmsModelLine: String,
   ): Map<String, Long?> {
-    val committed =
-      committedOutputResolver?.resolve(uploadName, cmmsModelLine, requireCompleted = false)
+    val committed = resolveCommittedOutput?.invoke(uploadName, cmmsModelLine)
     val files =
       if (committed?.hasCommittedManifests == true) committed.legacyFiles
       else listRawImpressionUploadFiles(uploadName)

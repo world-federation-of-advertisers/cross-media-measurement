@@ -191,19 +191,21 @@ class VidLabelingHealingControllerFunction(
               labeledOutputStore::getGeneration,
               labeledOutputStore::delete,
               rpcThrottlers = rpcThrottlers,
-              committedOutputResolver =
+              resolveCommittedOutput = { upload, model ->
                 CommittedOutputResolver(
-                  VidLabelingJobServiceCoroutineStub(rawChannel),
-                  files,
-                  OutputManifestStore(
-                    GcsStorageClient(
-                      storage,
-                      SelectedStorageClient.parseBlobUri(labeledOutputPrefix(config)).bucket,
+                    VidLabelingJobServiceCoroutineStub(rawChannel),
+                    files,
+                    OutputManifestStore(
+                      GcsStorageClient(
+                        storage,
+                        SelectedStorageClient.parseBlobUri(labeledOutputPrefix(config)).bucket,
+                      ),
+                      labeledOutputPrefix(config),
                     ),
-                    labeledOutputPrefix(config),
-                  ),
-                  rpcThrottlers.metadataRead,
-                ),
+                    rpcThrottlers.metadataRead,
+                  )
+                  .resolve(upload, model, requireCompleted = false)
+              },
             )
         }
       val recoverUploader =

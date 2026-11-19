@@ -7719,30 +7719,69 @@ class DataAvailabilitySyncTest {
     val metadataGeneration: Long,
   )
 
-  private suspend fun committedFixture(): CommittedFixture {
+  private suspend fun committedFixture(
+    emptyOutput: Boolean = false,
+    sidecarModel: String = MODEL_LINE,
+    sidecarDate: LocalDate = LocalDate.of(2026, 3, 14),
+  ): CommittedFixture {
     val storage = VersionedBlobMetadataStorageClient()
     val date = LocalDate.of(2026, 3, 14)
     val attempt = "00000000-0000-4000-8000-000000000001"
     val dataKey = "edp/edpa_edp/model-line/modelLine1/$date/.attempts/$attempt/data"
-    val data = storage.writeVersion(dataKey, ByteString.copyFromUtf8("ciphertext"), Instant.now())
     val metadataKey = "$dataKey.metadata.binpb"
-    writeVidLabelerMetadata(storage, metadataKey, "$bucket/$dataKey", date)
-    val metadataVersion =
-      checkNotNull(storage.getBlob(metadataKey)) as ConditionalOperationStorageClient.Blob
+    var dataGeneration = 0L
+    var metadataGeneration = 0L
     val entry =
-      OutputManifestRecordKt.labeledBlob {
-        rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/rawImpressionUploadFiles/file"
-        modelLine = MODEL_LINE
-        eventDate = eventDate.toBuilder().setYear(2026).setMonth(3).setDay(14).build()
-        impressions = outputBlobReference {
-          blobUri = "$bucket/$dataKey"
-          blobGeneration = data.freshnessToken.toLong()
+      if (emptyOutput) null
+      else {
+        val data =
+          storage.writeVersion(dataKey, ByteString.copyFromUtf8("ciphertext"), Instant.now())
+        writeVidLabelerMetadata(storage, metadataKey, "$bucket/$dataKey", date)
+        if (sidecarModel != MODEL_LINE || sidecarDate != date) {
+          val bytes =
+            checkNotNull(storage.getBlob(metadataKey)).read().toList().fold(ByteString.EMPTY) {
+              acc,
+              part ->
+              acc.concat(part)
+            }
+          val changed =
+            BlobDetails.parseFrom(bytes).copy {
+              modelLine = sidecarModel
+              interval = interval {
+                startTime = sidecarDate.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+                endTime =
+                  sidecarDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+              }
+            }
+          storage.writeVersion(metadataKey, changed.toByteString(), Instant.now())
         }
-        this.metadata = outputBlobReference {
-          blobUri = "$bucket/$metadataKey"
-          blobGeneration = metadataVersion.freshnessToken.toLong()
+        val metadataVersion =
+          checkNotNull(storage.getBlob(metadataKey)) as ConditionalOperationStorageClient.Blob
+        dataGeneration = data.freshnessToken.toLong()
+        metadataGeneration = metadataVersion.freshnessToken.toLong()
+        OutputManifestRecordKt.labeledBlob {
+          rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/rawImpressionUploadFiles/file"
+          modelLine = MODEL_LINE
+          eventDate = eventDate.toBuilder().setYear(2026).setMonth(3).setDay(14).build()
+          impressions = outputBlobReference {
+            blobUri = "$bucket/$dataKey"
+            blobGeneration = dataGeneration
+          }
+          metadata = outputBlobReference {
+            blobUri = "$bucket/$metadataKey"
+            blobGeneration = metadataGeneration
+          }
         }
       }
+    val records = mutableListOf<OutputManifestRecord>()
+    if (entry != null) records += outputManifestRecord { labeledBlob = entry }
+    records += outputManifestRecord {
+      fileCompleted =
+        OutputManifestRecordKt.fileCompleted {
+          rawImpressionUploadFile = "$RAW_IMPRESSION_UPLOAD/rawImpressionUploadFiles/file"
+          modelLine = MODEL_LINE
+        }
+    }
     val manifest =
       OutputManifestStore(storage, "$bucket/edp/edpa_edp")
         .write(
@@ -7754,16 +7793,7 @@ class DataAvailabilitySyncTest {
             modelLines += MODEL_LINE
             attemptId = attempt
           },
-          flowOf(
-            outputManifestRecord { labeledBlob = entry },
-            outputManifestRecord {
-              fileCompleted =
-                OutputManifestRecordKt.fileCompleted {
-                  rawImpressionUploadFile = entry.rawImpressionUploadFile
-                  modelLine = MODEL_LINE
-                }
-            },
-          ),
+          flowOf(*records.toTypedArray()),
         )
     val owners =
       object : ManagedDoneObjectResolver {
@@ -7780,7 +7810,14 @@ class DataAvailabilitySyncTest {
           eventDate: LocalDate,
           blobKey: String,
           storageRoot: String,
-        ) = CommittedOutputResolver.Result(listOf(entry), emptyList(), listOf(manifest), true)
+        ) =
+          CommittedOutputResolver.Result(
+            listOfNotNull(entry),
+            emptyList(),
+            listOf(manifest),
+            true,
+            RAW_IMPRESSION_UPLOAD,
+          )
       }
     val doneKey = vidLabelerDoneKey(date)
     val done = storage.writeVersion(doneKey, ByteString.EMPTY, Instant.now())
@@ -7805,13 +7842,13 @@ class DataAvailabilitySyncTest {
       "$bucket/$doneKey",
       done.freshnessToken.toLong(),
       dataKey,
-      data.freshnessToken.toLong(),
-      metadataVersion.freshnessToken.toLong(),
+      dataGeneration,
+      metadataGeneration,
     )
   }
 
   @Test
-  fun `sync records both generations selected by a committed output manifest`() =
+  fun `managed folder replay preserves manifest ownership and both object generations`() =
     runBlocking<Unit> {
       val fixture = committedFixture()
       fixture.sync.sync(
@@ -7827,7 +7864,161 @@ class DataAvailabilitySyncTest {
       val row = captured.firstValue.requestsList.single().impressionMetadata
       assertThat(row.metadataBlobGeneration).isEqualTo(fixture.metadataGeneration)
       assertThat(row.impressionsBlobGeneration).isEqualTo(fixture.dataGeneration)
-      assertThat(row.blobUri).endsWith("${fixture.dataKey}.metadata.binpb")
+      assertThat(row.rawImpressionUpload).isEqualTo(RAW_IMPRESSION_UPLOAD)
+      assertThat(row.modelLine).isEqualTo(MODEL_LINE)
+    }
+
+  @Test
+  fun `selected managed replay preserves upload ownership`() =
+    runBlocking<Unit> {
+      val fixture = committedFixture()
+      fixture.sync.sync(
+        fixture.doneUri,
+        TestDataAvailabilitySyncLease.NAME,
+        fixture.doneGeneration,
+        discoveryMode =
+          DataAvailabilitySync.DiscoveryMode.SelectedMetadataBlobs(
+            setOf(fixture.dataKey + ".metadata.binpb")
+          ),
+        ensureLeaseActive = {},
+      )
+      val captured = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(captured.capture())
+      }
+      assertThat(captured.firstValue.requestsList.single().impressionMetadata.rawImpressionUpload)
+        .isEqualTo(RAW_IMPRESSION_UPLOAD)
+    }
+
+  @Test
+  fun `managed replay rejects a sidecar model disagreement independently of object generations`() =
+    runBlocking<Unit> {
+      for (selected in listOf(false, true)) {
+        val fixture =
+          committedFixture(
+            sidecarModel = "modelProviders/provider1/modelSuites/suite1/modelLines/other"
+          )
+        assertFailsWith<IllegalArgumentException> {
+          fixture.sync.sync(
+            fixture.doneUri,
+            TestDataAvailabilitySyncLease.NAME,
+            fixture.doneGeneration,
+            discoveryMode =
+              if (selected)
+                DataAvailabilitySync.DiscoveryMode.SelectedMetadataBlobs(
+                  setOf(fixture.dataKey + ".metadata.binpb")
+                )
+              else DataAvailabilitySync.DiscoveryMode.FolderScan,
+            ensureLeaseActive = {},
+          )
+        }
+      }
+      verifyBlocking(impressionMetadataServiceMock, never()) {
+        batchCreateImpressionMetadata(any())
+      }
+    }
+
+  @Test
+  fun `managed replay rejects a sidecar date disagreement independently of object generations`() =
+    runBlocking<Unit> {
+      for (selected in listOf(false, true)) {
+        val fixture = committedFixture(sidecarDate = LocalDate.of(2026, 3, 15))
+        assertFailsWith<IllegalArgumentException> {
+          fixture.sync.sync(
+            fixture.doneUri,
+            TestDataAvailabilitySyncLease.NAME,
+            fixture.doneGeneration,
+            discoveryMode =
+              if (selected)
+                DataAvailabilitySync.DiscoveryMode.SelectedMetadataBlobs(
+                  setOf(fixture.dataKey + ".metadata.binpb")
+                )
+              else DataAvailabilitySync.DiscoveryMode.FolderScan,
+            ensureLeaseActive = {},
+          )
+        }
+      }
+      verifyBlocking(impressionMetadataServiceMock, never()) {
+        batchCreateImpressionMetadata(any())
+      }
+    }
+
+  @Test
+  fun `managed empty manifest publication works for folder and selected replay`() =
+    runBlocking<Unit> {
+      for (mode in
+        listOf(
+          DataAvailabilitySync.DiscoveryMode.FolderScan,
+          DataAvailabilitySync.DiscoveryMode.SelectedMetadataBlobs(emptySet()),
+        )) {
+        val fixture = committedFixture(emptyOutput = true)
+        val outcome =
+          fixture.sync.sync(
+            fixture.doneUri,
+            TestDataAvailabilitySyncLease.NAME,
+            fixture.doneGeneration,
+            discoveryMode = mode,
+            ensureLeaseActive = {},
+          )
+        assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.NO_WORK)
+        assertThat(
+            DataAvailabilityBlobs.isDataAvailabilityPublished(
+              checkNotNull(fixture.storage.getBlob(fixture.doneUri.substringAfter("$bucket/")))
+            )
+          )
+          .isTrue()
+      }
+      verifyBlocking(impressionMetadataServiceMock, never()) {
+        batchCreateImpressionMetadata(any())
+      }
+    }
+
+  @Test
+  fun `empty metadata selection does not publish a nonempty committed output as empty success`() =
+    runBlocking<Unit> {
+      val fixture = committedFixture()
+      fixture.sync.sync(
+        fixture.doneUri,
+        TestDataAvailabilitySyncLease.NAME,
+        fixture.doneGeneration,
+        discoveryMode = DataAvailabilitySync.DiscoveryMode.SelectedMetadataBlobs(emptySet()),
+        ensureLeaseActive = {},
+      )
+      assertThat(
+          DataAvailabilityBlobs.isDataAvailabilityPublished(
+            checkNotNull(fixture.storage.getBlob(fixture.doneUri.substringAfter("$bucket/")))
+          )
+        )
+        .isFalse()
+      verifyBlocking(impressionMetadataServiceMock, never()) {
+        batchCreateImpressionMetadata(any())
+      }
+    }
+
+  @Test
+  fun `managed replay ignores an unreferenced attempt sidecar`() =
+    runBlocking<Unit> {
+      val fixture = committedFixture()
+      val orphan = fixture.dataKey.substringBeforeLast('/') + "/orphan.metadata.binpb"
+      writeVidLabelerMetadata(
+        fixture.storage,
+        orphan,
+        "$bucket/${orphan.removeSuffix(".metadata.binpb")}",
+        LocalDate.of(2026, 3, 14),
+      )
+      fixture.sync.sync(
+        fixture.doneUri,
+        TestDataAvailabilitySyncLease.NAME,
+        fixture.doneGeneration,
+        ensureLeaseActive = {},
+      )
+      val captured = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(captured.capture())
+      }
+      assertThat(captured.firstValue.requestsList).hasSize(1)
+      assertThat(captured.firstValue.requestsList.single().impressionMetadata.blobUri)
+        .endsWith(fixture.dataKey + ".metadata.binpb")
     }
 
   @Test
@@ -7850,6 +8041,46 @@ class DataAvailabilitySyncTest {
       verifyBlocking(impressionMetadataServiceMock, never()) {
         batchCreateImpressionMetadata(any())
       }
+    }
+
+  @Test
+  fun `external folder scans preserve valid sidecars under attempt-named directories`() =
+    runBlocking<Unit> {
+      val storage = VersionedBlobMetadataStorageClient()
+      val date = LocalDate.of(2026, 3, 14)
+      val folder = "edp/edpa_edp/model-line/modelLine1/$date/"
+      val createdAt = date.atStartOfDay(ZoneOffset.UTC).toInstant().plusSeconds(100)
+      for (directory in listOf(".attempts", ".vid-output-attempts")) {
+        val dataKey = "$folder$directory/data"
+        storage.writeVersion(dataKey, ByteString.copyFromUtf8("ciphertext"), createdAt)
+        val details = blobDetails {
+          blobUri = "$bucket/$dataKey"
+          modelLine = MODEL_LINE
+          eventGroupReferenceId = "campaign"
+          interval = interval {
+            startTime = date.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+            endTime = date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+          }
+        }
+        storage.writeVersion(dataKey + ".metadata.binpb", details.toByteString(), createdAt)
+      }
+      val done = storage.writeVersion(folder + "done", ByteString.EMPTY, createdAt.plusSeconds(1))
+      newExternalDataAvailabilitySync(storage)
+        .sync(
+          "$bucket/${folder}done",
+          TestDataAvailabilitySyncLease.NAME,
+          done.freshnessToken.toLong(),
+          externalDoneBlobCreateTime = done.createTime,
+          ensureLeaseActive = {},
+        )
+      val captured = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchCreateImpressionMetadata(captured.capture())
+      }
+      val uris = captured.firstValue.requestsList.map { it.impressionMetadata.blobUri }
+      assertThat(uris).hasSize(2)
+      assertThat(uris.any { it.contains("/.attempts/") }).isTrue()
+      assertThat(uris.any { it.contains("/.vid-output-attempts/") }).isTrue()
     }
 
   private class RecordingThrottler : Throttler {

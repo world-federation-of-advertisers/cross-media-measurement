@@ -39,12 +39,14 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecordKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
@@ -60,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.outputBlobReference
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
@@ -117,6 +120,7 @@ class EvictUploaderTest {
   private val impressionMetadataService:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase =
     mockService()
+  private var committedResult: CommittedOutputResolver.Result? = null
   private val deletedBlobUris = mutableListOf<String>()
   private val deletedBlobVersions = mutableListOf<Pair<String, Long>>()
   private val blobGenerations = mutableMapOf<String, Long?>()
@@ -147,6 +151,7 @@ class EvictUploaderTest {
         deletedBlobUris.add(blobUri)
       },
       rpcThrottlers = recordingThrottlers.throttlers,
+      resolveCommittedOutput = { _, _ -> committedResult },
     )
   }
 
@@ -1644,6 +1649,82 @@ class EvictUploaderTest {
     verifyBlocking(rankIndexBlobService, never()) { deleteRankIndexBlob(any()) }
     verifyBlocking(impressionMetadataService, never()) { batchDeleteImpressionMetadata(any()) }
   }
+
+  @Test
+  fun `eviction uses the selected manifest pair instead of reconstructing a shared filename`() =
+    runBlocking<Unit> {
+      val eventDate = LocalDate.of(2026, 7, 1)
+      val selectedUri =
+        "$LABELED_IMPRESSIONS_BLOB_PREFIX/model-line/modelLine1/$eventDate/.attempts/selected/data"
+      committedResult =
+        CommittedOutputResolver.Result(
+          listOf(
+            OutputManifestRecordKt.labeledBlob {
+              rawImpressionUploadFile = "${uploadName("up1")}/rawImpressionUploadFiles/file1"
+              modelLine = MODEL_LINE
+              this.eventDate = date {
+                year = 2026
+                month = 7
+                day = 1
+              }
+              impressions = outputBlobReference {
+                blobUri = selectedUri
+                blobGeneration = DEFAULT_GENERATION
+              }
+              metadata = outputBlobReference {
+                blobUri = selectedUri + ".metadata.binpb"
+                blobGeneration = DEFAULT_GENERATION
+              }
+            }
+          ),
+          emptyList(),
+          listOf(
+            outputBlobReference {
+              blobUri = selectedUri + ".manifest"
+              blobGeneration = DEFAULT_GENERATION
+            }
+          ),
+          true,
+          uploadName("up1"),
+        )
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+            }
+          }
+        )
+      stubModelLineRows("up1")
+      whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+        .thenReturn(listRankIndexBlobsResponse {})
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "${uploadName("up1")}/rawImpressionUploadFiles/file1"
+              blobUri = "gs://raw-bucket/day/file.parquet"
+              this.eventDate = date {
+                year = 2026
+                month = 7
+                day = 1
+              }
+            }
+          }
+        )
+      whenever(modelLineService.markRawImpressionUploadModelLineFailed(any()))
+        .thenReturn(
+          rawImpressionUploadModelLine { state = RawImpressionUploadModelLine.State.FAILED }
+        )
+      val plan = evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
+      finalizeAndEvict(plan, REASON)
+      assertThat(deletedBlobUris)
+        .containsExactly(selectedUri + ".metadata.binpb", selectedUri)
+        .inOrder()
+      assertThat(deletedBlobVersions.map { it.second })
+        .containsExactly(DEFAULT_GENERATION, DEFAULT_GENERATION)
+    }
 
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp1"

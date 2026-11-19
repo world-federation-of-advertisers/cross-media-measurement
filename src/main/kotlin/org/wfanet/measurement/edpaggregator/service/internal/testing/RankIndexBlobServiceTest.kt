@@ -27,6 +27,10 @@ import io.grpc.StatusRuntimeException
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -1202,6 +1206,42 @@ abstract class RankIndexBlobServiceTest {
           }
         )
       assertThat(page.rankIndexBlobsList).isEmpty()
+    }
+
+  @Test
+  fun `concurrent distinct requests select only one live snapshot`() =
+    runBlocking<Unit> {
+      val gate = CompletableDeferred<Unit>()
+      val results =
+        listOf("first", "second").map { suffix ->
+          async(Dispatchers.Default) {
+            gate.await()
+            runCatching {
+              service.createRankIndexBlob(
+                createRankIndexBlobRequest {
+                  requestId = UUID.randomUUID().toString()
+                  dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                  rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                  rankIndexBlob =
+                    newInternalBlob().copy { blobUri = "gs://bucket/concurrent-$suffix" }
+                }
+              )
+            }
+          }
+        }
+      gate.complete(Unit)
+      val completed = results.awaitAll()
+      assertThat(completed.count { it.isSuccess }).isEqualTo(1)
+      val failure = completed.single { it.isFailure }.exceptionOrNull() as StatusRuntimeException
+      assertThat(failure.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      val page =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
+      assertThat(page.rankIndexBlobsList).hasSize(1)
     }
 
   companion object {

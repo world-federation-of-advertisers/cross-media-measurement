@@ -100,11 +100,13 @@ kt_jvm_test(
     srcs = ["EvictUploaderTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploaderTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:committed_output_resolver",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:output_manifest_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_kt_jvm_proto",

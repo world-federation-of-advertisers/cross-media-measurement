@@ -39,6 +39,7 @@ class CommittedOutputResolver(
     val legacyFiles: List<RawImpressionUploadFile>,
     val manifests: List<OutputBlobReference>,
     val hasCommittedManifests: Boolean,
+    val rawImpressionUpload: String,
   )
 
   /** Resolves all successful job scopes for one upload/model, including empty publications. */
@@ -128,7 +129,7 @@ class CommittedOutputResolver(
       blobs += jobBlobs.filter { it.modelLine == modelLine }
       manifests += job.outputManifest
     }
-    return Result(blobs, legacy.values.toList(), manifests, manifests.isNotEmpty())
+    return Result(blobs, legacy.values.toList(), manifests, manifests.isNotEmpty(), upload)
   }
 
   private suspend fun <T> callMetadata(block: suspend () -> T): T =

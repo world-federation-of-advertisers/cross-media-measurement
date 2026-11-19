@@ -28,6 +28,7 @@ import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.time.LocalDate
+import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
@@ -43,14 +44,20 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.rawimpressions.CommittedOutputResolver
+import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecord
+import org.wfanet.measurement.edpaggregator.v1alpha.OutputManifestRecordKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.outputManifestRecord
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -924,6 +931,123 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(secondResult.errors.single().message).contains("publication")
     assertThat(syncCalls).isEqualTo(2)
   }
+
+  private suspend fun recoverEmptyManagedPublication(
+    completePublication: Boolean
+  ): MissingImpressionMetadataRecovery.RecoveryResult {
+    val storage = InMemoryStorageClient()
+    val date = LocalDate.of(2026, 8, 1)
+    val upload = "$DATA_PROVIDER_NAME/rawImpressionUploads/upload"
+    val model = "modelProviders/provider/modelSuites/suite/modelLines/model-line-1"
+    val attempt = UUID.randomUUID().toString()
+    val manifest =
+      OutputManifestStore(storage, "$BUCKET_URI/$EDP_IMPRESSION_PATH")
+        .write(
+          "$BUCKET_URI/$EDP_IMPRESSION_PATH/.vid-output-attempts/$attempt/manifest",
+          OutputManifestRecordKt.header {
+            phase = OutputManifestRecord.Header.Phase.VID_LABELING
+            rawImpressionUpload = upload
+            owner = "$upload/vidLabelingJobs/job"
+            modelLines += model
+            attemptId = attempt
+          },
+          kotlinx.coroutines.flow.flowOf(
+            outputManifestRecord {
+              fileCompleted =
+                OutputManifestRecordKt.fileCompleted {
+                  rawImpressionUploadFile = "$upload/rawImpressionUploadFiles/file"
+                  modelLine = model
+                }
+            }
+          ),
+        )
+    val doneKey = "$EDP_IMPRESSION_PATH/" + LabeledImpressionsBlobKeys.forDone(upload, model, date)
+    storage.writeBlob(doneKey, ByteString.EMPTY)
+    val reader =
+      object : ManagedDoneObjectResolver {
+        override val resolvesCommittedOutputs = true
+
+        override suspend fun modelLineFor(eventDate: LocalDate, blobKey: String) = model
+
+        override suspend fun resolve(modelLine: String, eventDate: LocalDate, blobKey: String) =
+          ManagedDoneObjectDisposition.CURRENT
+
+        override suspend fun committedOutputs(
+          modelLine: String,
+          eventDate: LocalDate,
+          blobKey: String,
+          storageRoot: String,
+        ) = CommittedOutputResolver.Result(emptyList(), emptyList(), listOf(manifest), true, upload)
+      }
+    val recovery =
+      MissingImpressionMetadataRecovery(
+        storage,
+        BlobUri("gs", BUCKET_NAME, ""),
+        EDP_IMPRESSION_PATH,
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        object : Throttler {
+          override suspend fun <T> onReady(block: suspend () -> T): T = block()
+        },
+        100,
+        DataDateSelection.SelectedDates(setOf(date)),
+        {},
+        sync = { _, selected ->
+          assertThat(selected).isEmpty()
+          if (completePublication)
+            storage.updateBlobMetadata(
+              doneKey,
+              metadata =
+                mapOf(
+                  DataAvailabilityBlobs.SYNC_ID_KEY to "empty-publication",
+                  DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+                  DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "empty-publication",
+                ),
+            )
+          emptySet()
+        },
+        metrics = metrics,
+        managedDoneObjectResolver = { reader },
+      )
+    return recovery.recover()
+  }
+
+  @Test
+  fun `managed empty recovery reports success only after marker publication`() =
+    runBlocking<Unit> {
+      val result = recoverEmptyManagedPublication(true)
+      assertThat(result.dateFoldersResynced).isEqualTo(1)
+      assertThat(result.incompleteFullSyncFolders).isEqualTo(0)
+      assertThat(result.errors).isEmpty()
+      assertThat(result.finalizedMetadataBlobs).isEqualTo(0)
+      assertThat(undeleteRequests).isEmpty()
+    }
+
+  @Test
+  fun `managed empty recovery preserves an incomplete publication verdict`() =
+    runBlocking<Unit> {
+      val result = recoverEmptyManagedPublication(false)
+      assertThat(result.dateFoldersResynced).isEqualTo(0)
+      assertThat(result.incompleteFullSyncFolders).isEqualTo(1)
+      assertThat(result.errors).hasSize(1)
+      assertThat(undeleteRequests).isEmpty()
+    }
+
+  @Test
+  fun `external recovery preserves sidecars under attempt-named directories`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      writeFinalizedMetadata(
+        storage,
+        "2026-08-01",
+        ".attempts/metadata-a.json",
+        ".vid-output-attempts/metadata-b.binpb",
+      )
+      val selected = mutableSetOf<String>()
+      val result = buildRecovery(storage, 100, true) { _, keys -> selected += keys }.recover()
+      assertThat(selected).hasSize(2)
+      assertThat(result.recoveredBlobs).isEqualTo(2)
+    }
 
   private fun buildRecovery(
     storageClient: BlobMetadataStorageClient,

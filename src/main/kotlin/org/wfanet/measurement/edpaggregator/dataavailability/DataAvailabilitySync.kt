@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -465,9 +466,9 @@ class DataAvailabilitySync(
               doneBlobUri.key,
               absoluteBlobUri(doneBlobUri, edpImpressionPath),
             )
-            ?.takeIf { it.hasCommittedManifests }
             ?.let { Triple(it, model, date) }
         } else null
+      var sawOwnedOutput = false
       val impressionMetadataBlobs: Flow<MetadataBlobCandidate> =
         if (committedOutputs != null) {
           discoverCommittedMetadataBlobs(
@@ -476,6 +477,7 @@ class DataAvailabilitySync(
               committedOutputs.third,
               doneBlobUri,
             )
+            .onEach { sawOwnedOutput = true }
             .filter { selectedMetadataKeys == null || it.blob.blobKey in selectedMetadataKeys }
         } else
           when (discoveryMode) {
@@ -483,7 +485,6 @@ class DataAvailabilitySync(
             is DiscoveryMode.SelectedMetadataBlobs ->
               externalSnapshot
                 ?.metadataBlobs
-                ?.filter { !isAttemptObject(it.blob.blobKey) }
                 ?.asFlow()
                 ?.filter { selectedMetadataKeys == null || it.blob.blobKey in selectedMetadataKeys }
                 ?.map { captured ->
@@ -495,12 +496,16 @@ class DataAvailabilitySync(
                 }
                 ?: storageClient
                   .listBlobs(doneBlobFolderPrefix)
-                  .filter { !isAttemptObject(it.blobKey) }
                   .filter { selectedMetadataKeys == null || it.blobKey in selectedMetadataKeys }
                   .map { MetadataBlobCandidate(it) }
             is DiscoveryMode.VidLabelerOutputs ->
               discoverVidLabelerMetadataBlobs(discoveryMode, doneBlobUri)
           }
+
+      val ownedModelLine = vidLabelerOutputs?.modelLine ?: committedOutputs?.second
+      val ownedEventDate = vidLabelerOutputs?.eventDate ?: committedOutputs?.third
+      val ownedUpload =
+        vidLabelerOutputs?.rawImpressionUpload ?: committedOutputs?.first?.rawImpressionUpload
 
       // 1. Retrieve blob details from storage and build a map and validate them
       val impressionMetadataMap: Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> =
@@ -508,14 +513,14 @@ class DataAvailabilitySync(
           impressionMetadataBlobs,
           doneBlobUri,
           doneBlobGeneration,
-          vidLabelerOutputs?.modelLine,
-          vidLabelerOutputs?.eventDate,
-          vidLabelerOutputs?.rawImpressionUpload,
+          ownedModelLine,
+          ownedEventDate,
+          ownedUpload,
           externalSnapshot,
         )
 
       if (
-        vidLabelerOutputs == null &&
+        ownedUpload == null &&
           DataAvailabilityBlobs.isDoneBlob(doneBlobUri.key) &&
           doneBlobUri.key.substringAfterLast('/') != "done"
       ) {
@@ -549,7 +554,7 @@ class DataAvailabilitySync(
         impressionMetadataMap.isEmpty() && modelLineCutovers.isEmpty() && hiddenModelLines.isEmpty()
       ) {
         logger.info("There were no valid impressions metadata.")
-        if (vidLabelerOutputs != null) {
+        if (ownedUpload != null && (committedOutputs == null || !sawOwnedOutput)) {
           // The registered raw inputs were checked and every output/sidecar pair was absent, so
           // labeling intentionally produced no available impressions. Mark the done object as
           // fully processed to prevent the monitor from reporting a successful no-output job as
@@ -712,8 +717,8 @@ class DataAvailabilitySync(
               cutoverAvailabilityPlans,
               dateInfoByModelLine,
               impressionMetadataMap.keys.map(ModelLineKey::toName).toSet(),
-              vidLabelerOutputs?.modelLine,
-              vidLabelerOutputs?.eventDate,
+              ownedModelLine,
+              ownedEventDate,
               doneBlobUri.key,
               ensureLeaseActive,
             )
@@ -1928,9 +1933,6 @@ class DataAvailabilitySync(
       }
       .associateBy { it.blobUri }
   }
-
-  private fun isAttemptObject(key: String): Boolean =
-    key.contains("/.attempts/") || key.contains("/.vid-output-attempts/")
 
   private suspend fun captureExactOutput(
     reference: OutputBlobReference,
