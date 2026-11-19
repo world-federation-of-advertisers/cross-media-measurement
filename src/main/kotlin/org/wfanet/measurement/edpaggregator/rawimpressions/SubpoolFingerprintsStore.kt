@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.rawimpressions
 
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.ByteString
+import java.security.MessageDigest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
@@ -28,6 +29,7 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolFingerprints
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolFingerprints
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 
 /**
@@ -67,20 +69,6 @@ class SubpoolFingerprintsStore(
    * Writes [fingerprintChunks] for [poolOffset] to [blobKey], one RecordIO `SubpoolFingerprints`
    * record per emitted chunk (each chunk a multiple of 12 packed bytes), envelope-encrypted with
    * [encryptedDek]. The chunk stream is consumed lazily, so memory stays bounded.
-   *
-   * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): this write is intentionally
-   * unconditional. common-jvm#389's write-if-absent primitive (`writeBlobIfNotFound`) IS available
-   * now, but adopting it on this deterministic key would be UNSAFE for these blobs: each is
-   * envelope-encrypted with a per-attempt random DEK (+ AES-GCM random IV), so no retry ever
-   * reproduces the bytes. A writer that crashes after this write but before
-   * `MarkPoolAssignmentJobSucceeded` is auto-recovered today (the retry re-writes, then marks);
-   * with write-if-absent the orphan ciphertext would fail every retry with a 412 and, since the job
-   * never reaches SUCCEEDED, strand the shard permanently (DLQ -> FAILED). The clobber it would
-   * prevent — a `WorkItem` delivered to two live VMs whose distinct DEKs desync from the
-   * mark-winner's row DEK — is real but narrow. A fix that avoids BOTH needs a retry to recover the
-   * winner's DEK: row-first DEK persistence, or per-attempt-UUID keys (as [RankIndexStore] uses)
-   * with the winning key stored on the `PoolAssignmentJob` row — i.e. an API change. Left
-   * unconditional deliberately.
    */
   suspend fun writeBlob(
     blobKey: String,
@@ -89,7 +77,7 @@ class SubpoolFingerprintsStore(
     fingerprintChunks: Flow<ByteString>,
   ) {
     encryptedClient(encryptedDek)
-      .writeBlob(
+      .writeBlobIfNotFound(
         blobKey,
         fingerprintChunks.map { chunk ->
           subpoolFingerprints {
@@ -127,12 +115,6 @@ class SubpoolFingerprintsStore(
    * with no blob for this subpool) are skipped. Memory stays bounded — records stream straight
    * through and [channelFlow]'s bounded buffer applies backpressure; the single [writeBlob] is the
    * only writer.
-   *
-   * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): also written
-   * unconditionally, for the same reason as [writeBlob]. The merge is deliberately idempotent —
-   * [SubpoolAssigner]'s last-shard-out recovery re-runs it on redelivery, and re-writing the merged
-   * blob is how that recovery works — so a write-if-absent precondition here would break the very
-   * recovery it is meant to support.
    */
   suspend fun mergeSubpool(
     inputs: List<SubpoolBlob>,
@@ -140,26 +122,42 @@ class SubpoolFingerprintsStore(
     outputEncryptedDek: EncryptedDek,
     readSemaphore: Semaphore,
   ) {
-    encryptedClient(outputEncryptedDek)
-      .writeBlob(
+    val outputClient = encryptedClient(outputEncryptedDek)
+    try {
+      outputClient.writeBlobIfNotFound(
         outputKey,
         channelFlow {
           for (input in inputs) {
             launch {
               readSemaphore.withPermit {
+                val client = encryptedClient(input.encryptedDek)
+                val legacyKey = input.blobKey.substringBeforeLast("/attempt/", input.blobKey)
                 val blob =
-                  encryptedClient(input.encryptedDek).getBlob(input.blobKey) ?: return@withPermit
-                blob.read().collect { record -> send(record) }
+                  client.getBlob(input.blobKey)
+                    ?: if (legacyKey != input.blobKey) client.getBlob(legacyKey) else null
+                blob?.read()?.collect { record -> send(record) }
               }
             }
           }
         },
       )
+    } catch (e: BlobChangedException) {
+      // The merged DEK is durable before publication, so a retry can validate the winning blob.
+      val winner = outputClient.getBlob(outputKey) ?: throw e
+      winner.read().collect { record ->
+        val fingerprints = SubpoolFingerprints.parseFrom(record)
+        check(fingerprints.fingerprints.size() % 12 == 0) { "Malformed merged fingerprints" }
+      }
+    }
   }
 
   /** Deletes [blobKey] if present (used to clean up temp per-shard blobs after a merge). */
   suspend fun delete(blobKey: String) {
-    storageClient.getBlob(blobKey)?.delete()
+    val legacyKey = blobKey.substringBeforeLast("/attempt/", blobKey)
+    val blob =
+      storageClient.getBlob(blobKey)
+        ?: if (legacyKey != blobKey) storageClient.getBlob(legacyKey) else null
+    blob?.delete()
   }
 
   companion object {
@@ -173,9 +171,18 @@ class SubpoolFingerprintsStore(
       modelLine: String,
       shardIndex: Int,
       poolOffset: Long,
-    ): String =
-      "${runPrefix(blobPrefix, rawImpressionUpload, modelLine)}/shard/$shardIndex" +
-        "/subpoolOffset/$poolOffset"
+      encryptedDek: EncryptedDek? = null,
+    ): String {
+      val key =
+        "${runPrefix(blobPrefix, rawImpressionUpload, modelLine)}/shard/$shardIndex" +
+          "/subpoolOffset/$poolOffset"
+      if (encryptedDek == null) return key
+      val attempt =
+        MessageDigest.getInstance("SHA-256")
+          .digest(encryptedDek.ciphertext.toByteArray())
+          .joinToString("") { "%02x".format(it) }
+      return "$key/attempt/$attempt"
+    }
 
     /**
      * Storage key for the merged (un-sharded) `SubpoolFingerprints` blob of [poolOffset]. Written

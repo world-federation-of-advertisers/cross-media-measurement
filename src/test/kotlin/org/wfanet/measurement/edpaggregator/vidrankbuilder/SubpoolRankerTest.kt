@@ -26,10 +26,16 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.type.Date
 import com.google.type.date
+import io.grpc.Status
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.time.LocalDate
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -222,6 +228,38 @@ class SubpoolRankerTest {
   /** Whether a row of [blobType] exists under [upload]. */
   private fun hasUploadRow(blobType: RankIndexBlob.BlobType, upload: String = UPLOAD): Boolean =
     fake.rows.any { it.blobType == blobType && it.name.startsWith("$upload/") }
+
+  @Test
+  fun `competing rank attempts adopt one atomic replayed snapshot and day only pair`() =
+    runBlocking<Unit> {
+      val inputKey = writePhase0(listOf(1L to 0, 2L to 0, 3L to 0))
+      modelLineStates[UPLOAD] = RawImpressionUploadModelLine.State.RANKING
+      fake.initialGate = CountDownLatch(2)
+      val results =
+        (0 until 2)
+          .map { async(Dispatchers.IO) { ranker().rank(POOL, inputKey, rankedSize = 100) } }
+          .awaitAll()
+      assertThat(fake.attempts).hasSize(2)
+      assertThat(fake.attempts.flatten().map { it.blobUri }.toSet()).hasSize(4)
+      val snapshot = fake.rows.single { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
+      val dayOnly = fake.rows.single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
+      for (result in results) {
+        assertThat(result.snapshotRankIndexBlobName).isEqualTo(snapshot.name)
+        assertThat(result.dayOnlyRankIndexBlobName).isEqualTo(dayOnly.name)
+      }
+      assertThat(snapshot.encryptedDek).isEqualTo(dayOnly.encryptedDek)
+      assertThat(
+          rankStore
+            .readBlob(snapshot.blobUri, snapshot.encryptedDek, snapshot.blobChecksum)
+            .toList()
+        )
+        .isNotEmpty()
+      assertThat(
+          rankStore.readBlob(dayOnly.blobUri, dayOnly.encryptedDek, dayOnly.blobChecksum).toList()
+        )
+        .isNotEmpty()
+      assertThat(fake.rows).hasSize(2)
+    }
 
   @Test
   fun `cold subpool allocates a dense rank set and stamps last_seen`() = runBlocking {
@@ -943,6 +981,10 @@ class SubpoolRankerTest {
   private class FakeRankIndexBlobs {
     val rows = mutableListOf<RankIndexBlob>()
     private var clock = 10L
+    private val byRequestId = mutableMapOf<String, RankIndexBlob>()
+    val attempts = mutableListOf<List<RankIndexBlob>>()
+    var initialGate: CountDownLatch? = null
+    private var gateReads = 0
 
     fun seed(row: RankIndexBlob) {
       rows.add(row)
@@ -953,29 +995,61 @@ class SubpoolRankerTest {
         { invocation ->
           val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
           val filter = request.filter
-          val matched =
-            rows.filter { row ->
-              matchesParent(row.name, request.parent) &&
-                row.blobType == filter.blobType &&
-                (filter.cmmsModelLine.isEmpty() || row.cmmsModelLine == filter.cmmsModelLine) &&
-                (!filter.hasPoolOffset() || row.poolOffset == filter.poolOffset) &&
-                (!filter.hasMaxEventDateOnOrBefore() ||
-                  epochDayOf(row.maxEventDate) <= epochDayOf(filter.maxEventDateOnOrBefore))
+          val gate = initialGate
+          val wait =
+            synchronized(this@FakeRankIndexBlobs) {
+              gate != null &&
+                request.parent == UPLOAD &&
+                filter.blobType == RankIndexBlob.BlobType.SNAPSHOT &&
+                gateReads++ < 2
             }
+          if (wait) {
+            checkNotNull(gate).countDown()
+            check(gate.await(10, TimeUnit.SECONDS)) { "Rank attempts did not enter together" }
+            return@doAnswer listRankIndexBlobsResponse {}
+          }
+          val matched =
+            synchronized(this@FakeRankIndexBlobs) { rows.toList() }
+              .filter { row ->
+                matchesParent(row.name, request.parent) &&
+                  row.blobType == filter.blobType &&
+                  (filter.cmmsModelLine.isEmpty() || row.cmmsModelLine == filter.cmmsModelLine) &&
+                  (!filter.hasPoolOffset() || row.poolOffset == filter.poolOffset) &&
+                  (!filter.hasMaxEventDateOnOrBefore() ||
+                    epochDayOf(row.maxEventDate) <= epochDayOf(filter.maxEventDateOnOrBefore))
+              }
           listRankIndexBlobsResponse { rankIndexBlobs += matched }
         }
       onBlocking { batchCreateRankIndexBlobs(any(), any()) } doAnswer
         { invocation ->
           val request = invocation.getArgument<BatchCreateRankIndexBlobsRequest>(0)
-          val created =
-            request.requestsList.map { createRequest ->
-              createRequest.rankIndexBlob.copy {
-                name = "${request.parent}/rankIndexBlobs/${blobType.name}-$poolOffset-${clock++}"
-                createTime = timestamp { seconds = clock }
+          synchronized(this@FakeRankIndexBlobs) {
+            attempts += request.requestsList.map { it.rankIndexBlob }
+            val pending = mutableMapOf<String, RankIndexBlob>()
+            val created =
+              request.requestsList.map { createRequest ->
+                byRequestId[createRequest.requestId]
+                  ?: pending.getOrPut(createRequest.requestId) {
+                    val blob = createRequest.rankIndexBlob
+                    val conflict =
+                      (rows + pending.values).any {
+                        matchesParent(it.name, request.parent) &&
+                          it.cmmsModelLine == blob.cmmsModelLine &&
+                          it.blobType == blob.blobType &&
+                          it.poolOffset == blob.poolOffset
+                      }
+                    if (conflict) throw Status.ALREADY_EXISTS.asException()
+                    blob.copy {
+                      name =
+                        "${request.parent}/rankIndexBlobs/${blobType.name}-$poolOffset-${clock++}"
+                      createTime = timestamp { seconds = clock }
+                    }
+                  }
               }
-            }
-          rows.addAll(created)
-          batchCreateRankIndexBlobsResponse { rankIndexBlobs += created }
+            byRequestId.putAll(pending)
+            rows.addAll(pending.values)
+            batchCreateRankIndexBlobsResponse { rankIndexBlobs += created }
+          }
         }
       onBlocking { deleteRankIndexBlob(any(), any()) } doAnswer
         { invocation ->

@@ -61,16 +61,6 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
    *
    * @return the SHA-256 of the plaintext payload (concatenated record bytes, in order), for the
    *   `RankIndexBlob.blob_checksum` corruption guard.
-   *
-   * NOTE(world-federation-of-advertisers/cross-media-measurement#3999): this write is intentionally
-   * unconditional to a per-attempt-UUID key (see [snapshotKey]). Do NOT collapse to a deterministic
-   * key + write-if-absent (common-jvm#389 `writeBlobIfNotFound`): the current UUID-key design is
-   * already clobber-safe (each attempt writes its own key; the winning `RankIndexBlob` row picks
-   * the authoritative blob and a loser just orphans bytes), whereas write-if-absent on a
-   * deterministic, envelope-encrypted blob (per-attempt random DEK + IV -> non-reproducible bytes)
-   * would REGRESS it: a writer that crashes between the write and the row insert leaves an orphan
-   * that fails every retry's 412 forever. See [snapshotKey] and
-   * [SubpoolFingerprintsStore.writeBlob].
    */
   suspend fun writeBlob(
     blobKey: String,
@@ -79,7 +69,7 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
   ): ByteString {
     val digest = MessageDigest.getInstance("SHA-256")
     encryptedClient(encryptedDek)
-      .writeBlob(
+      .writeBlobIfNotFound(
         blobKey,
         records.map { record ->
           val bytes = record.toByteString()
