@@ -441,7 +441,18 @@ class SubpoolAssigner(
     check(parent.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
       "Parent has not reached POOL_ASSIGNING; retry after the dispatcher transition"
     }
-    val selectedParent = if (parent.hasMergedOutputManifest()) parent else commitMerge(parent)
+    val selectedParent =
+      if (parent.hasMergedOutputManifest()) parent
+      else {
+        try {
+          commitMerge(parent)
+        } catch (e: BlobChangedException) {
+          val current = getParent() ?: throw e
+          if (!current.hasMergedOutputManifest()) throw e
+          if (current.state in NOOP_FANOUT_STATES) return false
+          current
+        }
+      }
     val selected =
       readPublication(
         selectedParent.mergedOutputManifest,
@@ -1048,6 +1059,7 @@ class SubpoolAssigner(
         RawImpressionUploadModelLine.State.FAILED,
         RawImpressionUploadModelLine.State.RANKING,
         RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
         RawImpressionUploadModelLine.State.COMPLETED,
       )
   }

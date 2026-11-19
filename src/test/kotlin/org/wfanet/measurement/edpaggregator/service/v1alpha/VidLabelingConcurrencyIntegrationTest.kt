@@ -31,6 +31,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.DIRECT_MODEL_LINE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 
@@ -108,45 +110,107 @@ internal class VidLabelingConcurrencyIntegrationTest : VidLabelingPipelineTestHa
   }
 
   @Test
-  fun `two rank builders racing commit one cumulative snapshot`() = runBlocking {
-    setVisibleModelLines(MEMOIZED_MODEL_LINE)
-    withholdNextRankBuilderPublications()
-    writeRawFile("rank-commit-race", "input.parquet", listOf("person"))
-    val generation = finalizeRawUpload("rank-commit-race")
-    workItemTransport.awaitIdle()
-    val upload = listUploads().single { it.doneBlobGeneration == generation }
-    val rankWorkItem = rankBuilderWorkItems().single()
-
-    val results =
-      List(2) { async(Dispatchers.Default) { runCatching { runRankBuilderDirect(rankWorkItem) } } }
-        .awaitAll()
-
-    assertThat(results.all { it.isSuccess }).isTrue()
-    workItemTransport.awaitIdle()
-    val rankRows = listRankIndexBlobs(upload.name)
-    assertThat(
-        rankRows.count {
-          it.blobType ==
-            org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob.BlobType.SNAPSHOT
+  fun `two rank builders racing commit one cumulative snapshot`() =
+    runBlocking<Unit> {
+      setVisibleModelLines(MEMOIZED_MODEL_LINE)
+      withholdNextRankBuilderPublications(count = 100)
+      val people = List(64) { "rank-person-" + it }
+      writeRawFile("rank-commit-race", "input.parquet", people)
+      val generation = finalizeRawUpload("rank-commit-race")
+      workItemTransport.awaitIdle()
+      val upload = listUploads().single { it.doneBlobGeneration == generation }
+      assertThat(listModelLines(upload.name).single().state)
+        .isEqualTo(RawImpressionUploadModelLine.State.RANKING)
+      val work = rankBuilderWorkItems().first()
+      val gate =
+        responseGates.armBeforeHandler(
+          "wfa.measurement.edpaggregator.v1alpha.RankIndexBlobService/BatchCreateRankIndexBlobs"
+        )
+      val attempts =
+        listOf(1, 4).map { stripes ->
+          async(Dispatchers.Default) {
+            runCatching {
+              runRankBuilderDirect(work, stripes, Dispatchers.Default.limitedParallelism(1))
+            }
+          }
         }
-      )
-      .isEqualTo(1)
-    assertThat(
-        rankRows.count {
-          it.blobType ==
-            org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob.BlobType.DAY_ONLY
+      gate.awaitBoth()
+      val candidates =
+        gate.messages.map { message ->
+          (message as BatchCreateRankIndexBlobsRequest).requestsList.map { it.rankIndexBlob }
         }
-      )
-      .isEqualTo(1)
-    val selectedKeys = rankRows.map { it.encryptedDek }.toSet()
-    assertThat(selectedKeys).hasSize(1)
-    val store = RankIndexStore(mapStorage, kmsClient)
-    for (row in rankRows) {
-      val records = store.readBlob(row.blobUri, row.encryptedDek, row.blobChecksum).toList()
-      assertThat(records.sumOf { it.ranksCount }).isEqualTo(1)
+      val store = RankIndexStore(mapStorage, kmsClient)
+      try {
+        assertThat(candidates).hasSize(2)
+        assertThat(listRankIndexBlobs(upload.name)).isEmpty()
+        for (pair in candidates) {
+          assertThat(pair.map { it.blobType })
+            .containsExactly(RankIndexBlob.BlobType.SNAPSHOT, RankIndexBlob.BlobType.DAY_ONLY)
+          assertThat(pair.map { it.encryptedDek }.toSet()).hasSize(1)
+          assertThat(
+              rankMapping(store, pair.single { it.blobType == RankIndexBlob.BlobType.SNAPSHOT })
+            )
+            .containsExactlyEntriesIn(
+              rankMapping(store, pair.single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY })
+            )
+        }
+        val mappings =
+          candidates.map { pair ->
+            rankMapping(store, pair.single { it.blobType == RankIndexBlob.BlobType.SNAPSHOT })
+          }
+        assertThat(mappings[0]).isNotEqualTo(mappings[1])
+      } finally {
+        gate.releaseAll()
+      }
+      assertThat(attempts.awaitAll().all { it.isSuccess }).isTrue()
+      for (remaining in rankBuilderWorkItems().filter { it.name != work.name }) {
+        runRankBuilderDirect(remaining)
+      }
+      awaitPipelineIdle()
+      val allSelected = listRankIndexBlobs(upload.name)
+      val poolOffset = candidates.first().first().poolOffset
+      val selected = allSelected.filter { it.poolOffset == poolOffset }
+      assertThat(selected.map { it.blobType })
+        .containsExactly(RankIndexBlob.BlobType.SNAPSHOT, RankIndexBlob.BlobType.DAY_ONLY)
+      val selectedPair = selected.map { rankPublication(it) }.toSet()
+      assertThat(candidates.map { pair -> pair.map { rankPublication(it) }.toSet() })
+        .contains(selectedPair)
+      val snapshot = selected.single { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
+      val day = selected.single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
+      assertThat(rankMapping(store, snapshot)).containsExactlyEntriesIn(rankMapping(store, day))
+      assertThat(readLabeledPeople(MEMOIZED_MODEL_LINE).map { it.personId })
+        .containsExactlyElementsIn(people)
+      assertThat(vidLabelerWorkItems()).hasSize(1)
+      assertThat(listMetadata()).hasSize(1)
+      val outputs = outputGenerations(MEMOIZED_MODEL_LINE)
+      runRankBuilderDirect(work)
+      awaitPipelineIdle()
+      assertThat(listRankIndexBlobs(upload.name)).containsExactlyElementsIn(allSelected)
+      assertThat(outputGenerations(MEMOIZED_MODEL_LINE)).containsExactlyEntriesIn(outputs)
     }
-    assertThat(vidLabelerWorkItems()).hasSize(1)
-    assertThat(listMetadata()).hasSize(1)
+
+  private fun rankPublication(blob: RankIndexBlob): List<Any> =
+    listOf(
+      blob.blobType,
+      blob.blobUri,
+      blob.encryptedDek,
+      blob.blobChecksum,
+      blob.poolOffset,
+      blob.maxEventDate,
+    )
+
+  private suspend fun rankMapping(
+    store: RankIndexStore,
+    blob: RankIndexBlob,
+  ): Map<ByteString, Int> {
+    val result = mutableMapOf<ByteString, Int>()
+    for (record in store.readBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum).toList()) {
+      for ((index, rank) in record.ranksList.withIndex()) {
+        val fingerprint = record.fingerprints.substring(index * 12, (index + 1) * 12)
+        assertThat(result.put(fingerprint, rank)).isNull()
+      }
+    }
+    return result
   }
 
   @Test

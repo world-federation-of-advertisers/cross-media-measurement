@@ -33,6 +33,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.OutputManifestStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.EVENT_DATE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -318,6 +319,20 @@ internal class VidLabelingImmutablePoolOutputIntegrationTest :
     assertThat(store.read(orphan).toList().first().header.attemptId).isEqualTo(id)
     assertThat(rankBuilderWorkItems()).isEmpty()
     assertThat(listMetadata()).isEmpty()
+    if (phase == "merge") {
+      val commits =
+        responseGates.callCount(
+          "wfa.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineService/CommitRawImpressionUploadModelLineMergedOutput"
+        )
+      assertFailsWith<BlobChangedException> { runPoolAssignerDirect(work) }
+      assertThat(listModelLines(upload).single().hasMergedOutputManifest()).isFalse()
+      assertThat(
+          responseGates.callCount(
+            "wfa.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineService/CommitRawImpressionUploadModelLineMergedOutput"
+          )
+        )
+        .isEqualTo(commits)
+    }
     forcedPoolAttemptId = null
     runPoolAssignerDirect(work)
     awaitPipelineIdle()
@@ -328,4 +343,90 @@ internal class VidLabelingImmutablePoolOutputIntegrationTest :
     assertThat(mapStorage.getFreshnessToken(key)).isEqualTo(generation)
     verifySelectedInputs(work, upload)
   }
+
+  @Test
+  fun `stale nonempty merge collision acknowledges the selected winner`() =
+    runBlocking<Unit> { raceMergedCollision(empty = false) }
+
+  @Test
+  fun `stale empty merge manifest collision acknowledges the selected winner`() =
+    runBlocking<Unit> { raceMergedCollision(empty = true) }
+
+  private fun outsideActiveWindow(work: WorkItem): WorkItem {
+    val outer = work.workItemParams.unpack(WorkItemParams::class.java)
+    val p =
+      params(work)
+        .toBuilder()
+        .setActiveStartTime(
+          EVENT_DATE.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+        )
+        .build()
+    return work
+      .toBuilder()
+      .setWorkItemParams(outer.toBuilder().setAppParams(p.pack()).build().pack())
+      .build()
+  }
+
+  private suspend fun raceMergedCollision(empty: Boolean) =
+    kotlinx.coroutines.coroutineScope {
+      val (original, upload) = prepare("merged-collision-" + empty)
+      val work = if (empty) outsideActiveWindow(original) else original
+      val commit =
+        "wfa.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineService/CommitRawImpressionUploadModelLineMergedOutput"
+      val getParent =
+        "wfa.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineService/ListRawImpressionUploadModelLines"
+      edpaBeforeCallFaults.arm(commit)
+      assertThat(runCatching { runPoolAssignerDirect(work) }.isFailure).isTrue()
+      assertThat(job(work).state).isEqualTo(PoolAssignmentJob.State.SUCCEEDED)
+      assertThat(listModelLines(upload).single().hasMergedOutputManifest()).isFalse()
+      withholdNextAvailabilityPublications()
+      forcedPoolAttemptId = "00000000-0000-4000-8000-000000000099"
+      val markCount = responseGates.callCount(markMethod)
+      val commitCount = responseGates.callCount(commit)
+      val gate = responseGates.arm(getParent, holdSecond = true)
+      val attempts =
+        List(2) { async(Dispatchers.Default) { runCatching { runPoolAssignerDirect(work) } } }
+      gate.awaitBoth()
+      assertThat(
+          gate.messages.map {
+            (it as ListRawImpressionUploadModelLinesResponse)
+              .rawImpressionUploadModelLinesList
+              .single()
+              .hasMergedOutputManifest()
+          }
+        )
+        .containsExactly(false, false)
+      val first = select { attempts.forEach { it.onAwait { result -> result } } }
+      assertThat(first.isSuccess).isTrue()
+      awaitPipelineIdle()
+      val selectedParent = listModelLines(upload).single()
+      assertThat(selectedParent.state)
+        .isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+      val selectedJob = job(work)
+      val generations = outputGenerations(MEMOIZED_MODEL_LINE)
+      val reads = responseGates.callCount(getParent)
+      gate.releaseSecond()
+      assertThat(attempts.awaitAll().all { it.isSuccess }).isTrue()
+      assertThat(responseGates.callCount(getParent)).isEqualTo(reads + 1)
+      assertThat(responseGates.callCount(markMethod)).isEqualTo(markCount)
+      assertThat(responseGates.callCount(commit)).isEqualTo(commitCount + 1)
+      assertThat(listModelLines(upload).single()).isEqualTo(selectedParent)
+      assertThat(job(work)).isEqualTo(selectedJob)
+      assertThat(outputGenerations(MEMOIZED_MODEL_LINE)).containsExactlyEntriesIn(generations)
+      forcedPoolAttemptId = null
+      republishQueuedAvailability()
+      awaitPipelineIdle()
+      if (empty) {
+        assertThat(rankBuilderWorkItems()).isEmpty()
+        assertThat(listMetadata()).isEmpty()
+        val records =
+          OutputManifestStore(mapStorage, params(work).subpoolMapStorageParams.blobPrefix)
+            .read(selectedParent.mergedOutputManifest)
+            .toList()
+        assertThat(records.first().header.hasEncryptedDek()).isFalse()
+        assertThat(records.drop(1)).isEmpty()
+      } else {
+        verifySelectedInputs(work, upload)
+      }
+    }
 }

@@ -30,6 +30,7 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 import io.grpc.ForwardingServerCall
+import io.grpc.ForwardingServerCallListener
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
@@ -57,6 +58,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -1165,7 +1167,14 @@ abstract class VidLabelingPipelineTestHarness(
   protected suspend fun runVidLabelerDirect(workItem: WorkItem) =
     labelingApplication.runWork(workItem.workItemParams)
 
-  protected suspend fun runRankBuilderDirect(workItem: WorkItem): VidRankBuilder.Result {
+  protected suspend fun runRankBuilderDirect(workItem: WorkItem): VidRankBuilder.Result =
+    runRankBuilderDirect(workItem, pipelineConfig.rankStripes, Dispatchers.Default)
+
+  protected suspend fun runRankBuilderDirect(
+    workItem: WorkItem,
+    stripes: Int,
+    workerDispatcher: CoroutineDispatcher,
+  ): VidRankBuilder.Result {
     val params =
       workItem.workItemParams
         .unpack(WorkItemParams::class.java)
@@ -1202,8 +1211,8 @@ abstract class VidLabelingPipelineTestHarness(
         pipelineConfig.retentionDays,
         runDate,
         throttlers,
-        workerDispatcher = Dispatchers.Default,
-        stripes = pipelineConfig.rankStripes,
+        workerDispatcher = workerDispatcher,
+        stripes = stripes,
         maxInFlightRecords = 2,
       )
     return VidRankBuilder(
@@ -2341,10 +2350,10 @@ abstract class VidLabelingPipelineTestHarness(
 
   /** Forces real concurrent readers to observe the same unmodified job before either writes. */
   protected class ReadResponseGateInterceptor : ServerInterceptor {
-    class Gate(val method: String, val holdSecond: Boolean) {
+    class Gate(val method: String, val holdSecond: Boolean, val beforeHandler: Boolean = false) {
       val assigned = AtomicInteger()
       val arrived = CountDownLatch(2)
-      val release = CountDownLatch(if (holdSecond) 1 else 0)
+      val release = CountDownLatch(if (holdSecond || beforeHandler) 1 else 0)
       val messages = ConcurrentLinkedQueue<Any>()
 
       suspend fun awaitBoth() {
@@ -2354,6 +2363,8 @@ abstract class VidLabelingPipelineTestHarness(
       }
 
       fun releaseSecond() = release.countDown()
+
+      fun releaseAll() = release.countDown()
     }
 
     private val gate = AtomicReference<Gate?>()
@@ -2361,6 +2372,12 @@ abstract class VidLabelingPipelineTestHarness(
 
     fun arm(method: String, holdSecond: Boolean = false): Gate {
       val next = Gate(method, holdSecond)
+      check(gate.compareAndSet(null, next))
+      return next
+    }
+
+    fun armBeforeHandler(method: String): Gate {
+      val next = Gate(method, holdSecond = false, beforeHandler = true)
       check(gate.compareAndSet(null, next))
       return next
     }
@@ -2378,6 +2395,28 @@ abstract class VidLabelingPipelineTestHarness(
       val index = active?.assigned?.incrementAndGet()
       if (active == null || index == null || index > 2) return next.startCall(call, headers)
       if (index == 2) gate.compareAndSet(active, null)
+      if (active.beforeHandler) {
+        val listener = next.startCall(call, headers)
+        return object :
+          ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(listener) {
+          override fun onMessage(message: ReqT) {
+            active.messages.add(message)
+            active.arrived.countDown()
+            super.onMessage(message)
+          }
+
+          override fun onHalfClose() {
+            check(active.arrived.await(30, TimeUnit.SECONDS)) {
+              "Writers did not reach request barrier"
+            }
+            check(active.release.await(30, TimeUnit.SECONDS)) {
+              "Writer requests were not released"
+            }
+            super.onHalfClose()
+          }
+        }
+      }
+
       val wrapped =
         object : ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
           override fun sendMessage(message: RespT) {
