@@ -76,9 +76,13 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase as InternalImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataView as InternalImpressionMetadataView
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt as InternalListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.acquireDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.internal.edpaggregator.copy as copyInternal
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken as internalListImpressionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse as internalListImpressionMetadataResponse
 
 @RunWith(JUnit4::class)
 class ImpressionMetadataServiceTest {
@@ -2199,6 +2203,38 @@ class ImpressionMetadataServiceTest {
       }
       assertThat(fullPage.serializedSize).isGreaterThan(4 * 1024 * 1024)
       assertThat(basicPage.serializedSize).isLessThan(1024 * 1024)
+
+      val internalStub = InternalImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+      val internalRequest = internalListImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        pageSize = 1000
+      }
+      val internalFullResponse = internalStub.listImpressionMetadata(internalRequest)
+      val internalBasicResponse =
+        internalStub.listImpressionMetadata(
+          internalRequest.copyInternal {
+            view = InternalImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC
+          }
+        )
+      val internalFull = internalFullResponse.impressionMetadataList.single()
+      val internalBasic = internalBasicResponse.impressionMetadataList.single()
+      assertThat(internalBasic).isEqualTo(internalFull.copyInternal { entityKeys.clear() })
+      val internalNextPageToken = internalListImpressionMetadataPageToken {
+        after =
+          InternalListImpressionMetadataPageTokenKt.after {
+            impressionMetadataResourceId = internalFull.impressionMetadataResourceId
+          }
+      }
+      val internalFullPage = internalListImpressionMetadataResponse {
+        repeat(1000) { impressionMetadata += internalFull }
+        nextPageToken = internalNextPageToken
+      }
+      val internalBasicPage = internalListImpressionMetadataResponse {
+        repeat(1000) { impressionMetadata += internalBasic }
+        nextPageToken = internalNextPageToken
+      }
+      assertThat(internalFullPage.serializedSize).isGreaterThan(4 * 1024 * 1024)
+      assertThat(internalBasicPage.serializedSize).isLessThan(1024 * 1024)
     }
 
   @Test
