@@ -110,20 +110,9 @@ objectSets: [
 	reporting.services,
 	reporting.cronJobs,
 	reporting.networkPolicies,
-	[_accessInternalApiDisruptionBudget],
+	reporting.deploymentPodDisruptionBudgets,
 	if _mcpHost != "" && _oauthIssuer != "" {[_reportingMcpManagedCertificate, _reportingMcpIngress]},
 ]
-
-_accessInternalApiDisruptionBudget: #PodDisruptionBudget & {
-	metadata: {
-		_component: "reporting"
-		name:       "access-internal-api-server"
-	}
-	spec: {
-		minAvailable: 1
-		selector:     reporting.deployments["access-internal-api-server"].spec.selector
-	}
-}
 
 reporting: #Reporting & {
 	_populationDataProviderName:                 _pdpName
@@ -168,6 +157,11 @@ reporting: #Reporting & {
 	}
 
 	configMaps: "java": #JavaConfigMap
+
+	deploymentPodDisruptionBudgets: {
+		"access-internal-api-server": spec: minAvailable: 1
+		"access-public-api-server": spec: minAvailable:   1
+	}
 
 	deployments: {
 		"postgres-internal-reporting-server": {
@@ -224,6 +218,16 @@ reporting: #Reporting & {
 					}]
 				}
 			}
+		}
+		"access-public-api-server": spec: {
+			replicas: 2
+			// Prefer separate nodes without blocking scheduling when capacity is limited.
+			template: spec: topologySpreadConstraints: [{
+				maxSkew:           1
+				topologyKey:       "kubernetes.io/hostname"
+				whenUnsatisfiable: "ScheduleAnyway"
+				labelSelector:     reporting.deployments["access-public-api-server"].spec.selector
+			}]
 		}
 	}
 
