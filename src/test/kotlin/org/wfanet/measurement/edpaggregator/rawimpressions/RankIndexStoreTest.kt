@@ -34,6 +34,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -61,6 +62,21 @@ class RankIndexStoreTest {
       this.rankedSize = rankedSize
       fingerprints = ByteString.copyFrom(ByteArray(ranks.size * 12) { (it % 251).toByte() })
       ranks.forEach { this.ranks += it }
+    }
+
+  @Test
+  fun `conditional rank write cannot replace winning records or their ciphertext`() =
+    runBlocking<Unit> {
+      val store = RankIndexStore(storageClient, kmsClient)
+      val winner = store.generateDek(kekUri)
+      val checksum = store.writeBlob("rank", winner, flowOf(record(7L, 100, 1)))
+      val ciphertext = checkNotNull(storageClient.getBlob("rank")).read().toList()
+      assertFailsWith<BlobChangedException> {
+        store.writeBlob("rank", store.generateDek(kekUri), flowOf(record(7L, 100, 2)))
+      }
+      assertThat(checkNotNull(storageClient.getBlob("rank")).read().toList()).isEqualTo(ciphertext)
+      assertThat(store.readBlob("rank", winner, checksum).toList())
+        .containsExactly(record(7L, 100, 1))
     }
 
   @Test

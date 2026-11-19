@@ -17,10 +17,19 @@
 package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.RegistryConfiguration
+import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import com.google.type.date
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,7 +38,11 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
@@ -47,6 +60,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededResponse
@@ -62,7 +76,10 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAtt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 private const val DATA_PROVIDER = "dataProviders/dp"
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
@@ -230,6 +247,9 @@ class VidRankBuilderAppTest {
     vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub = vidLabelingJobsMock(),
     filesStub: RawImpressionUploadFileServiceCoroutineStub = filesMock(),
     workItemsStub: WorkItemsCoroutineStub = mock(),
+    rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub = mock(),
+    subpoolStorage: ConditionalOperationStorageClient = mock(),
+    rankStorage: ConditionalOperationStorageClient = mock(),
   ): VidRankBuilderApp =
     VidRankBuilderApp(
       subscriptionId = "test-subscription",
@@ -240,15 +260,107 @@ class VidRankBuilderAppTest {
       kmsClients = kmsClients,
       retentionDaysByDataProvider = retentionDays,
       rankerJobsStub = rankerJobsStub,
-      rankIndexBlobsStub = mock<RankIndexBlobServiceCoroutineStub>(),
+      rankIndexBlobsStub = rankIndexBlobsStub,
       rawImpressionUploadModelLinesStub = modelLinesStub,
       vidLabelingJobsStub = vidLabelingJobsStub,
       rawImpressionUploadFilesStub = filesStub,
       vidLabelerQueue = QUEUE,
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
-      buildSubpoolMapStorageClient = { mock<ConditionalOperationStorageClient>() },
-      buildVidRankMapStorageClient = { mock<ConditionalOperationStorageClient>() },
+      buildSubpoolMapStorageClient = { subpoolStorage },
+      buildVidRankMapStorageClient = { rankStorage },
     )
+
+  @Test
+  fun `runWork returns for a completed rank storage loser and throws for unfinished work`() =
+    runBlocking<Unit> {
+      AeadConfig.register()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "rank-app"
+      val kms =
+        FakeKmsClient().apply {
+          setAead(
+            kekUri,
+            KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+              .getPrimitive(RegistryConfiguration.get(), Aead::class.java),
+          )
+        }
+      val input = InMemoryStorageClient()
+      val store = SubpoolFingerprintsStore(input, kms)
+      val dek = store.generateDek(kekUri)
+      store.writeBlob("input", dek, 7L, flowOf(ByteString.copyFrom(ByteArray(12) { 1 })))
+      val blobs =
+        mock<RankIndexBlobServiceCoroutineStub> {
+          onBlocking { listRankIndexBlobs(any(), any()) } doReturn listRankIndexBlobsResponse {}
+        }
+      for (completed in listOf(true, false)) {
+        var reads = 0
+        val jobs =
+          mock<RankerJobServiceCoroutineStub> {
+            onBlocking { getRankerJob(any(), any()) } doAnswer
+              {
+                rankerJob {
+                  name = RANKER_JOB
+                  etag = "etag"
+                  state =
+                    if (reads++ == 0 || !completed) RankerJob.State.CREATED
+                    else RankerJob.State.SUCCEEDED
+                }
+              }
+          }
+        var parentReads = 0
+        val lines =
+          mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+            onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+              {
+                listRawImpressionUploadModelLinesResponse {
+                  rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                    name = PARENT_NAME
+                    cmmsModelLine = MODEL_LINE
+                    state =
+                      if (parentReads++ == 0) RawImpressionUploadModelLine.State.RANKING
+                      else RawImpressionUploadModelLine.State.LABELING
+                  }
+                }
+              }
+          }
+        var writes = 0
+        val output =
+          object : ConditionalOperationStorageClient by InMemoryStorageClient() {
+            override suspend fun writeBlobIfNotFound(
+              blobKey: String,
+              content: Flow<ByteString>,
+            ): StorageClient.Blob {
+              writes++
+              throw BlobChangedException("concurrent rank output")
+            }
+          }
+        val app =
+          createApp(
+            kmsClients = mapOf(DATA_PROVIDER to kms),
+            rankerJobsStub = jobs,
+            modelLinesStub = lines,
+            rankIndexBlobsStub = blobs,
+            subpoolStorage = input,
+            rankStorage = output,
+          )
+        val params =
+          validParams().copy {
+            encryptedSubpoolMapsDek = dek
+            maxEventDate = date {
+              year = 2026
+              month = 11
+              day = 19
+            }
+            subpoolMapBlobUris[7L] = "input"
+            subpoolRankedSizes[7L] = 100
+          }
+        if (completed) app.runWork(buildMessage(params))
+        else assertFailsWith<BlobChangedException> { app.runWork(buildMessage(params)) }
+        assertThat(writes).isEqualTo(1)
+        assertThat(reads).isEqualTo(2)
+        verifyBlocking(jobs, never()) { markRankerJobSucceeded(any(), any()) }
+        verifyBlocking(lines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+      }
+    }
 
   @Test
   fun `runWork rejects empty data_provider`() = runBlocking {
