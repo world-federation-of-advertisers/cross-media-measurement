@@ -53,6 +53,20 @@ and worker code during rollback; restore the previous watcher configuration to r
 new notifications to the earlier route. Never downgrade the worker while queued jobs
 remain.
 
+## Failure signals and cutover readiness
+
+Dispatch alert policies count terminal worker failures and confirmed exhausted
+deliveries from payload-free lifecycle logs. The exhaustion event precedes the
+DLQ acknowledgment, so draining the subscription does not erase the signal.
+Inspect the event's WorkItem name, execution generation, attempt/error evidence
+when present, and stored application source. An upload record may not exist.
+
+TODO(world-federation-of-advertisers/cross-media-measurement#4912): Configure
+approved operator notification channels in Dev, Head and QA, verify receipt of
+a test notification, and record dispatch alert/route readiness before cutover.
+The policies can create incidents with empty channels during preparation, but
+queued dispatch must not be activated until this readiness is verified.
+
 ## Inspect and retry
 
 Inspect a failed WorkItem, its attempts, and `app_params.source` before retrying.
