@@ -13,6 +13,8 @@
 # limitations under the License.
 
 from pathlib import Path
+import re
+import shlex
 import sys
 import unittest
 import xml.etree.ElementTree as ET
@@ -39,6 +41,23 @@ KUBERNETES_RULES = [
 
 
 class CiTestGroupsTest(unittest.TestCase):
+    def test_workflow_selection_only_excludes_manual_root_tags(self):
+        workflow = Path(__file__).resolve().parents[5] / ".github/workflows/build-test.yml"
+        queries = [
+            shlex.split(line.strip())[2]
+            for line in workflow.read_text().splitlines()
+            if line.strip().startswith("bazel query ")
+        ]
+        self.assertTrue(queries)
+        for query in queries:
+            pattern = re.search(r'attr\("tags", "([^"]+)"', query).group(1)
+            for tags in ["[]", "[cpu:2, no-remote-exec]", "[manual-example]"]:
+                with self.subTest(query=query, tags=tags):
+                    self.assertIsNone(re.search(pattern, tags))
+            for tags in ["[manual]", "[cpu:2, manual]", "[manual, no-remote-exec]"]:
+                with self.subTest(query=query, tags=tags):
+                    self.assertIsNotNone(re.search(pattern, tags))
+
     def test_partitions_cover_every_selected_test_once(self):
         rules = [
             ("//example:remote", [], False),

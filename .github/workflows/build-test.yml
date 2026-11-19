@@ -75,7 +75,7 @@ jobs:
 
       - name: Plan test groups
         run: |
-          bazel query 'tests(//... except attr("tags", "(^|, |\\[)manual(,|\\])", //...))' --output=xml > ci-test-query.xml
+          bazel query 'tests(//... except attr("tags", "(^|, |\[)manual(,|\])", //...))' --output=xml > ci-test-query.xml
           python3 .github/workflows/scripts/ci_test_groups.py plan \
             --query=ci-test-query.xml --output=ci-test-groups
 
@@ -192,7 +192,7 @@ jobs:
 
       - name: Plan test groups
         run: |
-          bazel query 'tests(//... except attr("tags", "(^|, |\\[)manual(,|\\])", //...))' --output=xml > ci-test-query.xml
+          bazel query 'tests(//... except attr("tags", "(^|, |\[)manual(,|\])", //...))' --output=xml > ci-test-query.xml
           python3 .github/workflows/scripts/ci_test_groups.py plan \
             --query=ci-test-query.xml --output=ci-test-groups
 
