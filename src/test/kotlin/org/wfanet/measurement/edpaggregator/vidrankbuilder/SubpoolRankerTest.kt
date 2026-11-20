@@ -29,6 +29,7 @@ import com.google.type.date
 import io.grpc.Status
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import java.security.GeneralSecurityException
 import java.time.LocalDate
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -276,6 +277,148 @@ class SubpoolRankerTest {
         )
         .isNotEmpty()
       assertThat(fake.rows).hasSize(2)
+    }
+
+  private fun invalidPairVariants(): List<(List<RankIndexBlob>) -> List<RankIndexBlob>> {
+    val otherDek = rankStore.generateDek(kekUri)
+    return listOf(
+      { rows ->
+        rows.map {
+          if (it.blobType == RankIndexBlob.BlobType.DAY_ONLY)
+            it.toBuilder().setEncryptedDek(otherDek).build()
+          else it
+        }
+      },
+      { rows ->
+        rows.map {
+          if (it.blobType == RankIndexBlob.BlobType.DAY_ONLY)
+            it.toBuilder().setCreateTime(timestamp { seconds = it.createTime.seconds + 1 }).build()
+          else it
+        }
+      },
+      { rows ->
+        rows.map {
+          if (it.blobType == RankIndexBlob.BlobType.DAY_ONLY)
+            it.toBuilder().setMaxEventDate(epochDayToDate(TODAY_EPOCH_DAY + 1)).build()
+          else it
+        }
+      },
+      { rows ->
+        rows.map {
+          if (it.blobType == RankIndexBlob.BlobType.SNAPSHOT)
+            it.toBuilder().setMaxEventDate(epochDayToDate(TODAY_EPOCH_DAY - 1)).build()
+          else it
+        }
+      },
+      { rows -> rows.map { it.toBuilder().setBlobChecksum(ByteString.EMPTY).build() } },
+      { rows -> rows.map { it.toBuilder().clearCreateTime().build() } },
+    )
+  }
+
+  @Test
+  fun `initial and conflicting winner adoption reject invalid pair metadata independently`() =
+    runBlocking<Unit> {
+      val inputKey = writePhase0(listOf(1L to 0, 2L to 0))
+      modelLineStates[UPLOAD] = RawImpressionUploadModelLine.State.RANKING
+      for (variant in invalidPairVariants()) {
+        fake = FakeRankIndexBlobs()
+        ranker().rank(POOL, inputKey, rankedSize = 100)
+        val original = fake.rows.toList()
+        fake.rows.clear()
+        fake.rows.addAll(variant(original))
+        assertFailsWith<IllegalStateException> { ranker().rank(POOL, inputKey, rankedSize = 100) }
+        assertThat(fake.attempts).hasSize(1)
+        fake = FakeRankIndexBlobs()
+        fake.initialGate = CountDownLatch(2)
+        fake.onReplayConflict = {
+          val invalid = variant(fake.rows.toList())
+          fake.rows.clear()
+          fake.rows.addAll(invalid)
+        }
+        val results =
+          (0 until 2)
+            .map {
+              async(Dispatchers.IO) {
+                runCatching { ranker().rank(POOL, inputKey, rankedSize = 100) }
+              }
+            }
+            .awaitAll()
+        assertThat(results.count { it.isSuccess }).isEqualTo(1)
+        assertThat(results.single { it.isFailure }.exceptionOrNull())
+          .isInstanceOf(IllegalStateException::class.java)
+        assertThat(fake.rows).hasSize(2)
+      }
+    }
+
+  @Test
+  fun `registration invalid argument propagates despite a complete committed winner`() =
+    runBlocking<Unit> {
+      val inputKey = writePhase0(listOf(1L to 0, 2L to 0))
+      modelLineStates[UPLOAD] = RawImpressionUploadModelLine.State.RANKING
+      fake.initialGate = CountDownLatch(2)
+      fake.replayConflictStatus = Status.INVALID_ARGUMENT
+      val results =
+        (0 until 2)
+          .map {
+            async(Dispatchers.IO) {
+              runCatching { ranker().rank(POOL, inputKey, rankedSize = 100) }
+            }
+          }
+          .awaitAll()
+      assertThat(results.count { it.isSuccess }).isEqualTo(1)
+      val error = results.single { it.isFailure }.exceptionOrNull()
+      assertThat(error).isInstanceOf(io.grpc.StatusException::class.java)
+      assertThat((error as io.grpc.StatusException).status.code)
+        .isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(fake.rows).hasSize(2)
+      val snapshot = fake.rows.single { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
+      val dayOnly = fake.rows.single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
+      assertThat(snapshot.encryptedDek).isEqualTo(dayOnly.encryptedDek)
+      assertThat(
+          rankStore
+            .readBlob(snapshot.blobUri, snapshot.encryptedDek, snapshot.blobChecksum)
+            .toList()
+        )
+        .isNotEmpty()
+    }
+
+  @Test
+  fun `initial and conflicting adoption reject a malformed stored winning key`() =
+    runBlocking<Unit> {
+      val inputKey = writePhase0(listOf(1L to 0, 2L to 0))
+      modelLineStates[UPLOAD] = RawImpressionUploadModelLine.State.RANKING
+      fun invalid(rows: List<RankIndexBlob>) =
+        rows.map {
+          it
+            .toBuilder()
+            .setEncryptedDek(
+              it.encryptedDek.toBuilder().setCiphertext(ByteString.copyFromUtf8("invalid-key"))
+            )
+            .build()
+        }
+      ranker().rank(POOL, inputKey, rankedSize = 100)
+      val badRows = invalid(fake.rows.toList())
+      fake.rows.clear()
+      fake.rows.addAll(badRows)
+      assertFailsWith<GeneralSecurityException> { ranker().rank(POOL, inputKey, rankedSize = 100) }
+      fake = FakeRankIndexBlobs()
+      fake.initialGate = CountDownLatch(2)
+      fake.onReplayConflict = {
+        val rows = invalid(fake.rows.toList())
+        fake.rows.clear()
+        fake.rows.addAll(rows)
+      }
+      val results =
+        (0 until 2)
+          .map {
+            async(Dispatchers.IO) {
+              runCatching { ranker().rank(POOL, inputKey, rankedSize = 100) }
+            }
+          }
+          .awaitAll()
+      assertThat(results.count { it.isSuccess }).isEqualTo(1)
+      assertThat(results.single { it.isFailure }.exceptionOrNull())
+        .isInstanceOf(GeneralSecurityException::class.java)
     }
 
   @Test
@@ -1013,6 +1156,8 @@ class SubpoolRankerTest {
     private val byRequestId = mutableMapOf<String, RankIndexBlob>()
     val attempts = mutableListOf<List<RankIndexBlob>>()
     var initialGate: CountDownLatch? = null
+    var replayConflictStatus: Status = Status.ALREADY_EXISTS
+    var onReplayConflict: (() -> Unit)? = null
     private var gateReads = 0
 
     fun seed(row: RankIndexBlob) {
@@ -1073,7 +1218,8 @@ class SubpoolRankerTest {
                       existing.encryptedDek == blob.encryptedDek &&
                       existing.maxEventDate == blob.maxEventDate
                   if (!matches) {
-                    throw Status.ALREADY_EXISTS.asException()
+                    onReplayConflict?.invoke()
+                    throw replayConflictStatus.asException()
                   }
                   existing.copy { clearDeleteTime() }
                 } else
