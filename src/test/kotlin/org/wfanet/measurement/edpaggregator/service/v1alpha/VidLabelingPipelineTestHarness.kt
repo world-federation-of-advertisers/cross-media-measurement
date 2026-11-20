@@ -315,6 +315,7 @@ data class RawEventFixture(
   val eventDate: LocalDate,
   val gender: String = "MALE",
   val ageGroup: String = "YEARS_18_TO_34",
+  val timestampMicros: Long? = null,
 )
 
 data class RankEntryFixture(
@@ -492,6 +493,49 @@ abstract class VidLabelingPipelineTestHarness(
   protected lateinit var internalDataAvailabilitySync: DataAvailabilitySync
   protected lateinit var externalDataAvailabilitySync: DataAvailabilitySync
   private lateinit var availabilityWorkItemProcessor: DataAvailabilitySyncWorkItemProcessor
+
+  private data class ManagedAvailabilityPause(
+    val upload: String,
+    val modelLine: String,
+    val pause: AvailabilityStagePause,
+  )
+
+  private val managedAvailabilityStagePause =
+    java.util.concurrent.atomic.AtomicReference<ManagedAvailabilityPause?>()
+
+  protected fun pauseManagedAvailabilityStage(
+    upload: String,
+    modelLine: String,
+    stage: DataAvailabilitySync.Stage,
+  ): AvailabilityStagePause {
+    val pause = AvailabilityStagePause(stage)
+    check(
+      managedAvailabilityStagePause.compareAndSet(
+        null,
+        ManagedAvailabilityPause(upload, modelLine, pause),
+      )
+    )
+    return pause
+  }
+
+  private fun pauseManagedAvailabilityStage(
+    upload: String,
+    modelLine: String,
+    stage: DataAvailabilitySync.Stage,
+    onStage: (DataAvailabilitySync.Stage) -> Unit,
+  ) {
+    onStage(stage)
+    val selected = managedAvailabilityStagePause.get() ?: return
+    if (
+      selected.upload != upload ||
+        selected.modelLine != modelLine ||
+        selected.pause.stage != stage ||
+        !managedAvailabilityStagePause.compareAndSet(selected, null)
+    )
+      return
+    selected.pause.reached.complete(Unit)
+    runBlocking { selected.pause.resume.await() }
+  }
 
   protected class AvailabilityStagePause
   internal constructor(
@@ -846,7 +890,14 @@ abstract class VidLabelingPipelineTestHarness(
                   modelLine = workItem.appParams.modelLine,
                   eventDate = workItem.eventDate,
                 ),
-              onStage = onStage,
+              onStage = { stage ->
+                pauseManagedAvailabilityStage(
+                  workItem.appParams.triggeringRawImpressionUpload,
+                  workItem.appParams.modelLine,
+                  stage,
+                  onStage,
+                )
+              },
               ensureLeaseActive = lease::invoke,
             )
           }
@@ -1567,7 +1618,9 @@ abstract class VidLabelingPipelineTestHarness(
             emit(
               parquetRow {
                   columns[EVENT_ID_COLUMN] = parquetValue { stringValue = event.eventId }
-                  columns[EVENT_TIME_COLUMN] = parquetValue { int64Value = eventTimeMicros + index }
+                  columns[EVENT_TIME_COLUMN] = parquetValue {
+                    int64Value = event.timestampMicros ?: (eventTimeMicros + index)
+                  }
                   columns[PERSON_ID_COLUMN] = parquetValue { stringValue = event.personId }
                   columns[GENDER_COLUMN] = parquetValue { stringValue = event.gender }
                   columns[AGE_GROUP_COLUMN] = parquetValue { stringValue = event.ageGroup }
@@ -1584,6 +1637,10 @@ abstract class VidLabelingPipelineTestHarness(
     GenerationMatchedTestHadoopFileSystem.retainVersion(File(fileStorageRoot, key))
     return "gs://$fileBucket/$key"
   }
+
+  protected fun allPhaseWorkItems(): List<WorkItem> =
+    listOf(POOL_ASSIGNER_QUEUE, RANK_BUILDER_QUEUE, VID_LABELER_QUEUE)
+      .flatMap(workItemTransport::workItemsForQueue)
 
   protected fun withholdNextPoolAssignmentPublications(count: Int = 1) {
     workItemTransport.dropNextPublications(POOL_ASSIGNER_QUEUE, count)
@@ -2722,6 +2779,13 @@ abstract class VidLabelingPipelineTestHarness(
       check(forceAcknowledgementRedelivery.compareAndSet(0, 1))
     }
 
+    private val heldPublicationQueues = ConcurrentHashMap.newKeySet<String>()
+
+    /** Holds new deliveries while retaining their real WorkItem records. */
+    fun holdPublications(queueName: String) {
+      heldPublicationQueues += queueName
+    }
+
     fun dropNextPublications(queueName: String, count: Int = 1) {
       check(count > 0)
       droppedPublications.computeIfAbsent(queueName) { AtomicInteger() }.addAndGet(count)
@@ -2962,7 +3026,7 @@ abstract class VidLabelingPipelineTestHarness(
     }
 
     private suspend fun publishCreatedWorkItem(created: WorkItem) {
-      if (consume(droppedPublications, created.queue)) {
+      if (created.queue in heldPublicationQueues || consume(droppedPublications, created.queue)) {
         withheldWorkItems += created.name
       } else {
         publish(created.queue, created)
