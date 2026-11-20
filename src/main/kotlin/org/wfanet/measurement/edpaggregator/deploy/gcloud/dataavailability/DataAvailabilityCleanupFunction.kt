@@ -19,7 +19,13 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import io.grpc.CallOptions
+import io.grpc.Channel
+import io.grpc.ClientCall
+import io.grpc.ClientInterceptor
 import io.grpc.ClientInterceptors
+import io.grpc.Deadline
+import io.grpc.MethodDescriptor
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
@@ -76,7 +82,18 @@ internal constructor(
     (DataAvailabilitySyncConfig) -> Pair<WorkItemsCoroutineStub, WorkItemAttemptsCoroutineStub>,
   private val renewalDelay: suspend () -> Unit,
   private val writebackRetryDelay: suspend (Int) -> Unit,
+  private val rpcDeadlineFactory: () -> Deadline,
 ) : WorkItemCloudFunction() {
+  private val controlPlaneDeadlineInterceptor =
+    object : ClientInterceptor {
+      override fun <ReqT, RespT> interceptCall(
+        method: MethodDescriptor<ReqT, RespT>,
+        callOptions: CallOptions,
+        next: Channel,
+      ): ClientCall<ReqT, RespT> =
+        next.newCall(method, callOptions.withDeadline(rpcDeadlineFactory()))
+    }
+
   /** Constructs the deployed function using committed runtime configuration. */
   constructor() :
     this(
@@ -85,6 +102,7 @@ internal constructor(
       ::createControlPlaneStubs,
       { delay(60_000L) },
       { attempt -> delay(writebackBackoff.durationForAttempt(attempt).toMillis()) },
+      { Deadline.after(rpcTimeoutSeconds, TimeUnit.SECONDS) },
     ) {
     EdpaTelemetry.ensureInitialized()
   }
@@ -130,8 +148,8 @@ internal constructor(
     val item = workItem.copy { generation = workItem.generation.takeUnless { it == 0L } ?: 1L }
     val runner =
       WorkItemRunner(
-        items.withDeadlineAfter(rpcTimeoutSeconds, TimeUnit.SECONDS),
-        attempts.withDeadlineAfter(rpcTimeoutSeconds, TimeUnit.SECONDS),
+        items.withInterceptors(controlPlaneDeadlineInterceptor),
+        attempts.withInterceptors(controlPlaneDeadlineInterceptor),
         attemptIdGenerator = { "cleanup-" + UUID.randomUUID().toString() },
         // Redeliver while another attempt owns this WorkItem.
         activeAttemptDelay = { error("Cleanup WorkItem already running") },

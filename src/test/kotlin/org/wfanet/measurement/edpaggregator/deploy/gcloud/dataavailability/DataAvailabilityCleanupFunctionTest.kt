@@ -19,6 +19,7 @@ import com.google.cloud.functions.HttpResponse
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
+import io.grpc.Deadline
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
@@ -29,7 +30,9 @@ import java.io.StringReader
 import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -297,6 +300,7 @@ class DataAvailabilityCleanupFunctionTest {
       },
       { awaitCancellation() },
       {},
+      { Deadline.after(30, TimeUnit.SECONDS) },
     )
 
   private fun record(index: Int): ImpressionMetadata =
@@ -543,6 +547,48 @@ class DataAvailabilityCleanupFunctionTest {
   }
 
   @Test
+  fun `service completes cleanup when storage checking outlasts an earlier RPC deadline`() {
+    val elapsedNanos = AtomicLong()
+    val ticker =
+      object : Deadline.Ticker() {
+        override fun nanoTime(): Long = elapsedNanos.get()
+      }
+    val storage =
+      object : StorageClient by FileSystemStorageClient(root) {
+        override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+          elapsedNanos.addAndGet(TimeUnit.SECONDS.toNanos(20))
+          return null
+        }
+      }
+    val worker =
+      DataAvailabilityCleanupFunction(
+        listOf(config),
+        {
+          DataAvailabilityCleanup(
+            ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(server.channel),
+            PROVIDER,
+            storage,
+            directThrottler,
+          )
+        },
+        {
+          Pair(
+            WorkItemsGrpcKt.WorkItemsCoroutineStub(server.channel),
+            WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(server.channel),
+          )
+        },
+        { awaitCancellation() },
+        {},
+        { Deadline.after(10, TimeUnit.SECONDS, ticker) },
+      )
+    val item = queued(record(1))
+    assertThat(invoke(worker, item.toByteArray(), emptyMap())).isEqualTo(200)
+    assertThat(elapsedNanos.get()).isGreaterThan(TimeUnit.SECONDS.toNanos(10))
+    assertThat(items.getValue(item.name).state).isEqualTo(WorkItem.State.SUCCEEDED)
+    assertThat(marks.get()).isEqualTo(1)
+  }
+
+  @Test
   fun `service renews the attempt while storage checking waits`() = runBlocking {
     val record = record(1)
     val item = queued(record)
@@ -579,6 +625,7 @@ class DataAvailabilityCleanupFunctionTest {
           Unit
         },
         {},
+        { Deadline.after(30, TimeUnit.SECONDS) },
       )
     val response = async(Dispatchers.IO) { invoke(worker, item.toByteArray(), emptyMap()) }
     entered.await()
