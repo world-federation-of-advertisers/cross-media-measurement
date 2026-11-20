@@ -1914,20 +1914,13 @@ class DataAvailabilitySync(
               )
           }
         val metadataBlobKey = outputBlobKey + VID_LABELER_METADATA_SUFFIX
-        val outputBlob = storageClient.getBlob(outputBlobKey)
         val metadataBlob = storageClient.getBlob(metadataBlobKey)
-        when {
-          outputBlob == null && metadataBlob == null -> Unit
-          outputBlob == null ->
-            throw IllegalStateException(
-              "VID Labeler metadata sidecar exists without its output: $metadataBlobKey"
-            )
-          metadataBlob == null ->
-            throw IllegalStateException(
-              "VID Labeler output exists without its metadata sidecar: $outputBlobKey"
-            )
-          else ->
-            emit(MetadataBlobCandidate(metadataBlob, absoluteBlobUri(doneBlobUri, outputBlobKey)))
+        if (metadataBlob != null) {
+          emit(MetadataBlobCandidate(metadataBlob, absoluteBlobUri(doneBlobUri, outputBlobKey)))
+        } else if (storageClient.getBlob(outputBlobKey) != null) {
+          throw IllegalStateException(
+            "VID Labeler output exists without its metadata sidecar: $outputBlobKey"
+          )
         }
       }
     }
@@ -2013,8 +2006,13 @@ class DataAvailabilitySync(
       }
 
       if (candidate.expectedImpressionBlobUri != null) {
-        require(blobDetails.blobUri == candidate.expectedImpressionBlobUri) {
-          "BlobDetails blob_uri does not match the deterministic VID Labeler output"
+        require(
+          LabeledImpressionsBlobKeys.matchesInputUri(
+            blobDetails.blobUri,
+            candidate.expectedImpressionBlobUri,
+          )
+        ) {
+          "BlobDetails blob_uri does not match the expected VID Labeler output"
         }
       }
       // Validate intervals
