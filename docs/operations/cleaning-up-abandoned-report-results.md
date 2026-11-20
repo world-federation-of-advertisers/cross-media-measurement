@@ -1,37 +1,33 @@
 # Cleaning up abandoned report results
 
-Report assembly writes a result tree in batches and attaches it to a BasicReport
-after the last batch. A worker crash or a failed cleanup call can leave an
-unattached tree behind. Use `CleanupReportResults` to reclaim these rows during
-periodic maintenance.
+This guide describes the coordinated release of batched assembly and
+owned-attempt recovery. New owned assembly attempts recover automatically.
+`CleanupReportResults` is optional: use it to reclaim unowned, unattached result
+trees left by older workers before upgrading to this release. No recurring
+manual cleanup schedule is needed.
 
-The command deletes only trees created before the cutoff that are not attached
-to **any** BasicReport. Attached trees are preserved regardless of report state.
-Each deletion rechecks the cutoff and association in a transaction and deletes
-the parent and its children together. The cutoff refers to the result tree's
-creation time, independently of the dates covered by the report.
+## Deployment order
 
-## When to run cleanup
+Apply the Reporting Spanner migration, update all Reporting servers, then update
+the assembly worker. Wait for older assembly writers and their in-flight RPCs
+to finish before recording the environment's upgrade completion time.
 
-Ordinary assembly failures already attempt cleanup automatically. Operator
-maintenance handles trees left behind by worker crashes or failed cleanup
-calls.
+## Optional cleanup of pre-upgrade rows
 
-Run a dry run after those incidents or when abandoned rows are suspected. For
-routine housekeeping, an optional monthly dry run can check for accumulation
-without pausing assembly. Schedule deletion only when eligible trees are found
-and need to be reclaimed. Adjust the frequency based on observed accumulation.
+Dry run is the default and does not require pausing assembly. Run a preview if
+pre-upgrade orphan rows are suspected; if none qualify, no deletion is needed.
+Use the recorded upgrade completion time as a fixed `--created-before` cutoff
+for both preview and deletion. The cutoff refers to the result tree's creation
+time, independently of the dates covered by the report.
 
-The examples use `--older-than=7d` as a retention buffer and `--limit=1000` per
-measurement consumer. The age cutoff is independent of how often maintenance
-runs; trees from a recent incident may not yet qualify.
+In this release, the CLI excludes owned attempts, even when their leases have
+expired. Attached trees are preserved regardless of report state. Each deletion
+rechecks the cutoff, absence of ownership, and association in a transaction and
+deletes the parent and its children together.
 
-The age cutoff is a retention choice. It does not establish that an unattached
-tree is inactive. **Pause and drain all assembly writers before deleting.**
-Dry runs do not require pausing assembly.
-
-The CLI does not install a scheduled job or pause workers. Use the procedure
-below manually, or implement the same sequence in a maintenance coordinator.
+**Pause and drain all assembly writers before deleting.** A creation cutoff
+does not prove that an unowned tree is inactive. The CLI does not pause workers
+or install a scheduled job.
 
 ## Maintenance procedure
 
@@ -57,7 +53,7 @@ report_cleanup_args=(
   --spanner-instance=INSTANCE
   --spanner-database=DATABASE
   --cmms-measurement-consumer-id=CONSUMER_ID
-  --older-than=7d
+  --created-before=2026-11-01T00:00:00Z
   --limit=1000
 )
 
@@ -79,12 +75,27 @@ in the `basic-reports-reports` init container of the
 name; do not assume assembly has a separate CronJob. Include any additional
 assembly deployments, manual jobs, or other writers sharing this database.
 
-A relative cutoff is calculated at the start of each CLI invocation. To use the
-exact same cutoff for preview and deletion, replace `--older-than=7d` with a
-fixed RFC 3339 timestamp such as
-`--created-before=2026-11-01T00:00:00Z`. Specify exactly one cutoff.
+The example timestamp is illustrative. Replace it with the recorded upgrade
+completion time for this environment, after older assembly writers have
+finished. Keep that fixed RFC 3339 cutoff for every preview and deletion run.
+The command also supports `--older-than`, but a moving cutoff is unnecessary
+for this finite set of pre-upgrade rows. Specify exactly one cutoff.
 
-### 2. Pause new assembly and drain existing work
+### 2. Preview candidates
+
+```shell
+"$report_cleanup_cli" "${report_cleanup_args[@]}" --dry-run
+```
+
+Check the exit status, candidate external result IDs, creation times, and
+summary. Capture stdout, stderr, and the exit status in the maintenance log.
+An unknown measurement consumer causes a nonzero exit. If no candidates
+qualify, stop here without pausing assembly.
+
+Dry run is the default. It lists candidates without deleting rows. Preview
+results can change before deletion; the command rechecks each candidate.
+
+### 3. Pause new assembly and drain existing work
 
 Read and record the original scheduling state before changing it:
 
@@ -121,19 +132,6 @@ CronJob active list alone.
 If drainage cannot be confirmed, skip deletion and restore scheduling using
 step 5.
 
-### 3. Preview candidates
-
-```shell
-"$report_cleanup_cli" "${report_cleanup_args[@]}" --dry-run
-```
-
-Check the exit status, candidate external result IDs, creation times, and
-summary. Capture stdout, stderr, and the exit status in the maintenance log.
-An unknown measurement consumer causes a nonzero exit.
-
-Dry run is the default. It lists candidates without deleting rows. Preview
-results can change before deletion; the command rechecks each candidate.
-
 ### 4. Delete within the maintenance window
 
 Only after confirming the pause and drainage, run:
@@ -143,7 +141,7 @@ Only after confirming the pause and drainage, run:
   --dry-run=false --assembly-paused
 ```
 
-`--assembly-paused` is the operator's confirmation that step 2 is complete.
+`--assembly-paused` is the operator's confirmation that step 3 is complete.
 It does not suspend Kubernetes jobs or check whether workers are still active.
 
 Each invocation examines at most `--limit` candidates, in pages of 100,
@@ -175,38 +173,8 @@ report_cleanup_kubectl patch cronjob "$report_cleanup_cronjob" \
 report_cleanup_kubectl get cronjob "$report_cleanup_cronjob"
 ```
 
-Restore every additional writer paused in step 2. Preserve an originally
+Restore every additional writer paused in step 3. Preserve an originally
 suspended CronJob's state. If assembly was originally enabled, confirm that
 the next scheduled job starts and reports continue progressing. Record the
 cleanup totals and recovery checks. Escalate a failed restoration so assembly
 is not left paused unnoticed.
-
-## Automating periodic maintenance
-
-An automated check can run a read-only preview first and finish without
-pausing assembly when no cleanup is needed. For deletion, use one coordinator
-for all assembly writers sharing the Spanner database. Its ordered workflow
-should be:
-
-1.  Acquire exclusive maintenance ownership and record the original scheduling
-    state of every writer.
-2.  Suspend scheduling, prevent other starts, and drain active assembly work.
-    Use a bounded drain wait; if it expires, skip deletion.
-3.  Run the CLI for the selected consumers with an age cutoff, a candidate
-    limit, and a total maintenance time budget.
-4.  Wait for cleanup and outstanding database operations to end.
-5.  Restore the saved scheduling state on success, failure, or cancellation,
-    verify recovery, and release maintenance ownership.
-
-A maintenance CronJob can use `concurrencyPolicy: Forbid` to prevent its own
-overlapping runs. That policy does not coordinate it with the processing
-CronJob or manual jobs; the pause and drain sequence is still required.
-
-Cancellation handling must stop and wait for cleanup before resuming assembly.
-Do not use an exit or cancellation handler that immediately resumes workers
-while the cleanup process is still running. Persist enough state for another
-operator to recover after a coordinator crash, and alert if restoration fails.
-
-Keep per-run logs and totals to decide whether recurring cleanup is useful.
-Increasing abandoned-tree counts can indicate assembly crashes or cleanup
-failures that need investigation.
