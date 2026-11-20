@@ -30,6 +30,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.R
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams.StorageParams
@@ -92,6 +93,7 @@ class VidRankBuilderApp(
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val vidLabelerQueue: String,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
@@ -191,6 +193,7 @@ class VidRankBuilderApp(
         rankerJobsStub = rankerJobsStub,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
         vidLabelingJobsStub = vidLabelingJobsStub,
+        rawImpressionUploadsStub = rawImpressionUploadsStub,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
         workItemsStub = workItemsClient,
         rawImpressionUpload = params.rawImpressionUpload,
