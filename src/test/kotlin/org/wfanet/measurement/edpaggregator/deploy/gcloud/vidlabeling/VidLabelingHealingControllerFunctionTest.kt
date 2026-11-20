@@ -26,6 +26,7 @@ import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageException
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.devtools.build.runfiles.Runfiles
 import com.google.type.date
 import io.grpc.ManagedChannel
@@ -56,20 +57,26 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
 import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
@@ -85,6 +92,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsResponse
@@ -94,15 +102,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadCorrectio
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy as copyWorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
@@ -639,6 +651,197 @@ class VidLabelingHealingControllerFunctionTest {
     }
 
   @Test
+  fun `done version metadata reader uses the requested historical generation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val blob =
+        mock<Blob> {
+          on { generation } doReturn 11L
+          on { createTimeOffsetDateTime } doReturn
+            java.time.OffsetDateTime.parse("2026-01-01T00:00:00Z")
+        }
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenReturn(blob)
+      val result = GcsDoneObjectMetadataReader(storage).readVersion("gs://raw/day/done", 11L)
+      assertThat(result!!.generation).isEqualTo(11L)
+      assertThat(result.createTime).isEqualTo(java.time.Instant.parse("2026-01-01T00:00:00Z"))
+      verify(storage).get(BlobId.of("raw", "day/done", 11L))
+      verify(storage, never()).get(BlobId.of("raw", "day/done"))
+    }
+
+  @Test
+  fun `version metadata preserves retryable and permanent storage failure policies`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val temporary = com.google.cloud.storage.StorageException(503, "temporary")
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenThrow(temporary)
+      val error =
+        assertFailsWith<java.io.IOException> {
+          GcsDoneObjectMetadataReader(storage).readVersion("gs://raw/day/done", 11L)
+        }
+      assertThat(generateSequence<Throwable>(error) { it.cause }.last()).isSameInstanceAs(temporary)
+      org.mockito.kotlin.reset(storage)
+      val permanent = com.google.cloud.storage.StorageException(403, "forbidden")
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenThrow(permanent)
+      assertThat(
+          assertFailsWith<com.google.cloud.storage.StorageException> {
+            GcsDoneObjectMetadataReader(storage).readVersion("gs://raw/day/done", 11L)
+          }
+        )
+        .isSameInstanceAs(permanent)
+    }
+
+  @Test
+  fun `queued replay retains source identity and deduplicates after lost intake response`() =
+    runBlocking<Unit> {
+      val stored = mutableMapOf<String, WorkItem>()
+      var loseResponse = true
+      val service =
+        object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
+          override suspend fun ensureWorkItem(request: EnsureWorkItemRequest): WorkItem {
+            val previous = stored[request.workItemId]
+            if (previous != null) {
+              if (previous.workItemParams != request.workItem.workItemParams)
+                throw io.grpc.Status.ALREADY_EXISTS.asException()
+              return previous
+            }
+            val item =
+              request.workItem.copyWorkItem {
+                name = "workItems/${request.workItemId}"
+                generation = 1L
+                state = WorkItem.State.QUEUED
+              }
+            stored[request.workItemId] = item
+            if (loseResponse) {
+              loseResponse = false
+              throw io.grpc.Status.UNAVAILABLE.asException()
+            }
+            return item
+          }
+
+          override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem =
+            stored.values.single { it.name == request.name }
+        }
+      val server = io.grpc.netty.NettyServerBuilder.forPort(0).addService(service).build().start()
+      val channel =
+        io.grpc.netty.NettyChannelBuilder.forAddress("localhost", server.port)
+          .usePlaintext()
+          .build()
+      try {
+        val watcher =
+          DataWatcher(
+            WorkItemsGrpcKt.WorkItemsCoroutineStub(channel),
+            listOf(
+              watchedPath {
+                identifier = "vid-labeling-dispatch"
+                sourcePathRegex = "gs://raw/.*/done"
+                controlPlaneQueueSink = controlPlaneQueueSink {
+                  queue = VidLabelingDispatchWorkItems.QUEUE
+                  appParams =
+                    vidLabelingDispatcherParams { dataProvider = "dataProviders/dp" }.pack()
+                }
+              }
+            ),
+            idTokenProvider = mock(),
+          )
+        val source =
+          mapOf(
+            DataWatcher.GENERATION_METADATA_KEY to "11",
+            DataWatcher.CREATE_TIME_METADATA_KEY to "2026-01-01T00:00:00Z",
+            DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
+          )
+        val context =
+          io.opentelemetry.api.trace.SpanContext.create(
+            "11111111111111111111111111111111",
+            "1111111111111111",
+            io.opentelemetry.api.trace.TraceFlags.getSampled(),
+            io.opentelemetry.api.trace.TraceState.getDefault(),
+          )
+        io.opentelemetry.api.trace.Span.wrap(context).makeCurrent().use {
+          assertFailsWith<io.grpc.StatusException> {
+            watcher.receivePath("gs://raw/day/done", source)
+          }
+        }
+        watcher.receivePath("gs://raw/day/done", source)
+        assertThat(stored).hasSize(1)
+        val ordinary =
+          stored.values.single().workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+        assertThat(ordinary.traceContextMap)
+          .containsEntry("traceparent", "00-11111111111111111111111111111111-1111111111111111-01")
+        val request =
+          DoneBlobReplayer.Request(
+            "gs://raw/day/done",
+            11L,
+            "dataProviders/dp/rawImpressionUploads/source",
+            listOf("modelProviders/mp/modelSuites/ms/modelLines/first"),
+            "dataProviders/dp/uploadHealingOperations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          )
+        val replay =
+          DataWatcherDoneBlobReplayer(
+            watcher,
+            { _, generation ->
+              org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata(
+                generation,
+                java.time.Instant.parse("2026-01-01T00:00:00Z"),
+              )
+            },
+            org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+              .alwaysReady()
+              .metadataRead,
+          )
+        replay.replay(request)
+        replay.replay(request)
+        assertThat(stored).hasSize(2)
+        val recovery =
+          stored.values
+            .map { it.workItemParams.unpack(WorkItem.WorkItemParams::class.java) }
+            .single {
+              it.appParams
+                .unpack(VidLabelingDispatchWorkItemParams::class.java)
+                .recovery
+                .sourceUpload
+                .isNotEmpty()
+            }
+        assertThat(recovery.hasDataPathParams()).isFalse()
+        assertThat(
+            recovery.appParams
+              .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
+              .source
+              .generation
+          )
+          .isEqualTo(11L)
+        assertThat(
+            recovery.appParams
+              .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
+              .source
+              .createTime
+          )
+          .isEqualTo(java.time.Instant.parse("2026-01-01T00:00:00Z").toProtoTime())
+        assertThat(
+            recovery.appParams
+              .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
+              .source
+              .eventType
+          )
+          .isEqualTo(WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED)
+        assertThat(
+            recovery.appParams
+              .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
+              .uploadHealingOperation
+          )
+          .isEqualTo(
+            "dataProviders/dp/uploadHealingOperations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          )
+      } finally {
+        channel.shutdownNow()
+        server.shutdownNow()
+      }
+    }
+
+  @Test
   fun `done replayer routes exact recovery metadata`() {
     runBlocking {
       val dataWatcher = mock<DataWatcher>()
@@ -652,17 +855,33 @@ class VidLabelingHealingControllerFunctionTest {
             "dataProviders/dp/uploadHealingOperations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
         )
 
-      DataWatcherDoneBlobReplayer(dataWatcher).replay(request)
+      DataWatcherDoneBlobReplayer(
+          dataWatcher,
+          { _, generation ->
+            org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata(
+              generation,
+              java.time.Instant.parse("2026-01-01T00:00:00Z"),
+            )
+          },
+          org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+            .alwaysReady()
+            .metadataRead,
+        )
+        .replay(request)
 
       verify(dataWatcher)
         .receivePath(
           "gs://raw/day/done",
           mapOf(
             DataWatcher.GENERATION_METADATA_KEY to "11",
+            DataWatcher.CREATE_TIME_METADATA_KEY to "2026-01-01T00:00:00Z",
+            DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
             WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/first,modelLines/second",
             WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to
               "dataProviders/dp/rawImpressionUploads/source",
             WatchedBlobs.EVICTION_OPERATION_ID_KEY to "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+              "dataProviders/dp/uploadHealingOperations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
           ),
         )
     }
@@ -880,6 +1099,58 @@ class VidLabelingHealingControllerFunctionTest {
       }
       assertFailsWith<CancellationException> { recovery.await() }
 
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `recovery recognizes matching legacy authorization after an upgrade`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 12L)
+      val legacy =
+        mapOf(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+            "modelProviders/mp/modelSuites/ms/modelLines/first",
+          WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/source",
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY to "operation",
+        )
+      whenever(current.metadata).thenReturn(legacy)
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+      val metadata =
+        legacy +
+          (WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+            "dataProviders/dp/uploadHealingOperations/operation")
+      assertThat(GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, metadata))
+        .isEqualTo(12L)
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `recovery rejects a conflicting full operation despite a matching legacy ID`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 12L)
+      val metadata =
+        mapOf(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+            "modelProviders/mp/modelSuites/ms/modelLines/first",
+          WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/source",
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY to "operation",
+          WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+            "dataProviders/dp/uploadHealingOperations/operation",
+        )
+      whenever(current.metadata)
+        .thenReturn(
+          metadata +
+            (WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+              "dataProviders/other/uploadHealingOperations/operation")
+        )
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+      assertFailsWith<IllegalStateException> {
+        GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, metadata)
+      }
       verify(storage, never())
         .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
     }

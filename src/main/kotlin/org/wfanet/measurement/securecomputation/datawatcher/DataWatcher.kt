@@ -30,12 +30,12 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
-import java.security.MessageDigest
 import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
@@ -43,7 +43,13 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -62,7 +68,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
-  private val workItemIdGenerator: (String) -> String = ::deterministicWorkItemId,
+  private val workItemIdGenerator: (String) -> String = DataWatcherWorkItemIds::workItemId,
   private val idTokenProvider: IdTokenProvider =
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
@@ -137,8 +143,9 @@ class DataWatcher(
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
-          WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
-      if (isRetryable || isRecoveryOperation) {
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata ||
+          WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY in objectMetadata
+      if (isRetryable || isRecoveryOperation || isVidDispatchQueue(config)) {
         // Retryable failures and recovery operations must be at-least-once. Surfacing the failure
         // keeps the Eventarc delivery unacknowledged so it is retried and, after exhaustion,
         // retained in the configured DLQ.
@@ -146,6 +153,12 @@ class DataWatcher(
       }
     }
   }
+
+  private fun isVidDispatchQueue(config: WatchedPath): Boolean =
+    config.hasControlPlaneQueueSink() &&
+      (config.controlPlaneQueueSink.queue == VidLabelingDispatchWorkItems.QUEUE ||
+        config.controlPlaneQueueSink.appParams.`is`(VidLabelingDispatcherParams::class.java) ||
+        config.controlPlaneQueueSink.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java))
 
   private suspend fun sendToControlPlane(
     config: WatchedPath,
@@ -165,16 +178,88 @@ class DataWatcher(
         DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
         else -> throw IllegalArgumentException("Missing or invalid storage event type")
       }
-    val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
+    val sourceIdentity = dataPathParams {
+      dataPath = path
+      generation = objectGeneration
+      createTime = objectCreateTime.toProtoTime()
+      eventType = storageEventType
+    }
+    val dispatchParams =
+      if (isVidDispatchQueue(config)) {
+        require(queueConfig.queue == VidLabelingDispatchWorkItems.QUEUE) {
+          "Invalid VID dispatch queue"
+        }
+        require(queueConfig.appParams.`is`(VidLabelingDispatcherParams::class.java)) {
+          "Dispatch configuration must use VidLabelingDispatcherParams"
+        }
+        val configured = queueConfig.appParams.unpack(VidLabelingDispatcherParams::class.java)
+        val legacyOperationId = objectMetadata[WatchedBlobs.EVICTION_OPERATION_ID_KEY]
+        val recoveryMetadata =
+          if (
+            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY !in objectMetadata &&
+              legacyOperationId != null
+          ) {
+            // Normalize metadata emitted by the legacy HTTP recovery producer at intake.
+            val sourceUpload =
+              requireNotNull(
+                RawImpressionUploadKey.fromName(
+                  objectMetadata[WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY].orEmpty()
+                )
+              ) {
+                "Recovery source must identify a RawImpressionUpload"
+              }
+            objectMetadata +
+              (WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+                UploadHealingOperationKey(sourceUpload.parentKey, legacyOperationId).toName())
+          } else objectMetadata
+        val fields =
+          listOf(WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY, WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY)
+        require(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY !in recoveryMetadata ||
+            fields.all { it in recoveryMetadata }
+        ) {
+          "A recovery override requires source upload and operation references"
+        }
+        require(fields.all { it in recoveryMetadata } || fields.none { it in recoveryMetadata }) {
+          "Recovery metadata must contain the complete authorization tuple"
+        }
+        require(
+          fields.none { it in recoveryMetadata } ||
+            fields.all { recoveryMetadata.getValue(it).isNotBlank() }
+        ) {
+          "Recovery metadata values must not be empty"
+        }
+        val params =
+          VidLabelingDispatchWorkItems.normalize(
+            vidLabelingDispatchWorkItemParams {
+              dataProvider = configured.dataProvider
+              if (fields.all { it in recoveryMetadata }) {
+                recovery = recoveryParams {
+                  source = sourceIdentity
+                  sourceUpload = recoveryMetadata.getValue(WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY)
+                  uploadHealingOperation =
+                    recoveryMetadata.getValue(WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY)
+                }
+              }
+            }
+          )
+        require(
+          legacyOperationId == null ||
+            params.hasRecovery() &&
+              legacyOperationId == params.recovery.uploadHealingOperation.substringAfterLast('/')
+        ) {
+          "Recovery operation name does not match the legacy operation ID"
+        }
+        params
+      } else null
+    val idempotencyKey =
+      DataWatcherWorkItemIds.idempotencyKey(config.identifier, sourceIdentity, dispatchParams)
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
-          appParams = queueConfig.appParams
-          this.dataPathParams = dataPathParams {
-            this.dataPath = path
-            generation = objectGeneration
-            createTime = objectCreateTime.toProtoTime()
-            eventType = storageEventType
+          appParams = dispatchParams?.pack() ?: queueConfig.appParams
+          if (dispatchParams == null || !dispatchParams.hasRecovery()) {
+            this.dataPathParams = sourceIdentity
           }
           traceContext.putAll(W3CTraceContext.inject())
         }
@@ -485,16 +570,6 @@ class DataWatcher(
 
     private const val STATUS_SUCCESS = "success"
     private const val STATUS_FAILURE = "failure"
-
-    private fun deterministicWorkItemId(idempotencyKey: String): String {
-      val digest =
-        MessageDigest.getInstance("SHA-256").digest(idempotencyKey.toByteArray(Charsets.UTF_8))
-      val hex =
-        digest.joinToString(separator = "") { byte ->
-          (byte.toInt() and 0xff).toString(16).padStart(2, '0')
-        }
-      return "dw-${hex.take(60)}"
-    }
 
     private const val EVENT_PROCESSING_COMPLETED = "edpa.data_watcher.processing_completed"
     private const val EVENT_PROCESSING_FAILED = "edpa.data_watcher.processing_failed"
