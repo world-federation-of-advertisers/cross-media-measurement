@@ -230,20 +230,35 @@ class SubpoolRankerTest {
     fake.rows.any { it.blobType == blobType && it.name.startsWith("$upload/") }
 
   @Test
-  fun `competing rank attempts adopt one atomic replayed snapshot and day only pair`() =
+  fun `competing rank attempt is rejected and retry adopts the committed pair`() =
     runBlocking<Unit> {
       val inputKey = writePhase0(listOf(1L to 0, 2L to 0, 3L to 0))
       modelLineStates[UPLOAD] = RawImpressionUploadModelLine.State.RANKING
       fake.initialGate = CountDownLatch(2)
       val results =
         (0 until 2)
-          .map { async(Dispatchers.IO) { ranker().rank(POOL, inputKey, rankedSize = 100) } }
+          .map {
+            async(Dispatchers.IO) {
+              try {
+                Result.success(ranker().rank(POOL, inputKey, rankedSize = 100))
+              } catch (e: io.grpc.StatusException) {
+                Result.failure<SubpoolRanker.Result>(e)
+              }
+            }
+          }
           .awaitAll()
       assertThat(fake.attempts).hasSize(2)
       assertThat(fake.attempts.flatten().map { it.blobUri }.toSet()).hasSize(4)
       val snapshot = fake.rows.single { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
       val dayOnly = fake.rows.single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
-      for (result in results) {
+      assertThat(results.count { it.isSuccess }).isEqualTo(1)
+      val rejected = results.single { it.isFailure }.exceptionOrNull() as io.grpc.StatusException
+      assertThat(rejected.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      val winner = results.single { it.isSuccess }.getOrThrow()
+      val retry = ranker().rank(POOL, inputKey, rankedSize = 100)
+      assertThat(retry.skipped).isTrue()
+      assertThat(fake.attempts).hasSize(2)
+      for (result in listOf(winner, retry)) {
         assertThat(result.snapshotRankIndexBlobName).isEqualTo(snapshot.name)
         assertThat(result.dayOnlyRankIndexBlobName).isEqualTo(dayOnly.name)
       }
@@ -1028,8 +1043,21 @@ class SubpoolRankerTest {
             val pending = mutableMapOf<String, RankIndexBlob>()
             val created =
               request.requestsList.map { createRequest ->
-                byRequestId[createRequest.requestId]
-                  ?: pending.getOrPut(createRequest.requestId) {
+                val existing = byRequestId[createRequest.requestId]
+                if (existing != null) {
+                  val blob = createRequest.rankIndexBlob
+                  val matches =
+                    existing.cmmsModelLine == blob.cmmsModelLine &&
+                      existing.blobType == blob.blobType &&
+                      existing.poolOffset == blob.poolOffset &&
+                      existing.blobUri == blob.blobUri &&
+                      existing.blobChecksum == blob.blobChecksum &&
+                      existing.encryptedDek == blob.encryptedDek &&
+                      existing.maxEventDate == blob.maxEventDate
+                  if (!matches) throw Status.INVALID_ARGUMENT.asException()
+                  existing.copy { clearDeleteTime() }
+                } else
+                  pending.getOrPut(createRequest.requestId) {
                     val blob = createRequest.rankIndexBlob
                     val conflict =
                       (rows + pending.values).any {
