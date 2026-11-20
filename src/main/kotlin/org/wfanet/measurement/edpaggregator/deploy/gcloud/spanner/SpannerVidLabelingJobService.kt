@@ -152,16 +152,18 @@ class SpannerVidLabelingJobService(
         throw e
       }
 
-    return if (createdJob.hasCreateTime()) {
-      createdJob
-    } else {
-      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-      createdJob.copy {
-        createTime = commitTimestamp
-        updateTime = commitTimestamp
-        etag = ETags.computeETag(commitTimestamp.toInstant())
+    val response =
+      if (createdJob.hasCreateTime()) {
+        createdJob
+      } else {
+        val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+        createdJob.copy {
+          createTime = commitTimestamp
+          updateTime = commitTimestamp
+          etag = ETags.computeETag(commitTimestamp.toInstant())
+        }
       }
-    }
+    return boundedCreateResponse(response)
   }
 
   override suspend fun batchCreateVidLabelingJobs(
@@ -293,15 +295,17 @@ class SpannerVidLabelingJobService(
     return batchCreateVidLabelingJobsResponse {
       vidLabelingJobs +=
         results.map { result ->
-          if (result.hasCreateTime()) {
-            result
-          } else {
-            result.copy {
-              createTime = commitTimestamp
-              updateTime = commitTimestamp
-              etag = ETags.computeETag(commitTimestamp.toInstant())
+          val response =
+            if (result.hasCreateTime()) {
+              result
+            } else {
+              result.copy {
+                createTime = commitTimestamp
+                updateTime = commitTimestamp
+                etag = ETags.computeETag(commitTimestamp.toInstant())
+              }
             }
-          }
+          boundedCreateResponse(response)
         }
     }
   }
@@ -655,6 +659,30 @@ class SpannerVidLabelingJobService(
     }
   }
 
+  /**
+   * Create RPCs return a bounded failure preview, including for legacy failed rows. The stored
+   * diagnostic and Get response remain unchanged. Cut at a Unicode code-point boundary.
+   */
+  private fun boundedCreateResponse(job: VidLabelingJob): VidLabelingJob {
+    val error = job.errorMessage
+    var end = 0
+    var bytes = 0
+    while (end < error.length) {
+      val codePoint = error.codePointAt(end)
+      val encodedBytes =
+        when {
+          codePoint <= 0x7f -> 1
+          codePoint <= 0x7ff -> 2
+          codePoint <= 0xffff -> 3
+          else -> 4
+        }
+      if (bytes + encodedBytes > MAX_CREATE_ERROR_PREVIEW_BYTES) break
+      bytes += encodedBytes
+      end += Character.charCount(codePoint)
+    }
+    return if (end == error.length) job else job.copy { errorMessage = error.substring(0, end) }
+  }
+
   /** Original file/model-line membership is immutable; ordering alone is insignificant. */
   private fun validateIdempotentCreate(existing: VidLabelingJob, requested: VidLabelingJob) {
     if (
@@ -697,6 +725,9 @@ class SpannerVidLabelingJobService(
   }
 
   companion object {
+    // Fits within the memoized producer's 1 KiB response-metadata allowance.
+    private const val MAX_CREATE_ERROR_PREVIEW_BYTES = 512
+
     private const val VID_LABELING_JOB_RESOURCE_ID_PREFIX = "vidLabelingJob"
     private const val MAX_PAGE_SIZE = 100
     private const val MAX_BATCH_SIZE = 50

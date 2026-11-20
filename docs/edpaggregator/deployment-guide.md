@@ -1990,3 +1990,9 @@ A reused labeling-job request ID with changed file or model-line membership retu
 ALREADY_EXISTS; retrying unchanged input preserves its existing job. Changing packing
 limits for an in-progress upload requires explicit reconciliation rather than treating
 changed batch-slot membership as replay.
+
+Labeling-job create responses, including matching replays of previously failed jobs,
+retain current state, timestamps and etag but include at most 512 UTF-8 bytes of failure
+text. GetVidLabelingJob continues returning the full stored diagnostic. Deploy this
+response projection before the bounded memoized producers so legacy failure messages
+cannot inflate replay batches beyond the metadata receiver limit.
