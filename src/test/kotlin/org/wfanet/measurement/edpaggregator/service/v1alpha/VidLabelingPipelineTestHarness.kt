@@ -670,7 +670,7 @@ abstract class VidLabelingPipelineTestHarness(
         { app, source, guard ->
           guard()
           dispatcherFactory(
-              app.recovery.overrideModelLinesList,
+              emptyList(),
               app.recovery.sourceUpload.takeIf { it.isNotEmpty() },
               UploadHealingOperationKey.fromName(app.recovery.uploadHealingOperation)
                 ?.uploadHealingOperationId,
