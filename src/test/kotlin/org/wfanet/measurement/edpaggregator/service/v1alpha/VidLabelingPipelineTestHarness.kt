@@ -1638,7 +1638,7 @@ abstract class VidLabelingPipelineTestHarness(
     return "gs://$fileBucket/$key"
   }
 
-  protected fun phaseWorkItems(): List<WorkItem> =
+  protected fun allPhaseWorkItems(): List<WorkItem> =
     listOf(POOL_ASSIGNER_QUEUE, RANK_BUILDER_QUEUE, VID_LABELER_QUEUE)
       .flatMap(workItemTransport::workItemsForQueue)
 

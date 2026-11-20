@@ -518,7 +518,7 @@ class VidLabelingCorrectionFulfillmentIntegrationTest :
       awaitPipelineIdle()
       val v1 = listUploads().single { it.doneBlobGeneration == v1Generation }
       val phaseParams =
-        phaseWorkItems().map {
+        allPhaseWorkItems().map {
           it.workItemParams.unpack(WorkItem.WorkItemParams::class.java).appParams
         }
       val poolParams = phaseParams.filter { it.`is`(SubpoolAssignerParams::class.java) }
@@ -676,7 +676,7 @@ class VidLabelingCorrectionFulfillmentIntegrationTest :
         if (scenario == Scenario.DUPLICATE || scenario == Scenario.EVICTION_RACE) {
           val uploads = listUploads()
           val names =
-            (if (scenario == Scenario.DUPLICATE) phaseWorkItems().map { it.name }
+            (if (scenario == Scenario.DUPLICATE) allPhaseWorkItems().map { it.name }
             else emptyList()) +
               oldTasks.map { it.name } +
               active.flatMap { listAvailabilityTasks(it.name) }.map { it.name }
