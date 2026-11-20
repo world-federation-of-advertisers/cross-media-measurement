@@ -32,175 +32,137 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 
 class VidLabelingDispatchWorkItemsTest {
   @Test
-  fun `normalize accepts ordinary dispatch without recovery`() {
-    val params = ordinary()
-    assertThat(VidLabelingDispatchWorkItems.normalize(params)).isEqualTo(params)
-    assertThat(params.hasRecovery()).isFalse()
+  fun `dispatch contract has compact tags and only one source per mode`() {
+    val descriptor = VidLabelingDispatchWorkItemParams.getDescriptor()
+    assertThat(descriptor.fields.map { it.number }).containsExactly(1, 2).inOrder()
+    assertThat(descriptor.fields.map { it.name })
+      .containsExactly("data_provider", "recovery")
+      .inOrder()
+    assertThat(descriptor.toProto().reservedNameCount).isEqualTo(0)
+    assertThat(descriptor.toProto().reservedRangeCount).isEqualTo(0)
+    val recovery = VidLabelingDispatchWorkItemParams.RecoveryParams.getDescriptor()
+    assertThat(recovery.fields.map { it.number }).containsExactly(1, 2, 3).inOrder()
+    assertThat(recovery.fields.map { it.name })
+      .containsExactly("source", "source_upload", "upload_healing_operation")
+      .inOrder()
   }
 
   @Test
-  fun `normalize rejects a missing source`() {
+  fun `ordinary source is supplied only by the standard WorkItem field`() {
+    val params = ordinary()
+    assertThat(VidLabelingDispatchWorkItems.normalize(params)).isEqualTo(params)
+    assertThat(VidLabelingDispatchWorkItems.source(params, source())).isEqualTo(source())
+    assertFailsWith<IllegalArgumentException> { VidLabelingDispatchWorkItems.source(params, null) }
+  }
+
+  @Test
+  fun `recovery source is supplied only by nested recovery`() {
+    val params = recovery()
+    assertThat(VidLabelingDispatchWorkItems.normalize(params)).isEqualTo(params)
+    assertThat(VidLabelingDispatchWorkItems.source(params, null)).isEqualTo(source())
     assertFailsWith<IllegalArgumentException> {
-      VidLabelingDispatchWorkItems.normalize(ordinary().copy { clearSource() })
+      VidLabelingDispatchWorkItems.source(params, source())
     }
   }
 
   @Test
-  fun `normalize rejects an invalid finalized source identity`() {
-    val source = ordinary().source
+  fun `source rejects incomplete or unfinalized identity`() {
     for (invalid in
       listOf(
-        source.copy { dataPath = "" },
-        source.copy { clearGeneration() },
-        source.copy { generation = 0L },
-        source.copy { clearCreateTime() },
-        source.copy { eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED },
+        source().copy { dataPath = "" },
+        source().copy { clearGeneration() },
+        source().copy { generation = 0L },
+        source().copy { clearCreateTime() },
+        source().copy {
+          eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
+        },
       )) {
       assertFailsWith<IllegalArgumentException> {
-        VidLabelingDispatchWorkItems.normalize(ordinary().copy { this.source = invalid })
+        VidLabelingDispatchWorkItems.source(ordinary(), invalid)
+      }
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingDispatchWorkItems.normalize(
+          recovery().copy { recovery = recovery.copy { source = invalid } }
+        )
       }
     }
   }
 
   @Test
-  fun `normalize rejects an invalid provider`() {
+  fun `normalize rejects incomplete recovery and invalid resource parents`() {
+    val params = recovery()
+    for (invalid in
+      listOf(
+        params.recovery.copy { clearSource() },
+        params.recovery.copy { sourceUpload = "" },
+        params.recovery.copy { sourceUpload = "dataProviders/other/rawImpressionUploads/source" },
+        params.recovery.copy { uploadHealingOperation = "operation" },
+        params.recovery.copy {
+          uploadHealingOperation = "dataProviders/other/uploadHealingOperations/operation"
+        },
+      )) {
+      assertFailsWith<IllegalArgumentException> {
+        VidLabelingDispatchWorkItems.normalize(params.copy { recovery = invalid })
+      }
+    }
     assertFailsWith<IllegalArgumentException> {
       VidLabelingDispatchWorkItems.normalize(ordinary().copy { dataProvider = "provider" })
     }
   }
 
   @Test
-  fun `normalize rejects an empty recovery message`() {
-    assertFailsWith<IllegalArgumentException> {
-      VidLabelingDispatchWorkItems.normalize(ordinary().copy { recovery = recoveryParams {} })
-    }
-  }
-
-  @Test
-  fun `normalize rejects incomplete recovery authorization`() {
-    val params = recovery()
-    for (invalid in
+  fun `intent identity distinguishes source provider and approved operation`() {
+    val ordinaryId = VidLabelingDispatchWorkItems.intentId(ordinary(), source())
+    for (variant in
       listOf(
-        params.recovery.copy { overrideModelLines.clear() },
-        params.recovery.copy { sourceUpload = "" },
-        params.recovery.copy { uploadHealingOperation = "" },
+        source().copy { dataPath = "gs://raw/other/done" },
+        source().copy { generation = 43L },
+        source().copy { createTime = Instant.parse("2026-01-02T00:00:00Z").toProtoTime() },
       )) {
-      assertFailsWith<IllegalArgumentException> {
-        VidLabelingDispatchWorkItems.normalize(params.copy { recovery = invalid })
-      }
+      assertThat(VidLabelingDispatchWorkItems.intentId(ordinary(), variant))
+        .isNotEqualTo(ordinaryId)
     }
-  }
-
-  @Test
-  fun `normalize rejects malformed and mismatched upload names`() {
-    val params = recovery()
-    for (upload in listOf("source", "dataProviders/other/rawImpressionUploads/source")) {
-      assertFailsWith<IllegalArgumentException> {
-        VidLabelingDispatchWorkItems.normalize(
-          params.copy { recovery = params.recovery.copy { sourceUpload = upload } }
+    assertThat(
+        VidLabelingDispatchWorkItems.intentId(
+          ordinary().copy { dataProvider = "dataProviders/other" },
+          source(),
         )
-      }
-    }
-  }
-
-  @Test
-  fun `normalize rejects bare operation IDs and mismatched operation parents`() {
-    val params = recovery()
-    for (operation in
-      listOf("operation", "dataProviders/other/uploadHealingOperations/operation")) {
-      assertFailsWith<IllegalArgumentException> {
-        VidLabelingDispatchWorkItems.normalize(
-          params.copy { recovery = params.recovery.copy { uploadHealingOperation = operation } }
-        )
-      }
-    }
-  }
-
-  @Test
-  fun `normalize rejects malformed and duplicate model lines`() {
-    val params = recovery()
-    for (lines in listOf(listOf("first"), listOf(FIRST, FIRST))) {
-      assertFailsWith<IllegalArgumentException> {
-        VidLabelingDispatchWorkItems.normalize(
-          params.copy {
-            recovery =
-              params.recovery.copy {
-                overrideModelLines.clear()
-                overrideModelLines += lines
-              }
-          }
-        )
-      }
-    }
-  }
-
-  @Test
-  fun `intentId normalizes model line order and retains the recovery identity`() {
-    val params = recovery()
-    val sorted = VidLabelingDispatchWorkItems.normalize(params)
-    assertThat(sorted.recovery.overrideModelLinesList).containsExactly(FIRST, SECOND).inOrder()
-    assertThat(sorted.recovery.sourceUpload).isEqualTo(params.recovery.sourceUpload)
-    assertThat(sorted.recovery.uploadHealingOperation)
-      .isEqualTo(params.recovery.uploadHealingOperation)
-    assertThat(VidLabelingDispatchWorkItems.intentId(params))
-      .isEqualTo(VidLabelingDispatchWorkItems.intentId(sorted))
-    assertThat(VidLabelingDispatchWorkItems.intentId(params))
-      .isNotEqualTo(VidLabelingDispatchWorkItems.intentId(ordinary()))
-  }
-
-  @Test
-  fun `intentId distinguishes source and authorization components`() {
-    val params = recovery()
-    val variants =
-      listOf(
-        params.copy { source = params.source.copy { generation = 43L } },
-        params.copy {
-          recovery =
-            params.recovery.copy {
-              sourceUpload = "dataProviders/provider/rawImpressionUploads/other"
-            }
-        },
-        params.copy {
-          recovery =
-            params.recovery.copy {
-              uploadHealingOperation = "dataProviders/provider/uploadHealingOperations/other"
-            }
-        },
-        params.copy {
-          recovery =
-            params.recovery.copy {
-              overrideModelLines.clear()
-              overrideModelLines += FIRST
-            }
-        },
       )
-    val original = VidLabelingDispatchWorkItems.intentId(params)
-    for (variant in variants) {
-      assertThat(VidLabelingDispatchWorkItems.intentId(variant)).isNotEqualTo(original)
+      .isNotEqualTo(ordinaryId)
+    val replay = recovery()
+    val replayId = VidLabelingDispatchWorkItems.intentId(replay)
+    assertThat(replayId).isNotEqualTo(ordinaryId)
+    for (variant in
+      listOf(
+        replay.recovery.copy { source = source().copy { generation = 43L } },
+        replay.recovery.copy { sourceUpload = "dataProviders/provider/rawImpressionUploads/other" },
+        replay.recovery.copy {
+          uploadHealingOperation = "dataProviders/provider/uploadHealingOperations/other"
+        },
+      )) {
+      assertThat(VidLabelingDispatchWorkItems.intentId(replay.copy { recovery = variant }))
+        .isNotEqualTo(replayId)
     }
+    assertThat(VidLabelingDispatchWorkItems.intentId(replay)).isEqualTo(replayId)
   }
 
-  private fun ordinary(): VidLabelingDispatchWorkItemParams = vidLabelingDispatchWorkItemParams {
+  private fun ordinary() = vidLabelingDispatchWorkItemParams {
     dataProvider = "dataProviders/provider"
-    source = dataPathParams {
-      dataPath = "gs://raw/day/done"
-      generation = 42L
-      createTime = Instant.parse("2026-01-01T00:00:00Z").toProtoTime()
-      eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-    }
   }
 
-  private fun recovery(): VidLabelingDispatchWorkItemParams =
+  private fun source() = dataPathParams {
+    dataPath = "gs://raw/day/done"
+    generation = 42L
+    createTime = Instant.parse("2026-01-01T00:00:00Z").toProtoTime()
+    eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+  }
+
+  private fun recovery() =
     ordinary().copy {
       recovery = recoveryParams {
-        overrideModelLines += listOf(SECOND, FIRST)
+        source = source()
         sourceUpload = "dataProviders/provider/rawImpressionUploads/source"
         uploadHealingOperation = "dataProviders/provider/uploadHealingOperations/operation"
       }
     }
-
-  companion object {
-    private const val FIRST = "modelProviders/mp/modelSuites/ms/modelLines/first"
-    private const val SECOND = "modelProviders/mp/modelSuites/ms/modelLines/second"
-  }
 }
