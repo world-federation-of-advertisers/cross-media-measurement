@@ -85,6 +85,7 @@ abstract class InProcessEdpAggregatorOnboardingTest(
     val impressionVerifierArgs =
       buildList {
           add("--kms-type=FAKE")
+          add("--log-measurement-values=true")
           add("--kek-uri=${fakeKmsKeyUri()}")
           add("--fake-kek-keyset-file=${writeFakeKmsKeysetFile().absolutePath}")
           add("--local-storage-path=${tempPath.toFile().absolutePath}")
