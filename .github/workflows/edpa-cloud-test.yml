@@ -61,8 +61,6 @@ jobs:
         with:
           workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
-          token_format: 'id_token'
-          id_token_audience: ${{ fromJSON(steps.cmms-config.outputs.config).REQUISITION_FETCHER_ENDPOINT }}
 
       - name: Write auth.bazelrc
         env:
@@ -75,7 +73,6 @@ jobs:
       - name: Write ~/.bazelrc
         env:
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
-          AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
           MODEL_LINE: ${{ fromJSON(steps.cmms-config.outputs.config).MODEL_LINE_NAME }}
 
@@ -85,7 +82,6 @@ jobs:
           build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
           build --define mc_name=$MC_NAME
           build --define mc_api_key=$MC_API_KEY
-          build --define auth_id_token=$AUTH_ID_TOKEN
           build --define requisition_fetcher_endpoint=$REQUISITION_FETCHER_ENDPOINT
           build --define storage_bucket=$STORAGE_BUCKET
           build --define model_line=$MODEL_LINE
@@ -164,7 +160,7 @@ jobs:
           export VID_LABELER_POPULATION_SPEC_BLOB_URI="$(tfvar vid_labeler_population_spec_blob_uri)"
           # Derive the ModelSuite from the ModelLine resource name.
           export MODEL_SUITE="${MODEL_LINE_NAME%/modelLines/*}"
-          bazel test \
+          tools/bazel-with-results bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
           --test_env=MODEL_SUITE \
@@ -188,4 +184,4 @@ jobs:
       - name: Upload Bazel testlogs
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-        if: failure() && steps.run-tests.outcome == 'failure'
+        if: ${{ !cancelled() && (steps.run-tests.outcome == 'success' || steps.run-tests.outcome == 'failure') }}

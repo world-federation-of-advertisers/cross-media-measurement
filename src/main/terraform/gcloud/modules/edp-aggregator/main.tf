@@ -152,7 +152,12 @@ locals {
   )
 
   event_group_sync_secrets_access = concat(
-    ["trusted_root_ca_collection"],
+    [
+      "trusted_root_ca_collection",
+      "data_watcher_tls_key",
+      "data_watcher_tls_pem",
+      "secure_computation_root_ca",
+    ],
     local.edp_tls_keys
   )
 
@@ -343,6 +348,7 @@ module "data_watcher_delete_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
+  additional_trigger_event_types              = ["archived"]
   retry_on_failure                            = true
   uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_delete_config.generation
 }
@@ -386,6 +392,7 @@ module "requisition_fetcher_cloud_scheduler" {
 }
 
 module "event_group_sync_cloud_function" {
+  memory = var.event_group_sync_memory
   source = "../http-cloud-function"
 
   depends_on = [module.secrets]
@@ -400,12 +407,13 @@ module "event_group_sync_cloud_function" {
   secrets_to_access = concat(
     [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id],
     var.event_group_sync_additional_secret_ids,
+    [var.secure_computation_root_ca.secret_id],
   )
 
   # The Kingdom rate limit and mapped output are shared across syncs for the same DataProvider.
-  # Keep one single-request instance so syncs cannot overlap, and finish before the DataWatcher's
-  # 540-second timeout so it can handle or retry failures.
-  timeout_seconds = 480
+  # Keep one single-request instance. Source events now enqueue WorkItems promptly; the consumer
+  # renews an attempt lease during the sync and records completion before acknowledging delivery.
+  timeout_seconds = 3600
   max_instances   = 1
   concurrency     = 1
 }
@@ -430,12 +438,13 @@ module "data_availability_sync_cloud_function" {
     for key in concat(local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]) :
     local.all_secrets[key].secret_id
   ]
-
   # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
   # ImpressionMetadata service from completion-marker bursts.
-  max_instances   = 5
-  concurrency     = 1
-  timeout_seconds = 540
+  max_instances = 5
+  concurrency   = 1
+
+  # WorkItem attempts renew their leases while synchronizing, independently of source-event delivery.
+  timeout_seconds = 3600
 }
 
 module "data_availability_cleanup_cloud_function" {
@@ -755,6 +764,19 @@ resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_it
   member       = var.pubsub_iam_service_account_member
 }
 
+# Allow operator workloads using the EDPA internal identity to redeliver failed availability work.
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_operator_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_item_operator_dead_letter_subscriber" {
+  subscription = module.data_availability_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = module.edp_aggregator_internal.iam_service_account.member
+}
+
 resource "google_service_account_iam_member" "data_availability_sync_work_item_token_creator" {
   service_account_id = module.data_availability_sync_cloud_function.cloud_function_service_account.name
   role               = "roles/iam.serviceAccountTokenCreator"
@@ -915,6 +937,23 @@ resource "google_pubsub_subscription_iam_member" "vid_labeling_dead_letter_subsc
   member       = var.pubsub_iam_service_account_member
 }
 
+# Allow operator workloads using the EDPA internal identity to redeliver failed phase work.
+resource "google_pubsub_topic_iam_member" "vid_labeling_operator_publisher" {
+  for_each = var.vid_labeling_workers
+
+  topic  = module.vid_labeling_queue[each.key].pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_pubsub_subscription_iam_member" "vid_labeling_operator_dead_letter_subscriber" {
+  for_each = var.vid_labeling_workers
+
+  subscription = module.vid_labeling_queue[each.key].dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = module.edp_aggregator_internal.iam_service_account.member
+}
+
 module "vid_labeling_tee_app" {
   source   = "../mig"
   for_each = var.vid_labeling_workers
@@ -986,7 +1025,8 @@ resource "google_storage_bucket_object" "upload_vid_labeling_dispatcher_config" 
 }
 
 module "vid_labeling_dispatcher_cloud_function" {
-  source = "../http-cloud-function"
+  source             = "../http-cloud-function"
+  deployment_enabled = var.tee_consumers_enabled
 
   depends_on = [
     module.secrets,
@@ -1058,21 +1098,23 @@ module "vid_labeling_monitor_cloud_function" {
   config_path                              = var.vid_labeling_monitor_config.local_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
-  # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.
-  # Health scans may traverse multiple metadata pages, so retain the same timeout headroom.
-  timeout_seconds = 600
+  # Storage-first health scans may enumerate the complete retained raw-input history. Keep one
+  # minute of response headroom under Cloud Scheduler's 30-minute HTTP deadline. Two GiB gives the
+  # metadata indexes enough heap and allocates one vCPU for the CPU-bound object-metadata decode.
+  timeout_seconds = 1740
   max_instances   = 1
   concurrency     = 1
+  memory          = "2GiB"
 }
 
 module "vid_labeling_monitor_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  # Wait beyond the function's 600-second timeout so Scheduler can receive its terminal response.
+  # Cloud Scheduler HTTP targets allow at most a 30-minute attempt deadline.
   scheduler_config = merge(
     var.vid_labeling_monitor_scheduler_config,
     {
-      attempt_deadline = "660s"
+      attempt_deadline = "1800s"
       retry_config = {
         retry_count          = 3
         min_backoff_duration = "300s"
@@ -1087,7 +1129,7 @@ module "vid_labeling_monitor_cloud_scheduler" {
 module "vid_labeling_dispatch_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  # This job invokes the same function in dispatch mode and needs the same response headroom.
+  # Dispatch mode performs no storage crawl and retains its existing 10-minute execution budget.
   scheduler_config = merge(
     var.vid_labeling_dispatch_scheduler_config,
     { attempt_deadline = "660s" },
@@ -1097,7 +1139,8 @@ module "vid_labeling_dispatch_cloud_scheduler" {
 
 # ---- VidLabelingHealingController (scheduled HTTP Cloud Function) ----
 module "vid_labeling_healing_controller_cloud_function" {
-  source = "../http-cloud-function"
+  source             = "../http-cloud-function"
+  deployment_enabled = var.tee_consumers_enabled
 
   depends_on = [
     module.secrets,
@@ -1127,6 +1170,7 @@ module "vid_labeling_healing_controller_cloud_scheduler" {
     google_storage_bucket_iam_member.vid_labeling_healing_controller_config_viewer,
     google_storage_bucket_iam_member.vid_labeling_healing_controller_output_deleter,
     google_storage_bucket_iam_member.vid_labeling_healing_controller_storage_viewer,
+    google_storage_bucket_iam_member.vid_labeling_healing_controller_done_writer,
   ]
 }
 
@@ -1141,6 +1185,17 @@ resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_sto
   bucket = module.edp_aggregator_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_healing_controller_done_writer" {
+  bucket = module.edp_aggregator_bucket.storage_bucket.name
+  role   = "roles/storage.objectUser"
+  member = "serviceAccount:${module.vid_labeling_healing_controller_cloud_function.cloud_function_service_account.email}"
+
+  condition {
+    title      = "write_recovery_done_markers"
+    expression = "resource.name.endsWith('/done')"
+  }
 }
 
 resource "google_project_iam_custom_role" "vid_labeling_healing_output_deleter" {
@@ -1244,4 +1299,63 @@ resource "google_storage_bucket_iam_member" "vid_labeling_monitor_config_storage
   bucket = module.config_files_bucket.storage_bucket.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${module.vid_labeling_monitor_cloud_function.cloud_function_service_account.email}"
+}
+
+module "event_group_sync_work_item_queue" {
+  source = "../pubsub"
+
+  depends_on = [google_service_account_iam_member.event_group_sync_work_item_token_creator]
+
+  topic_name                 = var.event_group_sync_work_item_queue.topic_name
+  subscription_name          = var.event_group_sync_work_item_queue.subscription_name
+  ack_deadline_seconds       = var.event_group_sync_work_item_queue.ack_deadline_seconds
+  max_delivery_attempts      = var.event_group_sync_work_item_queue.max_delivery_attempts
+  minimum_backoff            = var.event_group_sync_work_item_queue.minimum_backoff
+  maximum_backoff            = var.event_group_sync_work_item_queue.maximum_backoff
+  enable_message_ordering    = true
+  push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.event_group_sync_function_name}"
+  push_service_account_email = module.event_group_sync_cloud_function.cloud_function_service_account.email
+  push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.event_group_sync_function_name}"
+}
+
+resource "google_pubsub_topic_iam_member" "event_group_sync_work_item_publisher" {
+  topic  = module.event_group_sync_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "event_group_sync_work_item_dead_letter_publisher" {
+  topic  = module.event_group_sync_work_item_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "event_group_sync_work_item_dead_letter_subscriber" {
+  subscription = module.event_group_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+resource "google_service_account_iam_member" "event_group_sync_work_item_token_creator" {
+  service_account_id = module.event_group_sync_cloud_function.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_service_iam_member" "event_group_sync_work_item_invoker" {
+  depends_on = [module.event_group_sync_cloud_function]
+  service    = var.event_group_sync_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+# TODO(world-federation-of-advertisers/cross-media-measurement#4912):
+# Configure and verify operator notification routes for Halo-managed EDPA alerts.
+module "vid_labeling_availability_monitoring" {
+  source                = "../edp-aggregator-availability-monitoring"
+  thresholds            = var.vid_labeling_availability_alert_thresholds
+  notification_channels = var.vid_labeling_healing_alert_notification_channels
+
+  publication_status_storage_roots = var.data_availability_publication_status_storage_roots
+  publication_status_writer_member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }

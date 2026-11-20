@@ -2,6 +2,7 @@
 # proto-message: wfa.measurement.config.edpaggregator.VidLabelingConfigs
 configs {
   data_provider: "dataProviders/MPxlwJmFW7A"
+  raw_impressions_blob_prefix: "raw-impressions/edp/edp7"
   edp_impression_path: "vid-labeled-impressions/edp/edp7"
   model_line_configs {
     key: "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/PNGDtHsZ2mg"
@@ -70,6 +71,7 @@ configs {
       event_template_descriptor_blob_uri: "gs://edpa-configs-storage-qa-bucket/results_fulfiller_event_proto_descriptor.pb"
       event_template_type: "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
       population_spec_blob_uri: "gs://edpa-configs-storage-qa-bucket/vid-labeler-population-spec.textproto"
+      event_template_version: 1
       optional_entity_key_field_mapping {
         key: "creative-id"
         value: "creative_id"
@@ -163,6 +165,7 @@ configs {
       event_template_descriptor_blob_uri: "gs://edpa-configs-storage-qa-bucket/results_fulfiller_event_proto_descriptor.pb"
       event_template_type: "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
       population_spec_blob_uri: "gs://edpa-configs-storage-qa-bucket/vid-labeler-population-spec.textproto"
+      event_template_version: 1
       optional_entity_key_field_mapping {
         key: "creative-id"
         value: "creative_id"
@@ -256,6 +259,7 @@ configs {
       event_template_descriptor_blob_uri: "gs://edpa-configs-storage-qa-bucket/results_fulfiller_event_proto_descriptor.pb"
       event_template_type: "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
       population_spec_blob_uri: "gs://edpa-configs-storage-qa-bucket/vid-labeler-population-spec.textproto"
+      event_template_version: 1
       optional_entity_key_field_mapping {
         key: "creative-id"
         value: "creative_id"
@@ -341,11 +345,12 @@ configs {
   }
   model_suite: "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo"
   staleness_threshold {
-    seconds: 28800
+    seconds: 86400
   }
 }
 configs {
   data_provider: "dataProviders/WLb7yRONEO4"
+  raw_impressions_blob_prefix: "raw-impressions/edp/edpa_meta"
   edp_impression_path: "vid-labeled-impressions/edp/edpa_meta"
   raw_impressions_storage_params {
     gcs {
@@ -406,6 +411,6 @@ configs {
   }
   model_suite: "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo"
   staleness_threshold {
-    seconds: 28800
+    seconds: 86400
   }
 }

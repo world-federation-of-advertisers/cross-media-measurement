@@ -16,12 +16,11 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher
 
-import com.google.protobuf.TypeRegistry
 import java.io.File
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherConfigValidator
 import picocli.CommandLine
 
@@ -36,9 +35,12 @@ class ValidateDataWatcherConfig : Runnable {
   private lateinit var dataWatcherConfigFile: File
 
   override fun run() {
-    val typeRegistry = TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build()
     val dataWatcherConfig =
-      parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)
+      parseTextProto(
+        dataWatcherConfigFile,
+        DataWatcherConfig.getDefaultInstance(),
+        DataWatcherConfigTypes.registry,
+      )
     DataWatcherConfigValidator.validate(dataWatcherConfig)
   }
 

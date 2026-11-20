@@ -27,10 +27,13 @@ import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeout
 import org.junit.Test
@@ -49,6 +52,46 @@ private fun main(args: Array<String>, dependencies: VidLabelingTraceDependencies
   runVidLabelingTrace(args, dependencies)
 
 class VidLabelingTraceTest {
+  @OptIn(ExperimentalCoroutinesApi::class)
+  @Test
+  fun `collect starts final state after WorkItems without waiting for routes`() = runTest {
+    val workItemsReady = CompletableDeferred<Unit>()
+    val routesReady = CompletableDeferred<Unit>()
+    val finalStateStarted = CompletableDeferred<Unit>()
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(emptyList()) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        workItemResolver =
+          VidLabelingWorkItemResolver { _, _, _ ->
+            workItemsReady.await()
+            VidLabelingWorkItemResolution(emptyList(), emptyList(), false, emptyMap())
+          },
+        routeResolver =
+          VidLabelingRouteResolver { _, _ ->
+            routesReady.await()
+            VidLabelingRouteResolution(emptyMap(), emptyMap())
+          },
+        finalStateResolver =
+          VidLabelingFinalStateResolver { _, _, _ ->
+            finalStateStarted.complete(Unit)
+            VidLabelingFinalStateResolution(emptyList(), emptyMap())
+          },
+      )
+    val collection = async { collector.collect(request()) }
+    try {
+      runCurrent()
+      assertThat(finalStateStarted.isCompleted).isFalse()
+      workItemsReady.complete(Unit)
+      runCurrent()
+      assertThat(finalStateStarted.isCompleted).isTrue()
+    } finally {
+      routesReady.complete(Unit)
+    }
+    collection.await()
+  }
+
   @Test
   fun `collect joins separate traces by exact GCS object identity`() = runBlocking {
     val uri = "gs://output-bucket/model-line/direct/2026-09-01/done"
@@ -96,7 +139,7 @@ class VidLabelingTraceTest {
         ),
       )
     val logReader = FakeCloudLogReader(entries)
-    val finalStateResolver = VidLabelingFinalStateResolver { _, _ ->
+    val finalStateResolver = VidLabelingFinalStateResolver { _, _, _ ->
       VidLabelingFinalStateResolution(
         listOf(
           ExpectedTraceNode(
@@ -1302,7 +1345,7 @@ class VidLabelingTraceTest {
           },
         stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
         finalStateResolver =
-          VidLabelingFinalStateResolver { _, _ ->
+          VidLabelingFinalStateResolver { _, _, _ ->
             VidLabelingFinalStateResolution(
               listOf(
                 ExpectedTraceNode(
@@ -1780,7 +1823,7 @@ class VidLabelingTraceTest {
             logReaderFactory = { FakeCloudLogReader(emptyList()) },
             spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
             stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
-            finalStateResolver = VidLabelingFinalStateResolver { _, _ -> awaitCancellation() },
+            finalStateResolver = VidLabelingFinalStateResolver { _, _, _ -> awaitCancellation() },
           ),
       )
 
@@ -1807,7 +1850,7 @@ class VidLabelingTraceTest {
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
         finalStateResolver =
-          VidLabelingFinalStateResolver { _, _ ->
+          VidLabelingFinalStateResolver { _, _, _ ->
             invocations++
             VidLabelingFinalStateResolution(emptyList(), mapOf("gcs_reads" to 0L))
           },
@@ -2319,7 +2362,7 @@ class VidLabelingTraceTest {
   }
 
   companion object {
-    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _ ->
+    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _, _ ->
       VidLabelingFinalStateResolution(emptyList(), emptyMap())
     }
     private const val RAW_UPLOAD = "dataProviders/123/rawImpressionUploads/upload-1"

@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Options
 import com.google.protobuf.ByteString
-import com.google.protobuf.Empty
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import java.security.MessageDigest
@@ -29,11 +28,9 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.DataAvailabilitySyncLeaseResult
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.expireDataAvailabilitySyncLeases
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findDataAvailabilitySyncLeaseByMutationRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasActiveDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
@@ -44,15 +41,10 @@ import org.wfanet.measurement.internal.edpaggregator.AcquireDataAvailabilitySync
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLease
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseState
-import org.wfanet.measurement.internal.edpaggregator.ExpireDataAvailabilitySyncLeasesRequest
-import org.wfanet.measurement.internal.edpaggregator.GetDataAvailabilitySyncLeaseRequest
-import org.wfanet.measurement.internal.edpaggregator.HasActiveDataAvailabilitySyncLeasesRequest
-import org.wfanet.measurement.internal.edpaggregator.HasActiveDataAvailabilitySyncLeasesResponse
 import org.wfanet.measurement.internal.edpaggregator.ReleaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.RenewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.ValidateDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
-import org.wfanet.measurement.internal.edpaggregator.hasActiveDataAvailabilitySyncLeasesResponse
 
 /** Spanner-backed data-availability synchronization leases. */
 class SpannerDataAvailabilitySyncLeaseService(
@@ -117,13 +109,6 @@ class SpannerDataAvailabilitySyncLeaseService(
         }
     return result.replay
       ?: getLease(request.dataProviderResourceId, request.synchronizationAttemptId)
-  }
-
-  override suspend fun getDataAvailabilitySyncLease(
-    request: GetDataAvailabilitySyncLeaseRequest
-  ): DataAvailabilitySyncLease {
-    validateIdentity(request.dataProviderResourceId, request.synchronizationAttemptId)
-    return getLease(request.dataProviderResourceId, request.synchronizationAttemptId)
   }
 
   override suspend fun validateDataAvailabilitySyncLease(
@@ -255,29 +240,6 @@ class SpannerDataAvailabilitySyncLeaseService(
         }
     return mutationResult.replay
       ?: getLease(request.dataProviderResourceId, request.synchronizationAttemptId)
-  }
-
-  override suspend fun expireDataAvailabilitySyncLeases(
-    request: ExpireDataAvailabilitySyncLeasesRequest
-  ): Empty {
-    requireField(request.dataProviderResourceId, "data_provider_resource_id")
-    databaseClient
-      .readWriteTransaction(Options.tag("action=expireDataAvailabilitySyncLeases"))
-      .run { txn ->
-        txn.expireDataAvailabilitySyncLeases(request.dataProviderResourceId, clock.instant())
-      }
-    return Empty.getDefaultInstance()
-  }
-
-  override suspend fun hasActiveDataAvailabilitySyncLeases(
-    request: HasActiveDataAvailabilitySyncLeasesRequest
-  ): HasActiveDataAvailabilitySyncLeasesResponse {
-    requireField(request.dataProviderResourceId, "data_provider_resource_id")
-    val hasActiveLeases =
-      databaseClient.singleUse().use { txn ->
-        txn.hasActiveDataAvailabilitySyncLease(request.dataProviderResourceId, clock.instant())
-      }
-    return hasActiveDataAvailabilitySyncLeasesResponse { this.hasActiveLeases = hasActiveLeases }
   }
 
   private suspend fun getLease(

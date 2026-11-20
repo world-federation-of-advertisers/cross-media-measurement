@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -213,7 +214,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
-      eventGroupReferenceIdEntityKeyMapping = null,
+      eventGroupReferenceIdEntityKeyMappingsByEdp = emptyMap(),
       wholeBlobEntityTypes = emptySet(),
     )
 
@@ -310,6 +311,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         publicMeasurementsClient,
         publicMeasurementConsumersClient,
         publicCertificatesClient,
+        ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel),
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         TestEvent.getDefaultInstance(),
         NoiseMechanism.CONTINUOUS_GAUSSIAN,

@@ -22,7 +22,7 @@ jobs:
       with:
         fetch-depth: 0
 
-    - uses: world-federation-of-advertisers/actions/lint@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+    - uses: world-federation-of-advertisers/actions/lint@96594fd0c685bd49875bc25dc256fc1947d4d200 # ktfmt download mirror (actions#53)
       with:
         license-type: apache
         copyright-holder: The Cross-Media Measurement Authors

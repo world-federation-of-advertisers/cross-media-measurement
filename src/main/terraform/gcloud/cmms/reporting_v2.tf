@@ -24,11 +24,12 @@ module "reporting_v2_cluster" {
 module "reporting_v2_default_node_pool" {
   source = "../modules/node-pool"
 
+  # Leave room for replacements while the old pods remain available.
   name            = "default"
   cluster         = module.reporting_v2_cluster.cluster
   service_account = module.common.cluster_service_account
   machine_type    = "e2-custom-2-4096"
-  max_node_count  = 4
+  max_node_count  = 5
 }
 
 module "reporting_v2" {
