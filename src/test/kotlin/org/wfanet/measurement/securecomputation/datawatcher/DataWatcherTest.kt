@@ -188,27 +188,26 @@ class DataWatcherTest() {
           .appParams
           .unpack<VidLabelingDispatchWorkItemParams>()
       assertThat(
-          requests.allValues[0].workItem.workItemParams.unpack<WorkItemParams>().dataPathParams
+          requests.allValues[0]
+            .workItem
+            .workItemParams
+            .unpack<WorkItemParams>()
+            .dataPathParams
+            .generation
         )
-        .isEqualTo(ordinary.source)
-      assertThat(ordinary.hasSource()).isTrue()
+        .isEqualTo(42L)
       assertThat(ordinary.hasRecovery()).isFalse()
       val params = requests.allValues[1].workItem.workItemParams.unpack<WorkItemParams>()
       val app = params.appParams.unpack<VidLabelingDispatchWorkItemParams>()
       assertThat(params.hasDataPathParams()).isFalse()
       assertThat(app.dataProvider).isEqualTo("dataProviders/provider")
-      assertThat(app.recovery.overrideModelLinesList)
-        .containsExactly(
-          "modelProviders/mp/modelSuites/ms/modelLines/first",
-          "modelProviders/mp/modelSuites/ms/modelLines/second",
-        )
-        .inOrder()
       assertThat(app.recovery.sourceUpload)
         .isEqualTo("dataProviders/provider/rawImpressionUploads/source")
       assertThat(app.recovery.uploadHealingOperation)
         .isEqualTo("dataProviders/provider/uploadHealingOperations/operation")
-      assertThat(app.source.generation).isEqualTo(42L)
-      assertThat(app.source.createTime).isEqualTo(Instant.parse(SOURCE_CREATE_TIME).toProtoTime())
+      assertThat(app.recovery.source.generation).isEqualTo(42L)
+      assertThat(app.recovery.source.createTime)
+        .isEqualTo(Instant.parse(SOURCE_CREATE_TIME).toProtoTime())
       assertThat(params)
         .isEqualTo(requests.allValues[2].workItem.workItemParams.unpack<WorkItemParams>())
     }
@@ -228,7 +227,7 @@ class DataWatcherTest() {
   }
 
   @Test
-  fun `ordinary dispatch preserves indexed source and complete application source`() =
+  fun `ordinary dispatch preserves only its indexed source`() =
     runBlocking<Unit> {
       dispatchWatcher().receivePath("gs://raw/day/done", sourceMetadata())
       val requests = argumentCaptor<EnsureWorkItemRequest>()
@@ -236,7 +235,6 @@ class DataWatcherTest() {
       val frame = requests.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
       val app = frame.appParams.unpack<VidLabelingDispatchWorkItemParams>()
       assertThat(frame.hasDataPathParams()).isTrue()
-      assertThat(frame.dataPathParams).isEqualTo(app.source)
       assertThat(frame.dataPathParams.dataPath).isEqualTo("gs://raw/day/done")
       assertThat(frame.dataPathParams.generation).isEqualTo(42L)
       assertThat(frame.dataPathParams.createTime)
@@ -245,7 +243,7 @@ class DataWatcherTest() {
     }
 
   @Test
-  fun `legacy app-only dispatch redelivery preserves stored parameters and trace`() =
+  fun `ordinary redelivery preserves stored parameters and trace`() =
     runBlocking<Unit> {
       val path = "gs://raw/day/done"
       val storedTrace = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
@@ -256,11 +254,9 @@ class DataWatcherTest() {
           workItemParams =
             workItemParams {
                 appParams =
-                  vidLabelingDispatchWorkItemParams {
-                      dataProvider = "dataProviders/provider"
-                      source = sourceDataPathParams(path)
-                    }
+                  vidLabelingDispatchWorkItemParams { dataProvider = "dataProviders/provider" }
                     .pack()
+                dataPathParams = sourceDataPathParams(path)
                 traceContext["traceparent"] = storedTrace
               }
               .pack()
@@ -292,7 +288,7 @@ class DataWatcherTest() {
       val proposed = requests.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
       val reused = requests.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
       assertThat(proposed.hasDataPathParams()).isTrue()
-      assertThat(reused.hasDataPathParams()).isFalse()
+      assertThat(reused.hasDataPathParams()).isTrue()
       assertThat(reused.appParams).isEqualTo(proposed.appParams)
       assertThat(reused.traceContextMap).containsExactly("traceparent", storedTrace)
       assertThat(requests.allValues.map { it.workItemId })
@@ -301,7 +297,7 @@ class DataWatcherTest() {
     }
 
   @Test
-  fun `legacy source compatibility rejects a different application generation`() =
+  fun `ordinary redelivery rejects a different indexed generation`() =
     runBlocking<Unit> {
       val path = "gs://raw/day/done"
       val existing =
@@ -311,21 +307,19 @@ class DataWatcherTest() {
           workItemParams =
             workItemParams {
                 appParams =
-                  vidLabelingDispatchWorkItemParams {
-                      dataProvider = "dataProviders/provider"
-                      source = dataPathParams {
-                        dataPath = path
-                        generation = 43L
-                        createTime = Instant.parse(SOURCE_CREATE_TIME).toProtoTime()
-                        eventType =
-                          org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-                            .WorkItemParams
-                            .DataPathParams
-                            .StorageEventType
-                            .FINALIZED
-                      }
-                    }
+                  vidLabelingDispatchWorkItemParams { dataProvider = "dataProviders/provider" }
                     .pack()
+                dataPathParams = dataPathParams {
+                  dataPath = path
+                  generation = 43L
+                  createTime = Instant.parse(SOURCE_CREATE_TIME).toProtoTime()
+                  eventType =
+                    org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+                      .WorkItemParams
+                      .DataPathParams
+                      .StorageEventType
+                      .FINALIZED
+                }
               }
               .pack()
         }
@@ -385,23 +379,26 @@ class DataWatcherTest() {
     }
 
   @Test
-  fun `dispatch rejects duplicate recovery targets`() = runBlocking {
-    assertFailsWith<IllegalArgumentException> {
-      dispatchWatcher()
-        .receivePath(
-          "gs://raw/day/done",
-          sourceMetadata() +
-            mapOf(
-              WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
-                "modelProviders/mp/modelSuites/ms/modelLines/first,modelProviders/mp/modelSuites/ms/modelLines/first",
-              WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to
-                "dataProviders/provider/rawImpressionUploads/source",
-              WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
-                "dataProviders/provider/uploadHealingOperations/operation",
-            ),
-        )
-    }
-    verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+  fun `dispatch persists references without a copied recovery target list`() = runBlocking {
+    val metadata = dispatchRecoveryMetadata()
+    val watcher = dispatchWatcher()
+    watcher.receivePath("gs://raw/day/done", metadata)
+    watcher.receivePath(
+      "gs://raw/day/done",
+      metadata + (WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "ignored,ignored"),
+    )
+    watcher.receivePath("gs://raw/day/done", metadata - WatchedBlobs.OVERRIDE_MODEL_LINES_KEY)
+    val requests = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(3)) { ensureWorkItem(requests.capture()) }
+    assertThat(requests.allValues.map { it.workItemId }.toSet()).hasSize(1)
+    val app =
+      requests.firstValue.workItem.workItemParams
+        .unpack<WorkItemParams>()
+        .appParams
+        .unpack<VidLabelingDispatchWorkItemParams>()
+    assertThat(app.recovery.source.generation).isEqualTo(42L)
+    assertThat(app.recovery.uploadHealingOperation)
+      .isEqualTo("dataProviders/provider/uploadHealingOperations/operation")
   }
 
   private fun dispatchRecoveryMetadata(): Map<String, String> =
@@ -480,7 +477,7 @@ class DataWatcherTest() {
         .unpack<VidLabelingDispatchWorkItemParams>()
     assertThat(params.recovery.uploadHealingOperation)
       .isEqualTo("dataProviders/provider/uploadHealingOperations/operation")
-    assertThat(params.hasSource()).isTrue()
+    assertThat(params.recovery.hasSource()).isTrue()
   }
 
   @Test
