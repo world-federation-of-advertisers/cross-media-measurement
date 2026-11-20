@@ -75,18 +75,11 @@ jobs:
       - name: Build images
         run: >
           tools/bazel-with-results bazelisk build
-          //src/main/docker:push_all_gke_images 
-          //src/main/docker:push_tee_app_gke_images
-          //src/main/docker/panel_exchange_client:push_all_images
-          //src/main/docker:push_all_eks_images
+          //src/main/docker:push_release_images
           //src/main/docker:release_image_manifest
 
       - name: Push images
-        run: |
-          bazelisk run //src/main/docker:push_all_gke_images 
-          bazelisk run //src/main/docker:push_tee_app_gke_images
-          bazelisk run //src/main/docker/panel_exchange_client:push_all_images
-          bazelisk run //src/main/docker:push_all_eks_images
+        run: bazelisk run //src/main/docker:push_release_images
 
       - id: image-manifest
         name: Prepare published image manifest
