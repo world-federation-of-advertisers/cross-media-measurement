@@ -718,8 +718,9 @@ class PoolAssignmentJobServiceTest {
     assertThat(response.poolAssignmentJob.state).isEqualTo(PoolAssignmentJob.State.SUCCEEDED)
     assertThat(response.poolAssignmentJob.name).isEqualTo(created.name)
     assertThat(response.poolAssignmentJob.encryptedDek).isEqualTo(ENCRYPTED_DEK)
-    assertThat(response.lastShard).isTrue()
-    assertThat(response.hasLastShardResult()).isFalse()
+    assertThat(response.hasLastShardResult()).isTrue()
+    assertThat(response.lastShardResult.poolOffsetsList).isEmpty()
+    assertThat(response.lastShardResult.hasMaxEventDate()).isFalse()
   }
 
   @Test
@@ -748,8 +749,9 @@ class PoolAssignmentJobServiceTest {
         etag = shard.etag
       }
       val result = service.markPoolAssignmentJobSucceeded(request)
-      assertThat(result.lastShard).isTrue()
-      assertThat(result.hasLastShardResult()).isFalse()
+      assertThat(result.hasLastShardResult()).isTrue()
+      assertThat(result.lastShardResult.poolOffsetsList).isEmpty()
+      assertThat(result.lastShardResult.hasMaxEventDate()).isFalse()
       assertThat(result.poolAssignmentJob.hasEncryptedDek()).isFalse()
       val parent =
         spannerDatabase.databaseClient.singleUse().use { txn ->
@@ -809,9 +811,10 @@ class PoolAssignmentJobServiceTest {
         }
       val early = service.markPoolAssignmentJobSucceeded(requests[0])
       val final = service.markPoolAssignmentJobSucceeded(requests[1])
-      assertThat(early.lastShard).isFalse()
-      assertThat(final.lastShard).isTrue()
-      assertThat(final.hasLastShardResult()).isFalse()
+      assertThat(early.hasLastShardResult()).isFalse()
+      assertThat(final.hasLastShardResult()).isTrue()
+      assertThat(final.lastShardResult.poolOffsetsList).isEmpty()
+      assertThat(final.lastShardResult.hasMaxEventDate()).isFalse()
       assertThat(service.markPoolAssignmentJobSucceeded(requests[0])).isEqualTo(early)
       assertThat(service.markPoolAssignmentJobSucceeded(requests[1])).isEqualTo(final)
       val row =

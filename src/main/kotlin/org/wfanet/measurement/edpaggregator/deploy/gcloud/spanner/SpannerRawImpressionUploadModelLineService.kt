@@ -59,6 +59,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawIm
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentNotReadyException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineConcurrentException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineStateInvalidException
@@ -1045,10 +1046,12 @@ class SpannerRawImpressionUploadModelLineService(
                 modelLine.cmmsModelLine,
               ) != 0L
           ) {
-            throw Status.FAILED_PRECONDITION.withDescription(
-                "Direct labeling requires completed Phase-0 shards with no ranked memberships"
+            throw PoolAssignmentNotReadyException(
+                dataProviderResourceId,
+                rawImpressionUploadResourceId,
+                modelLine.cmmsModelLine,
               )
-              .asRuntimeException()
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           }
         }
 

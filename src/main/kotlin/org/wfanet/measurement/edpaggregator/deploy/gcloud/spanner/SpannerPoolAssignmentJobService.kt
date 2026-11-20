@@ -22,6 +22,7 @@ import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import com.google.type.Date
 import io.grpc.Status
+import java.security.MessageDigest
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -76,6 +77,7 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreatePoolAssignmentJo
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listPoolAssignmentJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.listPoolAssignmentJobsResponse
+import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededResponse
 
 class SpannerPoolAssignmentJobService(
@@ -475,6 +477,8 @@ class SpannerPoolAssignmentJobService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    val inputFingerprint = request.inputFingerprint()
+
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=markPoolAssignmentJobSucceeded"))
 
@@ -507,6 +511,10 @@ class SpannerPoolAssignmentJobService(
           currentJob.state == State.POOL_ASSIGNMENT_STATE_SUCCEEDED &&
             result.markSucceededRequestId == request.requestId
         ) {
+          if (result.markSucceededInputFingerprint != inputFingerprint) {
+            throw PoolAssignmentJobAlreadyExistsException()
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          }
           val storedLastShard = result.lastShard
           if (storedLastShard != null) {
             return@run TransactionResult(
@@ -629,6 +637,7 @@ class SpannerPoolAssignmentJobService(
           state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED,
         ) {
           set("MarkSucceededRequestId").to(request.requestId)
+          set("MarkSucceededInputFingerprint").to(inputFingerprint)
           if (jobDek != null) set("EncryptedDek").toProtoBytes(jobDek)
           set("LastShard").to(isLastShard)
           set("LastShardPoolOffsets").toInt64Array(if (isLastShard) mergedOffsets else emptyList())
@@ -683,14 +692,11 @@ class SpannerPoolAssignmentJobService(
           "LastShardResult invariant violated: pool_offsets present=$hasOffsets but " +
             "max_event_date present=$hasMaxEventDate"
         }
-        // Omit LastShardResult when no shard wrote impressions.
-        if (hasOffsets) {
-          lastShardResult =
-            MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
-              poolOffsets += txnResult.poolOffsets
-              maxEventDate = txnResult.maxEventDate!!
-            }
-        }
+        lastShardResult =
+          MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
+            poolOffsets += txnResult.poolOffsets
+            txnResult.maxEventDate?.let { maxEventDate = it }
+          }
       }
     }
   }
@@ -869,4 +875,19 @@ private operator fun Date.compareTo(other: Date): Int {
   if (year != other.year) return year - other.year
   if (month != other.month) return month - other.month
   return day - other.day
+}
+
+/** Fingerprint of the original immutable mark input, independent of etag and offset ordering. */
+private fun MarkPoolAssignmentJobSucceededRequest.inputFingerprint(): String {
+  val source = this
+  val normalizedInput = markPoolAssignmentJobSucceededRequest {
+    if (source.hasEncryptedDek()) encryptedDek = source.encryptedDek
+    poolOffsets += source.poolOffsetsList.distinct().sorted()
+    if (source.hasMaxEventDate()) maxEventDate = source.maxEventDate
+  }
+  return MessageDigest.getInstance("SHA-256").digest(normalizedInput.toByteArray()).joinToString(
+    ""
+  ) { byte ->
+    "%02x".format(byte.toInt() and 0xff)
+  }
 }

@@ -34,6 +34,7 @@ import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.internal.testing.RawImpressionUploadModelLineServiceTest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -1541,6 +1542,7 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
       val pool = emptyPoolAssignment("no-pool-completion", completed = false)
       val error = assertFailsWith<StatusRuntimeException> { labeling(pool) }
       assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(error.errorInfo?.reason).isEqualTo("POOL_ASSIGNMENT_NOT_READY")
     }
 
   @Test
