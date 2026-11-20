@@ -34,6 +34,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
+import kotlin.properties.Delegates
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
@@ -231,11 +232,12 @@ class SeedHighOverlapDataset : Runnable {
   )
   private lateinit var bigQueryTable: String
 
-  @Option(
+  @set:Option(
     names = ["--only-if-needed"],
     description = ["Reuse the dataset when its manifest matches the current specs and EDPs."],
+    defaultValue = "false",
   )
-  private var onlyIfNeeded: Boolean = false
+  private var onlyIfNeeded: Boolean by Delegates.notNull()
 
   private val modelLineId: String by lazy {
     requireNotNull(ModelLineKey.fromName(modelLine)) {

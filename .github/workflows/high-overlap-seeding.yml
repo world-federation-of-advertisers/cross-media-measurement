@@ -16,7 +16,7 @@ name: Seed High Overlap Dataset
 
 run-name: Seed High Overlap Dataset [${{ inputs.environment }}]
 
-# Force a refresh, serialized with Update CMMS so it cannot replace data during those tests.
+# Serialize preparation with Update CMMS so it cannot replace data during those tests.
 on:
   workflow_dispatch:
     inputs:
@@ -28,6 +28,11 @@ on:
           - dev
           - qa
           - head
+      force-refresh:
+        description: "Reseed even when the existing dataset matches"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -45,4 +50,4 @@ jobs:
       id-token: write
     with:
       environment: ${{ inputs.environment }}
-      only-if-needed: false
+      only-if-needed: ${{ !inputs.force-refresh }}

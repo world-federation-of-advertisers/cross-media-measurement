@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
+import com.google.protobuf.InvalidProtocolBufferException
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
 import org.measurement.integration.k8s.testing.HighOverlapDatasetCleanupState
 import org.measurement.integration.k8s.testing.HighOverlapDatasetManifest
@@ -36,9 +39,10 @@ class HighOverlapDatasetCleanup(
   ): Boolean {
     val manifestBlob = storageClient.getBlob(HighOverlapDataset.manifestBlobKey(modelLineId))
     if (manifestBlob != null) {
-      val manifest = HighOverlapDatasetManifest.parseFrom(manifestBlob.read().flatten())
+      val manifest = readManifest(manifestBlob)
       if (
-        manifest.modelLine == expectedManifest.modelLine &&
+        manifest != null &&
+          manifest.modelLine == expectedManifest.modelLine &&
           manifest.specFingerprint == expectedManifest.specFingerprint &&
           manifest.seededEdpsList.toSet() == expectedManifest.seededEdpsList.toSet()
       ) {
@@ -59,9 +63,7 @@ class HighOverlapDatasetCleanup(
           .impressionPathsList
       } else if (manifestBlob != null) {
         // Seeds written before cleanup state used the fixed edp/<name> layout.
-        HighOverlapDatasetManifest.parseFrom(manifestBlob.read().flatten()).seededEdpsList.map {
-          "edp/$it"
-        }
+        readManifest(manifestBlob)?.seededEdpsList?.map { "edp/$it" } ?: emptyList()
       } else {
         emptyList()
       }
@@ -75,10 +77,28 @@ class HighOverlapDatasetCleanup(
     writeCleanupState(impressionPaths)
   }
 
+  private suspend fun readManifest(blob: StorageClient.Blob): HighOverlapDatasetManifest? {
+    val manifestBytes = blob.read().flatten()
+    return try {
+      HighOverlapDatasetManifest.parseFrom(manifestBytes)
+    } catch (e: InvalidProtocolBufferException) {
+      logger.log(
+        Level.WARNING,
+        "Invalid high overlap dataset manifest for model line $modelLineId",
+        e,
+      )
+      null
+    }
+  }
+
   private suspend fun writeCleanupState(paths: Set<String>) {
     storageClient.writeBlob(
       cleanupStateKey,
       highOverlapDatasetCleanupState { impressionPaths += paths.sorted() }.toByteString(),
     )
+  }
+
+  companion object {
+    private val logger = Logger.getLogger(HighOverlapDatasetCleanup::class.java.name)
   }
 }
