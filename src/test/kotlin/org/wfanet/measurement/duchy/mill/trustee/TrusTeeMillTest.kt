@@ -774,6 +774,34 @@ class TrusTeeMillTest {
   }
 
   @Test
+  fun `computingPhase fails when Confidential Space KMS AEAD initialization fails`(): Unit =
+    runBlocking {
+      writeRequisitionData()
+      fakeComputationDb.addComputation(
+        LOCAL_ID,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = listOf(REQUISITION_CONFIDENTIAL_SPACE),
+      )
+      val unavailableClient: KmsClient = mock()
+      whenever(unavailableClient.getAead(KEK_URI_1))
+        .thenThrow(GeneralSecurityException("Failed to initialize KMS AEAD"))
+      whenever(mockConfidentialSpaceToAwsKmsClientFactory.getKmsClient(any()))
+        .thenReturn(unavailableClient)
+
+      createMill().claimAndProcessWork()
+
+      val token = fakeComputationDb[LOCAL_ID]!!
+      assertThat(token.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+      assertThat(token.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+      verify(mockComputationParticipants).failComputationParticipant(any())
+      verify(mockProcessor, never()).addFrequencyVector(any())
+      verify(mockProcessor, never()).computeResult()
+      verify(mockSystemComputations, never()).setComputationResult(any())
+    }
+
+  @Test
   fun `computingPhase fails when encrypted_dek decryption fails`(): Unit = runBlocking {
     writeRequisitionData()
     val corruptedRequisition1 =
