@@ -30,11 +30,13 @@ on:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   prepare:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
     environment: ${{ inputs.environment }}
     outputs:
       input-artifact: ${{ steps.package-inputs.outputs.artifact-name }}
@@ -85,8 +87,11 @@ jobs:
           --descriptors "$DESCRIPTORS_PATH" --commit "$GITHUB_SHA" \
           --environment "$CMMS_ENVIRONMENT" --image-tag "$IMAGE_TAG" \
           --certificates src/main/k8s/testing/secretfiles/all_root_certs.pem
+        # A preparation rerun uses a new name; downstream-only retries reuse
+        # the successful preparation job's original artifact output.
         echo "artifact-name=cmms-inputs-${CMMS_ENVIRONMENT}-${IMAGE_TAG}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
 
+    # Store validated inputs for reuse by both Terraform rollout stages.
     - name: Upload immutable inputs
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:

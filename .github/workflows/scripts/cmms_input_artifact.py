@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Package and verify immutable CMMS deployment inputs without credentials or plans."""
+"""Package and verify Update CMMS inputs without credentials or Terraform plans."""
 
 import argparse
 import hashlib
