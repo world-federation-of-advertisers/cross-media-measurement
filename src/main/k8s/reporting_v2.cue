@@ -15,6 +15,7 @@
 package k8s
 
 #Reporting: Reporting={
+	_logMeasurementValues:     bool | *false
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
@@ -206,6 +207,7 @@ package k8s
 
 		"reporting-v2alpha-public-api-server": #ServerDeployment & {
 			_container: args: [
+						"--log-measurement-values=\(Reporting._logMeasurementValues)",
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
 						_reportingCertCollectionFileFlag,
@@ -362,6 +364,7 @@ package k8s
 	cronJobs: {
 		"report-scheduling": {
 			_container: args: [
+						"--log-measurement-values=\(Reporting._logMeasurementValues)",
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
 						_reportingCertCollectionFileFlag,
@@ -412,6 +415,7 @@ package k8s
 					_initContainers: "basic-reports-reports": Container={
 						image: _images[Container.name]
 						args:  [
+							"--log-measurement-values=\(Reporting._logMeasurementValues)",
 							_debugVerboseGrpcClientLoggingFlag,
 							_debugVerboseGrpcServerLoggingFlag,
 							_reportingCertCollectionFileFlag,

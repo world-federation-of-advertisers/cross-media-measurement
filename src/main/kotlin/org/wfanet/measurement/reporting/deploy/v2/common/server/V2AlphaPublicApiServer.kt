@@ -274,6 +274,7 @@ private object V2AlphaPublicApiServer {
         populationDataProvider = reportingApiServerFlags.populationDataProvider,
         kingdomMeasurementBatchConcurrency =
           reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
+        logMeasurementValues = v2AlphaFlags.logMeasurementValues,
       )
 
     startInProcessServerWithService(

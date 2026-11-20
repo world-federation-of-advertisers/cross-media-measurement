@@ -264,6 +264,7 @@ locals {
           "--kingdom-public-api-target", var.kingdom_public_api_target,
           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
           "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
+          "--log-measurement-values=${var.log_measurement_values}",
           "--subscription-id", "results-fulfiller-subscription",
           "--google-project-id", data.google_client_config.default.project,
         ],

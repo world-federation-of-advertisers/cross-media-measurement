@@ -76,8 +76,9 @@ _edpConfigs: [
 edpSimulators: {
 	for edpConfig in _edpConfigs {
 		"\(edpConfig.displayName)": #EdpSimulator & {
-			_edpConfig:          edpConfig
-			_populationSpecPath: _populationSpec
+			_logMeasurementValues: true
+			_edpConfig:            edpConfig
+			_populationSpecPath:   _populationSpec
 			_imageConfig: repoSuffix: "simulator/edp"
 			_edp_secret_name:  _secret_name
 			_mc_resource_name: _mc_name

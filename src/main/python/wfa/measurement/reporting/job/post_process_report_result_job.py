@@ -123,7 +123,7 @@ def _extract_error_info(
         logging.warning(
             "Failed to parse google.rpc.Status from grpc-status-details-bin"
             " trailer",
-            exc_info=True,
+            exc_info=noise_correction_value_logging.is_enabled(),
         )
         return None
     if status is None:
@@ -316,7 +316,7 @@ class PostProcessReportResultJob:
                 _error_fields(error),
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
+                exc_info=self._log_noise_correction_values,
             )
             self._fail_basic_report(basic_report)
             return False
@@ -380,7 +380,7 @@ class PostProcessReportResultJob:
                     _error_fields(e),
                     basic_report.external_basic_report_id,
                     basic_report.cmms_measurement_consumer_id,
-                    exc_info=True,
+                    exc_info=self._log_noise_correction_values,
                 )
                 self._fail_basic_report(basic_report)
                 return False
@@ -394,7 +394,7 @@ class PostProcessReportResultJob:
                     e.code().name,
                     basic_report.external_basic_report_id,
                     basic_report.cmms_measurement_consumer_id,
-                    exc_info=True,
+                    exc_info=self._log_noise_correction_values,
                 )
                 self._fail_basic_report(basic_report)
                 return False
@@ -410,7 +410,7 @@ class PostProcessReportResultJob:
                 e.code().name,
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
+                exc_info=self._log_noise_correction_values,
             )
             return False
         except Exception as error:
@@ -422,7 +422,7 @@ class PostProcessReportResultJob:
                 _error_fields(error),
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
+                exc_info=self._log_noise_correction_values,
             )
             self._fail_basic_report(basic_report)
             return False
@@ -470,7 +470,7 @@ class PostProcessReportResultJob:
                 _error_fields(error),
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
+                exc_info=self._log_noise_correction_values,
             )
             return False
 
