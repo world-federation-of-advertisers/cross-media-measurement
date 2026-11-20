@@ -40,6 +40,13 @@ runs:
         mkdir -p ~/.m2
         cat > ~/.m2/settings.xml <<EOF
         <settings>
+          <mirrors>
+            <mirror>
+              <id>google-maven-central</id>
+              <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+              <mirrorOf>central</mirrorOf>
+            </mirror>
+          </mirrors>
           <servers>
             <server>
               <id>github</id>
@@ -55,7 +62,7 @@ runs:
       env:
         BAZEL_TARGET_LABEL: ${{ inputs.bazel_target_label }}
       run: |
-        bazel build "$BAZEL_TARGET_LABEL"
+        tools/bazel-with-results bazel build "$BAZEL_TARGET_LABEL"
 
     - name: Deploy fat‑jar to GitHub Packages
       shell: bash

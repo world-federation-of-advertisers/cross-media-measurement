@@ -7,8 +7,8 @@ databases.
 
 Backfills `BasicReport.external_report_id` on stored `BasicReport`s.
 
-`BasicReport`s written through the internal `InsertBasicReport` method may omit
-this field even when an associated `Report` exists. Dashboard queries use the
+Legacy `BasicReport`s written through the internal `InsertBasicReport` method may
+omit this field even when an associated `Report` exists. Dashboard queries use the
 field as a report key, so missing values cause unrelated reports to be grouped
 under the same null key and prevent requisition metadata from joining to the
 report.
@@ -296,10 +296,13 @@ After a successful unbounded run, that warning staying quiet confirms that no
 new incomplete records are being written. If it recurs, a write path is still
 storing incomplete component summaries.
 
-This migration does not strengthen `InsertBasicReport` validation. Callers of
-that internal method must supply a valid self-linked primitive Campaign Group
-and populated component ReportingSet IDs. Add write-time validation separately
-before treating a quiet warning as a permanent guarantee.
+The internal Reporting servers now enable `InsertBasicReport` and
+`CreateReportingSet` validation by default. Callers must supply a valid
+self-linked primitive Campaign Group and consistent component ReportingSet
+identities when inserting a completed report. Deployments that temporarily
+disable validation must fix their callers before treating a quiet warning as a
+permanent guarantee. See [Validating Reporting writes](/docs/operations/validate-reporting-writes.md)
+for the two rollout switches and the standalone custom ReportingSet exception.
 
 The tolerance in the read path should be removed only once the warning has
 stayed silent over a sustained period, not on a schedule.

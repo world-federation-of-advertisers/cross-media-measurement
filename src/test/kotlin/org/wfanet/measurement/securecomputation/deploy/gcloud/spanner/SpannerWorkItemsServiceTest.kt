@@ -176,7 +176,6 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
                 dataPath = SOURCE_DATA_PATH
                 this.generation = generation
                 this.createTime = createTime.toProtoTime()
-                eventType = PublicWorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
               }
             }
             .pack()

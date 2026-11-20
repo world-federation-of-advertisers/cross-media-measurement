@@ -45,6 +45,16 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
+#SchemaUpdateResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "384Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 #CancellationJobMaxHeapSize:     "96M"
 #CancellationJobInitialHeapSize: "64M"
 
@@ -116,6 +126,7 @@ kingdom: #Kingdom & {
 				resources:           #InternalServerResourceRequirements
 				_javaOptions: maxHeapSize: #InternalServerMaxHeapSize
 			}
+			_updateSchemaContainer: resources: #SchemaUpdateResourceRequirements
 			spec: {
 				replicas: 2
 				template: spec: #ServiceAccountPodSpec & {

@@ -28,6 +28,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 
 class DataWatcherConfigValidatorTest {
   @Test
+  fun `rejects blank event type filter`() {
+    val config = dataWatcherConfig {
+      watchedPaths += watchedPath {
+        identifier = "sync"
+        eventTypes += " "
+      }
+    }
+    val exception =
+      assertFailsWith<IllegalArgumentException> { DataWatcherConfigValidator.validate(config) }
+    assertThat(exception).hasMessageThat().contains("blank event type filter")
+  }
+
+  @Test
   fun `rejects legacy ResultsFulfiller route`() {
     val config = dataWatcherConfig {
       watchedPaths += watchedPath {

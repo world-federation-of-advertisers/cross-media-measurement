@@ -804,6 +804,7 @@ class VidLabelingSinkTest {
     val rows = checkNotNull(reader.getBlob(rawBlobKey)).readRows().toList()
     val config =
       VidLabelerParamsKt.modelLineConfig {
+        eventTemplateVersion = 1
         requiredEntityKeyFieldMapping.putAll(
           RawImpressionColumns.ENTITY_KEY_COLUMNS.filterKeys { it in requiredEntityTypes }
         )
