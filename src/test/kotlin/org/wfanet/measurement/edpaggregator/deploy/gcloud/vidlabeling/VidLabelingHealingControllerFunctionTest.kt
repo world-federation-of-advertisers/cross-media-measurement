@@ -805,6 +805,7 @@ class VidLabelingHealingControllerFunctionTest {
         assertThat(
             recovery.appParams
               .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
               .source
               .generation
           )
@@ -812,6 +813,7 @@ class VidLabelingHealingControllerFunctionTest {
         assertThat(
             recovery.appParams
               .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
               .source
               .createTime
           )
@@ -819,6 +821,7 @@ class VidLabelingHealingControllerFunctionTest {
         assertThat(
             recovery.appParams
               .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
               .source
               .eventType
           )
