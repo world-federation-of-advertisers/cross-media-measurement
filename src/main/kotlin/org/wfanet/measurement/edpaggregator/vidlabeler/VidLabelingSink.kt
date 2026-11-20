@@ -24,6 +24,9 @@ import com.google.protobuf.util.Durations
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.opentelemetry.api.common.Attributes
+import java.time.Instant
+import java.time.ZoneOffset
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -36,10 +39,12 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.consumeAsFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
@@ -47,6 +52,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetRawEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetUndigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -55,6 +61,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
+import org.wfanet.measurement.storage.BlobChangedException
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
@@ -85,17 +93,16 @@ data class LabeledOutputPublication(
  * labeled output, amplified by co-viewing) be processed without OOM. There is one encrypted output
  * blob per model line, each with its own DEK.
  *
- * Output blob keys are derived deterministically from the input blob URI so a retried input file
- * overwrites its previous output rather than duplicating it (the reader's per-blob guarantee
- * requires idempotent output naming).
+ * Each data object has an immutable attempt URI. A canonical per-input sidecar selects its data URI
+ * and encrypted DEK with a conditional write, so retries cannot replace the selected bytes.
  *
  * **Failure semantics.** [commit] writes each group's `.metadata.binpb` sidecar only after that
  * group's data blob has been fully written. This ordering is load-bearing: consumers
  * (`DataAvailabilitySync`, then the ResultsFulfiller) discover impressions blobs *only* through
  * their metadata sidecars, never by listing the impressions directory. So if labeling fails partway
  * through, the partially written data blob has no sidecar, is invisible to every consumer, and is
- * overwritten by the complete blob on retry (deterministic key). [close] simply cancels the open
- * writers; no partial output can leak into a measurement.
+ * left unreferenced on retry. [close] simply cancels the open writers; no partial output can leak
+ * into a measurement.
  *
  * **Concurrency contract.** The [RawImpressionSource.BlobSink] protocol guarantees [commit] and
  * [close] run only after every [processBatch] call for this blob has returned. That quiescence is
@@ -119,6 +126,7 @@ data class LabeledOutputPublication(
  * @param outputStorageParams GCS project + blob prefix for labeled output.
  * @param storageConfig storage configuration built from [outputStorageParams].
  * @param dataProvider resource name of the `DataProvider`, used for metric attribution.
+ * @param storageClientFactory builds the storage client for each data or metadata URI.
  * @param metrics OpenTelemetry instruments for labeling rate, drops, and errors.
  * @param encryptionKeySemaphore bounds concurrent per-group KMS key-setup work. It must be **shared
  *   across all sinks of one WorkItem** (one model line generates one output group per file, and the
@@ -143,6 +151,13 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
   private val metrics: VidLabelerMetrics,
   private val encryptionKeySemaphore: Semaphore,
   private val publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  private val storageClientFactory: (String) -> ConditionalOperationStorageClient = { uri ->
+    SelectedStorageClient(
+      SelectedStorageClient.parseBlobUri(uri),
+      storageConfig.rootDirectory,
+      storageConfig.projectId,
+    )
+  },
 ) : RawImpressionSource.BlobSink<E> {
 
   /**
@@ -275,8 +290,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
   override suspend fun close() {
     // Abort any still-open writers. On the failure path commit() has not run, so cancelling here
     // tears down the open writeBlob streams. Any partially written data blob is harmless: it has no
-    // metadata sidecar, so no consumer can discover it, and a retry overwrites it
-    // (deterministic key).
+    // metadata sidecar, so no consumer can discover it. A retry uses another data URI.
     writerScope.cancel()
   }
 
@@ -297,13 +311,15 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     private var latest: Timestamp? = null
     private val entityIdsByType = LinkedHashMap<String, LinkedHashSet<String>>()
 
-    private val outputBlobUri =
+    private val canonicalBlobUri =
       LabeledImpressionsBlobKeys.forInputUri(
         outputStorageParams.impressionsBlobPrefix,
         inputBlobUri,
         key.modelLine,
         fileMetadata.eventDate,
       )
+    private val outputBlobUri =
+      LabeledImpressionsBlobKeys.forAttemptUri(canonicalBlobUri, UUID.randomUUID())
     private lateinit var outputEncryptedDek: EncryptedDek
 
     /** The draining/writing coroutine. Started eagerly so the blob is opened as records arrive. */
@@ -336,17 +352,11 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               protobufFormat = EncryptedDek.ProtobufFormat.BINARY
               typeUrl = TINK_KEYSET_TYPE_URL
             }
-            SelectedStorageClient(
-                SelectedStorageClient.parseBlobUri(outputBlobUri),
-                storageConfig.rootDirectory,
-                storageConfig.projectId,
-              )
+            storageClientFactory(outputBlobUri)
               .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
           }
-        // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
-        // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
         MesosRecordIoStorageClient(aeadStorageClient)
-          .writeBlob(
+          .writeBlobIfNotFound(
             SelectedStorageClient.parseBlobUri(outputBlobUri).key,
             channel.consumeAsFlow().map { impression ->
               updateAggregates(impression)
@@ -354,9 +364,11 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
             },
           )
       } catch (e: CancellationException) {
+        channel.close(e)
         // Writer scope cancelled (e.g. via close() on the failure path); not a labeling error.
         throw e
       } catch (e: Exception) {
+        channel.close(e)
         metrics.labelingErrorsCounter.add(1, labelAttributes(key.modelLine))
         logger.log(
           java.util.logging.Level.SEVERE,
@@ -403,7 +415,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
 
     /** Writes the `.metadata.binpb` sidecar from the aggregates collected while streaming. */
     suspend fun writeMetadata() {
-      val metadataUri = "$outputBlobUri.metadata.binpb"
+      val metadataUri = "$canonicalBlobUri.metadata.binpb"
       try {
         val latestEventTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
         val exclusiveEndTime =
@@ -431,16 +443,71 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               }
             }
         }
-        // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
-        // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
-        // labeled-impressions write: the metadata key is deterministic, so concurrent VMs labeling
-        // the same input file would race here too.
-        SelectedStorageClient(
-            SelectedStorageClient.parseBlobUri(metadataUri),
-            storageConfig.rootDirectory,
-            storageConfig.projectId,
+        val metadataLocation = SelectedStorageClient.parseBlobUri(metadataUri)
+        val metadataClient = storageClientFactory(metadataUri)
+        try {
+          metadataClient.writeBlobIfNotFound(metadataLocation.key, flowOf(details.toByteString()))
+        } catch (e: BlobChangedException) {
+          val winningMetadata = metadataClient.getBlob(metadataLocation.key) ?: throw e
+          val winner = BlobDetails.parseFrom(winningMetadata.read().flatten())
+          require(
+            winner.modelLine == key.modelLine &&
+              LabeledImpressionsBlobKeys.matchesInputUri(winner.blobUri, canonicalBlobUri)
+          ) {
+            "Existing sidecar does not belong to this labeled output"
+          }
+          require(winner.hasEncryptedDek()) { "Existing sidecar has no encrypted DEK" }
+          require(winner.interval.hasStartTime() && winner.interval.hasEndTime()) {
+            "Existing sidecar has no complete interval"
+          }
+          val start = Timestamps.checkValid(winner.interval.startTime)
+          val end = Timestamps.checkValid(winner.interval.endTime)
+          require(
+            Timestamps.compare(start, end) < 0 &&
+              Instant.ofEpochSecond(start.seconds, start.nanos.toLong())
+                .atZone(ZoneOffset.UTC)
+                .toLocalDate() == fileMetadata.eventDate
+          ) {
+            "Existing sidecar interval does not match this labeled output"
+          }
+          require(winner.eventGroupReferenceId.isNotEmpty() || winner.entityKeysCount > 0) {
+            "Existing sidecar has no event selector"
+          }
+          val groups = winner.entityKeysList
+          require(
+            groups.map { it.entityType }.distinct().size == groups.size &&
+              groups.all { group ->
+                group.entityType.isNotBlank() &&
+                  group.entityIdsCount > 0 &&
+                  group.entityIdsList.all { it.isNotBlank() } &&
+                  group.entityIdsList.distinct().size == group.entityIdsCount
+              }
+          ) {
+            "Existing sidecar has invalid entity keys"
+          }
+          val location = SelectedStorageClient.parseBlobUri(winner.blobUri)
+          val client =
+            EncryptedStorage.buildEncryptedMesosStorageClient(
+              storageClientFactory(winner.blobUri),
+              encryptKmsClient,
+              winner.encryptedDek.kekUri,
+              winner.encryptedDek,
+            )
+          val blob =
+            checkNotNull(client.getBlob(location.key)) { "Existing sidecar data is missing" }
+          // The sidecar is published only after its immutable data write succeeds. Revalidate
+          // metadata, key and exact object existence without scanning the winning payload.
+          check(blob.size > 0L) { "Existing sidecar data is empty" }
+          publicationObserver(
+            LabeledOutputPublication(
+              LabeledOutputPublication.Type.METADATA_SIDECAR,
+              metadataUri,
+              key.modelLine,
+              "already_completed",
+            )
           )
-          .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
+          return
+        }
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
@@ -530,6 +597,13 @@ class MemoizedVidLabelingSink(
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
   publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  storageClientFactory: (String) -> ConditionalOperationStorageClient = { uri ->
+    SelectedStorageClient(
+      SelectedStorageClient.parseBlobUri(uri),
+      storageConfig.rootDirectory,
+      storageConfig.projectId,
+    )
+  },
 ) :
   BaseVidLabelingSink<ParquetDigestedEvent>(
     inputBlobUri,
@@ -544,6 +618,7 @@ class MemoizedVidLabelingSink(
     metrics,
     encryptionKeySemaphore,
     publicationObserver,
+    storageClientFactory,
   ) {
   override fun resolveLabelerInput(
     event: ParquetDigestedEvent,
@@ -589,6 +664,13 @@ class PlainVidLabelingSink(
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
   publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  storageClientFactory: (String) -> ConditionalOperationStorageClient = { uri ->
+    SelectedStorageClient(
+      SelectedStorageClient.parseBlobUri(uri),
+      storageConfig.rootDirectory,
+      storageConfig.projectId,
+    )
+  },
 ) :
   BaseVidLabelingSink<ParquetUndigestedEvent>(
     inputBlobUri,
@@ -603,6 +685,7 @@ class PlainVidLabelingSink(
     metrics,
     encryptionKeySemaphore,
     publicationObserver,
+    storageClientFactory,
   ) {
   override fun resolveLabelerInput(
     event: ParquetUndigestedEvent,
