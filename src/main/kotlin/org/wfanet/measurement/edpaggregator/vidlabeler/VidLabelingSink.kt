@@ -63,6 +63,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.storage.BlobChangedException
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
@@ -126,6 +127,7 @@ data class LabeledOutputPublication(
  * @param outputStorageParams GCS project + blob prefix for labeled output.
  * @param storageConfig storage configuration built from [outputStorageParams].
  * @param dataProvider resource name of the `DataProvider`, used for metric attribution.
+ * @param storageClientFactory builds the storage client for each data or metadata URI.
  * @param metrics OpenTelemetry instruments for labeling rate, drops, and errors.
  * @param encryptionKeySemaphore bounds concurrent per-group KMS key-setup work. It must be **shared
  *   across all sinks of one WorkItem** (one model line generates one output group per file, and the
@@ -150,6 +152,13 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
   private val metrics: VidLabelerMetrics,
   private val encryptionKeySemaphore: Semaphore,
   private val publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  private val storageClientFactory: (String) -> ConditionalOperationStorageClient = { uri ->
+    SelectedStorageClient(
+      SelectedStorageClient.parseBlobUri(uri),
+      storageConfig.rootDirectory,
+      storageConfig.projectId,
+    )
+  },
 ) : RawImpressionSource.BlobSink<E> {
 
   /**
@@ -344,11 +353,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
               protobufFormat = EncryptedDek.ProtobufFormat.BINARY
               typeUrl = TINK_KEYSET_TYPE_URL
             }
-            SelectedStorageClient(
-                SelectedStorageClient.parseBlobUri(outputBlobUri),
-                storageConfig.rootDirectory,
-                storageConfig.projectId,
-              )
+            storageClientFactory(outputBlobUri)
               .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
           }
         MesosRecordIoStorageClient(aeadStorageClient)
@@ -440,12 +445,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
             }
         }
         val metadataLocation = SelectedStorageClient.parseBlobUri(metadataUri)
-        val metadataClient =
-          SelectedStorageClient(
-            metadataLocation,
-            storageConfig.rootDirectory,
-            storageConfig.projectId,
-          )
+        val metadataClient = storageClientFactory(metadataUri)
         try {
           metadataClient.writeBlobIfNotFound(metadataLocation.key, flowOf(details.toByteString()))
         } catch (e: BlobChangedException) {
@@ -489,19 +489,16 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
           val location = SelectedStorageClient.parseBlobUri(winner.blobUri)
           val client =
             EncryptedStorage.buildEncryptedMesosStorageClient(
-              SelectedStorageClient(location, storageConfig.rootDirectory, storageConfig.projectId),
+              storageClientFactory(winner.blobUri),
               encryptKmsClient,
               winner.encryptedDek.kekUri,
               winner.encryptedDek,
             )
           val blob =
             checkNotNull(client.getBlob(location.key)) { "Existing sidecar data is missing" }
-          var records = 0L
-          blob.read().collect { record ->
-            LabeledImpression.parseFrom(record)
-            records++
-          }
-          check(records > 0) { "Existing sidecar data is empty" }
+          // The sidecar is published only after its immutable data write succeeds. Revalidate
+          // metadata, key and exact object existence without scanning the winning payload.
+          check(blob.size > 0L) { "Existing sidecar data is empty" }
           publicationObserver(
             LabeledOutputPublication(
               LabeledOutputPublication.Type.METADATA_SIDECAR,
@@ -601,6 +598,13 @@ class MemoizedVidLabelingSink(
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
   publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  storageClientFactory: (String) -> ConditionalOperationStorageClient = { uri ->
+    SelectedStorageClient(
+      SelectedStorageClient.parseBlobUri(uri),
+      storageConfig.rootDirectory,
+      storageConfig.projectId,
+    )
+  },
 ) :
   BaseVidLabelingSink<ParquetDigestedEvent>(
     inputBlobUri,
@@ -615,6 +619,7 @@ class MemoizedVidLabelingSink(
     metrics,
     encryptionKeySemaphore,
     publicationObserver,
+    storageClientFactory,
   ) {
   override fun resolveLabelerInput(
     event: ParquetDigestedEvent,
@@ -660,6 +665,13 @@ class PlainVidLabelingSink(
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
   publicationObserver: (LabeledOutputPublication) -> Unit = {},
+  storageClientFactory: (String) -> ConditionalOperationStorageClient = { uri ->
+    SelectedStorageClient(
+      SelectedStorageClient.parseBlobUri(uri),
+      storageConfig.rootDirectory,
+      storageConfig.projectId,
+    )
+  },
 ) :
   BaseVidLabelingSink<ParquetUndigestedEvent>(
     inputBlobUri,
@@ -674,6 +686,7 @@ class PlainVidLabelingSink(
     metrics,
     encryptionKeySemaphore,
     publicationObserver,
+    storageClientFactory,
   ) {
   override fun resolveLabelerInput(
     event: ParquetUndigestedEvent,
