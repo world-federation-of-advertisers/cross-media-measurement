@@ -150,6 +150,9 @@ message ImpressionMetadata {
   // different generation.
   int64 impressions_blob_generation = 14
       [(google.api.field_behavior) = OPTIONAL];
+
+  // Etag identifying the metadata version for conditional deletion.
+  string etag = 15;
 }
 
 // Fields returned for an ImpressionMetadata resource.

@@ -59,6 +59,7 @@ import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
@@ -1593,7 +1594,6 @@ class DataAvailabilitySync(
       // Partition into creates and updates
       val toCreate = mutableListOf<ImpressionMetadataWithBlobKey>()
       val toUpdate = mutableListOf<ImpressionMetadataWithBlobKey>()
-      val toRestore = mutableListOf<ImpressionMetadata>()
 
       for (item in impressionMetadataList) {
         val existing = existingByBlobUri[item.impressionMetadata.blobUri]
@@ -1607,9 +1607,6 @@ class DataAvailabilitySync(
                 item.impressionMetadata.impressionsBlobGeneration > 0L)
           ) {
             "Version-pinned metadata requires snapshot-aware synchronization"
-          }
-          if (existing.state == ImpressionMetadata.State.DELETED) {
-            toRestore.add(existing)
           }
           val scanned =
             item.impressionMetadata.copy {
@@ -1704,7 +1701,15 @@ class DataAvailabilitySync(
           }
 
       // Restore soft-deleted entries only after their latest content has been persisted. This
-      // prevents stale metadata from becoming visible if an update fails.
+      // prevents stale metadata from becoming visible if an update fails. Cleanup can also mark
+      // an initially active record deleted before the update commits, so include deleted records
+      // returned by the update transaction.
+      val toRestore =
+        (existingByBlobUri.values + updateResponses)
+          .filter { it.state == ImpressionMetadata.State.DELETED }
+          .associateBy { it.name }
+          .values
+          .toList()
       val restoreResponses =
         toRestore.chunked(impressionMetadataBatchSize).flatMap { restoreChunk ->
           ensureLeaseActive()
@@ -1749,8 +1754,8 @@ class DataAvailabilitySync(
       val resourceIdByBlobUri: Map<String, ImpressionMetadata> =
         (existingByBlobUri +
           createResponses.associateBy { it.blobUri } +
-          restoreResponses.associateBy { it.blobUri } +
-          updateResponses.associateBy { it.blobUri })
+          updateResponses.associateBy { it.blobUri } +
+          restoreResponses.associateBy { it.blobUri })
       val changedBlobUris =
         (toCreate.map { it.impressionMetadata.blobUri } +
             toUpdate.map { it.impressionMetadata.blobUri } +
@@ -1767,6 +1772,20 @@ class DataAvailabilitySync(
         val resultMetadata = resourceIdByBlobUri.getValue(blobUri)
         val metadataBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
         val customCreateTime = resultMetadata.interval.startTime.toInstant()
+        val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(blobUri)
+
+        // A deletion event may have completed while this record was absent or still DELETED.
+        // After writing and restoring metadata, reconcile any object that disappeared in that
+        // gap. Conditional cleanup rechecks storage and protects a later synchronized replacement.
+        val missingBlobKey =
+          listOf(metadataBlobUri.key, impressionsBlobKey).firstOrNull {
+            storageClient.getBlob(it) == null
+          }
+        if (missingBlobKey != null) {
+          DataAvailabilityCleanup(impressionMetadataServiceStub, dataProviderName, storageClient)
+            .cleanup(BlobUris.buildUri(metadataBlobUri, missingBlobKey), resultMetadata.name)
+          continue
+        }
 
         updateBlobMetadata(
           blobKey = metadataBlobUri.key,
@@ -1781,7 +1800,6 @@ class DataAvailabilitySync(
 
         // Also update the impressions blob with Custom-Time (no resource ID needed)
         ensureLeaseActive()
-        val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(blobUri)
         updateBlobMetadata(
           blobKey = impressionsBlobKey,
           expectedGeneration = item.impressionsBlob?.generation,

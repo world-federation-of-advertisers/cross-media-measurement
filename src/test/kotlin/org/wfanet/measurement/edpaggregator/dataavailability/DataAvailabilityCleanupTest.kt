@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
+import com.google.rpc.errorInfo
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
@@ -39,13 +40,16 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
+import org.wfanet.measurement.common.grpc.asRuntimeException
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -57,6 +61,7 @@ class DataAvailabilityCleanupTest {
     private const val DATA_PROVIDER_NAME = "dataProviders/dataProvider123"
     private const val RESOURCE_ID = "$DATA_PROVIDER_NAME/impressionMetadata/im-123"
     private const val BLOB_URI = "gs://bucket/path/to/blob"
+    private const val ETAG = "metadata-version-1"
 
     private const val CLEANUP_DURATION_METRIC = "edpa.data_availability.cleanup_duration"
     private const val RECORDS_DELETED_METRIC = "edpa.data_availability.records_deleted"
@@ -91,11 +96,21 @@ class DataAvailabilityCleanupTest {
                     endTime = timestamp { seconds = 200 }
                   }
                   state = ImpressionMetadata.State.ACTIVE
+                  etag = ETAG
                 }
               )
           }
         }
-      onBlocking { deleteImpressionMetadata(any<DeleteImpressionMetadataRequest>()) }
+      onBlocking { getImpressionMetadata(any<GetImpressionMetadataRequest>()) }
+        .thenAnswer { invocation ->
+          impressionMetadata {
+            name = invocation.getArgument<GetImpressionMetadataRequest>(0).name
+            blobUri = BLOB_URI
+            state = ImpressionMetadata.State.ACTIVE
+            etag = ETAG
+          }
+        }
+      onBlocking { markImpressionMetadataDeleted(any<MarkImpressionMetadataDeletedRequest>()) }
         .thenAnswer { ImpressionMetadata.getDefaultInstance() }
     }
 
@@ -150,8 +165,10 @@ class DataAvailabilityCleanupTest {
     verifyBlocking(impressionMetadataServiceMock) { listImpressionMetadata(lookup.capture()) }
     assertThat(lookup.firstValue.parent).isEqualTo(DATA_PROVIDER_NAME)
     assertThat(lookup.firstValue.filter.blobUrisList).containsExactly(uri)
-    val delete = argumentCaptor<DeleteImpressionMetadataRequest>()
-    verifyBlocking(impressionMetadataServiceMock) { deleteImpressionMetadata(delete.capture()) }
+    val delete = argumentCaptor<MarkImpressionMetadataDeletedRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      markImpressionMetadataDeleted(delete.capture())
+    }
     assertThat(delete.firstValue.name).isEqualTo(RESOURCE_ID)
   }
 
@@ -174,11 +191,11 @@ class DataAvailabilityCleanupTest {
 
     assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
     verifyBlocking(impressionMetadataServiceMock, never()) { listImpressionMetadata(any()) }
-    verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
   }
 
   @Test
-  fun `cleanup with resource ID deletes directly without lookup`() = runBlocking {
+  fun `cleanup with resource ID reads its version before deleting`() = runBlocking {
     val dataAvailabilityCleanup =
       DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
@@ -187,13 +204,18 @@ class DataAvailabilityCleanupTest {
     assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
 
     // Verify delete was called with the provided resource ID
-    val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
+    val deleteCaptor = argumentCaptor<MarkImpressionMetadataDeletedRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      deleteImpressionMetadata(deleteCaptor.capture())
+      markImpressionMetadataDeleted(deleteCaptor.capture())
     }
     assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
+    assertThat(deleteCaptor.firstValue.etag).isEqualTo(ETAG)
 
-    // Verify list was NOT called since we had a resource ID
+    val getCaptor = argumentCaptor<GetImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) { getImpressionMetadata(getCaptor.capture()) }
+    assertThat(getCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
+
+    // A supplied resource ID avoids listing.
     verifyBlocking(impressionMetadataServiceMock, never()) { listImpressionMetadata(any()) }
   }
 
@@ -216,11 +238,12 @@ class DataAvailabilityCleanupTest {
     assertThat(listCaptor.firstValue.filter.blobUriPrefix).isEmpty()
 
     // Verify delete was called with the looked-up resource ID
-    val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
+    val deleteCaptor = argumentCaptor<MarkImpressionMetadataDeletedRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      deleteImpressionMetadata(deleteCaptor.capture())
+      markImpressionMetadataDeleted(deleteCaptor.capture())
     }
     assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
+    assertThat(deleteCaptor.firstValue.etag).isEqualTo(ETAG)
   }
 
   @Test
@@ -240,6 +263,7 @@ class DataAvailabilityCleanupTest {
                 endTime = timestamp { seconds = 200 }
               }
               state = ImpressionMetadata.State.ACTIVE
+              etag = ETAG
             },
             impressionMetadata {
               name = longerResourceId
@@ -250,6 +274,7 @@ class DataAvailabilityCleanupTest {
                 endTime = timestamp { seconds = 300 }
               }
               state = ImpressionMetadata.State.ACTIVE
+              etag = ETAG
             },
           )
         val requestedBlobUris = request.filter.blobUrisList.toSet()
@@ -270,11 +295,12 @@ class DataAvailabilityCleanupTest {
     val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
 
     assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
-    val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
+    val deleteCaptor = argumentCaptor<MarkImpressionMetadataDeletedRequest>()
     verifyBlocking(impressionMetadataServiceMock) {
-      deleteImpressionMetadata(deleteCaptor.capture())
+      markImpressionMetadataDeleted(deleteCaptor.capture())
     }
     assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
+    assertThat(deleteCaptor.firstValue.etag).isEqualTo(ETAG)
   }
 
   @Test
@@ -291,13 +317,13 @@ class DataAvailabilityCleanupTest {
     assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
 
     // Verify delete was NOT called
-    verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
   }
 
   @Test
   fun `cleanup returns SKIPPED when delete returns NOT_FOUND`() = runBlocking {
     // Mock NOT_FOUND response from delete
-    wheneverBlocking { impressionMetadataServiceMock.deleteImpressionMetadata(any()) }
+    wheneverBlocking { impressionMetadataServiceMock.markImpressionMetadataDeleted(any()) }
       .thenAnswer { throw StatusException(Status.NOT_FOUND) }
 
     val dataAvailabilityCleanup =
@@ -311,13 +337,163 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup throws exception on non-NOT_FOUND error from delete`(): Unit = runBlocking {
     // Mock UNAVAILABLE response from delete
-    wheneverBlocking { impressionMetadataServiceMock.deleteImpressionMetadata(any()) }
+    wheneverBlocking { impressionMetadataServiceMock.markImpressionMetadataDeleted(any()) }
       .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
 
     val dataAvailabilityCleanup =
       DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
 
     assertFailsWith<StatusException> { dataAvailabilityCleanup.cleanup(BLOB_URI, RESOURCE_ID) }
+    Unit
+  }
+
+  @Test
+  fun `cleanup skips metadata that no longer exists by resource ID`() = runBlocking {
+    wheneverBlocking { impressionMetadataServiceMock.getImpressionMetadata(any()) }
+      .thenAnswer { throw StatusException(Status.NOT_FOUND) }
+    val cleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    val result = cleanup.cleanup(BLOB_URI, RESOURCE_ID)
+
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
+  }
+
+  @Test
+  fun `cleanup fails for redelivery after repeated metadata conflicts`() = runBlocking {
+    wheneverBlocking { impressionMetadataServiceMock.markImpressionMetadataDeleted(any()) }
+      .thenAnswer {
+        throw Status.ABORTED.asRuntimeException(
+          errorInfo {
+            domain = "edpaggregator.halo-cmm.org"
+            reason = "ETAG_MISMATCH"
+          }
+        )
+      }
+    val cleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    val exception = assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    assertThat(exception.errorInfo?.reason).isEqualTo("ETAG_MISMATCH")
+    verifyBlocking(impressionMetadataServiceMock, times(2)) { getImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(2)) { markImpressionMetadataDeleted(any()) }
+  }
+
+  @Test
+  fun `cleanup keeps a live object when a legacy get response has no etag`() = runBlocking {
+    wheneverBlocking { impressionMetadataServiceMock.getImpressionMetadata(any()) }
+      .thenReturn(
+        impressionMetadata {
+          name = RESOURCE_ID
+          state = ImpressionMetadata.State.ACTIVE
+        }
+      )
+    assertLegacyLiveObjectPreserved(resourceId = RESOURCE_ID)
+  }
+
+  @Test
+  fun `cleanup keeps a live object when a legacy list response has no etag`() = runBlocking {
+    wheneverBlocking { impressionMetadataServiceMock.listImpressionMetadata(any()) }
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            name = RESOURCE_ID
+            state = ImpressionMetadata.State.ACTIVE
+          }
+        }
+      )
+    assertLegacyLiveObjectPreserved(resourceId = null)
+  }
+
+  private suspend fun assertLegacyLiveObjectPreserved(resourceId: String?) {
+    val root = tempFolder.newFolder()
+    val file = File(root, "path/to/blob")
+    file.parentFile.mkdirs()
+    file.writeBytes(byteArrayOf(1))
+    val cleanup =
+      DataAvailabilityCleanup(
+        impressionMetadataStub,
+        DATA_PROVIDER_NAME,
+        FileSystemStorageClient(root),
+      )
+
+    val result = cleanup.cleanup(BLOB_URI, resourceId)
+
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
+  }
+
+  @Test
+  fun `cleanup refuses to delete when a legacy get response has no etag`() = runBlocking {
+    wheneverBlocking { impressionMetadataServiceMock.getImpressionMetadata(any()) }
+      .thenReturn(
+        impressionMetadata {
+          name = RESOURCE_ID
+          state = ImpressionMetadata.State.ACTIVE
+        }
+      )
+    val cleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    val exception = assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description)
+      .isEqualTo("Upgrade the EDPA public API server before retrying cleanup.")
+
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
+  }
+
+  @Test
+  fun `cleanup refuses to delete when a legacy list response has no etag`() = runBlocking {
+    wheneverBlocking { impressionMetadataServiceMock.listImpressionMetadata(any()) }
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            name = RESOURCE_ID
+            state = ImpressionMetadata.State.ACTIVE
+          }
+        }
+      )
+    val cleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    val exception = assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, null) }
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description)
+      .isEqualTo("Upgrade the EDPA public API server before retrying cleanup.")
+
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
+  }
+
+  @Test
+  fun `cleanup skips an already deleted legacy record without an etag`() = runBlocking {
+    wheneverBlocking { impressionMetadataServiceMock.getImpressionMetadata(any()) }
+      .thenReturn(
+        impressionMetadata {
+          name = RESOURCE_ID
+          state = ImpressionMetadata.State.DELETED
+        }
+      )
+    val cleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    val result = cleanup.cleanup(BLOB_URI, RESOURCE_ID)
+
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
+  }
+
+  @Test
+  fun `cleanup propagates ABORTED without an etag mismatch`() = runBlocking {
+    wheneverBlocking { impressionMetadataServiceMock.markImpressionMetadataDeleted(any()) }
+      .thenAnswer { throw StatusException(Status.ABORTED) }
+    val cleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    assertFailsWith<StatusException> { cleanup.cleanup(BLOB_URI, RESOURCE_ID) }
     Unit
   }
 
@@ -332,7 +508,7 @@ class DataAvailabilityCleanupTest {
 
     // Verify list was called (empty string treated as no resource ID)
     verifyBlocking(impressionMetadataServiceMock, times(1)) { listImpressionMetadata(any()) }
-    verifyBlocking(impressionMetadataServiceMock, times(1)) { deleteImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { markImpressionMetadataDeleted(any()) }
   }
 
   @Test
@@ -411,7 +587,7 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup emits failed metrics and RPC error metric on exception`() = runBlocking {
     // Mock UNAVAILABLE response from delete
-    wheneverBlocking { impressionMetadataServiceMock.deleteImpressionMetadata(any()) }
+    wheneverBlocking { impressionMetadataServiceMock.markImpressionMetadataDeleted(any()) }
       .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
 
     val metricsEnv = createMetricsEnvironment()
@@ -455,7 +631,7 @@ class DataAvailabilityCleanupTest {
   @Test
   fun `cleanup emits skipped metrics when delete returns NOT_FOUND`() = runBlocking {
     // Mock NOT_FOUND response from delete
-    wheneverBlocking { impressionMetadataServiceMock.deleteImpressionMetadata(any()) }
+    wheneverBlocking { impressionMetadataServiceMock.markImpressionMetadataDeleted(any()) }
       .thenAnswer { throw StatusException(Status.NOT_FOUND) }
 
     val metricsEnv = createMetricsEnvironment()
@@ -503,7 +679,7 @@ class DataAvailabilityCleanupTest {
     assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
 
     // Verify delete was NOT called since a live version exists
-    verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
+    verifyBlocking(impressionMetadataServiceMock, never()) { markImpressionMetadataDeleted(any()) }
   }
 
   @Test
@@ -520,10 +696,11 @@ class DataAvailabilityCleanupTest {
     assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
 
     // Verify delete WAS called since no live version exists
-    val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
+    val deleteCaptor = argumentCaptor<MarkImpressionMetadataDeletedRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
-      deleteImpressionMetadata(deleteCaptor.capture())
+      markImpressionMetadataDeleted(deleteCaptor.capture())
     }
     assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
+    assertThat(deleteCaptor.firstValue.etag).isEqualTo(ETAG)
   }
 }

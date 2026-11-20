@@ -8,6 +8,23 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "replay_storage_cleanup_event",
+    srcs = ["ReplayStorageCleanupEvent.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/gson",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "ReplayStorageCleanupEvent",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.ReplayStorageCleanupEventKt",
+    visibility = ["//visibility:public"],
+    runtime_deps = [":replay_storage_cleanup_event"],
+)
+
+kt_jvm_library(
     name = "verify_event_groups",
     srcs = ["VerifyEventGroups.kt"],
     visibility = ["//visibility:public"],
