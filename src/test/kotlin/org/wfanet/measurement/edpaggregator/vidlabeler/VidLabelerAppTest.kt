@@ -120,7 +120,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -961,7 +960,6 @@ class VidLabelerAppTest {
       request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     assertThat(workItemParams.dataPathParams.dataPath).isEqualTo(doneBlobUri)
     assertThat(workItemParams.dataPathParams.generation).isEqualTo(321L)
-    assertThat(workItemParams.dataPathParams.eventType).isEqualTo(StorageEventType.FINALIZED)
     assertThat(workItemParams.traceContextMap).containsKey("traceparent")
     val appParams = workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
     assertThat(appParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
@@ -1095,9 +1093,6 @@ class VidLabelerAppTest {
       .inOrder()
     assertThat(workItemParams.map { it.dataPathParams.generation })
       .containsExactly(321L, 322L)
-      .inOrder()
-    assertThat(workItemParams.map { it.dataPathParams.eventType })
-      .containsExactly(StorageEventType.FINALIZED, StorageEventType.FINALIZED)
       .inOrder()
     assertThat(
         workItemParams.map { it.appParams.unpack(DataAvailabilitySyncParams::class.java).eventDate }

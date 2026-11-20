@@ -77,12 +77,6 @@ internal data class EventGroupSyncWorkItem(
       require(params.dataPathParams.hasGeneration() && params.dataPathParams.generation > 0L) {
         "source object generation must be positive"
       }
-      require(
-        params.dataPathParams.eventType ==
-          WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-      ) {
-        "source event must be FINALIZED"
-      }
       return EventGroupSyncWorkItem(workItem, params, appParams)
     }
   }

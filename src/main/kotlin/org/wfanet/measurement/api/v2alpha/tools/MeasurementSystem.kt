@@ -1736,6 +1736,12 @@ private class ModelLines {
     @Option(names = ["--type"], description = ["Model line type."], required = true)
     modelLineType: ModelLine.Type,
     @Option(
+      names = ["--event-template-version"],
+      required = true,
+      description = ["Positive event-template version defining the population-field contract"],
+    )
+    eventTemplateVersion: Int,
+    @Option(
       names = ["--holdback-model-line"],
       description = ["Holdback model line."],
       required = false,
@@ -1753,6 +1759,7 @@ private class ModelLines {
           activeEndTime = modelLineActiveEndTime.toProtoTime()
         }
         type = modelLineType
+        this.eventTemplateVersion = eventTemplateVersion
         holdbackModelLine = modelLineHoldbackModelLine
       }
     }

@@ -32,9 +32,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.eq
+import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.api.v2alpha.Certificate
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
@@ -47,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.GetModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
@@ -71,13 +75,17 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Dummy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedCommon
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getPopulationRequest
 import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.population
@@ -153,6 +161,20 @@ class PopulationRequisitionFulfillerTest {
     onBlocking { getModelRelease(any()) }.thenReturn(MODEL_RELEASE_1)
   }
 
+  private val modelLinesServiceMock: ModelLinesGrpcKt.ModelLinesCoroutineImplBase = mockService {
+    onBlocking { getModelLine(any()) }
+      .thenAnswer {
+        val request = it.arguments[0] as org.wfanet.measurement.api.v2alpha.GetModelLineRequest
+        modelLine {
+          name = request.name
+          eventTemplateVersion = 1
+        }
+      }
+  }
+  private val modelLinesStub by lazy {
+    ModelLinesGrpcKt.ModelLinesCoroutineStub(grpcTestServerRule.channel)
+  }
+
   private val populationsServiceMock: PopulationsGrpcKt.PopulationsCoroutineImplBase = mockService {
     onBlocking { getPopulation(getPopulationRequest { name = POPULATION_NAME_1 }) } doReturn
       POPULATION_1
@@ -167,6 +189,7 @@ class PopulationRequisitionFulfillerTest {
     addService(requisitionsServiceMock)
     addService(modelRolloutsServiceMock)
     addService(modelReleasesServiceMock)
+    addService(modelLinesServiceMock)
     addService(populationsServiceMock)
   }
 
@@ -190,6 +213,297 @@ class PopulationRequisitionFulfillerTest {
     PopulationsGrpcKt.PopulationsCoroutineStub(grpcTestServerRule.channel)
   }
 
+  private fun versionedFulfiller(
+    repositoryVersion: Int?,
+    configuredVersion: Int?,
+    attributes: VersionedCommon,
+    filterExpression: String,
+  ): PopulationRequisitionFulfiller {
+    modelLinesServiceMock.stub {
+      onBlocking { getModelLine(any()) }
+        .thenReturn(
+          modelLine {
+            name = MODEL_LINE_NAME
+            if (repositoryVersion != null) eventTemplateVersion = repositoryVersion
+          }
+        )
+    }
+    populationsServiceMock.stub {
+      onBlocking { getPopulation(getPopulationRequest { name = POPULATION_NAME_1 }) }
+        .thenReturn(
+          POPULATION_1.copy {
+            populationSpec = populationSpec {
+              subpopulations += subPopulation {
+                vidRanges += vidRange {
+                  startVid = 1
+                  endVidInclusive = 100
+                }
+                this.attributes += attributes.pack()
+              }
+            }
+          }
+        )
+    }
+    val specification =
+      REQUISITION_SPEC.copy {
+        population =
+          RequisitionSpecKt.population { filter = eventFilter { expression = filterExpression } }
+      }
+    val input =
+      REQUISITION.copy {
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signRequisitionSpec(specification, MC_SIGNING_KEY),
+            DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += input })
+    }
+    return PopulationRequisitionFulfiller(
+      PDP_DATA,
+      certificatesStub,
+      requisitionsStub,
+      dummyThrottler,
+      TRUSTED_CERTIFICATES,
+      modelRolloutsStub,
+      modelReleasesStub,
+      populationsStub,
+      VersionedEvent.getDescriptor(),
+      modelLinesStub,
+      if (configuredVersion == null) emptyMap() else mapOf(MODEL_LINE_NAME to configuredVersion),
+      dummyKingdomRpcThrottler,
+    )
+  }
+
+  private suspend fun assertPopulationAcrossBackfill(
+    version: Int,
+    attributes: VersionedCommon,
+    filterExpression: String,
+  ) {
+    // The population and model line stay identical as metadata is backfilled and config removed.
+    for ((repositoryVersion, configuredVersion) in
+      listOf(null to version, version to version, version to null)) {
+      clearInvocations(requisitionsServiceMock)
+      versionedFulfiller(repositoryVersion, configuredVersion, attributes, filterExpression)
+        .executeRequisitionFulfillingWorkflow()
+      val request =
+        verifyAndCapture(
+          requisitionsServiceMock,
+          RequisitionsCoroutineImplBase::fulfillDirectRequisition,
+        )
+      val result: Measurement.Result =
+        decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
+      assertThat(result.population.value).isEqualTo(100)
+      verifyBlocking(requisitionsServiceMock, never()) { refuseRequisition(any()) }
+    }
+  }
+
+  @Test
+  fun `historical population result is unchanged by backfill and config removal`() = runBlocking {
+    assertPopulationAcrossBackfill(
+      1,
+      versionedCommon {
+        original = VersionedCommon.Segment.SEGMENT_A
+        retired = VersionedCommon.Segment.SEGMENT_B
+      },
+      "versioned_common.retired == 2",
+    )
+  }
+
+  @Test
+  fun `new population result is unchanged by backfill and config removal`() = runBlocking {
+    assertPopulationAcrossBackfill(
+      3,
+      versionedCommon {
+        original = VersionedCommon.Segment.SEGMENT_A
+        later = VersionedCommon.Segment.SEGMENT_B
+      },
+      "versioned_common.later == 2",
+    )
+  }
+
+  private suspend fun assertRefusedForEitherVersionSource(
+    version: Int,
+    attributes: VersionedCommon,
+    filterExpression: String,
+    justification: Requisition.Refusal.Justification,
+    message: String,
+  ) {
+    for ((repositoryVersion, configuredVersion) in listOf(null to version, version to null)) {
+      clearInvocations(requisitionsServiceMock)
+      versionedFulfiller(repositoryVersion, configuredVersion, attributes, filterExpression)
+        .executeRequisitionFulfillingWorkflow()
+      val request =
+        verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+      assertThat(request.refusal.justification).isEqualTo(justification)
+      assertThat(request.refusal.message).contains(message)
+      verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+    }
+  }
+
+  @Test
+  fun `historical population still requires fields active in its version for either source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
+        1,
+        versionedCommon { original = VersionedCommon.Segment.SEGMENT_A },
+        "",
+        Requisition.Refusal.Justification.UNFULFILLABLE,
+        "PopulationSpec is invalid",
+      )
+    }
+
+  @Test
+  fun `removed population field cannot be filtered for either version source`() = runBlocking {
+    assertRefusedForEitherVersionSource(
+      3,
+      versionedCommon {
+        original = VersionedCommon.Segment.SEGMENT_A
+        later = VersionedCommon.Segment.SEGMENT_B
+      },
+      "versioned_common.retired == 2",
+      Requisition.Refusal.Justification.SPEC_INVALID,
+      "Population filter is invalid",
+    )
+  }
+
+  @Test
+  fun `version newer than descriptor is refused for either source`() = runBlocking {
+    assertRefusedForEitherVersionSource(
+      4,
+      versionedCommon {
+        original = VersionedCommon.Segment.SEGMENT_A
+        later = VersionedCommon.Segment.SEGMENT_B
+      },
+      "",
+      Requisition.Refusal.Justification.UNFULFILLABLE,
+      "event-template version is unsupported",
+    )
+  }
+
+  @Test
+  fun `present invalid repository version cannot use valid local fallback`() = runBlocking {
+    for (repositoryVersion in listOf(0, -1)) {
+      clearInvocations(requisitionsServiceMock)
+      versionedFulfiller(repositoryVersion, 1, VersionedCommon.getDefaultInstance(), "")
+        .executeRequisitionFulfillingWorkflow()
+      val request =
+        verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+      assertThat(request.refusal.justification)
+        .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+      assertThat(request.refusal.message).contains("event-template version is invalid")
+      verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+    }
+  }
+
+  @Test
+  fun `new population missing required added field is refused for either version source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
+        3,
+        versionedCommon { original = VersionedCommon.Segment.SEGMENT_A },
+        "",
+        Requisition.Refusal.Justification.UNFULFILLABLE,
+        "PopulationSpec is invalid",
+      )
+    }
+
+  @Test
+  fun `conflicting repository and local versions are refused`() = runBlocking {
+    val fulfiller = versionedFulfiller(3, 1, VersionedCommon.getDefaultInstance(), "")
+    fulfiller.executeRequisitionFulfillingWorkflow()
+    val request =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(request.refusal.justification)
+      .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+  }
+
+  @Test
+  fun `missing repository and local versions are refused`() = runBlocking {
+    val fulfiller = versionedFulfiller(null, null, VersionedCommon.getDefaultInstance(), "")
+    fulfiller.executeRequisitionFulfillingWorkflow()
+    val request =
+      verifyAndCapture(requisitionsServiceMock, RequisitionsCoroutineImplBase::refuseRequisition)
+    assertThat(request.refusal.justification)
+      .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+  }
+
+  @Test
+  fun `historical population rejects a later field filter for either version source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
+        1,
+        versionedCommon {
+          original = VersionedCommon.Segment.SEGMENT_A
+          retired = VersionedCommon.Segment.SEGMENT_B
+        },
+        "versioned_common.later == 2",
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Population filter is invalid",
+      )
+    }
+
+  @Test
+  fun `historical population rejects whole template comparisons for either version source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
+        1,
+        versionedCommon {
+          original = VersionedCommon.Segment.SEGMENT_A
+          retired = VersionedCommon.Segment.SEGMENT_B
+        },
+        "versioned_common == ${VersionedCommon.getDescriptor().fullName}" +
+          "{original: 1, retired: 2, later: 0}",
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Population filter is invalid",
+      )
+    }
+
+  @Test
+  fun `current population rejects whole template comparisons with removed fields for either source`() =
+    runBlocking {
+      assertRefusedForEitherVersionSource(
+        3,
+        versionedCommon {
+          original = VersionedCommon.Segment.SEGMENT_A
+          later = VersionedCommon.Segment.SEGMENT_B
+        },
+        "versioned_common == ${VersionedCommon.getDescriptor().fullName}" +
+          "{original: 1, later: 2, retired: 0}",
+        Requisition.Refusal.Justification.SPEC_INVALID,
+        "Population filter is invalid",
+      )
+    }
+
+  @Test
+  fun `whole template comparisons with all fields active survive backfill and config removal`() =
+    runBlocking {
+      assertPopulationAcrossBackfill(
+        2,
+        versionedCommon {
+          original = VersionedCommon.Segment.SEGMENT_A
+          later = VersionedCommon.Segment.SEGMENT_B
+          retired = VersionedCommon.Segment.SEGMENT_A
+        },
+        "versioned_common == ${VersionedCommon.getDescriptor().fullName}" +
+          "{original: 1, later: 2, retired: 1}",
+      )
+    }
+
+  @Test
+  fun `repository lookup failure does not use local fallback`() = runBlocking {
+    val fulfiller = versionedFulfiller(null, 1, VersionedCommon.getDefaultInstance(), "")
+    modelLinesServiceMock.stub {
+      onBlocking { getModelLine(any()) }.thenThrow(io.grpc.Status.UNAVAILABLE.asRuntimeException())
+    }
+    val exception = assertFailsWith<Exception> { fulfiller.executeRequisitionFulfillingWorkflow() }
+    assertThat(exception.message).contains("Error retrieving ModelLine")
+    verifyBlocking(requisitionsServiceMock, never()) { fulfillDirectRequisition(any()) }
+    verifyBlocking(requisitionsServiceMock, never()) { refuseRequisition(any()) }
+  }
+
   @Test
   fun `fulfills requisition for 18-34 age range`() {
     requisitionsServiceMock.stub {
@@ -208,6 +522,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -258,6 +574,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -311,6 +629,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -365,6 +685,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -415,6 +737,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -459,6 +783,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -507,6 +833,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -555,6 +883,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -582,6 +912,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -635,6 +967,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -688,6 +1022,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -736,6 +1072,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
       )
 
@@ -763,6 +1101,8 @@ class PopulationRequisitionFulfillerTest {
         modelReleasesStub,
         populationsStub,
         EVENT_MESSAGE_DESCRIPTOR,
+        modelLinesStub = modelLinesStub,
+        modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = sharedThrottler,
       )
     }
