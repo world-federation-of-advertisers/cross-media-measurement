@@ -1,6 +1,6 @@
 # TrusTEE v2 Mill Evaluation
 
-This document describes how the TrusTEE v2 mill evaluates a multimeasurement:
+This document describes how the TrusTEE v2 Mill evaluates a multimeasurement:
 the inputs it reads, how it maps frequency vector positions to population
 attributes, the pass that evaluates every query, the corrective pass that
 small-cell suppression may require, and how the result reaches the Kingdom.
@@ -10,7 +10,7 @@ small-cell suppression may require, and how the result reaches the Kingdom.
 A multimeasurement fans out into one `Requisition` per base vector. Each
 `DataProvider` fulfills its requisitions with a frequency vector over the
 measurement's VID sampling interval. Once every requisition is fulfilled, the
-aggregator Duchy runs the mill inside the attested TEE image. The mill reads the
+aggregator Duchy runs the Mill inside the attested TEE image. The Mill reads the
 N base vectors, evaluates every `Query` of the computation over them, applies
 noise and small-cell suppression, and returns one `MultimeasurementResult` with
 a cell per query per grouping combination.
@@ -32,7 +32,7 @@ flowchart LR
 
 ## Inputs
 
-The Herald copies what the mill needs from the system API `Computation` into
+The Herald copies what the Mill needs from the system API `Computation` into
 `TrusTeeV2.ComputationDetails`:
 
 *   `queries`: the `Query` messages to evaluate.
@@ -58,12 +58,12 @@ vector covers global indexes from `floor(P * start)` up to
 `floor(P * (start + width)) - 1`, wrapping past `P - 1` to `0`. Position `p`
 therefore holds global index `(floor(P * start) + p) mod P`.
 
-Positions are not VIDs, so the mill cannot apply attribute filters or groupings
+Positions are not VIDs, so the Mill cannot apply attribute filters or groupings
 without the same rank order.
 
 ## Subpopulation index
 
-The mill rebuilds the rank order from the `PopulationSpec` inside the TEE:
+The Mill rebuilds the rank order from the `PopulationSpec` inside the TEE:
 
 1.  Hash every VID with the shared salted hash (`VidHashing`), the same function
     `VidIndexMap` uses.
@@ -72,10 +72,10 @@ The mill rebuilds the rank order from the `PopulationSpec` inside the TEE:
     holds it, giving a table from global index to subpopulation.
 
 The interval bounds are computed in single precision exactly as
-`FrequencyVectorBuilder` computes them, so that the mill's positions line up
+`FrequencyVectorBuilder` computes them, so that the Mill's positions line up
 with the `DataProviders`' vectors.
 
-Separately, the mill resolves each subpopulation's attributes. It parses each
+Separately, the Mill resolves each subpopulation's attributes. It parses each
 packed event template against `event_descriptor` and keeps the population
 fields that are enum-valued and set, keyed by `<template name>.<field name>`,
 for example `person.age_group` → `YEARS_18_TO_34`.
@@ -90,7 +90,7 @@ vid_filter GROUP BY grouping_paths`.
 
 ### Compilation
 
-Before reading any vector data, the mill compiles each query:
+Before reading any vector data, the Mill compiles each query:
 
 *   `summands` and every reach clause become arrays of vector indexes.
 *   The `vid_filter.attributes` map becomes a pass or fail flag per
@@ -108,10 +108,25 @@ not per-VID attribute resolution.
 ### First pass
 
 The first pass reads the N vectors as aligned chunks covering the same positions
-in every vector, and applies every query at each position:
+in every vector, and computes, for every cell:
+
+*   The frequency histogram, folded at `max_frequency`. Reach and frequency
+    read off it; reach is the sum of its bins, so it needs no counter of its
+    own.
+*   The impression total, scaled to any reported impression count when the cell
+    is emitted.
+*   The reach of each `DataProvider` in the cell (`slice_reach`): the number of
+    the cell's VIDs that the `DataProvider`'s summand vectors reached. This is
+    the only input to the suppression test, which decides whether the cell
+    needs a corrective pass.
+*   The fingerprint that seeds the cell's noise, folded over each passing VID's
+    summand counts in position order.
+
+The corrective pass needs nothing carried over from the first pass beyond the
+set of failed `DataProviders` for each cell.
 
 ```
-for each position p:
+for each position p, in order:
   s = subpopulation[p]
   for each query q:
     skip if q's attribute filter fails for s
@@ -121,6 +136,7 @@ for each position p:
     acc = q's accumulator for the group of s
     acc.histogram[min(f, max_frequency) - 1] += 1
     acc.impressions += f
+    acc.fingerprint = fold(acc.fingerprint, p, q's summand counts at p)
     for each DataProvider with a summand count > 0 at p:
       acc.slice_reach[DataProvider] += 1
 ```
@@ -158,17 +174,17 @@ pass, each slice of each cell takes the noised minimum-reach test:
     a VID's frequency is a sum across slices that the histogram does not
     separate.
 
-The mill evaluates at most two passes. The verdicts are taken once, on the
+The Mill evaluates at most two passes. The verdicts are taken once, on the
 first pass's slices, and are final: the rebuilt cell is emitted as computed,
 without testing its slices again. The corrective pass walks the vectors again
 but evaluates only the cells that lost a slice. Reports with many thin cells,
 deep breakdowns or short windows drop slices most often and come closest to two
 full passes.
 
-A `DataProvider` that reports an impression count over the population can be
-dropped before the first pass. The count bounds that `DataProvider`'s reach in
-every cell, so a count that cannot clear the threshold removes its slice from
-every cell before any histogram is allocated. A count the `DataProvider` noised
+A `DataProvider`'s reported impression count is an upper bound on its reach in
+every cell. If that count is below the threshold, the Mill removes the
+`DataProvider`'s slices from every cell before the first pass, without
+allocating any histogram for them. A count the `DataProvider` noised
 is compared to the threshold directly. An exact count is pruned only when it
 falls short of the threshold by more than the noise truncation bound, so that
 the prune fires only where the noised test would fail anyway.
@@ -176,12 +192,16 @@ the prune fires only where the noised test would fail anyway.
 ## Noise
 
 Each emitted cell is noised deterministically, so that rerunning the same
-computation returns the same figures. This step also scales impressions to any
-reported impression count and computes each cell's variance.
+computation returns the same figures. The noise is seeded from the cell's
+fingerprint as released: the first pass's fingerprint when no slice failed, or
+the corrective pass's otherwise, which reads failed `DataProviders`' vectors as
+zero. A failed `DataProvider` therefore never influences the noise. This step
+also scales impressions to the reported impression counts and computes each
+cell's variance.
 
 ## Result
 
-The mill packs the cells into a `MultimeasurementResult`, echoing each query's
+The Mill packs the cells into a `MultimeasurementResult`, echoing each query's
 `id`, and sets it on the computation as an unsigned, unencrypted `result`. A
 multimeasurement `Result` has no aggregator certificate. The Kingdom then
 completes the `Measurement`.
@@ -204,11 +224,3 @@ completes the `Measurement`.
     query.
 *   Split chunks across threads with per-thread accumulators merged at the end.
     The accumulators hold integer sums, so the result is unchanged.
-
-## Implementation plan
-
-1.  The evaluation library: query evaluation, subpopulation attributes, and the
-    subpopulation index, with the shared VID hash.
-2.  Suppression with the corrective pass, and noise, over the evaluated cells.
-3.  The mill: read the requisition blobs in chunks, run 1 and 2, and set the
-    result. This adds the VID sampling interval to `ComputationDetails`.
