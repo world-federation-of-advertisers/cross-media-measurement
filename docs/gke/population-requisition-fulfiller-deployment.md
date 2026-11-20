@@ -140,6 +140,31 @@ the Kustomization directory:
     A serialized `FileDescriptorSet` protobuf message containing the event
     message type and all of its dependencies.
 
+### Historical model-line versions
+
+The PDP reads `ModelLine.event_template_version` from the Kingdom. Historical
+lines without this field require an explicit fallback config. Pass
+`--model-line-event-template-versions-config=/etc/<app-name>/pdp/config/model_line_versions.textproto`
+to the daemon by adding it to the generated Deployment container arguments.
+Add the file to the `files` list in `pdp_config/kustomization.yaml` so that the
+`pdp-config` ConfigMap mounts it. CUE deployments can set
+`modelLineEventTemplateVersionsConfigPath` on the PDP config.
+
+The file uses
+[PopulationRequisitionFulfillerConfig](../../src/main/proto/wfa/measurement/config/population_requisition_fulfiller_config.proto):
+
+```textproto
+model_line_event_template_versions {
+  key: "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs"
+  value: 1
+}
+```
+
+Use the version under which the population was defined. A config entry must
+match the repository value when both exist. Missing versions and mismatches
+refuse fulfillment; repository read failures are retried without falling back.
+See the [migration guide](../operations/model-line-event-template-version-migration.md).
+
 ## Apply the K8s Kustomization
 
 Use `kubectl` to apply the Kustomization. From the Kustomization directory run:

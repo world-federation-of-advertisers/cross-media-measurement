@@ -59,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineTypeRequest
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
@@ -88,6 +89,7 @@ import org.wfanet.measurement.internal.kingdom.enumerateValidModelLinesResponse 
 import org.wfanet.measurement.internal.kingdom.getModelLineRequest as internalGetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
 import org.wfanet.measurement.internal.kingdom.setActiveEndTimeRequest as internalSetActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.setModelLineEventTemplateVersionRequest as internalSetModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineHoldbackModelLineRequest as internalSetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.setModelLineTypeRequest as internalSetModelLineTypeRequest
 import org.wfanet.measurement.internal.kingdom.streamModelLinesRequest as internalStreamModelLinesRequest
@@ -142,6 +144,7 @@ private val INTERNAL_MODEL_LINE: InternalModelLine = internalModelLine {
   createTime = CREATE_TIME
   updateTime = UPDATE_TIME
   type = InternalModelLine.Type.PROD
+  eventTemplateVersion = 1
 }
 
 private val MODEL_LINE: ModelLine = modelLine {
@@ -152,6 +155,7 @@ private val MODEL_LINE: ModelLine = modelLine {
   createTime = CREATE_TIME
   updateTime = UPDATE_TIME
   type = Type.PROD
+  eventTemplateVersion = 1
 }
 
 @RunWith(JUnit4::class)
@@ -208,6 +212,109 @@ class ModelLinesServiceTest {
   @Before
   fun initService() {
     service = ModelLinesService(ModelLinesCoroutineStub(grpcTestServerRule.channel))
+  }
+
+  @Test
+  fun `createModelLine rejects a missing event template version`() = runBlocking {
+    val request = createModelLineRequest {
+      parent = MODEL_SUITE_NAME
+      modelLine = MODEL_LINE.copy { clearEventTemplateVersion() }
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) { service.createModelLine(request) }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.message).contains("event_template_version")
+  }
+
+  @Test
+  fun `setModelLineEventTemplateVersion returns initialized metadata`() = runBlocking {
+    wheneverBlocking { internalModelLinesMock.setModelLineEventTemplateVersion(any()) }
+      .thenReturn(INTERNAL_MODEL_LINE)
+    val result =
+      withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+        service.setModelLineEventTemplateVersion(
+          setModelLineEventTemplateVersionRequest {
+            name = MODEL_LINE_NAME
+            eventTemplateVersion = 1
+          }
+        )
+      }
+    assertThat(result).isEqualTo(MODEL_LINE)
+    verifyProtoArgument(
+        internalModelLinesMock,
+        ModelLinesCoroutineImplBase::setModelLineEventTemplateVersion,
+      )
+      .isEqualTo(
+        internalSetModelLineEventTemplateVersionRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelLineId = EXTERNAL_MODEL_LINE_ID
+          eventTemplateVersion = 1
+        }
+      )
+  }
+
+  @Test
+  fun `setModelLineEventTemplateVersion preserves an immutable-version failure`() = runBlocking {
+    wheneverBlocking { internalModelLinesMock.setModelLineEventTemplateVersion(any()) }
+      .thenThrow(Status.FAILED_PRECONDITION.asRuntimeException())
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          service.setModelLineEventTemplateVersion(
+            setModelLineEventTemplateVersionRequest {
+              name = MODEL_LINE_NAME
+              eventTemplateVersion = 3
+            }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `setModelLineEventTemplateVersion rejects a nonpositive version`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME) {
+          service.setModelLineEventTemplateVersion(
+            setModelLineEventTemplateVersionRequest { name = MODEL_LINE_NAME }
+          )
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `setModelLineEventTemplateVersion rejects another model provider`() = runBlocking {
+    val request = setModelLineEventTemplateVersionRequest {
+      name = MODEL_LINE_NAME
+      eventTemplateVersion = 1
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withModelProviderPrincipal(MODEL_PROVIDER_NAME_2) {
+          service.setModelLineEventTemplateVersion(request)
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
+  }
+
+  @Test
+  fun `setModelLineEventTemplateVersion rejects a data provider`() = runBlocking {
+    val request = setModelLineEventTemplateVersionRequest {
+      name = MODEL_LINE_NAME
+      eventTemplateVersion = 1
+    }
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          service.setModelLineEventTemplateVersion(request)
+        }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -332,6 +439,7 @@ class ModelLinesServiceTest {
         description = DESCRIPTION
         activeStartTime = ACTIVE_START_TIME
         type = Type.PROD
+        eventTemplateVersion = 1
         createTime = CREATE_TIME
         updateTime = UPDATE_TIME
       }
@@ -365,6 +473,22 @@ class ModelLinesServiceTest {
           externalModelLineId = EXTERNAL_MODEL_LINE_ID
         }
       )
+  }
+
+  @Test
+  fun `getModelLine preserves optional version presence before and after backfill`() = runBlocking {
+    val historical = INTERNAL_MODEL_LINE.copy { clearEventTemplateVersion() }
+    wheneverBlocking { internalModelLinesMock.getModelLine(any()) }
+      .thenReturn(historical, INTERNAL_MODEL_LINE)
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      val request = getModelLineRequest { name = MODEL_LINE_NAME }
+      val before = service.getModelLine(request)
+      assertThat(before.hasEventTemplateVersion()).isFalse()
+      val after = service.getModelLine(request)
+      assertThat(after.hasEventTemplateVersion()).isTrue()
+      assertThat(after.eventTemplateVersion).isEqualTo(1)
+      assertThat(before.name).isEqualTo(after.name)
+    }
   }
 
   @Test

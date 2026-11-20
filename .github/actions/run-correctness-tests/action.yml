@@ -58,6 +58,17 @@ runs:
         --force-test-execution="$FORCE_TEST_EXECUTION"
         --test-output=streamed
 
+    - name: Collect rollout diagnostics
+      if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+      continue-on-error: true
+      shell: bash
+      # Composite steps need a command timeout for the five-minute diagnostic budget.
+      run: >
+        timeout --kill-after=10s 5m
+        python3 .github/workflows/scripts/k8s_rollout_diagnostics.py
+        --selector=app
+        --output-dir="$CLUSTER_LOGS_PATH/rollout"
+
     - name: Export cluster logs
       id: export-cluster-logs
       if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
