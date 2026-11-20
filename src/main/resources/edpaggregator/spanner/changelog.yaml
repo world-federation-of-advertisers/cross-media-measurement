@@ -133,3 +133,6 @@ databaseChangeLog:
   - include:
       file: add-active-rank-index-uniqueness.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-vid-labeling-job-mark-result.sql
+      relativeToChangeLogFile: true
