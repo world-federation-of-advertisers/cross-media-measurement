@@ -15,6 +15,9 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.protobuf.util.Timestamps
+import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.util.Locale
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -59,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsResponse
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemsRequest
@@ -1212,6 +1216,7 @@ private constructor(
     },
   private val maxAttemptConcurrency: Int = ATTEMPT_CONCURRENCY,
   private val availabilityLookupEnabled: Boolean = false,
+  private val getWorkItem: suspend (GetWorkItemRequest) -> WorkItem,
 ) : VidLabelingWorkItemResolver {
   constructor(
     workItems: WorkItemsCoroutineStub,
@@ -1225,12 +1230,74 @@ private constructor(
     relevantWorkItemSelector,
     maxAttemptConcurrency,
     availabilityLookupEnabled,
+    { request -> workItems.getWorkItem(request) },
   )
 
   override suspend fun resolve(
     rawImpressionUpload: String,
     expectedWorkItems: List<ExpectedWorkItemGroup>,
     pageLimit: Int,
+  ): VidLabelingWorkItemResolution {
+    return resolveMatching(expectedWorkItems, pageLimit) { workItem ->
+      relevantWorkItemSelector.isRelevant(rawImpressionUpload, workItem)
+    }
+  }
+
+  suspend fun resolveDispatch(
+    source: VidLabelingDispatchSource,
+    pageLimit: Int,
+  ): VidLabelingWorkItemResolution {
+    require(pageLimit > 0) { "pageLimit must be positive" }
+    val names = source.candidateNames()
+    val resolved = mutableListOf<ResolvedWorkItem>()
+    for (name in names) {
+      val workItem =
+        try {
+          getWorkItem(GetWorkItemRequest.newBuilder().setName(name).build())
+        } catch (e: StatusException) {
+          if (e.status.code == Status.Code.NOT_FOUND) null
+          else throw IllegalStateException("Dispatch GetWorkItem failed: " + e.status.code, e)
+        } catch (e: StatusRuntimeException) {
+          if (e.status.code == Status.Code.NOT_FOUND) null
+          else throw IllegalStateException("Dispatch GetWorkItem failed: " + e.status.code, e)
+        } ?: continue
+      val actual = workItem.dispatchSource()
+      check(
+        workItem.name == name &&
+          actual?.dataProvider == source.dataProvider &&
+          actual.uri == source.uri &&
+          actual.generation == source.generation &&
+          actual.createTime == source.createTime &&
+          workItem.dispatchCandidateName(source.dataWatcherIdentifier) == name
+      ) {
+        "GetWorkItem returned a dispatch with inconsistent source or intent"
+      }
+      val attempts = listAttempts(name)
+      resolved +=
+        ResolvedWorkItem(
+          workItem,
+          attempts.rows.sortedWith(
+            compareBy<WorkItemAttempt> { it.attemptNumber }.thenBy { it.name }
+          ),
+          attempts.pages,
+        )
+    }
+    return VidLabelingWorkItemResolution(
+      emptyList(),
+      resolved,
+      false,
+      mapOf(
+        "work_item_gets" to names.size.toLong(),
+        "rows_retained" to resolved.size.toLong(),
+        "attempt_pages" to resolved.sumOf { it.attemptPages }.toLong(),
+      ),
+    )
+  }
+
+  private suspend fun resolveMatching(
+    expectedWorkItems: List<ExpectedWorkItemGroup>,
+    pageLimit: Int,
+    isRelevant: (WorkItem) -> Boolean,
   ): VidLabelingWorkItemResolution {
     require(pageLimit > 0) { "pageLimit must be positive" }
     require(maxAttemptConcurrency > 0) { "maxAttemptConcurrency must be positive" }
@@ -1252,10 +1319,7 @@ private constructor(
       pagesFetched++
       rowsExamined += response.workItemsCount
       for (workItem in response.workItemsList) {
-        if (
-          workItem.name in expectedNames ||
-            relevantWorkItemSelector.isRelevant(rawImpressionUpload, workItem)
-        ) {
+        if (workItem.name in expectedNames || isRelevant(workItem)) {
           retained.putIfAbsent(workItem.name, workItem)
         }
       }
@@ -1409,12 +1473,16 @@ private constructor(
       listWorkItems: suspend (ListWorkItemsRequest) -> ListWorkItemsResponse,
       listWorkItemAttempts: suspend (ListWorkItemAttemptsRequest) -> ListWorkItemAttemptsResponse,
       availabilityLookupEnabled: Boolean = false,
+      getWorkItem: suspend (GetWorkItemRequest) -> WorkItem = {
+        error("GetWorkItem is not configured")
+      },
     ): GrpcVidLabelingWorkItemResolver {
       return GrpcVidLabelingWorkItemResolver(
         listWorkItems,
         listWorkItemAttempts,
         maxAttemptConcurrency = maxAttemptConcurrency,
         availabilityLookupEnabled = availabilityLookupEnabled,
+        getWorkItem = getWorkItem,
       )
     }
   }

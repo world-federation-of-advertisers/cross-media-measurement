@@ -530,6 +530,25 @@ bazel run \
   --output-dir=/tmp/vid-labeling-traces
 ```
 
+To inspect dispatch before an upload record exists, replace
+`--raw-impression-upload` with `--data-provider`, `--done-object-uri`,
+`--done-object-generation`, and `--done-object-create-time` (ISO-8601 creation
+time of that exact GCS generation). Lookup computes DataWatcher's deterministic
+task name and uses GetWorkItem, independently of global history and the inventory
+page limit. Only the object-path hash is rendered.
+
+Ordinary dispatch requires no recovery flags. To also inspect an authorized
+recovery intent, supply both `--dispatch-source-upload` and
+`--dispatch-healing-operation` with its immutable resource names. Lookup reads
+at most two task names and lists attempts only for tasks found. It does not
+discover unspecified recovery intents from mutable object metadata.
+`--dispatch-data-watcher-identifier` defaults to `vid-labeling-dispatch`;
+override it when the admitting watched-path configuration uses another identifier.
+Upload lookup obtains source creation time from the upload; supply the same
+recovery flags to identify an authorized historical replay intent.
+Missing identity or failed RPCs leave lookup incomplete, rather than certifying
+absence. Stored task/attempt states remain separate from telemetry completeness.
+
 Repeat `--raw-impression-upload` for a batch. Each upload is isolated into a
 path-safe Markdown artifact, and one malformed or failed upload does not stop
 the remaining batch. The command exits nonzero for incomplete evidence unless
