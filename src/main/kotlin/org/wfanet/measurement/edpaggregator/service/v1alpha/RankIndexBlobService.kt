@@ -444,9 +444,14 @@ class RankIndexBlobService(
           Status.NOT_FOUND.withCause(e).asRuntimeException()
         InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS ->
           Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
-        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-        InternalErrors.Reason.INVALID_FIELD_VALUE ->
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET ->
           Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
+        InternalErrors.Reason.INVALID_FIELD_VALUE -> {
+          val status =
+            if (e.status.code == Status.Code.ALREADY_EXISTS) Status.ALREADY_EXISTS
+            else Status.INVALID_ARGUMENT
+          status.withCause(e).asRuntimeException(e.trailers)
+        }
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
           Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
         InternalErrors.Reason.DATA_PROVIDER_MISMATCH,

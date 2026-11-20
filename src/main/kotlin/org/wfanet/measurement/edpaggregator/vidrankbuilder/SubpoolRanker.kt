@@ -18,6 +18,8 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
 import com.google.type.Date
 import com.google.type.date
+import io.grpc.Status
+import io.grpc.StatusException
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.time.LocalDate
@@ -234,7 +236,11 @@ class SubpoolRanker(
     // re-rank.
     val currentSnapshot = findUploadBlob(poolOffset, RankIndexBlob.BlobType.SNAPSHOT)
     if (currentSnapshot != null) {
-      val currentDayOnly = findUploadBlob(poolOffset, RankIndexBlob.BlobType.DAY_ONLY)
+      val currentDayOnly =
+        checkNotNull(findUploadBlob(poolOffset, RankIndexBlob.BlobType.DAY_ONLY)) {
+          "Committed snapshot has no DAY_ONLY pair for $rawImpressionUpload subpool $poolOffset"
+        }
+      validateCommittedPair(poolOffset, currentSnapshot, currentDayOnly)
       logger.info(
         "Subpool $poolOffset for $modelLine already ranked for $rawImpressionUpload; skipping"
       )
@@ -247,7 +253,7 @@ class SubpoolRanker(
         0,
         skipped = true,
         snapshotRankIndexBlobName = currentSnapshot.name,
-        dayOnlyRankIndexBlobName = currentDayOnly?.name,
+        dayOnlyRankIndexBlobName = currentDayOnly.name,
       )
     }
 
@@ -599,15 +605,71 @@ class SubpoolRanker(
       )
     val snapshotChecksum = rankIndexStore.writeBlob(snapshotKey, dek, cumulativeChunks)
     val dayOnlyChecksum = rankIndexStore.writeBlob(dayOnlyKey, dek, dayOnlyChunks)
-    return insertBlobRows(
-      poolOffset,
-      snapshotKey,
-      snapshotChecksum,
-      dayOnlyKey,
-      dayOnlyChecksum,
-      dek,
-      snapshotMaxEventDate,
-    )
+    return try {
+      insertBlobRows(
+        poolOffset,
+        snapshotKey,
+        snapshotChecksum,
+        dayOnlyKey,
+        dayOnlyChecksum,
+        dek,
+        snapshotMaxEventDate,
+      )
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+      val snapshot = findUploadBlob(poolOffset, RankIndexBlob.BlobType.SNAPSHOT) ?: throw e
+      val dayOnly = findUploadBlob(poolOffset, RankIndexBlob.BlobType.DAY_ONLY) ?: throw e
+      validateCommittedPair(poolOffset, snapshot, dayOnly)
+      val winnerUris = setOf(snapshot.blobUri, dayOnly.blobUri)
+      for (attemptKey in listOf(snapshotKey, dayOnlyKey)) {
+        if (attemptKey !in winnerUris) rankIndexStore.deleteBlob(attemptKey)
+      }
+      OutputRankIndexBlobs(snapshot, dayOnly)
+    }
+  }
+
+  /** Verifies that both durable records belong to one complete committed output attempt. */
+  private suspend fun validateCommittedPair(
+    poolOffset: Long,
+    snapshot: RankIndexBlob,
+    dayOnly: RankIndexBlob,
+  ) {
+    for ((blob, type) in
+      listOf(
+        snapshot to RankIndexBlob.BlobType.SNAPSHOT,
+        dayOnly to RankIndexBlob.BlobType.DAY_ONLY,
+      )) {
+      check(
+        blob.name.startsWith("$rawImpressionUpload/rankIndexBlobs/") &&
+          blob.cmmsModelLine == modelLine &&
+          blob.blobType == type &&
+          blob.hasPoolOffset() &&
+          blob.poolOffset == poolOffset &&
+          blob.blobUri.isNotBlank() &&
+          blob.blobChecksum.size() == 32 &&
+          blob.hasEncryptedDek() &&
+          blob.hasMaxEventDate() &&
+          blob.hasCreateTime()
+      ) {
+        "Invalid committed $type for $rawImpressionUpload subpool $poolOffset"
+      }
+      // Constructing the encrypted client validates/unwraps the stored key; getBlob does not scan
+      // the payload. Registered metadata is published only after both attempt writes succeed.
+      check(rankIndexStore.blobSize(blob.blobUri, blob.encryptedDek) > 0L) {
+        "Committed $type data is missing for $rawImpressionUpload subpool $poolOffset"
+      }
+    }
+    check(
+      snapshot.encryptedDek == dayOnly.encryptedDek && snapshot.createTime == dayOnly.createTime
+    ) {
+      "Committed snapshot and DAY_ONLY do not belong to the same output attempt"
+    }
+    check(
+      dayOnly.maxEventDate == maxEventDate &&
+        epochDayOf(snapshot.maxEventDate) >= epochDayOf(maxEventDate)
+    ) {
+      "Committed rank pair does not match the dispatch date"
+    }
   }
 
   private data class OutputRankIndexBlobs(val snapshot: RankIndexBlob, val dayOnly: RankIndexBlob)
