@@ -227,10 +227,9 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
                 appParams =
                   vidLabelingDispatchWorkItemParams {
                       dataProvider = "dataProviders/provider"
-                      this.source = source
                       if (recoveryReplay)
                         recovery = recoveryParams {
-                          overrideModelLines += "modelProviders/mp/modelSuites/ms/modelLines/line"
+                          this.source = source
                           sourceUpload = "dataProviders/provider/rawImpressionUploads/source"
                           uploadHealingOperation =
                             "dataProviders/provider/uploadHealingOperations/operation"

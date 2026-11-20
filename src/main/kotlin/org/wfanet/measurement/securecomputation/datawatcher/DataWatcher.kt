@@ -231,11 +231,13 @@ class DataWatcher(
                 UploadHealingOperationKey(sourceUpload.parentKey, legacyOperationId).toName())
           } else objectMetadata
         val fields =
-          listOf(
-            WatchedBlobs.OVERRIDE_MODEL_LINES_KEY,
-            WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY,
-            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY,
-          )
+          listOf(WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY, WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY)
+        require(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY !in recoveryMetadata ||
+            fields.all { it in recoveryMetadata }
+        ) {
+          "A recovery override requires source upload and operation references"
+        }
         require(fields.all { it in recoveryMetadata } || fields.none { it in recoveryMetadata }) {
           "Recovery metadata must contain the complete authorization tuple"
         }
@@ -249,15 +251,9 @@ class DataWatcher(
           VidLabelingDispatchWorkItems.normalize(
             vidLabelingDispatchWorkItemParams {
               dataProvider = configured.dataProvider
-              source = sourceIdentity
               if (fields.all { it in recoveryMetadata }) {
                 recovery = recoveryParams {
-                  overrideModelLines +=
-                    recoveryMetadata
-                      .getValue(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY)
-                      .split(',')
-                      .map { it.trim() }
-                      .filter { it.isNotEmpty() }
+                  source = sourceIdentity
                   sourceUpload = recoveryMetadata.getValue(WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY)
                   uploadHealingOperation =
                     recoveryMetadata.getValue(WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY)
@@ -276,7 +272,9 @@ class DataWatcher(
       } else null
     val idempotencyKey =
       "${config.identifier}\u0000$path\u0000$objectGeneration" +
-        (dispatchParams?.let { "\u0000${VidLabelingDispatchWorkItems.intentId(it)}" } ?: "")
+        (dispatchParams?.let {
+          "\u0000${VidLabelingDispatchWorkItems.intentId(it, sourceIdentity.takeUnless { _ -> it.hasRecovery() })}"
+        } ?: "")
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
@@ -371,19 +369,6 @@ class DataWatcher(
           !existingParams.dataPathParams.hasCreateTime() ||
           !requestedParams.dataPathParams.hasGeneration() ||
           !requestedParams.dataPathParams.hasCreateTime())
-    val requestedDispatch =
-      if (requestedParams.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java)) {
-        requestedParams.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
-      } else null
-    // Older VID dispatch items stored the complete source only in application parameters.
-    val matchingLegacyDispatchSource =
-      existing.queue == VidLabelingDispatchWorkItems.QUEUE &&
-        !existingParams.hasDataPathParams() &&
-        requestedParams.hasDataPathParams() &&
-        requestedDispatch != null &&
-        !requestedDispatch.hasRecovery() &&
-        requestedDispatch.hasSource() &&
-        requestedDispatch.source == requestedParams.dataPathParams
     check(
       existing.queue == requestedWorkItem.queue &&
         existing.serializationKey == requestedWorkItem.serializationKey &&
@@ -399,7 +384,7 @@ class DataWatcher(
               clearGeneration()
               clearCreateTime()
             }
-          } || matchingLegacyDispatchSource)
+          })
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }
