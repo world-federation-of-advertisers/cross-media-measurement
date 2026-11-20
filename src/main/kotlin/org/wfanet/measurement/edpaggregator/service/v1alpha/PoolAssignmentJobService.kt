@@ -352,7 +352,6 @@ class PoolAssignmentJobService(
       }
 
     return markPoolAssignmentJobSucceededResponse {
-      lastShard = internalResponse.lastShard
       poolAssignmentJob = internalResponse.poolAssignmentJob.toPublic()
       if (internalResponse.hasLastShardResult()) {
         this.lastShardResult = lastShardResult {
@@ -453,6 +452,7 @@ private fun handleInternalError(e: StatusException): StatusRuntimeException {
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+    InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
     null -> Status.INTERNAL.withCause(e).asRuntimeException()
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND ->

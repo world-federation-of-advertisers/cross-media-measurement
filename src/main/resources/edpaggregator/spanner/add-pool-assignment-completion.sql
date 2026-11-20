@@ -18,6 +18,7 @@
 -- comment: Store Phase-0 completion separately from encryption and retain replay outcomes.
 START BATCH DDL;
 ALTER TABLE PoolAssignmentJob ADD COLUMN LastShard BOOL;
+ALTER TABLE PoolAssignmentJob ADD COLUMN MarkSucceededInputFingerprint STRING(64);
 ALTER TABLE PoolAssignmentJob ADD COLUMN LastShardPoolOffsets ARRAY<INT64>;
 ALTER TABLE PoolAssignmentJob ADD COLUMN LastShardMaxEventDate DATE;
 ALTER TABLE RawImpressionUploadModelLine

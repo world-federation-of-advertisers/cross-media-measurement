@@ -196,15 +196,14 @@ message MarkPoolAssignmentJobSucceededResponse {
   // the same request ID preserves the original final-shard decision.
   bool last_shard = 3;
 
-  // Result of the last shard completing. Present only when the
-  // last-shard mark resulted in non-empty cross-shard work; omitted
-  // if no shard wrote impressions.
+  // Original result of the final shard completing. Present even when empty;
+  // an empty result starts direct labeling instead of ranking.
   message LastShardResult {
     // The pool offsets discovered during Phase 0.
     repeated int64 pool_offsets = 1;
 
     // The maximum event date (UTC) across all shards. Always set on the
-    // last-shard result.
+    // last-shard result when pool_offsets is nonempty.
     google.type.Date max_event_date = 2;
   }
 }
