@@ -524,7 +524,7 @@ abstract class RankIndexBlobServiceTest {
           assertFailsWith<StatusRuntimeException> {
             service.createRankIndexBlob(request.copy { rankIndexBlob = variant })
           }
-        assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
         assertThat(error.message).contains("request_id")
       }
       deleteBlob(original.rankIndexBlobResourceId)
@@ -583,7 +583,7 @@ abstract class RankIndexBlobServiceTest {
                 }
               )
             }
-          assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+          assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
           assertThat(error.errorInfo?.metadataMap?.get(Errors.Metadata.FIELD_NAME.key))
             .isEqualTo("requests[1].request_id")
           assertThat(
