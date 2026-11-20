@@ -22,6 +22,7 @@ import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import com.google.type.Date
 import io.grpc.Status
+import java.security.MessageDigest
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -40,7 +41,10 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findPoolAss
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getPoolAssignmentJobByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadIdForPoolAssignment
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineMergeState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getSucceededPoolAssignmentJobDek
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertPoolAssignmentJob
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.materializeLegacyPoolAssignmentCompletion
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.persistPoolAssignmentJobCompletion
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.poolAssignmentJobExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readPoolAssignmentJobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updatePoolAssignmentJobState
@@ -52,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentJobNo
 import org.wfanet.measurement.edpaggregator.service.internal.PoolAssignmentJobStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.toProtoBytes
 import org.wfanet.measurement.internal.edpaggregator.BatchCreatePoolAssignmentJobsRequest
@@ -72,6 +77,7 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreatePoolAssignmentJo
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listPoolAssignmentJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.listPoolAssignmentJobsResponse
+import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededResponse
 
 class SpannerPoolAssignmentJobService(
@@ -127,6 +133,11 @@ class SpannerPoolAssignmentJobService(
                 )
                 .asStatusRuntimeException(Status.Code.NOT_FOUND)
 
+          txn.materializeLegacyPoolAssignmentCompletion(
+            job.dataProviderResourceId,
+            rawImpressionUploadId,
+            job.cmmsModelLine,
+          )
           val poolAssignmentJobId =
             idGenerator.generateNewId { id ->
               txn.poolAssignmentJobExists(job.dataProviderResourceId, rawImpressionUploadId, id)
@@ -264,6 +275,18 @@ class SpannerPoolAssignmentJobService(
               request.requestsList.map { it.requestId },
             )
 
+          val newModelLines =
+            request.requestsList
+              .filter { it.requestId !in existingByRequestId }
+              .map { it.poolAssignmentJob.cmmsModelLine }
+              .distinct()
+          for (modelLine in newModelLines) {
+            txn.materializeLegacyPoolAssignmentCompletion(
+              dataProviderResourceId,
+              rawImpressionUploadId,
+              modelLine,
+            )
+          }
           request.requestsList.map { subRequest ->
             val existing = existingByRequestId[subRequest.requestId]
             if (existing != null) {
@@ -449,10 +472,12 @@ class SpannerPoolAssignmentJobService(
       throw InvalidFieldValueException("request_id", e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (!request.hasEncryptedDek()) {
+    if (request.poolOffsetsCount > 0 && !request.hasEncryptedDek()) {
       throw RequiredFieldNotSetException("encrypted_dek")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+
+    val inputFingerprint = request.inputFingerprint()
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=markPoolAssignmentJobSucceeded"))
@@ -482,14 +507,31 @@ class SpannerPoolAssignmentJobService(
 
         val currentJob = result.poolAssignmentJob
 
-        // Idempotency: a replay must reproduce the ORIGINAL response (AIP-155), so re-derive the
-        // original last-shard status rather than re-deciding from current state: this shard was
-        // last
-        // iff all siblings are now SUCCEEDED AND none reached SUCCEEDED after it.
         if (
           currentJob.state == State.POOL_ASSIGNMENT_STATE_SUCCEEDED &&
             result.markSucceededRequestId == request.requestId
         ) {
+          if (result.markSucceededInputFingerprint != inputFingerprint) {
+            throw PoolAssignmentJobAlreadyExistsException()
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          }
+          val storedLastShard = result.lastShard
+          if (storedLastShard != null) {
+            return@run TransactionResult(
+              currentJob,
+              isLastShard = storedLastShard,
+              poolOffsets = result.lastShardPoolOffsets,
+              maxEventDate = result.lastShardMaxEventDate,
+              isReplay = true,
+            )
+          }
+          txn.materializeLegacyPoolAssignmentCompletion(
+            request.dataProviderResourceId,
+            result.rawImpressionUploadId,
+            currentJob.cmmsModelLine,
+          )
+          // Legacy writers did not retain replay data. Materialize it once using their
+          // ordered completion history; later replays only read the stored outcome.
           val wasLastShard =
             txn.countNonSucceededPoolAssignmentJobs(
               request.dataProviderResourceId,
@@ -515,6 +557,14 @@ class SpannerPoolAssignmentJobService(
             } else {
               null
             }
+          txn.persistPoolAssignmentJobCompletion(
+            request.dataProviderResourceId,
+            result.rawImpressionUploadId,
+            result.poolAssignmentJobId,
+            wasLastShard,
+            mergeState?.poolOffsets ?: emptyList(),
+            mergeState?.maxEventDate,
+          )
           return@run TransactionResult(
             currentJob,
             isLastShard = wasLastShard,
@@ -543,20 +593,6 @@ class SpannerPoolAssignmentJobService(
           throw e.asStatusRuntimeException(Status.Code.ABORTED)
         }
 
-        txn.updatePoolAssignmentJobState(
-          dataProviderResourceId = request.dataProviderResourceId,
-          rawImpressionUploadId = result.rawImpressionUploadId,
-          poolAssignmentJobId = result.poolAssignmentJobId,
-          state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED,
-        ) {
-          // request_id is REQUIRED, so stamp it unconditionally for AIP-155 replay detection.
-          set("MarkSucceededRequestId").to(request.requestId)
-          // Persist the per-shard DEK that encrypts this shard's SubpoolFingerprints blobs.
-          set("EncryptedDek").toProtoBytes(request.encryptedDek)
-          // Clear any stale failure detail on the FAILED -> SUCCEEDED transition.
-          set("ErrorMessage").to(null as String?)
-        }
-
         // Merge this shard's pool offsets + max event date into the parent model line's
         // accumulated outputs: read current values, merge in memory (the buffered write below
         // is not visible to reads in this txn), then persist the union/max.
@@ -576,8 +612,7 @@ class SpannerPoolAssignmentJobService(
             mergeState.maxEventDate,
             if (request.hasMaxEventDate()) request.maxEventDate else null,
           )
-        // The buffered SUCCEEDED mutation is not visible to reads in this transaction, so
-        // this job still counts as non-succeeded; it is the last shard iff it is the only
+        // This job is still non-succeeded; it is the final shard iff it is the only
         // remaining non-succeeded row for the (upload, model line).
         val isLastShard =
           txn.countNonSucceededPoolAssignmentJobs(
@@ -586,22 +621,47 @@ class SpannerPoolAssignmentJobService(
             currentJob.cmmsModelLine,
           ) == 1L
 
+        val jobDek =
+          if (request.hasEncryptedDek()) request.encryptedDek
+          else if (isLastShard && mergedOffsets.isNotEmpty()) {
+            txn.getSucceededPoolAssignmentJobDek(
+              request.dataProviderResourceId,
+              result.rawImpressionUploadId,
+              currentJob.cmmsModelLine,
+            ) ?: throw IllegalStateException("Ranked output has no persisted shard DEK")
+          } else null
+        txn.updatePoolAssignmentJobState(
+          dataProviderResourceId = request.dataProviderResourceId,
+          rawImpressionUploadId = result.rawImpressionUploadId,
+          poolAssignmentJobId = result.poolAssignmentJobId,
+          state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED,
+        ) {
+          set("MarkSucceededRequestId").to(request.requestId)
+          set("MarkSucceededInputFingerprint").to(inputFingerprint)
+          if (jobDek != null) set("EncryptedDek").toProtoBytes(jobDek)
+          set("LastShard").to(isLastShard)
+          set("LastShardPoolOffsets").toInt64Array(if (isLastShard) mergedOffsets else emptyList())
+          set("LastShardMaxEventDate")
+            .to(if (isLastShard) mergedMaxEventDate?.toCloudDate() else null)
+          set("ErrorMessage").to(null as String?)
+        }
+
         txn.updateRawImpressionUploadModelLineMergedOutputs(
           request.dataProviderResourceId,
           result.rawImpressionUploadId,
           mergeState.rawImpressionUploadModelLineId,
           mergedOffsets,
           mergedMaxEventDate,
-          // On last-shard-out, promote this (final) shard's DEK onto the parent as the merged DEK
-          // so a retrying SubpoolAssigner can decrypt the merged per-subpool blobs.
-          mergedDek = if (isLastShard) request.encryptedDek else null,
+          poolAssignmentComplete = isLastShard,
+          mergedDek = if (isLastShard && mergedOffsets.isNotEmpty()) jobDek else null,
         )
 
         TransactionResult(
           updatedJob =
             currentJob.copy {
               state = State.POOL_ASSIGNMENT_STATE_SUCCEEDED
-              encryptedDek = request.encryptedDek
+              clearEncryptedDek()
+              if (jobDek != null) encryptedDek = jobDek
               clearErrorMessage()
               clearUpdateTime()
             },
@@ -614,6 +674,7 @@ class SpannerPoolAssignmentJobService(
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
 
     return markPoolAssignmentJobSucceededResponse {
+      lastShard = txnResult.isLastShard
       poolAssignmentJob =
         if (txnResult.isReplay) {
           txnResult.updatedJob
@@ -631,14 +692,11 @@ class SpannerPoolAssignmentJobService(
           "LastShardResult invariant violated: pool_offsets present=$hasOffsets but " +
             "max_event_date present=$hasMaxEventDate"
         }
-        // Omit LastShardResult when no shard wrote impressions.
-        if (hasOffsets) {
-          lastShardResult =
-            MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
-              poolOffsets += txnResult.poolOffsets
-              maxEventDate = txnResult.maxEventDate!!
-            }
-        }
+        lastShardResult =
+          MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
+            poolOffsets += txnResult.poolOffsets
+            txnResult.maxEventDate?.let { maxEventDate = it }
+          }
       }
     }
   }
@@ -817,4 +875,19 @@ private operator fun Date.compareTo(other: Date): Int {
   if (year != other.year) return year - other.year
   if (month != other.month) return month - other.month
   return day - other.day
+}
+
+/** Fingerprint of the original immutable mark input, independent of etag and offset ordering. */
+private fun MarkPoolAssignmentJobSucceededRequest.inputFingerprint(): String {
+  val source = this
+  val normalizedInput = markPoolAssignmentJobSucceededRequest {
+    if (source.hasEncryptedDek()) encryptedDek = source.encryptedDek
+    poolOffsets += source.poolOffsetsList.distinct().sorted()
+    if (source.hasMaxEventDate()) maxEventDate = source.maxEventDate
+  }
+  return MessageDigest.getInstance("SHA-256").digest(normalizedInput.toByteArray()).joinToString(
+    ""
+  ) { byte ->
+    "%02x".format(byte.toInt() and 0xff)
+  }
 }

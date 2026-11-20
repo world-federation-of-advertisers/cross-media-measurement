@@ -16,22 +16,45 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
+import com.google.type.date
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.util.UUID
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.Test
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.internal.testing.PoolAssignmentJobServiceTest
+import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.getProtoMessage
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
+import org.wfanet.measurement.internal.edpaggregator.MarkPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.batchCreatePoolAssignmentJobsRequest
+import org.wfanet.measurement.internal.edpaggregator.copy
+import org.wfanet.measurement.internal.edpaggregator.createPoolAssignmentJobRequest
+import org.wfanet.measurement.internal.edpaggregator.encryptedDek
+import org.wfanet.measurement.internal.edpaggregator.getPoolAssignmentJobRequest
+import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededRequest
+import org.wfanet.measurement.internal.edpaggregator.poolAssignmentJob
 
 class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
   @get:Rule
@@ -161,6 +184,476 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
         row.getProtoMessage("EncryptedMergedDek", EncryptedDek.getDefaultInstance())
       }
     }
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded persists completion without merged encryption`() =
+    runBlocking {
+      val provider = "keyless-completion"
+      val upload = "empty"
+      val model = "modelProviders/mp/modelSuites/ms/modelLines/ml"
+      createParentUpload(provider, upload)
+      createRawImpressionUploadModelLine(provider, upload, model)
+      val api = newService(IdGenerator.Default)
+      val shard =
+        api.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = provider
+              rawImpressionUploadResourceId = upload
+              cmmsModelLine = model
+              shardIndex = 0
+            }
+          }
+        )
+      api.markPoolAssignmentJobSucceeded(
+        markPoolAssignmentJobSucceededRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = provider
+          rawImpressionUploadResourceId = upload
+          poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
+          etag = shard.etag
+        }
+      )
+      val resourceId =
+        spannerDatabase.databaseClient.singleUse().use { txn ->
+          txn
+            .executeQuery(
+              statement(
+                """
+        SELECT RawImpressionUploadModelLineResourceId
+        FROM RawImpressionUploadModelLine
+        WHERE DataProviderResourceId = @provider AND CmmsModelLine = @model
+        """
+                  .trimIndent()
+              ) {
+                bind("provider").to(provider)
+                bind("model").to(model)
+              }
+            )
+            .single()
+            .getString("RawImpressionUploadModelLineResourceId")
+        }
+      val parent =
+        SpannerRawImpressionUploadModelLineService(spannerDatabase.databaseClient)
+          .getRawImpressionUploadModelLine(
+            getRawImpressionUploadModelLineRequest {
+              dataProviderResourceId = provider
+              rawImpressionUploadResourceId = upload
+              rawImpressionUploadModelLineResourceId = resourceId
+            }
+          )
+      assertThat(parent.poolAssignmentComplete).isTrue()
+      assertThat(parent.hasEncryptedMergedDek()).isFalse()
+      assertThat(parent.poolOffsetsList).isEmpty()
+      assertThat(parent.hasMaxEventDate()).isFalse()
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded replays stored decisions with tied update timestamps`() =
+    runBlocking {
+      val provider = "tied-completion"
+      val upload = "two-shards"
+      val model = "modelProviders/mp/modelSuites/ms/modelLines/ml"
+      createParentUpload(provider, upload)
+      createRawImpressionUploadModelLine(provider, upload, model)
+      val api = newService(IdGenerator.Default)
+      val shards =
+        (0..1).map { index ->
+          api.createPoolAssignmentJob(
+            createPoolAssignmentJobRequest {
+              requestId = UUID.randomUUID().toString()
+              poolAssignmentJob = poolAssignmentJob {
+                dataProviderResourceId = provider
+                rawImpressionUploadResourceId = upload
+                cmmsModelLine = model
+                shardIndex = index
+              }
+            }
+          )
+        }
+      val requests =
+        shards.map { shard ->
+          markPoolAssignmentJobSucceededRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = provider
+            rawImpressionUploadResourceId = upload
+            poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
+            etag = shard.etag
+          }
+        }
+      val early = api.markPoolAssignmentJobSucceeded(requests[0])
+      val final = api.markPoolAssignmentJobSucceeded(requests[1])
+      assertThat(early.lastShard).isFalse()
+      assertThat(final.lastShard).isTrue()
+      val ids =
+        spannerDatabase.databaseClient.singleUse().use { txn ->
+          txn
+            .executeQuery(
+              statement(
+                """
+        SELECT RawImpressionUploadId, PoolAssignmentJobId
+        FROM PoolAssignmentJob
+        WHERE DataProviderResourceId = @provider
+          AND PoolAssignmentJobResourceId = @job
+        """
+                  .trimIndent()
+              ) {
+                bind("provider").to(provider)
+                bind("job").to(shards[0].poolAssignmentJobResourceId)
+              }
+            )
+            .single()
+        }
+      // Defensive stored-state fixture: overlapping production commits have unique timestamps.
+      spannerDatabase.databaseClient.write(
+        listOf(
+          Mutation.newUpdateBuilder("PoolAssignmentJob")
+            .set("DataProviderResourceId")
+            .to(provider)
+            .set("RawImpressionUploadId")
+            .to(ids.getLong("RawImpressionUploadId"))
+            .set("PoolAssignmentJobId")
+            .to(ids.getLong("PoolAssignmentJobId"))
+            .set("UpdateTime")
+            .to(final.poolAssignmentJob.updateTime.toGcloudTimestamp())
+            .build()
+        )
+      )
+      assertThat(api.markPoolAssignmentJobSucceeded(requests[0]).lastShard).isFalse()
+      assertThat(api.markPoolAssignmentJobSucceeded(requests[1])).isEqualTo(final)
+    }
+
+  @Test
+  fun `getRawImpressionUploadModelLine materializes legacy completion and preserves replay`() =
+    runBlocking {
+      verifyLegacyCompletion("get")
+    }
+
+  @Test
+  fun `createPoolAssignmentJob retains legacy finalizer before sibling creation`() = runBlocking {
+    verifyLegacyCompletion("create")
+  }
+
+  @Test
+  fun `batchCreatePoolAssignmentJobs retains legacy finalizer before sibling creation`() =
+    runBlocking {
+      verifyLegacyCompletion("batch")
+    }
+
+  private suspend fun verifyLegacyCompletion(accessFirst: String) {
+    val provider = "legacy-completion"
+    val upload = "empty"
+    val model = "modelProviders/mp/modelSuites/ms/modelLines/ml"
+    createParentUpload(provider, upload)
+    createRawImpressionUploadModelLine(provider, upload, model)
+    val api = newService(IdGenerator.Default)
+    suspend fun createShard(index: Int) =
+      api.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          requestId = UUID.randomUUID().toString()
+          poolAssignmentJob = poolAssignmentJob {
+            dataProviderResourceId = provider
+            rawImpressionUploadResourceId = upload
+            cmmsModelLine = model
+            shardIndex = index
+          }
+        }
+      )
+    val dek = encryptedDek { kekUri = "fake-kms://legacy-output" }
+    val requests =
+      (0..1).map { index ->
+        val shard = createShard(index)
+        markPoolAssignmentJobSucceededRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = provider
+          rawImpressionUploadResourceId = upload
+          poolAssignmentJobResourceId = shard.poolAssignmentJobResourceId
+          etag = shard.etag
+          encryptedDek = dek
+        }
+      }
+    val original = requests.map { api.markPoolAssignmentJobSucceeded(it) }
+    spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
+      txn.executeUpdate(
+        statement(
+          """
+        UPDATE PoolAssignmentJob
+        SET LastShard = NULL, LastShardPoolOffsets = NULL, LastShardMaxEventDate = NULL
+        WHERE DataProviderResourceId = @provider
+        """
+            .trimIndent()
+        ) {
+          bind("provider").to(provider)
+        }
+      )
+      txn.executeUpdate(
+        statement(
+          """
+        UPDATE RawImpressionUploadModelLine
+        SET PoolAssignmentComplete = FALSE, EncryptedMergedDek = @dek
+        WHERE DataProviderResourceId = @provider
+        """
+            .trimIndent()
+        ) {
+          bind("provider").to(provider)
+          bind("dek").to(Value.protoMessage(dek))
+        }
+      )
+    }
+    val resourceId =
+      spannerDatabase.databaseClient.singleUse().use { txn ->
+        txn
+          .executeQuery(
+            statement(
+              "SELECT RawImpressionUploadModelLineResourceId FROM RawImpressionUploadModelLine " +
+                "WHERE DataProviderResourceId = @provider AND CmmsModelLine = @model"
+            ) {
+              bind("provider").to(provider)
+              bind("model").to(model)
+            }
+          )
+          .single()
+          .getString("RawImpressionUploadModelLineResourceId")
+      }
+    when (accessFirst) {
+      "create" -> createShard(2)
+      "batch" ->
+        api.batchCreatePoolAssignmentJobs(
+          batchCreatePoolAssignmentJobsRequest {
+            dataProviderResourceId = provider
+            rawImpressionUploadResourceId = upload
+            this.requests +=
+              (2..3).map { index ->
+                createPoolAssignmentJobRequest {
+                  requestId = UUID.randomUUID().toString()
+                  poolAssignmentJob = poolAssignmentJob {
+                    cmmsModelLine = model
+                    shardIndex = index
+                  }
+                }
+              }
+          }
+        )
+      "get" -> {}
+      else -> error("Unknown first access")
+    }
+    val normalized =
+      SpannerRawImpressionUploadModelLineService(spannerDatabase.databaseClient)
+        .getRawImpressionUploadModelLine(
+          getRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = provider
+            rawImpressionUploadResourceId = upload
+            rawImpressionUploadModelLineResourceId = resourceId
+          }
+        )
+    assertThat(normalized.poolAssignmentComplete).isTrue()
+    assertThat(normalized.hasEncryptedMergedDek()).isFalse()
+    assertThat(getRawImpressionUploadModelLineMergedDek(provider, upload, model)).isNull()
+    val parent =
+      spannerDatabase.databaseClient.singleUse().use { txn ->
+        txn
+          .executeQuery(
+            statement(
+              """
+        SELECT PoolAssignmentComplete
+        FROM RawImpressionUploadModelLine WHERE DataProviderResourceId = @provider
+        """
+                .trimIndent()
+            ) {
+              bind("provider").to(provider)
+            }
+          )
+          .single()
+      }
+    assertThat(parent.getBoolean("PoolAssignmentComplete")).isTrue()
+    if (accessFirst == "get") createShard(2)
+    for (index in requests.indices) {
+      assertThat(api.markPoolAssignmentJobSucceeded(requests[index])).isEqualTo(original[index])
+    }
+  }
+
+  private suspend fun originalMarkInput():
+    Pair<
+      PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase,
+      org.wfanet.measurement.internal.edpaggregator.MarkPoolAssignmentJobSucceededRequest,
+    > {
+    val api = newService(IdGenerator.Default)
+    createParentUpload("fingerprint-provider", "fingerprint-upload")
+    createRawImpressionUploadModelLine(
+      "fingerprint-provider",
+      "fingerprint-upload",
+      "fingerprint-model",
+    )
+    val job =
+      api.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          requestId = UUID.randomUUID().toString()
+          poolAssignmentJob = poolAssignmentJob {
+            dataProviderResourceId = "fingerprint-provider"
+            rawImpressionUploadResourceId = "fingerprint-upload"
+            cmmsModelLine = "fingerprint-model"
+            shardIndex = 0
+          }
+        }
+      )
+    return api to
+      markPoolAssignmentJobSucceededRequest {
+        dataProviderResourceId = job.dataProviderResourceId
+        rawImpressionUploadResourceId = job.rawImpressionUploadResourceId
+        poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+        encryptedDek = encryptedDek {
+          kekUri = "fake-kms://same-key"
+          ciphertext = ByteString.copyFromUtf8("dek-a")
+        }
+        poolOffsets += listOf(7L, 11L)
+        maxEventDate = date {
+          year = 2026
+          month = 6
+          day = 25
+        }
+      }
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded rejects changed immutable input on replay`() = runBlocking {
+    val (api, request) = originalMarkInput()
+    val original = api.markPoolAssignmentJobSucceeded(request)
+    val conflictingInputs =
+      listOf(
+        request.copy {
+          encryptedDek = request.encryptedDek.copy { ciphertext = ByteString.copyFromUtf8("dek-b") }
+        },
+        request.copy {
+          encryptedDek = request.encryptedDek.copy { kekUri = "fake-kms://different-key" }
+        },
+        request.copy {
+          poolOffsets.clear()
+          poolOffsets += 19L
+        },
+        request.copy { maxEventDate = request.maxEventDate.toBuilder().setDay(26).build() },
+      )
+    for (conflict in conflictingInputs) {
+      val error =
+        assertFailsWith<StatusRuntimeException> { api.markPoolAssignmentJobSucceeded(conflict) }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(api.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
+    }
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded normalizes offsets and excludes etag from replay input`() =
+    runBlocking {
+      val (api, request) = originalMarkInput()
+      val original = api.markPoolAssignmentJobSucceeded(request)
+      val reordered =
+        request.copy {
+          poolOffsets.clear()
+          poolOffsets += listOf(11L, 7L, 7L)
+          etag = original.poolAssignmentJob.etag
+        }
+      assertThat(api.markPoolAssignmentJobSucceeded(reordered)).isEqualTo(original)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded preserves date presence in replay input`() = runBlocking {
+    val (api, base) = originalMarkInput()
+    val request =
+      base.copy {
+        poolOffsets.clear()
+        clearMaxEventDate()
+        clearEncryptedDek()
+      }
+    val original = api.markPoolAssignmentJobSucceeded(request)
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        api.markPoolAssignmentJobSucceeded(request.copy { maxEventDate = base.maxEventDate })
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(api.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded rejects a legacy replay without original input evidence`() =
+    runBlocking {
+      val (api, request) = originalMarkInput()
+      val original = api.markPoolAssignmentJobSucceeded(request)
+      spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
+        txn.executeUpdate(
+          statement(
+            "UPDATE PoolAssignmentJob SET MarkSucceededInputFingerprint = NULL WHERE DataProviderResourceId = @provider"
+          ) {
+            bind("provider").to(request.dataProviderResourceId)
+          }
+        )
+      }
+      val error =
+        assertFailsWith<StatusRuntimeException> { api.markPoolAssignmentJobSucceeded(request) }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(
+          api.getPoolAssignmentJob(
+            getPoolAssignmentJobRequest {
+              dataProviderResourceId = request.dataProviderResourceId
+              rawImpressionUploadResourceId = request.rawImpressionUploadResourceId
+              poolAssignmentJobResourceId = request.poolAssignmentJobResourceId
+            }
+          )
+        )
+        .isEqualTo(original.poolAssignmentJob)
+    }
+
+  private suspend fun concurrentReplay(sameInput: Boolean) {
+    val (api, request) = originalMarkInput()
+    val other =
+      if (sameInput) request
+      else
+        request.copy {
+          encryptedDek = request.encryptedDek.copy { ciphertext = ByteString.copyFromUtf8("dek-b") }
+        }
+    val start = CompletableDeferred<Unit>()
+    val results =
+      kotlinx.coroutines.coroutineScope {
+        val attempts =
+          listOf(request, other).map { input ->
+            async(Dispatchers.Default) {
+              start.await()
+              try {
+                api.markPoolAssignmentJobSucceeded(input) to null
+              } catch (e: StatusRuntimeException) {
+                null to e.status.code
+              }
+            }
+          }
+        start.complete(Unit)
+        attempts.awaitAll()
+      }
+    val winners = results.mapNotNull { it.first }
+    val failures = results.mapNotNull { it.second }
+    if (sameInput) {
+      assertThat(winners).hasSize(2)
+      assertThat(winners[1]).isEqualTo(winners[0])
+      assertThat(failures).isEmpty()
+    } else {
+      assertThat(winners).hasSize(1)
+      assertThat(failures).containsExactly(Status.Code.ALREADY_EXISTS)
+      val accepted =
+        if (winners.single().poolAssignmentJob.encryptedDek == request.encryptedDek) request
+        else other
+      assertThat(api.markPoolAssignmentJobSucceeded(accepted)).isEqualTo(winners.single())
+    }
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded replays concurrent identical input`() = runBlocking {
+    concurrentReplay(sameInput = true)
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded rejects concurrent different DEKs`() = runBlocking {
+    concurrentReplay(sameInput = false)
   }
 
   companion object {

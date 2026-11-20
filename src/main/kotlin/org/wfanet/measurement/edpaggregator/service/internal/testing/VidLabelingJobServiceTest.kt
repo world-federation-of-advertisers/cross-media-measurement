@@ -22,6 +22,11 @@ import io.grpc.StatusRuntimeException
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -112,6 +117,228 @@ abstract class VidLabelingJobServiceTest {
       val job2: VidLabelingJob = createJob(requestId = requestId)
 
       assertThat(job2).isEqualTo(job1)
+    }
+
+  @Test
+  fun `createVidLabelingJob rejects changed immutable membership on replay`() = runBlocking {
+    val id = UUID.randomUUID().toString()
+    val original = createJob(requestId = id)
+    for ((models, files) in
+      listOf(
+        listOf(CMMS_MODEL_LINE) to listOf(FILE_2),
+        listOf(CMMS_MODEL_LINE_2) to listOf(FILE_1),
+        listOf(CMMS_MODEL_LINE) to listOf(FILE_1, FILE_1),
+      )) {
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          createJob(cmmsModelLines = models, rawImpressionUploadFiles = files, requestId = id)
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(error.errorInfo!!.reason)
+        .isEqualTo(Errors.Reason.VID_LABELING_JOB_ALREADY_EXISTS.name)
+      assertThat(createJob(requestId = id)).isEqualTo(original)
+    }
+  }
+
+  @Test
+  fun `createVidLabelingJob replays reordered immutable membership`() = runBlocking {
+    val id = UUID.randomUUID().toString()
+    val original =
+      createJob(
+        cmmsModelLines = listOf(CMMS_MODEL_LINE, CMMS_MODEL_LINE_2),
+        rawImpressionUploadFiles = listOf(FILE_1, FILE_2),
+        requestId = id,
+      )
+    assertThat(
+        createJob(
+          cmmsModelLines = listOf(CMMS_MODEL_LINE_2, CMMS_MODEL_LINE),
+          rawImpressionUploadFiles = listOf(FILE_2, FILE_1),
+          requestId = id,
+        )
+      )
+      .isEqualTo(original)
+  }
+
+  @Test
+  fun `create replay compares original membership after job state changes`() = runBlocking {
+    val id = UUID.randomUUID().toString()
+    val original = createJob(rawImpressionUploadFiles = listOf(FILE_1, FILE_2), requestId = id)
+    val succeeded =
+      service
+        .markVidLabelingJobSucceeded(
+          markVidLabelingJobSucceededRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = original.vidLabelingJobResourceId
+            etag = original.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+        .vidLabelingJob
+    assertThat(createJob(rawImpressionUploadFiles = listOf(FILE_2, FILE_1), requestId = id))
+      .isEqualTo(succeeded)
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        createJob(rawImpressionUploadFiles = listOf(FILE_1), requestId = id)
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `failed create replays serialize within bounds while Get retains full diagnostics`() =
+    runBlocking {
+      val ids = List(3) { UUID.randomUUID().toString() }
+      val files = (0 until 64).map { "file-$it-" + "x".repeat(8_000) }
+      val errorText = "é".repeat(1_048_576) // Exactly 2 MiB of UTF-8, valid in each individual RPC.
+      val current =
+        ids.map { id ->
+          val created = createJob(rawImpressionUploadFiles = files, requestId = id)
+          service.markVidLabelingJobFailed(
+            markVidLabelingJobFailedRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              vidLabelingJobResourceId = created.vidLabelingJobResourceId
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              errorMessage = errorText
+            }
+          )
+        }
+      val request = batchCreateVidLabelingJobsRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        ids.forEach { id ->
+          requests += createVidLabelingJobRequest {
+            requestId = id
+            vidLabelingJob = vidLabelingJob {
+              cmmsModelLines += CMMS_MODEL_LINE
+              rawImpressionUploadFiles += files
+            }
+          }
+        }
+      }
+      assertThat(request.toByteArray().size).isLessThan(3 * 1024 * 1024)
+      val replay = service.batchCreateVidLabelingJobs(request)
+      assertThat(replay.toByteArray().size).isLessThan(4 * 1024 * 1024)
+      for ((index, preview) in replay.vidLabelingJobsList.withIndex()) {
+        assertThat(preview.toByteArray().size).isAtMost(512 * 1024)
+        assertThat(preview.errorMessage.toByteArray(Charsets.UTF_8).size).isAtMost(512)
+        assertThat(preview.errorMessage).isEqualTo(errorText.take(256))
+        assertThat(preview.toBuilder().setErrorMessage(errorText).build()).isEqualTo(current[index])
+        assertThat(createJob(rawImpressionUploadFiles = files, requestId = ids[index]))
+          .isEqualTo(preview)
+        val full =
+          service.getVidLabelingJob(
+            getVidLabelingJobRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              vidLabelingJobResourceId = preview.vidLabelingJobResourceId
+            }
+          )
+        assertThat(full).isEqualTo(current[index])
+        assertThat(full.errorMessage).isEqualTo(errorText)
+      }
+    }
+
+  @Test
+  fun `create error previews preserve complete Unicode code points at the byte boundary`() =
+    runBlocking {
+      for ((errorText, expected) in
+        listOf(
+          "a".repeat(508) + "😀" + "tail" to ("a".repeat(508) + "😀"),
+          "a".repeat(509) + "😀" + "tail" to "a".repeat(509),
+          "short diagnostic" to "short diagnostic",
+        )) {
+        val id = UUID.randomUUID().toString()
+        val created = createJob(requestId = id)
+        service.markVidLabelingJobFailed(
+          markVidLabelingJobFailedRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = created.vidLabelingJobResourceId
+            etag = created.etag
+            requestId = UUID.randomUUID().toString()
+            errorMessage = errorText
+          }
+        )
+        val replay = createJob(requestId = id)
+        assertThat(replay.errorMessage).isEqualTo(expected)
+        assertThat(replay.errorMessage.toByteArray(Charsets.UTF_8).size).isAtMost(512)
+      }
+    }
+
+  @Test
+  fun `batchCreateVidLabelingJobs rejects changed replay and rolls back new jobs`() = runBlocking {
+    val id = UUID.randomUUID().toString()
+    val original = createJob(requestId = id)
+    val freshId = UUID.randomUUID().toString()
+    for ((models, files) in
+      listOf(
+        listOf(CMMS_MODEL_LINE) to listOf(FILE_2),
+        listOf(CMMS_MODEL_LINE_2) to listOf(FILE_1),
+      )) {
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateVidLabelingJobs(
+            batchCreateVidLabelingJobsRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              requests += createVidLabelingJobRequest {
+                requestId = freshId
+                vidLabelingJob = vidLabelingJob {
+                  cmmsModelLines += CMMS_MODEL_LINE
+                  rawImpressionUploadFiles += FILE_2
+                }
+              }
+              requests += createVidLabelingJobRequest {
+                requestId = id
+                vidLabelingJob = vidLabelingJob {
+                  cmmsModelLines += models
+                  rawImpressionUploadFiles += files
+                }
+              }
+            }
+          )
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(createJob(requestId = id)).isEqualTo(original)
+      val listed =
+        service.listVidLabelingJobs(
+          listVidLabelingJobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          }
+        )
+      assertThat(listed.vidLabelingJobsList).containsExactly(original)
+    }
+  }
+
+  @Test
+  fun `createVidLabelingJob resolves concurrent changed-input replay to one winner`() =
+    runBlocking {
+      val id = UUID.randomUUID().toString()
+      val gate = CompletableDeferred<Unit>()
+      val attempts = coroutineScope {
+        listOf(FILE_1, FILE_2)
+          .map { file ->
+            async(Dispatchers.Default) {
+              gate.await()
+              file to
+                runCatching { createJob(rawImpressionUploadFiles = listOf(file), requestId = id) }
+            }
+          }
+          .also { gate.complete(Unit) }
+          .awaitAll()
+      }
+      val winners = attempts.filter { it.second.isSuccess }
+      val losers = attempts.filter { it.second.isFailure }
+      assertThat(winners).hasSize(1)
+      assertThat(losers).hasSize(1)
+      val conflict = losers.single().second.exceptionOrNull() as StatusRuntimeException
+      assertThat(conflict.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      val winner = winners.single()
+      assertThat(createJob(rawImpressionUploadFiles = listOf(winner.first), requestId = id))
+        .isEqualTo(winner.second.getOrThrow())
     }
 
   @Test

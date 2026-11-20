@@ -731,6 +731,19 @@ DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):
 
 ### Optional: VID Labeling pipeline
 
+Deploy the completion schema and metadata services before activating the updated VID Labeler
+and SubpoolAssigner. Completed legacy groups are normalized on access or before adding shard
+jobs, preserving their original finalizer response without a whole-table backfill.
+Historical decisions already lost before upgrade cannot be reconstructed.
+
+The updated public completion response uses only `last_shard_result` presence for finality.
+A present empty result starts direct labeling; nonempty offsets and a date start ranking.
+Deploy the matching SubpoolAssigner with the metadata service in a coordinated rollout.
+Successful marks retain a fingerprint of their original immutable input: equal retries replay
+that result, while a reused request ID with different input returns `ALREADY_EXISTS`.
+Legacy success records without original-input evidence cannot be accepted as matching retries;
+reconcile those records before using the new replay contract.
+
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0
 SubpoolAssigner, Phase 1 VidRankBuilder, Phase 2 VidLabeler) as Confidential Space
 TEE apps, plus a VidLabelingDispatcher, VidLabelingMonitor, and
@@ -1968,3 +1981,18 @@ If a previous recovery already exists, it must be older than the configured
 `staleness_threshold` before another is created. A missing/future creation time or
 failed lookup defers recovery. This prevents repeated health requests or a lost
 HTTP response from consuming all three attempts while recovery is still in progress.
+
+Memoized Phase-2 dispatch requires a registration-complete upload before listing its
+immutable files. Keep the packing limits identical across retries: raw-byte limit,
+1,000 files per job, 512 KiB serialized job metadata, and 3 MiB/50 jobs per create RPC.
+Deploy matching metadata-service replay validation before updated producers.
+A reused labeling-job request ID with changed file or model-line membership returns
+ALREADY_EXISTS; retrying unchanged input preserves its existing job. Changing packing
+limits for an in-progress upload requires explicit reconciliation rather than treating
+changed batch-slot membership as replay.
+
+Labeling-job create responses, including matching replays of previously failed jobs,
+retain current state, timestamps and etag but include at most 512 UTF-8 bytes of failure
+text. GetVidLabelingJob continues returning the full stored diagnostic. Deploy this
+response projection before the bounded memoized producers so legacy failure messages
+cannot inflate replay batches beyond the metadata receiver limit.

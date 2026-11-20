@@ -26,6 +26,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.PoolAssignmentNotReadyException
+import org.wfanet.measurement.edpaggregator.service.PreconditionFailedException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
@@ -670,6 +672,9 @@ class RawImpressionUploadModelLineService(
 
   private fun handleInternalError(e: StatusException): StatusRuntimeException {
     return when (InternalErrors.getReason(e)) {
+      InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY ->
+        PoolAssignmentNotReadyException.fromInternal(e)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
         Status.NOT_FOUND.withCause(e).asRuntimeException()
@@ -706,7 +711,7 @@ class RawImpressionUploadModelLineService(
       InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
       null ->
         if (e.status.code == Status.Code.FAILED_PRECONDITION) {
-          e.status.withCause(e).asRuntimeException()
+          PreconditionFailedException(e).asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         } else {
           Status.INTERNAL.withCause(e).asRuntimeException()
         }
@@ -741,6 +746,7 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
       errorMessage = source.errorMessage
     }
     // Phase-0 last-shard-out outputs (OUTPUT_ONLY), consumed by a retrying SubpoolAssigner.
+    poolAssignmentComplete = source.poolAssignmentComplete
     poolOffsets += source.poolOffsetsList
     if (source.hasMaxEventDate()) {
       maxEventDate = source.maxEventDate
