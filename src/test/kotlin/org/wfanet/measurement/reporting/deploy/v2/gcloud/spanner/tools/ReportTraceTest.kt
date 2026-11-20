@@ -6527,6 +6527,26 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `renderLogPayload keeps WorkItem publication attempt`() {
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf(
+          "message" to "WorkItem publication failed",
+          "attributes" to
+            mapOf(
+              "xmm.work_item.name" to "workItems/work-item-1",
+              "xmm.work_item.publication_attempt" to "2",
+            ),
+        )
+      )
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
+
+    assertThat(rendered).contains("xmm.work_item.name=workItems/work-item-1")
+    assertThat(rendered).contains("xmm.work_item.publication_attempt=2")
+  }
+
+  @Test
   fun `renderLogPayload includes complete JSON only when gRPC payloads are requested`() {
     val payload =
       Payload.JsonPayload.of(

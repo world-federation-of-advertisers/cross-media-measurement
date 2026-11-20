@@ -1406,8 +1406,19 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         processBuilder.command().add("--potential-direct-thresholding-edp=$edpResourceName")
       }
     }
+    // Pipe buffers can fill and block the child before waitFor returns.
+    processBuilder.redirectOutput(ProcessBuilder.Redirect.INHERIT)
+    processBuilder.redirectError(ProcessBuilder.Redirect.INHERIT)
     val process = processBuilder.start()
-    process.waitFor()
+    val exitCode =
+      try {
+        process.waitFor()
+      } finally {
+        if (process.isAlive) {
+          process.destroyForcibly()
+        }
+      }
+    check(exitCode == 0) { "Report post-processor exited with code $exitCode." }
   }
 
   private suspend fun registerDataAvailabilityIntervals(

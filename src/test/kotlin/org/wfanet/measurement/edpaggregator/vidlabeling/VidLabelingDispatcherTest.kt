@@ -715,6 +715,35 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload rejects files with different footer event dates before creating file resources`() =
+    runBlocking<Unit> {
+      val blob1 = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      val blob2 = createMockBlob("$FOLDER_PREFIX/file2.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob1, blob2))
+      stubRawImpressionUploadCreation()
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          createDispatcher(
+              readEventDate = { blobUri ->
+                if (blobUri.contains("file1.parquet")) EVENT_DATE else EVENT_DATE.plusDays(1)
+              }
+            )
+            .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+        }
+
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("contains files with multiple footer event dates")
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadService, never()) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
+    }
+
+  @Test
   fun `upload routes Kingdom and metadata RPCs through their throttlers`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
@@ -1025,7 +1054,7 @@ class VidLabelingDispatcherTest {
         dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
 
-    assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
@@ -1097,7 +1126,7 @@ class VidLabelingDispatcherTest {
         createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
 
-    assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+    assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 

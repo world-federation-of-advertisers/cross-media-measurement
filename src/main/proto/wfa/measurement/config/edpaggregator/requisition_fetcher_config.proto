@@ -31,10 +31,9 @@ option java_outer_classname = "RequisitionFetcherConfigProto";
 message RequisitionWorkItemDispatchConfig {
   // Storage path prefix reserved for directly dispatched groups.
   //
-  // This must not overlap any legacy or direct-dispatch path prefix that uses
-  // the same storage namespace. No legacy DataWatcher source_path_regex may
-  // match this prefix. Keep this unchanged while any recoverable group uses it:
-  // RequisitionFetcher identifies direct groups by comparing their persisted
+  // This must not overlap another direct-dispatch path prefix that uses the
+  // same storage namespace. Keep this unchanged while any recoverable group
+  // uses it: RequisitionFetcher identifies groups by comparing their persisted
   // `blob_uri` with the URI derived from this prefix.
   string storage_path_prefix = 1;
 
@@ -57,8 +56,9 @@ message DataProviderRequisitionConfig {
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
   // Requisition storage
   StorageParams requisition_storage = 2;
-  // Storage path prefix
-  string storage_path_prefix = 3;
+  // Deprecated storage path prefix. Must not be set. Use
+  // `work_item_dispatch.storage_path_prefix`.
+  string storage_path_prefix = 3 [deprecated = true];
   // How the EDP connects to the CMMS Public API
   TransportLayerSecurityParams cmms_connection = 4;
   // The path to the EDP private key to group requisitions

@@ -6,6 +6,22 @@ package(
 )
 
 kt_jvm_test(
+    name = "ValidateDataWatcherConfigTest",
+    size = "small",
+    srcs = ["ValidateDataWatcherConfigTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.ValidateDataWatcherConfigTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:validate_data_watcher_config",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/picocli",
+    ],
+)
+
+kt_jvm_test(
     name = "InvokeDataWatcherFunctionTest",
     srcs = ["InvokeDataWatcherFunctionTest.kt"],
     data = [

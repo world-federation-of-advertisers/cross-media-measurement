@@ -25,6 +25,8 @@ option java_multiple_files = true;
 option java_outer_classname = "UploadHealingOperationServiceProto";
 
 service UploadHealingOperationService {
+  rpc ReconcileUploadHealingOperation(ReconcileUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
   rpc CreateUploadHealingOperation(CreateUploadHealingOperationRequest)
       returns (UploadHealingOperation);
   rpc GetUploadHealingOperation(GetUploadHealingOperationRequest)
@@ -35,12 +37,22 @@ service UploadHealingOperationService {
       returns (UploadHealingOperation);
   rpc ApproveUploadHealingOperation(ApproveUploadHealingOperationRequest)
       returns (UploadHealingOperation);
+  rpc FinalizeUploadHealingOperation(FinalizeUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
   rpc RetryUploadHealingOperation(RetryUploadHealingOperationRequest)
       returns (UploadHealingOperation);
   rpc AdvanceUploadHealingOperation(AdvanceUploadHealingOperationRequest)
       returns (UploadHealingOperation);
   rpc AdvanceUploadHealingStep(AdvanceUploadHealingStepRequest)
       returns (UploadHealingStep);
+}
+
+message ReconcileUploadHealingOperationRequest {
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  UploadHealingOperation upload_healing_operation = 3;
+  string etag = 4;
+  string request_id = 5;
 }
 
 message CreateUploadHealingOperationRequest {
@@ -90,10 +102,30 @@ message UpdateUploadHealingOperationPlanRequest {
 }
 
 message ApproveUploadHealingOperationRequest {
+  message CandidateDecision {
+    string raw_impression_upload_correction_candidate_id = 1;
+    RawImpressionUploadCorrectionCandidate.Decision decision = 2;
+  }
+
   string data_provider_resource_id = 1;
   string upload_healing_operation_id = 2;
   string etag = 3;
-  RawImpressionUploadCorrectionCandidate.Decision decision = 4;
+  RawImpressionUploadCorrectionCandidate.Decision decision = 4
+      [deprecated = true];
+  string request_id = 5;
+  repeated CandidateDecision candidate_decisions = 6;
+}
+
+message FinalizeUploadHealingOperationRequest {
+  message StepManifest {
+    int64 upload_healing_step_id = 1;
+    LabeledOutputManifest labeled_output_manifest = 2;
+  }
+
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  repeated StepManifest step_manifests = 3;
+  string etag = 4;
   string request_id = 5;
 }
 
@@ -109,6 +141,7 @@ message AdvanceUploadHealingOperationRequest {
   string upload_healing_operation_id = 2;
   string etag = 3;
   UploadHealingOperation.State state = 4;
+  string request_id = 5;
 }
 
 message AdvanceUploadHealingStepRequest {

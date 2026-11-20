@@ -19,7 +19,33 @@ configs {
       bucket_name: "secure-computation-storage-dev-bucket"
     }
   }
-  edp_impression_path: "edp/edp_meta"
+  edp_impression_path: "edp/edpa_meta"
+  model_line_configs {
+    model_line: "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"
+  }
+  max_stale_days: 3
+  time_zone: "UTC"
+}
+configs {
+  storage {
+    gcs {
+      bucket_name: "secure-computation-storage-dev-bucket"
+    }
+  }
+  edp_impression_path: "vid-labeled-impressions/edp/edp7"
+  model_line_configs {
+    model_line: "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"
+  }
+  max_stale_days: 3
+  time_zone: "UTC"
+}
+configs {
+  storage {
+    gcs {
+      bucket_name: "secure-computation-storage-dev-bucket"
+    }
+  }
+  edp_impression_path: "vid-labeled-impressions/edp/edpa_meta"
   model_line_configs {
     model_line: "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"
   }

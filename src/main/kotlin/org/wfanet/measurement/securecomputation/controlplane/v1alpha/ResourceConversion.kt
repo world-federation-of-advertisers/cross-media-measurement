@@ -51,6 +51,7 @@ fun InternalWorkItem.toWorkItem(): WorkItem {
     if (source.hasWorkItemParams()) {
       workItemParams = source.workItemParams
     }
+    serializationKey = source.serializationKey
     generation = source.generation.takeUnless { it == 0L } ?: 1L
     createTime = source.createTime
     updateTime = source.updateTime

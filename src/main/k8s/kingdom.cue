@@ -83,6 +83,7 @@ import ("strings")
 		"--direct-noise-mechanism=NONE",
 		"--direct-noise-mechanism=CONTINUOUS_LAPLACE",
 		"--direct-noise-mechanism=CONTINUOUS_GAUSSIAN",
+		"--direct-noise-mechanism=DETERMINISTIC_TRUNCATED_LAPLACE",
 	]
 
 	_kingdomCompletedMeasurementsTimeToLiveFlag:            "--time-to-live=\(_completedMeasurementsTimeToLive)"

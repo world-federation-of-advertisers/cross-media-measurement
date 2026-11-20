@@ -18,7 +18,10 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
 import java.time.Duration
 import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
+import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 
 /**
  * LabelerInput field path the Phase-2 TEE requires: the raw event-id column that feeds
@@ -96,4 +99,159 @@ fun requireValidMaxFileBatchSizeBytes(config: VidLabelingConfig) {
   require(config.maxFileBatchSizeBytes > 0) {
     "max_file_batch_size_bytes must be set (> 0) for data provider: ${config.dataProvider}"
   }
+}
+
+/** Validates labeled-output routing shared by VID labeling and availability synchronization. */
+object VidLabelingStorageConfigValidator {
+  fun validate(
+    dispatcherConfigs: VidLabelingConfigs,
+    monitorConfigs: VidLabelingConfigs,
+    dataAvailabilitySyncConfigs: DataAvailabilitySyncConfigs,
+    dataWatcherConfig: DataWatcherConfig,
+  ) {
+    val dispatcherRoutes = routesByDataProvider(dispatcherConfigs)
+    val monitorRoutes = routesByDataProvider(monitorConfigs)
+    require(dispatcherRoutes == monitorRoutes) {
+      "VID labeling dispatcher and monitor storage routes differ"
+    }
+
+    val syncConfigsByDataProvider =
+      dataAvailabilitySyncConfigs.configsList.associateBy { it.dataProvider }
+    require(syncConfigsByDataProvider.size == dataAvailabilitySyncConfigs.configsCount) {
+      "DataAvailabilitySync config contains duplicate data providers"
+    }
+
+    for (vidConfig in dispatcherConfigs.configsList) {
+      require(vidConfig.vidLabeledImpressionsStorageParams.hasGcs()) {
+        "VID-labeled impression storage must use GCS for ${vidConfig.dataProvider}"
+      }
+      requireValidPath(
+        vidConfig.edpImpressionPath,
+        "edp_impression_path",
+        "VID labeling",
+        vidConfig.dataProvider,
+      )
+      val syncConfig =
+        requireNotNull(syncConfigsByDataProvider[vidConfig.dataProvider]) {
+          "Missing DataAvailabilitySync config for ${vidConfig.dataProvider}"
+        }
+      require(syncConfig.dataAvailabilityStorage.hasGcs()) {
+        "DataAvailabilitySync storage must use GCS for ${vidConfig.dataProvider}"
+      }
+      requireValidPath(
+        syncConfig.edpImpressionPath,
+        "edp_impression_path",
+        "DataAvailabilitySync",
+        vidConfig.dataProvider,
+      )
+
+      val vidLabelingStorageRoot =
+        "gs://${vidConfig.vidLabeledImpressionsStorageParams.gcs.bucketName}"
+      val dataAvailabilityStorageRoot = "gs://${syncConfig.dataAvailabilityStorage.gcs.bucketName}"
+      require(vidLabelingStorageRoot == dataAvailabilityStorageRoot) {
+        "VID labeling and DataAvailabilitySync buckets differ for ${vidConfig.dataProvider}"
+      }
+      requireValidPath(
+        syncConfig.vidLabeledImpressionPath,
+        "vid_labeled_impression_path",
+        "DataAvailabilitySync",
+        vidConfig.dataProvider,
+      )
+      require(vidConfig.edpImpressionPath == syncConfig.vidLabeledImpressionPath) {
+        "VID labeling edp_impression_path and DataAvailabilitySync " +
+          "vid_labeled_impression_path differ for ${vidConfig.dataProvider}"
+      }
+
+      val labeledOutputPrefix = "$vidLabelingStorageRoot/${vidConfig.edpImpressionPath}/"
+      val externalOutputPrefix = "$dataAvailabilityStorageRoot/${syncConfig.edpImpressionPath}/"
+      require(
+        !labeledOutputPrefix.startsWith(externalOutputPrefix) &&
+          !externalOutputPrefix.startsWith(labeledOutputPrefix)
+      ) {
+        "External and VID-labeled impression paths overlap for ${vidConfig.dataProvider}"
+      }
+      require(
+        dataWatcherConfig.watchedPathsList.none { watchedPath ->
+          sourceRegexMayMatchPrefix(watchedPath.sourcePathRegex, labeledOutputPrefix)
+        }
+      ) {
+        "DataWatcher matches the VidLabeler-managed output path for ${vidConfig.dataProvider}"
+      }
+    }
+  }
+
+  private fun routesByDataProvider(configs: VidLabelingConfigs): Map<String, Pair<String, String>> {
+    val routes =
+      configs.configsList.associate { config ->
+        config.dataProvider to
+          (config.vidLabeledImpressionsStorageParams.gcs.bucketName to config.edpImpressionPath)
+      }
+    require(routes.size == configs.configsCount) {
+      "VidLabeling config contains duplicate data providers"
+    }
+    return routes
+  }
+
+  private fun requireValidPath(path: String, field: String, owner: String, dataProvider: String) {
+    require(path.isNotBlank()) { "$owner $field is missing for $dataProvider" }
+    require(path == path.trim('/')) {
+      "$owner $field must not start or end with '/' for $dataProvider"
+    }
+  }
+
+  /**
+   * Returns whether [sourcePathRegex] can match a path under [managedPrefix].
+   *
+   * The maximal literal prefix is a conservative proof boundary: disjoint literal prefixes prove
+   * that the languages cannot overlap, while an ancestor, descendant, or regex beginning before the
+   * paths diverge is rejected. This intentionally rejects ambiguous regexes instead of trying
+   * finitely many example paths.
+   */
+  private fun sourceRegexMayMatchPrefix(sourcePathRegex: String, managedPrefix: String): Boolean {
+    val sourceLiteralPrefix = maximalLiteralPrefix(sourcePathRegex)
+    return sourceLiteralPrefix.startsWith(managedPrefix) ||
+      managedPrefix.startsWith(sourceLiteralPrefix)
+  }
+
+  private fun maximalLiteralPrefix(regex: String): String {
+    if (hasUnescapedAlternation(regex)) return ""
+    val prefix = StringBuilder()
+    var index = if (regex.startsWith('^')) 1 else 0
+    while (index < regex.length) {
+      val character = regex[index]
+      when {
+        character == '\\' -> {
+          if (index + 1 >= regex.length) return prefix.toString()
+          val escaped = regex[index + 1]
+          if (escaped !in ESCAPED_LITERAL_CHARACTERS) return prefix.toString()
+          prefix.append(escaped)
+          index += 2
+        }
+        character in REGEX_QUANTIFIERS -> {
+          if (prefix.isNotEmpty()) prefix.deleteCharAt(prefix.lastIndex)
+          return prefix.toString()
+        }
+        character in REGEX_META_CHARACTERS -> return prefix.toString()
+        else -> {
+          prefix.append(character)
+          index++
+        }
+      }
+    }
+    return prefix.toString()
+  }
+
+  private fun hasUnescapedAlternation(regex: String): Boolean {
+    var precedingBackslashes = 0
+    for (character in regex) {
+      if (character == '|' && precedingBackslashes % 2 == 0) return true
+      precedingBackslashes = if (character == '\\') precedingBackslashes + 1 else 0
+    }
+    return false
+  }
+
+  private val ESCAPED_LITERAL_CHARACTERS =
+    setOf('\\', '.', '^', '$', '|', '?', '*', '+', '(', ')', '[', ']', '{', '}')
+  private val REGEX_QUANTIFIERS = setOf('?', '*', '+', '{')
+  private val REGEX_META_CHARACTERS = setOf('.', '^', '$', '|', '(', ')', '[', ']', '}')
 }

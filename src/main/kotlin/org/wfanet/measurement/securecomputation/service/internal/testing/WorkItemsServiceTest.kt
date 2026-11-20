@@ -203,6 +203,7 @@ abstract class WorkItemsServiceTest {
       workItemResourceId = workItemId
       queueResourceId = topicId
       workItemParams = Any.pack(testWork { userName = "UserName" })
+      serializationKey = "data-availability:dataProviders/provider-1"
     }
 
     val ensured = services.service.ensureWorkItem(ensureWorkItemRequest { workItem = requested })
@@ -295,6 +296,31 @@ abstract class WorkItemsServiceTest {
             workItem =
               created.copy {
                 workItemParams = Any.pack(testWork { userName = "DifferentUser" })
+                clearState()
+                clearGeneration()
+                clearCreateTime()
+                clearUpdateTime()
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.WORK_ITEM_ALREADY_EXISTS.name)
+  }
+
+  @Test
+  fun `ensureWorkItem rejects conflicting serialization key`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.ensureWorkItem(
+          ensureWorkItemRequest {
+            workItem =
+              created.copy {
+                serializationKey = "data-availability:dataProviders/provider-1"
                 clearState()
                 clearGeneration()
                 clearCreateTime()

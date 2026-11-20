@@ -28,3 +28,10 @@ queueInfos {
   max_work_item_attempts: 5
   dead_letter_queue_resource_id: "vid-labeler-queue-dlq"
 }
+
+queueInfos {
+  queue_resource_id: "data-availability-sync-queue"
+  app_params_type_url: "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams"
+  max_work_item_attempts: 100
+  dead_letter_queue_resource_id: "data-availability-sync-queue-dlq"
+}

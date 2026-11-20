@@ -42,6 +42,9 @@ message VidRankBuilderParams {
   // DEK needed by the ranker to decrypt the per-subpool
   // `SubpoolFingerprints` blobs produced by Phase-0. The same DEK applies
   // to every blob referenced in [subpool_map_blob_uris].
+  // (-- api-linter: core::0215::foreign-type-reference=disabled
+  //     aip.dev/not-precedent: Shared encryption key schema used by
+  //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek
       encrypted_subpool_maps_dek = 2 [(google.api.field_behavior) = REQUIRED];
 
@@ -248,4 +251,13 @@ message VidRankBuilderParams {
   // rejects a WorkItem without it, so an omission here is a dispatch bug that
   // would otherwise only surface as a crash-looping TEE.
   string population_spec_blob_uri = 25 [(google.api.field_behavior) = REQUIRED];
+
+  // Earlier uploads in the same healing operation whose durable rank snapshots
+  // may be consumed before availability synchronization completes. Forwarded
+  // from `SubpoolAssignerParams`; empty for ordinary dispatches.
+  repeated string allowed_prior_snapshot_raw_impression_uploads = 26 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/RawImpressionUpload"
+  ];
 }

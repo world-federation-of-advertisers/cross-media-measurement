@@ -170,11 +170,11 @@ message Computation {
       // prime256v1 curve.
       int32 elliptic_curve_id = 3 [(google.api.field_behavior) = REQUIRED];
 
-      // The maximum frequency to reveal in the histogram. For reach-only liquid
-      // legions protocol, this field should be ignored.
-      //
       // Deprecated: Specified in MeasurementSpec instead except for legacy
       // Computations.
+      //
+      // The maximum frequency to reveal in the histogram. For reach-only liquid
+      // legions protocol, this field should be ignored.
       int32 maximum_frequency = 4 [deprecated = true];
 
       // The mechanism to generate noise during computation.

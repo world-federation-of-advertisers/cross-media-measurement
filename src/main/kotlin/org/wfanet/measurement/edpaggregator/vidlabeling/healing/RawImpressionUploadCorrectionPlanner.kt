@@ -121,6 +121,10 @@ class RawImpressionUploadCorrectionPlanner(
       return uploadHealingOperation {
         dataProviderResourceId = dataProviderKey.dataProviderId
         uploadHealingOperationId = operationId
+        planFormatVersion = PLAN_FORMAT_VERSION
+        outputManifestState =
+          UploadHealingOperation.OutputManifestState
+            .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
         state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
         reason = OUT_OF_RETENTION_REASON
         labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix
@@ -140,6 +144,9 @@ class RawImpressionUploadCorrectionPlanner(
     return uploadHealingOperation {
       dataProviderResourceId = dataProviderKey.dataProviderId
       uploadHealingOperationId = operationId
+      planFormatVersion = PLAN_FORMAT_VERSION
+      outputManifestState =
+        UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
       state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
       reason = DEFAULT_REASON
       labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix
@@ -214,6 +221,7 @@ class RawImpressionUploadCorrectionPlanner(
     }
 
   companion object {
+    const val PLAN_FORMAT_VERSION = 2
     private const val DEFAULT_REASON = "Raw-impression upload correction"
     private const val OUT_OF_RETENTION_REASON =
       "Affected upload is outside the healing retention window"

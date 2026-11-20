@@ -31,6 +31,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.security.MessageDigest
+import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
@@ -38,7 +39,9 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -49,9 +52,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
-
-private class HttpEndpointResponseException(val statusCode: Int, message: String) :
-  IllegalStateException(message)
 
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
@@ -67,6 +67,7 @@ class DataWatcher(
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
   private val meter: Meter = Instrumentation.meter,
+  private val controlPlaneThrottler: Throttler? = null,
 ) {
   private val metrics =
     DataWatcherMetrics(meter = meter, sinkTypeKey = ATTR_SINK_TYPE_KEY, queueKey = ATTR_QUEUE_KEY)
@@ -128,7 +129,7 @@ class DataWatcher(
       val isRetryable =
         e is IOException ||
           e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES ||
-          (e is HttpEndpointResponseException && isRetryableHttpStatusCode(e.statusCode))
+          DataWatcherRetryPolicy.isRetryableHttpFailure(e)
       onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
@@ -149,13 +150,29 @@ class DataWatcher(
     objectMetadata: Map<String, String>,
   ) {
     val queueConfig = config.controlPlaneQueueSink
-    val objectGeneration = objectMetadata[GENERATION_METADATA_KEY].orEmpty()
+    val objectGeneration =
+      objectMetadata[GENERATION_METADATA_KEY]?.toLongOrNull()?.takeIf { it > 0L }
+        ?: throw IllegalArgumentException("Missing or invalid source object generation")
+    val objectCreateTime =
+      objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
+        ?: throw IllegalArgumentException("Missing source object creation time")
+    val storageEventType =
+      when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
+        FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+        DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
+        else -> throw IllegalArgumentException("Missing or invalid storage event type")
+      }
     val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
-          this.dataPathParams = dataPathParams { this.dataPath = path }
+          this.dataPathParams = dataPathParams {
+            this.dataPath = path
+            generation = objectGeneration
+            createTime = objectCreateTime.toProtoTime()
+            eventType = storageEventType
+          }
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
@@ -178,13 +195,20 @@ class DataWatcher(
     onQueueWrite(config, path, queueConfig.queue, workItemId)
   }
 
+  private suspend fun <T> callControlPlane(block: suspend () -> T): T {
+    val throttler = controlPlaneThrottler
+    return if (throttler == null) block() else throttler.onReady(block)
+  }
+
   private suspend fun ensureWorkItem(workItemId: String, workItem: WorkItem) {
-    workItemsStub.ensureWorkItem(
-      ensureWorkItemRequest {
-        this.workItemId = workItemId
-        this.workItem = workItem
-      }
-    )
+    callControlPlane {
+      workItemsStub.ensureWorkItem(
+        ensureWorkItemRequest {
+          this.workItemId = workItemId
+          this.workItem = workItem
+        }
+      )
+    }
   }
 
   private suspend fun ensureWorkItemWithStoredTraceContext(
@@ -209,12 +233,14 @@ class DataWatcher(
 
   private suspend fun createWorkItemWithLegacyApi(workItemId: String, requestedWorkItem: WorkItem) {
     try {
-      workItemsStub.createWorkItem(
-        createWorkItemRequest {
-          this.workItemId = workItemId
-          workItem = requestedWorkItem
-        }
-      )
+      callControlPlane {
+        workItemsStub.createWorkItem(
+          createWorkItemRequest {
+            this.workItemId = workItemId
+            workItem = requestedWorkItem
+          }
+        )
+      }
     } catch (e: Exception) {
       if (e.grpcStatusCode() != Status.Code.ALREADY_EXISTS) {
         throw e
@@ -227,7 +253,9 @@ class DataWatcher(
     workItemId: String,
     requestedWorkItem: WorkItem,
   ): Any {
-    val existing = workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    val existing = callControlPlane {
+      workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    }
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
@@ -303,7 +331,7 @@ class DataWatcher(
     val response = client.send(request, BodyHandlers.ofString())
     val statusCode = response.statusCode()
     if (statusCode != 200) {
-      throw HttpEndpointResponseException(
+      throw DataWatcherHttpException(
         statusCode,
         "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode",
       )
@@ -415,11 +443,6 @@ class DataWatcher(
         Status.Code.UNAVAILABLE,
       )
 
-    private fun isRetryableHttpStatusCode(statusCode: Int): Boolean =
-      statusCode in RETRYABLE_HTTP_STATUS_CODES
-
-    private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 502, 503, 504)
-
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
     private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
@@ -432,6 +455,10 @@ class DataWatcher(
      * under this key surviving.
      */
     const val GENERATION_METADATA_KEY: String = "__datawatcher_object_generation__"
+    const val CREATE_TIME_METADATA_KEY: String = "__datawatcher_object_create_time__"
+    const val EVENT_TYPE_METADATA_KEY: String = "__datawatcher_storage_event_type__"
+    const val FINALIZED_EVENT_TYPE: String = "google.cloud.storage.object.v1.finalized"
+    const val DELETED_EVENT_TYPE: String = "google.cloud.storage.object.v1.deleted"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
 

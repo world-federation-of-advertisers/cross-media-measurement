@@ -79,6 +79,13 @@ class RawImpressionUploadCorrectionPlannerTest {
       assertThat(plannedBadUploads).containsExactly(D2, D4).inOrder()
       assertThat(operation.state)
         .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED)
+      assertThat(operation.planFormatVersion)
+        .isEqualTo(RawImpressionUploadCorrectionPlanner.PLAN_FORMAT_VERSION)
+      assertThat(operation.outputManifestState)
+        .isEqualTo(
+          UploadHealingOperation.OutputManifestState
+            .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_PROVISIONAL
+        )
       assertThat(operation.rawImpressionUploadCorrectionCandidateIdsList)
         .containsExactly("candidate-d2", "candidate-d4")
         .inOrder()

@@ -113,6 +113,7 @@ class SubpoolRankerTest {
     upload: String = UPLOAD,
     metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    allowedPriorSnapshotRawImpressionUploads: Set<String> = emptySet(),
   ): SubpoolRanker {
     val retention =
       SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY, rpcThrottlers)
@@ -125,6 +126,7 @@ class SubpoolRankerTest {
       dataProvider = DP,
       rawImpressionUpload = upload,
       modelLine = MODEL_LINE,
+      allowedPriorSnapshotRawImpressionUploads = allowedPriorSnapshotRawImpressionUploads,
       vidRankMapBlobPrefix = PREFIX,
       kekUri = kekUri,
       encryptedSubpoolMapsDek = subpoolDek,
@@ -372,6 +374,92 @@ class SubpoolRankerTest {
       ranker().rank(POOL, key, rankedSize = 100)
 
       assertThat(readSnapshot().keys).containsExactly(10L to 0)
+    }
+
+  @Test
+  fun `ordinary ranking ignores an availability-syncing snapshot`() =
+    runBlocking<Unit> {
+      val availabilitySyncingUpload = "dataProviders/dp/rawImpressionUploads/healing"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90)),
+        uploadName = PRIOR_UPLOAD,
+        createTimeSeconds = 1L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(20L to 0, 1, 90)),
+        uploadName = availabilitySyncingUpload,
+        createTimeSeconds = 2L,
+      )
+      modelLineStates[availabilitySyncingUpload] =
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      val key = writePhase0(listOf(30L to 0))
+
+      ranker().rank(POOL, key, rankedSize = 100)
+
+      assertThat(readSnapshot().keys).containsExactly(10L to 0, 30L to 0)
+    }
+
+  @Test
+  fun `healing cascade consumes the approved availability-syncing predecessor`() =
+    runBlocking<Unit> {
+      val correctedUpload = "dataProviders/dp/rawImpressionUploads/corrected-day-2"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90)),
+        uploadName = PRIOR_UPLOAD,
+        createTimeSeconds = 1L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90), Triple(20L to 0, 1, 90)),
+        uploadName = correctedUpload,
+        createTimeSeconds = 2L,
+      )
+      modelLineStates[correctedUpload] = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      val key = writePhase0(listOf(30L to 0))
+
+      val result =
+        ranker(allowedPriorSnapshotRawImpressionUploads = setOf(correctedUpload))
+          .rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.priorSnapshotName).isEqualTo("$correctedUpload/rankIndexBlobs/snap-2")
+      val rebuilt = readSnapshot()
+      assertThat(rebuilt.keys).containsExactly(10L to 0, 20L to 0, 30L to 0)
+      assertThat(rebuilt.getValue(20L to 0).first).isEqualTo(1)
+      assertThat(rebuilt.values.map { it.first }.toSet()).hasSize(3)
+    }
+
+  @Test
+  fun `healing backfill consumes an approved availability-syncing old snapshot`() =
+    runBlocking<Unit> {
+      val correctedUpload = "dataProviders/dp/rawImpressionUploads/corrected-day-70"
+      val latestUpload = "dataProviders/dp/rawImpressionUploads/day-100"
+      seedPriorSnapshot(
+        listOf(Triple(20L to 0, 1, 70)),
+        uploadName = correctedUpload,
+        createTimeSeconds = 1L,
+        maxEventDate = epochDayToDate(70),
+      )
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 100)),
+        uploadName = latestUpload,
+        createTimeSeconds = 2L,
+        maxEventDate = epochDayToDate(100),
+      )
+      modelLineStates[correctedUpload] = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+      val key = writePhase0(listOf(20L to 0))
+
+      val result =
+        ranker(
+            maxEventDate = epochDayToDate(80),
+            allowedPriorSnapshotRawImpressionUploads = setOf(correctedUpload),
+          )
+          .rank(POOL, key, rankedSize = 100)
+
+      assertThat(result.backfill).isTrue()
+      assertThat(result.backfillSnapshotName).isEqualTo("$correctedUpload/rankIndexBlobs/snap-1")
+      val rebuilt = readSnapshot()
+      assertThat(rebuilt.keys).containsExactly(10L to 0, 20L to 0)
+      assertThat(rebuilt.getValue(20L to 0).first).isEqualTo(1)
+      assertThat(rebuilt.values.map { it.first }.toSet()).hasSize(2)
     }
 
   @Test

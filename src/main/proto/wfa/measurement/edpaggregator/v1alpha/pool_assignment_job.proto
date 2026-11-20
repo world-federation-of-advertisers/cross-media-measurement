@@ -87,6 +87,9 @@ message PoolAssignmentJob {
   // The DEK used to encrypt every per-(shard, subpool) `SubpoolFingerprints`
   // blob written by this shard's VM. Populated when the job is marked
   // `SUCCEEDED`; read by the last-shard-out to decrypt this shard's blobs.
+  // (-- api-linter: core::0215::foreign-type-reference=disabled
+  //     aip.dev/not-precedent: Shared encryption key schema used by
+  //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 9
       [(google.api.field_behavior) = OUTPUT_ONLY];
 }

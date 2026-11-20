@@ -24,9 +24,8 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.Requisition.Refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
 
@@ -48,11 +47,9 @@ class InvalidRequisitionException(
 class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) {
   fun validateMeasurementSpec(requisition: Requisition): MeasurementSpec {
     return try {
-      val measurementSpec: MeasurementSpec = requisition.measurementSpec.unpack()
+      val measurementSpec: MeasurementSpec = RequisitionSpecs.readMeasurementSpec(requisition)
 
-      if (
-        requisition.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.report.isBlank()
-      ) {
+      if (measurementSpec.reportingMetadata.report.isBlank()) {
         throw InvalidRequisitionException(
           listOf(requisition),
           refusal {
@@ -73,12 +70,21 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
         },
         e,
       )
+    } catch (e: IllegalArgumentException) {
+      logger.severe("Invalid measurement spec for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.SPEC_INVALID
+          message = "Invalid MeasurementSpec"
+        },
+        e,
+      )
     }
   }
 
   fun getRequisitionSpec(requisition: Requisition): RequisitionSpec {
-    return decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-      .unpack()
+    return RequisitionSpecs.readRequisitionSpec(requisition, privateEncryptionKey)
   }
 
   fun validateRequisitionSpec(requisition: Requisition): RequisitionSpec {
@@ -101,6 +107,16 @@ class RequisitionsValidator(private val privateEncryptionKey: PrivateKeyHandle) 
         refusal {
           justification = Refusal.Justification.SPEC_INVALID
           message = "Unable to parse RequisitionSpec"
+        },
+        e,
+      )
+    } catch (e: IllegalArgumentException) {
+      logger.severe("Invalid requisition spec for ${requisition.name}: ${e.message}")
+      throw InvalidRequisitionException(
+        listOf(requisition),
+        refusal {
+          justification = Refusal.Justification.SPEC_INVALID
+          message = "Invalid RequisitionSpec"
         },
         e,
       )

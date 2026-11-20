@@ -165,6 +165,7 @@ class InvokeDataWatcherFunctionTest() {
         "metageneration": "1",
         "name": "control-plane-sink-path-to-watch/some-blob",
         "size": "352",
+        "generation": "42",
         "storageClass": "MULTI_REGIONAL",
         "timeCreated": "2020-04-23T07:38:57.230Z",
         "timeStorageClassUpdated": "2020-04-23T07:38:57.230Z",

@@ -402,12 +402,14 @@ class VidLabelingDispatchSequencerTest {
     createdAt: Instant,
     registrationComplete: Boolean = true,
     processingDeferred: Boolean = false,
+    uploadHealingOperation: String = "",
   ) = rawImpressionUpload {
     name = "$DATA_PROVIDER/rawImpressionUploads/$id"
     this.state = state
     createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
     this.registrationComplete = registrationComplete
     this.processingDeferred = processingDeferred
+    this.uploadHealingOperation = uploadHealingOperation
   }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
@@ -712,6 +714,74 @@ class VidLabelingDispatchSequencerTest {
         // Same for the PopulationSpec: Phase-2 rejects a WorkItem without it, so dropping it here
         // would strand the memoized fan-out on a crash-looping VidLabeler.
         assertThat(params.populationSpecBlobUri).isEqualTo(POPULATION_SPEC_BLOB_URI)
+      }
+    }
+
+  @Test
+  fun `dispatchNext authorizes earlier same-operation snapshots for memoized recovery`() =
+    runBlocking<Unit> {
+      val operation = "$DATA_PROVIDER/uploadHealingOperations/healing"
+      val predecessor1 =
+        upload(
+          "corrected-day-2",
+          RawImpressionUpload.State.ACTIVE,
+          FIXED_NOW,
+          uploadHealingOperation = operation,
+        )
+      val predecessor2 =
+        upload(
+          "rebuilt-day-3",
+          RawImpressionUpload.State.ACTIVE,
+          FIXED_NOW.plusSeconds(1),
+          uploadHealingOperation = operation,
+        )
+      val candidate =
+        upload(
+          "corrected-day-4",
+          RawImpressionUpload.State.CREATED,
+          FIXED_NOW.plusSeconds(2),
+          uploadHealingOperation = operation,
+        )
+      stubUploads(active = listOf(predecessor1, predecessor2), created = listOf(candidate))
+      stubModelLinesByParent(
+        mapOf(
+          predecessor1.name to
+            listOf(
+              modelLine(
+                predecessor1.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          predecessor2.name to
+            listOf(
+              modelLine(
+                predecessor2.name,
+                MODEL_LINE,
+                RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+              )
+            ),
+          candidate.name to
+            listOf(
+              modelLine(candidate.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)
+            ),
+        )
+      )
+      stubMemoizedDispatch()
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      for (request in captor.allValues) {
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.allowedPriorSnapshotRawImpressionUploadsList)
+          .containsExactly(predecessor1.name, predecessor2.name)
+          .inOrder()
       }
     }
 

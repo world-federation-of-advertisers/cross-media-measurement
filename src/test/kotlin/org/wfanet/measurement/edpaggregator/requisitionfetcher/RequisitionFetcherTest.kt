@@ -364,7 +364,6 @@ class RequisitionFetcherTest {
 
   private fun createFetcher(
     storageClient: StorageClient = this.storageClient,
-    storagePathPrefix: String = STORAGE_PATH_PREFIX,
     metrics: RequisitionFetcherMetrics = testMetrics,
     flushInterval: Duration = RequisitionFetcher.DEFAULT_FLUSH_INTERVAL,
     maxTotalBufferedBytes: Long = RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
@@ -392,7 +391,6 @@ class RequisitionFetcherTest {
       requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = TestRequisitionData.EDP_NAME,
-      storagePathPrefix = storagePathPrefix,
       directStoragePathPrefix = directStoragePathPrefix,
       blobUriPrefix = BLOB_URI_PREFIX,
       requisitionValidator = validator,
@@ -416,8 +414,6 @@ class RequisitionFetcherTest {
       resultsFulfillerParams = resultsFulfillerParams {},
       controlPlaneThrottler = throttler,
     )
-
-  private fun blobsDir() = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
 
   private fun directBlobsDir() =
     tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile()
@@ -1034,33 +1030,6 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `constructor rejects direct storage prefix below legacy prefix`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        createFetcher(
-          workItemDispatcher = mock(),
-          directStoragePathPrefix = "$STORAGE_PATH_PREFIX/v2",
-        )
-      }
-
-    assertThat(error).hasMessageThat().contains("must not overlap")
-  }
-
-  @Test
-  fun `constructor rejects legacy storage prefix below direct prefix`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        createFetcher(
-          storagePathPrefix = "$DIRECT_STORAGE_PATH_PREFIX/legacy",
-          workItemDispatcher = mock(),
-          directStoragePathPrefix = DIRECT_STORAGE_PATH_PREFIX,
-        )
-      }
-
-    assertThat(error).hasMessageThat().contains("must not overlap")
-  }
-
-  @Test
   fun `storage namespaces reject cross-provider overlap in shared storage`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
@@ -1071,20 +1040,20 @@ class RequisitionFetcherTest {
               "provider-a/direct",
               "provider A direct",
             ),
-            StoragePathPrefixes.Namespace("gs://shared-bucket", "provider-a", "provider B legacy"),
+            StoragePathPrefixes.Namespace("gs://shared-bucket", "provider-a", "provider B direct"),
           )
         )
       }
 
-    assertThat(error).hasMessageThat().contains("provider A direct and provider B legacy")
+    assertThat(error).hasMessageThat().contains("provider A direct and provider B direct")
   }
 
   @Test
   fun `storage namespaces allow same path in separate storage`() {
     StoragePathPrefixes.requireDisjoint(
       listOf(
-        StoragePathPrefixes.Namespace("gs://bucket-a", "requisitions", "provider A legacy"),
-        StoragePathPrefixes.Namespace("gs://bucket-b", "requisitions", "provider B legacy"),
+        StoragePathPrefixes.Namespace("gs://bucket-a", "requisitions", "provider A direct"),
+        StoragePathPrefixes.Namespace("gs://bucket-b", "requisitions", "provider B direct"),
       )
     )
   }
@@ -1127,7 +1096,6 @@ class RequisitionFetcherTest {
     assertThat(dispatchedGroupId).isEqualTo(groupId)
     assertThat(dispatchedBlobUri).isEqualTo("$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$groupId")
     assertThat(directBlobsDir().listFiles().orEmpty()).hasLength(1)
-    assertThat(blobsDir().listFiles().orEmpty()).isEmpty()
     assertThat(allMetadataQueuedBeforeDispatch).isTrue()
     val dispatchSpan =
       spanExporter.finishedSpanItems.single {
@@ -1246,139 +1214,6 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `legacy group remains DataWatcher owned when direct dispatch is enabled`() = runBlocking {
-    val groupId = "legacy-group-id"
-    storageClient.writeBlob("$STORAGE_PATH_PREFIX/$groupId", ByteString.EMPTY)
-    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
-      .thenReturn(
-        listRequisitionMetadataResponse {
-          requisitionMetadata += requisitionMetadata {
-            state = RequisitionMetadata.State.STORED
-            cmmsRequisition = TestRequisitionData.REQUISITION.name
-            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
-            blobTypeUrl = "type.googleapis.com/test"
-            this.groupId = groupId
-            report = "some-report"
-          }
-        }
-      )
-    var dispatchCalled = false
-    val dispatcher =
-      object : RequisitionWorkItemDispatcher {
-        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
-
-        override suspend fun dispatch(groupId: String, blobUri: String) {
-          dispatchCalled = true
-        }
-      }
-
-    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
-
-    assertThat(dispatchCalled).isFalse()
-    assertThat(queueRequisitionMetadataRequests).isEmpty()
-  }
-
-  @Test
-  fun `legacy STORED group rebuilds missing blob without direct dispatch`() = runBlocking {
-    val groupId = "legacy-stored-missing-blob"
-    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
-      .thenReturn(
-        listRequisitionMetadataResponse {
-          requisitionMetadata += requisitionMetadata {
-            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stored"
-            state = RequisitionMetadata.State.STORED
-            cmmsRequisition = TestRequisitionData.REQUISITION.name
-            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
-            this.groupId = groupId
-            report = "some-report"
-          }
-        }
-      )
-    var dispatchCalled = false
-    val dispatcher =
-      object : RequisitionWorkItemDispatcher {
-        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
-
-        override suspend fun dispatch(groupId: String, blobUri: String) {
-          dispatchCalled = true
-        }
-      }
-
-    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
-
-    assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/$groupId")).isNotNull()
-    assertThat(dispatchCalled).isFalse()
-    assertThat(queueRequisitionMetadataRequests).isEmpty()
-    assertThat(directBlobsDir().listFiles().orEmpty()).isEmpty()
-  }
-
-  @Test
-  fun `legacy PROCESSING group is not rebuilt and new requisition is directly dispatched`() =
-    runBlocking {
-      val groupId = "legacy-processing-group"
-      val storedRequisition =
-        TestRequisitionData.REQUISITION.copy {
-          name = "${TestRequisitionData.EDP_NAME}/requisitions/stored"
-        }
-      val processingRequisition =
-        TestRequisitionData.REQUISITION.copy {
-          name = "${TestRequisitionData.EDP_NAME}/requisitions/processing"
-        }
-      val newRequisition =
-        TestRequisitionData.REQUISITION.copy {
-          name = "${TestRequisitionData.EDP_NAME}/requisitions/new"
-        }
-      whenever(requisitionsServiceMock.listRequisitions(any()))
-        .thenReturn(
-          listRequisitionsResponse {
-            requisitions += listOf(storedRequisition, processingRequisition, newRequisition)
-          }
-        )
-      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
-        .thenReturn(
-          listRequisitionMetadataResponse {
-            requisitionMetadata += requisitionMetadata {
-              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stored"
-              state = RequisitionMetadata.State.STORED
-              cmmsRequisition = storedRequisition.name
-              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
-              this.groupId = groupId
-              report = "some-report"
-            }
-            requisitionMetadata += requisitionMetadata {
-              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/processing"
-              state = RequisitionMetadata.State.PROCESSING
-              cmmsRequisition = processingRequisition.name
-              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
-              this.groupId = groupId
-              report = "some-report"
-            }
-          }
-        )
-      val dispatchedGroups = mutableListOf<String>()
-      val dispatcher =
-        object : RequisitionWorkItemDispatcher {
-          override fun workItemName(groupId: String): String =
-            "workItems/results-fulfiller-$groupId"
-
-          override suspend fun dispatch(groupId: String, blobUri: String) {
-            dispatchedGroups += groupId
-          }
-        }
-
-      createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
-
-      assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/$groupId")).isNull()
-      assertThat(queueRequisitionMetadataRequests).isEmpty()
-      assertThat(registerQueuedRequisitionMetadataRequests).hasSize(1)
-      assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
-        .containsExactly(newRequisition.name)
-      assertThat(dispatchedGroups).hasSize(1)
-      assertThat(dispatchedGroups).doesNotContain(groupId)
-      assertThat(directBlobsDir().listFiles().orEmpty()).hasLength(1)
-    }
-
-  @Test
   fun `direct PROCESSING group rejects empty and conflicting WorkItem references`() = runBlocking {
     val groupId = "direct-processing-invalid-work-item"
     val expectedWorkItem = "workItems/results-fulfiller-$groupId"
@@ -1418,8 +1253,8 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `invalid legacy group does not block new direct dispatch`() = runBlocking {
-    val groupId = "legacy-invalid-ownership"
+  fun `group outside direct namespace does not block new direct dispatch`() = runBlocking {
+    val groupId = "outside-direct-namespace"
     val existingRequisition =
       TestRequisitionData.REQUISITION.copy {
         name = "${TestRequisitionData.EDP_NAME}/requisitions/existing"
@@ -1452,10 +1287,10 @@ class RequisitionFetcherTest {
         .thenReturn(
           listRequisitionMetadataResponse {
             requisitionMetadata += requisitionMetadata {
-              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/legacy"
+              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/outside"
               this.state = state
               cmmsRequisition = existingRequisition.name
-              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+              blobUri = "$BLOB_URI_PREFIX/$OTHER_STORAGE_PATH_PREFIX/$groupId"
               this.groupId = groupId
               report = "some-report"
               this.workItem = workItem
@@ -1562,7 +1397,6 @@ class RequisitionFetcherTest {
     createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
 
     assertThat(storageClient.getBlob("$DIRECT_STORAGE_PATH_PREFIX/$groupId")).isNotNull()
-    assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/$groupId")).isNull()
     assertThat(dispatchedBlobUri).isEqualTo(recordedBlobUri)
   }
 
@@ -1608,7 +1442,6 @@ class RequisitionFetcherTest {
     assertThat(registerQueuedRequisitionMetadataRequests).hasSize(1)
     assertThat(dispatchAttempts).isEqualTo(2)
     assertThat(directBlobsDir().listFiles().orEmpty()).hasLength(1)
-    assertThat(blobsDir().listFiles().orEmpty()).isEmpty()
   }
 
   @Test
@@ -2379,7 +2212,7 @@ class RequisitionFetcherTest {
           requisitionMetadata += requisitionMetadata {
             state = RequisitionMetadata.State.STORED
             cmmsRequisition = TestRequisitionData.REQUISITION.name
-            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/recovered-group-id"
+            blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/recovered-group-id"
             blobTypeUrl = "type"
             groupId = "recovered-group-id"
             report = "some-report"
@@ -2389,7 +2222,7 @@ class RequisitionFetcherTest {
 
     createFetcher().fetchAndStoreRequisitions()
 
-    val recoveredBlob = storageClient.getBlob("$STORAGE_PATH_PREFIX/recovered-group-id")
+    val recoveredBlob = storageClient.getBlob("$DIRECT_STORAGE_PATH_PREFIX/recovered-group-id")
     assertThat(recoveredBlob).isNotNull()
     val parsed =
       Any.parseFrom(recoveredBlob!!.read().flatten()).unpack(GroupedRequisitions::class.java)
@@ -2414,7 +2247,7 @@ class RequisitionFetcherTest {
           requisitionMetadata += requisitionMetadata {
             state = RequisitionMetadata.State.FULFILLED
             cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/already-fulfilled"
-            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+            blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$groupId"
             blobTypeUrl = "type"
             this.groupId = groupId
             report = "some-report"
@@ -2422,7 +2255,7 @@ class RequisitionFetcherTest {
           requisitionMetadata += requisitionMetadata {
             state = RequisitionMetadata.State.STORED
             cmmsRequisition = TestRequisitionData.REQUISITION.name
-            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+            blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$groupId"
             blobTypeUrl = "type"
             this.groupId = groupId
             report = "some-report"
@@ -2432,7 +2265,7 @@ class RequisitionFetcherTest {
 
     createFetcher().fetchAndStoreRequisitions()
 
-    val recoveredBlob = storageClient.getBlob("$STORAGE_PATH_PREFIX/$groupId")
+    val recoveredBlob = storageClient.getBlob("$DIRECT_STORAGE_PATH_PREFIX/$groupId")
     assertThat(recoveredBlob).isNotNull()
     val parsed =
       Any.parseFrom(recoveredBlob!!.read().flatten()).unpack(GroupedRequisitions::class.java)
@@ -2582,7 +2415,7 @@ class RequisitionFetcherTest {
   fun `existing blob is not rewritten and metadata for that requisition is skipped`() =
     runBlocking {
       val existingGroupId = "existing-group-id"
-      val existingBlobKey = "$STORAGE_PATH_PREFIX/$existingGroupId"
+      val existingBlobKey = "$DIRECT_STORAGE_PATH_PREFIX/$existingGroupId"
       storageClient.writeBlob(
         existingBlobKey,
         Any.pack(GroupedRequisitions.getDefaultInstance()).toByteString(),
@@ -2611,27 +2444,26 @@ class RequisitionFetcherTest {
     }
 
   @Test
-  fun `requisitions already registered in any metadata state are not re-registered`() =
-    runBlocking {
-      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
-        .thenReturn(
-          listRequisitionMetadataResponse {
-            requisitionMetadata += requisitionMetadata {
-              state = RequisitionMetadata.State.QUEUED
-              cmmsRequisition = TestRequisitionData.REQUISITION.name
-              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/queued"
-              blobTypeUrl = "type"
-              groupId = "queued"
-              report = "some-report"
-            }
+  fun `terminal requisition metadata is not re-registered`() = runBlocking {
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.FULFILLED
+            cmmsRequisition = TestRequisitionData.REQUISITION.name
+            blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/fulfilled"
+            blobTypeUrl = "type"
+            groupId = "fulfilled"
+            report = "some-report"
           }
-        )
+        }
+      )
 
-      createFetcher().fetchAndStoreRequisitions()
+    createFetcher().fetchAndStoreRequisitions()
 
-      assertThat(createRequisitionMetadataRequests).isEmpty()
-      assertThat(blobsList()).isEmpty()
-    }
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+    assertThat(blobsList()).isEmpty()
+  }
 
   @Test
   fun `mixed model lines for one report refuses all requisitions`() = runBlocking {
@@ -3197,13 +3029,13 @@ class RequisitionFetcherTest {
               requisitionMetadata {
                 cmmsRequisition = r1.name
                 groupId = "group-A"
-                blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/group-A"
+                blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/group-A"
                 state = RequisitionMetadata.State.STORED
               },
               requisitionMetadata {
                 cmmsRequisition = r2.name
                 groupId = "group-B"
-                blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/group-B"
+                blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/group-B"
                 state = RequisitionMetadata.State.STORED
               },
             )
@@ -3212,7 +3044,7 @@ class RequisitionFetcherTest {
 
     createFetcher().fetchAndStoreRequisitions()
 
-    val writtenBlobNames = blobsDir().listFiles().orEmpty().map { it.name }.toSet()
+    val writtenBlobNames = blobsList().map { it.name }.toSet()
     assertThat(writtenBlobNames).containsExactly("group-A", "group-B")
     assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(2)
   }
@@ -3387,7 +3219,7 @@ class RequisitionFetcherTest {
   fun `STORED recovery rebuilds a missing blob when all expected reqs arrive in one unit`() =
     runBlocking {
       val groupId = "wedged-group-id"
-      val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+      val blobKey = "$DIRECT_STORAGE_PATH_PREFIX/$groupId"
       val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
       val r2 =
         TestRequisitionData.REQUISITION.copy {
@@ -3435,7 +3267,7 @@ class RequisitionFetcherTest {
   @Test
   fun `recovery skipped and metric incremented when stream lacks required reqs`() = runBlocking {
     val groupId = "incomplete-group-id"
-    val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+    val blobKey = "$DIRECT_STORAGE_PATH_PREFIX/$groupId"
     val present = TestRequisitionData.REQUISITION
     val missingName = "${TestRequisitionData.EDP_NAME}/requisitions/missing"
     whenever(requisitionsServiceMock.listRequisitions(any()))
@@ -3580,7 +3412,7 @@ class RequisitionFetcherTest {
   fun `recovery counter increments when zero matching requisitions arrive for a STORED group`() =
     runBlocking {
       val groupId = "fully-orphaned-group"
-      val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+      val blobKey = "$DIRECT_STORAGE_PATH_PREFIX/$groupId"
       val unrelated =
         TestRequisitionData.REQUISITION.copy {
           name = "${TestRequisitionData.EDP_NAME}/requisitions/unrelated"
@@ -3636,7 +3468,7 @@ class RequisitionFetcherTest {
   @Test
   fun `recovery deduplicates a requisition that appears more than once`(): Unit = runBlocking {
     val groupId = "wedged-group-id"
-    val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+    val blobKey = "$DIRECT_STORAGE_PATH_PREFIX/$groupId"
     // The same requisition (r1) appears twice in the stream (Kingdom-side updateTime drift). The
     // wedged group expects {r1, r2}. Without dedup, r1 counted twice could satisfy the size check
     // before r2 arrives and rebuild a blob missing r2. Dedup by name prevents that.
@@ -3857,7 +3689,7 @@ class RequisitionFetcherTest {
       // InconsistentEventGroupSelectorsException, which the recovery loop catches and logs
       // rather than letting it bubble up to processReport's outer catch.
       val groupId = "wedged-group-id"
-      val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+      val blobKey = "$DIRECT_STORAGE_PATH_PREFIX/$groupId"
       val secondEventGroupName = "${TestRequisitionData.EDP_NAME}/eventGroups/name2"
       val mixedSpec =
         TestRequisitionData.REQUISITION_SPEC.copy {
@@ -3978,7 +3810,7 @@ class RequisitionFetcherTest {
     // satisfies the expected set {r1, r2}; recovery must accumulate ACROSS units to rebuild. This
     // test fails if cross-unit accumulation (PendingRecovery) is removed.
     val groupId = "wedged-split-group"
-    val blobKey = "$STORAGE_PATH_PREFIX/$groupId"
+    val blobKey = "$DIRECT_STORAGE_PATH_PREFIX/$groupId"
     val r1 =
       TestRequisitionData.REQUISITION.copy {
         name = "${TestRequisitionData.EDP_NAME}/requisitions/r1"
@@ -4043,8 +3875,8 @@ class RequisitionFetcherTest {
       EdpaTelemetry.ensureInitialized()
     }
 
-    private const val STORAGE_PATH_PREFIX = "test-requisitions"
     private const val DIRECT_STORAGE_PATH_PREFIX = "test-requisitions-v2"
+    private const val OTHER_STORAGE_PATH_PREFIX = "other-requisitions"
     private const val BLOB_URI_PREFIX = "file:///my-bucket"
     private val DEFAULT_TEST_TIME: Instant = Instant.EPOCH
   }
