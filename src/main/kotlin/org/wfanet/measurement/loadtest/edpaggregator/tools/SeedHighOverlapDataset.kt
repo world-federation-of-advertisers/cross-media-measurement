@@ -231,6 +231,12 @@ class SeedHighOverlapDataset : Runnable {
   )
   private lateinit var bigQueryTable: String
 
+  @Option(
+    names = ["--only-if-needed"],
+    description = ["Reuse the dataset when its manifest matches the current specs and EDPs."],
+  )
+  private var onlyIfNeeded: Boolean = false
+
   private val modelLineId: String by lazy {
     requireNotNull(ModelLineKey.fromName(modelLine)) {
         "--model-line must be a ModelLine resource name: $modelLine"
@@ -261,12 +267,25 @@ class SeedHighOverlapDataset : Runnable {
       HighOverlapDataset.datesByImpressionPath(config)
     val specFingerprint: String =
       HighOverlapDataset.fingerprint(HighOverlapDataset.CONFIG_RESOURCE_PATH)
-    logger.info("Seeding $seededEdps for $modelLine with specs $specFingerprint")
-
-    runBlocking {
-      HighOverlapDatasetCleanup(GcsStorageClient(storage, storageBucket), modelLineId)
-        .prepareForReseeding(datesByImpressionPath.keys)
+    val expectedManifest = highOverlapDatasetManifest {
+      this.specFingerprint = specFingerprint
+      this.seededEdps += seededEdps
+      modelLine = this@SeedHighOverlapDataset.modelLine
     }
+    val needsSeeding = runBlocking {
+      val cleanup = HighOverlapDatasetCleanup(GcsStorageClient(storage, storageBucket), modelLineId)
+      if (onlyIfNeeded) {
+        cleanup.prepareIfNeeded(expectedManifest, datesByImpressionPath.keys)
+      } else {
+        cleanup.prepareForReseeding(datesByImpressionPath.keys)
+        true
+      }
+    }
+    if (!needsSeeding) {
+      logger.info("Reusing dataset $specFingerprint for $modelLine and $seededEdps")
+      return
+    }
+    logger.info("Seeding $seededEdps for $modelLine with specs $specFingerprint")
 
     provisionModelResources(populationSpec, datesByImpressionPath.values.flatten().min())
 

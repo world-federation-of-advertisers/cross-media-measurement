@@ -29,6 +29,26 @@ class HighOverlapDatasetCleanup(
 ) {
   private val cleanupStateKey = "high-overlap/$modelLineId/cleanup-state.binpb"
 
+  /** Cleans the dataset when its manifest differs; returns false when it can be reused. */
+  suspend fun prepareIfNeeded(
+    expectedManifest: HighOverlapDatasetManifest,
+    impressionPaths: Set<String>,
+  ): Boolean {
+    val manifestBlob = storageClient.getBlob(HighOverlapDataset.manifestBlobKey(modelLineId))
+    if (manifestBlob != null) {
+      val manifest = HighOverlapDatasetManifest.parseFrom(manifestBlob.read().flatten())
+      if (
+        manifest.modelLine == expectedManifest.modelLine &&
+          manifest.specFingerprint == expectedManifest.specFingerprint &&
+          manifest.seededEdpsList.toSet() == expectedManifest.seededEdpsList.toSet()
+      ) {
+        return false
+      }
+    }
+    prepareForReseeding(impressionPaths)
+    return true
+  }
+
   /** Invalidates the manifest and removes data under both previous and new impression paths. */
   suspend fun prepareForReseeding(impressionPaths: Set<String>) {
     val manifestBlob = storageClient.getBlob(HighOverlapDataset.manifestBlobKey(modelLineId))
