@@ -33,7 +33,6 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
-import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
@@ -45,6 +44,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
@@ -115,6 +115,7 @@ class VidRankBuilder(
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val workItemsStub: WorkItemsCoroutineStub,
   private val rawImpressionUpload: String,
@@ -358,14 +359,10 @@ class VidRankBuilder(
    * Runs [fanOutLabeling] on BOTH first delivery and recovery (a redelivered already-`SUCCEEDED`
    * job whose parent is still `RANKING`). Re-running is safe — and, crucially, re-CREATES any
    * `VidLabelingJob` batches a crashed prior last-job-out never got to — because of the
-   * **file-list-frozen-after-CREATED** invariant: a `RawImpressionUploadFile` list is written once
-   * by the dispatcher at upload registration and never mutated once the upload is past `CREATED`,
-   * so re-listing yields the same files, [RawImpressionFileBinPacker.pack] is deterministic over
-   * them, and the batch-index-keyed `request_id` (see [createVidLabelingJobs]) makes
-   * `BatchCreateVidLabelingJobs` an AIP-155 replay for rows already created while still creating
-   * any missed. (A prior recovery-only re-publish of existing rows silently lost batches when the
-   * original crashed mid-`createVidLabelingJobs`.) If a future change could mutate the file list
-   * post-`CREATED`, recovery would need a different strategy.
+   * registration-complete immutable-manifest invariant: the shared dispatcher checks the upload
+   * before listing files, and metadata services prohibit later manifest mutation. Identical files
+   * and packing limits yield identical batch slots; create replay validates file/model-line
+   * membership and rejects a changed slot rather than adopting its old job.
    */
   private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine): String =
     Tracing.traceSuspending(
@@ -489,6 +486,7 @@ class VidRankBuilder(
   private suspend fun fanOutLabeling(): Int {
     val published =
       MemoizedVidLabelingJobDispatcher(
+          rawImpressionUploadsStub = rawImpressionUploadsStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
           vidLabelingJobsStub = vidLabelingJobsStub,
           workItemsStub = workItemsStub,
