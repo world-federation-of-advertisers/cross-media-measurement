@@ -126,6 +126,31 @@ abstract class AbstractInternalReportingServer : Runnable {
   var disableMetricsReuse by Delegates.notNull<Boolean>()
     private set
 
+  @set:CommandLine.Option(
+    names = ["--validate-insert-basic-report"],
+    description =
+      [
+        "Validate completed report IDs and component relationships on InsertBasicReport. " +
+          "Set to false only while migrating legacy callers."
+      ],
+    defaultValue = "true",
+  )
+  protected var validateInsertBasicReport by Delegates.notNull<Boolean>()
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--validate-create-reporting-set"],
+    description =
+      [
+        "Validate ReportingSet contents, references, and any supplied Campaign Group on " +
+          "CreateReportingSet. Standalone custom sets may omit the Campaign Group. " +
+          "Set to false only while migrating legacy callers."
+      ],
+    defaultValue = "true",
+  )
+  protected var validateCreateReportingSet by Delegates.notNull<Boolean>()
+    private set
+
   private var validated = false
 
   protected fun validateCommandLine() {
@@ -237,6 +262,8 @@ class InternalReportingServer : AbstractInternalReportingServer() {
             impressionQualificationFilterMapping,
             eventMessageDescriptor,
             disableMetricsReuse,
+            validateInsertBasicReport,
+            validateCreateReportingSet,
             serviceDispatcher,
           )
         )
@@ -250,6 +277,8 @@ class InternalReportingServer : AbstractInternalReportingServer() {
           null,
           null,
           disableMetricsReuse,
+          validateInsertBasicReport,
+          validateCreateReportingSet,
           serviceDispatcher,
         )
       )

@@ -35,7 +35,7 @@ class PostgresReportScheduleIterationsServiceTest :
     return Services(
       PostgresReportScheduleIterationsService(idGenerator, client),
       PostgresMeasurementConsumersService(idGenerator, client),
-      PostgresReportingSetsService(idGenerator, client),
+      PostgresReportingSetsService(idGenerator, client, validateCreateReportingSet = true),
       PostgresMetricCalculationSpecsService(idGenerator, client),
       PostgresReportSchedulesService(idGenerator, client),
     )

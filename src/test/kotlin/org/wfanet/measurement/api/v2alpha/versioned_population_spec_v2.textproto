@@ -1,0 +1,15 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+# Version 2 includes `later` while `retired` remains active.
+
+subpopulations {
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.VersionedCommon] {
+      original: SEGMENT_A
+      later: SEGMENT_A
+      retired: SEGMENT_B
+    }
+  }
+  vid_ranges { start_vid: 1 end_vid_inclusive: 1000 }
+}

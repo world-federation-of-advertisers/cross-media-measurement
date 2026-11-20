@@ -40,6 +40,7 @@ import org.wfanet.measurement.internal.edpaggregator.ComputeModelLineBoundsRespo
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataView
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
@@ -1795,6 +1796,56 @@ abstract class ImpressionMetadataServiceTest {
     assertThat(response.impressionMetadataList).isEmpty()
     assertThat(response.nextPageToken)
       .isEqualTo(ListImpressionMetadataPageToken.getDefaultInstance())
+  }
+
+  @Test
+  fun `listImpressionMetadata BASIC view omits entity keys and preserves filtering`() =
+    runBlocking {
+      val created =
+        service.createImpressionMetadata(
+          createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+          }
+        )
+      val request = listImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        view = ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC
+        filter = ListImpressionMetadataRequestKt.filter { entityKeys += ENTITY_KEY_AD_1 }
+      }
+
+      val response = service.listImpressionMetadata(request)
+
+      assertThat(response)
+        .isEqualTo(
+          listImpressionMetadataResponse {
+            impressionMetadata += created.copy { entityKeys.clear() }
+          }
+        )
+      for (view in
+        listOf(
+          ImpressionMetadataView.IMPRESSION_METADATA_VIEW_UNSPECIFIED,
+          ImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL,
+        )) {
+        assertThat(service.listImpressionMetadata(request.copy { this.view = view }))
+          .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created })
+      }
+    }
+
+  @Test
+  fun `listImpressionMetadata rejects an unknown view`() = runBlocking {
+    val request =
+      ListImpressionMetadataRequest.newBuilder()
+        .setDataProviderResourceId(DATA_PROVIDER_RESOURCE_ID)
+        .setViewValue(999)
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.listImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.metadataMap?.get(Errors.Metadata.FIELD_NAME.key))
+      .isEqualTo("view")
   }
 
   @Test

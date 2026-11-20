@@ -74,6 +74,20 @@ class VidLabelingConfigValidationTest {
   }
 
   @Test
+  fun `allows a missing local version for repository resolution`() {
+    val config = configWith(validModelLineConfig().toBuilder().clearEventTemplateVersion().build())
+    requireValidModelLineConfigs(config)
+  }
+
+  @Test
+  fun `rejects a negative local version`() {
+    val config = configWith(validModelLineConfig().toBuilder().setEventTemplateVersion(-1).build())
+    val exception =
+      assertFailsWith<IllegalArgumentException> { requireValidModelLineConfigs(config) }
+    assertThat(exception).hasMessageThat().contains("event_template_version")
+  }
+
+  @Test
   fun `throws when a model line has no entity-key mapping`() {
     val config =
       configWith(
@@ -315,6 +329,7 @@ class VidLabelingConfigValidationTest {
       eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       requiredEntityKeyFieldMapping["person"] = "person_col"
       populationSpecBlobUri = "gs://configs/population-spec.textproto"
+      eventTemplateVersion = 1
     }
 
   companion object {

@@ -16,13 +16,16 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.cloud.storage.StorageOptions
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import java.time.LocalDate
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -91,9 +94,16 @@ class WriteReusedLabeledImpressionsRule(
   private val vidLabelerProvider: () -> NonMemoizedVidLabeler,
 ) : TestRule {
 
+  /** GCS generations observed after writing the impression files and metadata sidecars. */
+  val expectedBlobGenerations: Map<String, Long>
+    get() = writtenBlobGenerations.toMap()
+
+  private val writtenBlobGenerations = mutableMapOf<String, Long>()
+
   override fun apply(base: Statement, description: Description): Statement {
     return object : Statement() {
       override fun evaluate() {
+        writtenBlobGenerations.clear()
         val modelLine = modelLineProvider()
         if (modelLine == null) {
           logger.warning(
@@ -167,9 +177,11 @@ class WriteReusedLabeledImpressionsRule(
         includeEventGroupReferenceIdInImpressions = false,
       )
     val vidLabeler = vidLabelerProvider()
+    val writtenDates = mutableSetOf<LocalDate>()
     val shards: Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> =
       generateShards(eventGroup)
         .filter { it.localDate in datesToWrite }
+        .onEach { writtenDates += it.localDate }
         .map { shard ->
           // Replace each event's synthetic VID and declared demographics with the ones the deployed
           // non-memoized model assigns, so these out-of-band days carry the SAME VID and the SAME
@@ -190,6 +202,20 @@ class WriteReusedLabeledImpressionsRule(
       modelLine,
       modelLineOutputBasePath = eventGroup.outputBasePath,
     )
+    runInterruptible(Dispatchers.IO) {
+      val storage = StorageOptions.getDefaultInstance().service
+      val modelLineId = modelLine.substringAfterLast('/')
+      val suffix = eventGroup.outputKey.takeIf { it.isNotEmpty() }?.let { "-$it" }.orEmpty()
+      for (date in writtenDates) {
+        val prefix = "${eventGroup.outputBasePath}/model-line/$modelLineId/$date"
+        for (key in listOf("$prefix/impressions$suffix", "$prefix/metadata$suffix.binpb")) {
+          writtenBlobGenerations["gs://$bucket/$key"] =
+            checkNotNull(storage.get(bucket, key)?.generation) {
+              "Rewritten labeled fixture is missing: gs://$bucket/$key"
+            }
+        }
+      }
+    }
     logger.info(
       "Wrote memoized impressions for event group '${eventGroup.eventGroupReferenceId}' " +
         "(${datesToWrite.size} date(s)) under " +

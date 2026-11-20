@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataView
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UndeleteImpressionMetadataRequest
@@ -76,11 +77,15 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase as InternalImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataView as InternalImpressionMetadataView
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt as InternalListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.acquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest as internalBatchDeleteImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.copy as copyInternal
 import org.wfanet.measurement.internal.edpaggregator.deleteImpressionMetadataRequest as internalDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataPageToken as internalListImpressionMetadataPageToken
+import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataResponse as internalListImpressionMetadataResponse
 
 @RunWith(JUnit4::class)
 class ImpressionMetadataServiceTest {
@@ -2244,6 +2249,148 @@ class ImpressionMetadataServiceTest {
         }
       )
     }
+  }
+
+  @Test
+  fun `listImpressionMetadata default and FULL views preserve entity keys`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA_WITH_ENTITY_KEYS).single()
+
+    for (view in
+      listOf(
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_UNSPECIFIED,
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL,
+      )) {
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            this.view = view
+          }
+        )
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created })
+    }
+  }
+
+  @Test
+  fun `listImpressionMetadata BASIC view preserves entity filtering and pagination`() =
+    runBlocking {
+      val created =
+        createImpressionMetadata(
+          IMPRESSION_METADATA_WITH_ENTITY_KEYS,
+          IMPRESSION_METADATA_2.copy { entityKeys += ENTITY_KEY_AD_2 },
+          IMPRESSION_METADATA.copy { blobUri = "uri-unmatched" },
+        )
+      val expected = created.take(2).sortedBy { it.name }.map { it.copy { entityKeys.clear() } }
+      val request = listImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        view = ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC
+        pageSize = 1
+        filter =
+          ListImpressionMetadataRequestKt.filter {
+            entityKeys += ENTITY_KEY_AD_1
+            entityKeys += ENTITY_KEY_AD_2
+          }
+      }
+
+      val firstResponse = service.listImpressionMetadata(request)
+      val secondResponse =
+        service.listImpressionMetadata(request.copy { pageToken = firstResponse.nextPageToken })
+
+      assertThat(firstResponse.impressionMetadataList).containsExactly(expected[0])
+      assertThat(firstResponse.nextPageToken).isNotEmpty()
+      assertThat(secondResponse)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected[1] })
+    }
+
+  @Test
+  fun `listImpressionMetadata BASIC view keeps large entity associations out of response pages`() =
+    runBlocking {
+      val metadata =
+        IMPRESSION_METADATA.copy {
+          blobUri = "gs://test-bucket/metadata/" + "a".repeat(512)
+          metadataBlobGeneration = 41L
+          impressionsBlobGeneration = 42L
+          entityKeys +=
+            (1..300).map { index ->
+              entityKey {
+                entityType = "campaign"
+                entityId = "campaign-$index-" + "b".repeat(40)
+              }
+            }
+        }
+      createImpressionMetadata(metadata)
+      val request = listImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        pageSize = 1000
+      }
+      val fullResponse = service.listImpressionMetadata(request)
+      val basicResponse =
+        service.listImpressionMetadata(
+          request.copy { view = ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC }
+        )
+
+      assertThat(basicResponse.impressionMetadataList.single())
+        .isEqualTo(fullResponse.impressionMetadataList.single().copy { entityKeys.clear() })
+      // Scale the returned records to a 1000-record page without creating 300,000 database rows.
+      val fullPage = listImpressionMetadataResponse {
+        repeat(1000) { impressionMetadata += fullResponse.impressionMetadataList.single() }
+        nextPageToken = "page-token"
+      }
+      val basicPage = listImpressionMetadataResponse {
+        repeat(1000) { impressionMetadata += basicResponse.impressionMetadataList.single() }
+        nextPageToken = "page-token"
+      }
+      assertThat(fullPage.serializedSize).isGreaterThan(4 * 1024 * 1024)
+      assertThat(basicPage.serializedSize).isLessThan(1024 * 1024)
+
+      val internalStub = InternalImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
+      val internalRequest = internalListImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        pageSize = 1000
+      }
+      val internalFullResponse = internalStub.listImpressionMetadata(internalRequest)
+      val internalBasicResponse =
+        internalStub.listImpressionMetadata(
+          internalRequest.copyInternal {
+            view = InternalImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC
+          }
+        )
+      val internalFull = internalFullResponse.impressionMetadataList.single()
+      val internalBasic = internalBasicResponse.impressionMetadataList.single()
+      assertThat(internalBasic).isEqualTo(internalFull.copyInternal { entityKeys.clear() })
+      val internalNextPageToken = internalListImpressionMetadataPageToken {
+        after =
+          InternalListImpressionMetadataPageTokenKt.after {
+            impressionMetadataResourceId = internalFull.impressionMetadataResourceId
+          }
+      }
+      val internalFullPage = internalListImpressionMetadataResponse {
+        repeat(1000) { impressionMetadata += internalFull }
+        nextPageToken = internalNextPageToken
+      }
+      val internalBasicPage = internalListImpressionMetadataResponse {
+        repeat(1000) { impressionMetadata += internalBasic }
+        nextPageToken = internalNextPageToken
+      }
+      assertThat(internalFullPage.serializedSize).isGreaterThan(4 * 1024 * 1024)
+      assertThat(internalBasicPage.serializedSize).isLessThan(1024 * 1024)
+    }
+
+  @Test
+  fun `listImpressionMetadata rejects an unknown view`() = runBlocking {
+    val request =
+      ListImpressionMetadataRequest.newBuilder()
+        .setParent(DATA_PROVIDER_KEY.toName())
+        .setViewValue(999)
+        .build()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.listImpressionMetadata(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.metadataMap?.get(Errors.Metadata.FIELD_NAME.key))
+      .isEqualTo("view")
   }
 
   @Test
