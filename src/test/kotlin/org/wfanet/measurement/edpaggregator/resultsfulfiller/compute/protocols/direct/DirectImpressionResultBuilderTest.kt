@@ -136,6 +136,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
+          impressionCapMode = ImpressionCapMode.UNSPECIFIED,
           logMeasurementValues = false,
         )
 
@@ -166,6 +167,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 9999L, // Bogus value to verify it's not used
+          impressionCapMode = ImpressionCapMode.UNSPECIFIED,
           logMeasurementValues = false,
         )
 
@@ -198,6 +200,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = -1,
           totalUncappedImpressions = 500L,
+          impressionCapMode = ImpressionCapMode.UNSPECIFIED,
           logMeasurementValues = false,
         )
 
@@ -228,6 +231,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = MAX_FREQUENCY,
           totalUncappedImpressions = 500L,
+          impressionCapMode = ImpressionCapMode.UNSPECIFIED,
           logMeasurementValues = false,
         )
 
@@ -257,6 +261,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 200L,
+          impressionCapMode = ImpressionCapMode.UNSPECIFIED,
           logMeasurementValues = false,
         )
 
@@ -285,6 +290,7 @@ class DirectImpressionResultBuilderTest {
           resultMinimumThresholds = null,
           impressionMaxFrequencyPerUser = -1,
           totalUncappedImpressions = 500L,
+          impressionCapMode = ImpressionCapMode.UNSPECIFIED,
           logMeasurementValues = false,
         )
         .buildMeasurementResult()

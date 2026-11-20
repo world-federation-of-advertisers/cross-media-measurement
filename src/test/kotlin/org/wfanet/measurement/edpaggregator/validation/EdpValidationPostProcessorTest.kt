@@ -175,14 +175,14 @@ class EdpValidationPostProcessorTest {
   }
 
   private fun postProcessor(
-    configs: DataProviderValidationConfigs = configsFor(DATA_PROVIDER),
     logMeasurementValues: Boolean,
+    configs: DataProviderValidationConfigs = configsFor(DATA_PROVIDER),
   ) =
     EdpValidationPostProcessor(
       configs = configs,
       client = ValidationCloudFunctionClient(idTokenProvider = FakeIdTokenProvider()),
-      metrics = testMetrics,
       logMeasurementValues = logMeasurementValues,
+      metrics = testMetrics,
     )
 
   /** Builds a config with one entry per [dataProviders], all pointing at the fake endpoint. */
@@ -337,7 +337,7 @@ class EdpValidationPostProcessorTest {
     fakeCloudFunction.responseBody = resultResponse(500L)
 
     val result =
-      postProcessor(configs, logMeasurementValues = false)
+      postProcessor(logMeasurementValues = false, configs = configs)
         .validate(listOf(row(reportedImpressions = 500L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.SKIPPED)
@@ -354,7 +354,7 @@ class EdpValidationPostProcessorTest {
     fakeCloudFunction.responseBody = resultResponse(500L)
 
     val result =
-      postProcessor(configs, logMeasurementValues = false)
+      postProcessor(logMeasurementValues = false, configs = configs)
         .validate(listOf(row(reportedImpressions = 500L)))
 
     assertThat(result).isEqualTo(EdpValidationPostProcessor.ReportValidationResult.PASSED)
@@ -523,7 +523,7 @@ class EdpValidationPostProcessorTest {
     fakeCloudFunction.responseBody = resultResponse(10_000_000L)
 
     val result =
-      postProcessor(configsFor(dpPass, dpFail), logMeasurementValues = false)
+      postProcessor(logMeasurementValues = false, configs = configsFor(dpPass, dpFail))
         .validate(
           listOf(
             row(dataProviderName = dpPass, reportedImpressions = 10_000_000L),

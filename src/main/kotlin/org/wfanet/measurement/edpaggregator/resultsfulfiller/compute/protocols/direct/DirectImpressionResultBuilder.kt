@@ -87,7 +87,7 @@ private constructor(
     resultMinimumThresholds: ResultMinimumThresholds?,
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
-    impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
+    impressionCapMode: ImpressionCapMode,
     logMeasurementValues: Boolean,
   ) : this(
     directProtocolConfig = directProtocolConfig,
@@ -133,7 +133,7 @@ private constructor(
     resultMinimumThresholds: ResultMinimumThresholds?,
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
-    impressionCapMode: ImpressionCapMode = ImpressionCapMode.UNSPECIFIED,
+    impressionCapMode: ImpressionCapMode,
     logMeasurementValues: Boolean,
   ) : this(
     directProtocolConfig = directProtocolConfig,

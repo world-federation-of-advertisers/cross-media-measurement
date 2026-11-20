@@ -50,9 +50,13 @@ The impression verification tool also accepts `--log-measurement-values=true`
 for aggregate impression counts. Its default logs retain verification outcomes
 and blob/error counts. It never logs raw impression fields from samples or
 validation failures, even with the flag enabled. Failure logs retain the blob,
-verification stage, and exception type. Publisher validation requires an explicit
-`logMeasurementValues` setting; when disabled, its logs retain validation verdicts
-and skip reasons while omitting counts, deviations, and free-form publisher details.
+verification stage, and exception type.
+
+Publisher-validation components are not yet deployed or connected to
+ResultsFulfiller; runtime integration is tracked in #4476. Their library logging
+requires an explicit `logMeasurementValues` constructor setting. When disabled,
+logs retain validation verdicts and skip reasons while omitting counts,
+deviations, and free-form publisher details.
 
 The Reporting API server and report jobs accept the same flag for detailed
 variance-calculation exceptions, which can contain measurement values. When the

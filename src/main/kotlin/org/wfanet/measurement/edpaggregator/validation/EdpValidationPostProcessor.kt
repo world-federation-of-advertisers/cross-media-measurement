@@ -41,14 +41,14 @@ import org.wfanet.measurement.config.edpaggregator.DataProviderValidationConfigs
  *
  * @param configs per-DataProvider validation configurations.
  * @param client HTTP client for calling cloud functions.
- * @param metrics OpenTelemetry metrics.
  * @param logMeasurementValues Whether to include measurement values in diagnostic logs.
+ * @param metrics OpenTelemetry metrics.
  */
 class EdpValidationPostProcessor(
   private val configs: DataProviderValidationConfigs,
   private val client: ValidationCloudFunctionClient,
-  private val metrics: EdpValidationMetrics = EdpValidationMetrics(),
   private val logMeasurementValues: Boolean,
+  private val metrics: EdpValidationMetrics = EdpValidationMetrics(),
 ) {
 
   /**
