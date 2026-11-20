@@ -180,6 +180,25 @@ class DataWatcherTest() {
       verifyBlocking(workItemsServiceMock, times(3)) { ensureWorkItem(requests.capture()) }
       assertThat(requests.allValues[0].workItemId).isNotEqualTo(requests.allValues[1].workItemId)
       assertThat(requests.allValues[1].workItemId).isEqualTo(requests.allValues[2].workItemId)
+      for (request in requests.allValues) {
+        val frame = request.workItem.workItemParams.unpack<WorkItemParams>()
+        val app = frame.appParams.unpack<VidLabelingDispatchWorkItemParams>()
+        val source = if (app.hasRecovery()) app.recovery.source else frame.dataPathParams
+        val key =
+          "vid-labeling-dispatch\u0000$path\u000042\u0000" +
+            VidLabelingDispatchWorkItems.intentId(app, source.takeUnless { app.hasRecovery() })
+        val hex =
+          java.security.MessageDigest.getInstance("SHA-256")
+            .digest(key.toByteArray(Charsets.UTF_8))
+            .joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
+        assertThat(request.workItemId).isEqualTo("dw-" + hex.take(60))
+        assertThat(
+            DataWatcherWorkItemIds.workItemId(
+              DataWatcherWorkItemIds.idempotencyKey("vid-labeling-dispatch", source, app)
+            )
+          )
+          .isEqualTo(request.workItemId)
+      }
       val ordinary =
         requests.allValues[0]
           .workItem
@@ -597,6 +616,8 @@ class DataWatcherTest() {
     verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
     assertThat(requestCaptor.allValues.map { it.workItemId }.toSet()).hasSize(1)
     assertThat(requestCaptor.firstValue.workItemId).matches("dw-[0-9a-f]{60}")
+    assertThat(requestCaptor.firstValue.workItemId)
+      .isEqualTo("dw-f81991329b727f2b8d9bb2089c85b4a69c86d1dca21c712d2ac159dee23f")
   }
 
   @Test

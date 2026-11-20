@@ -30,7 +30,6 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
-import java.security.MessageDigest
 import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -69,7 +68,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
-  private val workItemIdGenerator: (String) -> String = ::deterministicWorkItemId,
+  private val workItemIdGenerator: (String) -> String = DataWatcherWorkItemIds::workItemId,
   private val idTokenProvider: IdTokenProvider =
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
@@ -254,10 +253,7 @@ class DataWatcher(
         params
       } else null
     val idempotencyKey =
-      "${config.identifier}\u0000$path\u0000$objectGeneration" +
-        (dispatchParams?.let {
-          "\u0000${VidLabelingDispatchWorkItems.intentId(it, sourceIdentity.takeUnless { _ -> it.hasRecovery() })}"
-        } ?: "")
+      DataWatcherWorkItemIds.idempotencyKey(config.identifier, sourceIdentity, dispatchParams)
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
@@ -574,16 +570,6 @@ class DataWatcher(
 
     private const val STATUS_SUCCESS = "success"
     private const val STATUS_FAILURE = "failure"
-
-    private fun deterministicWorkItemId(idempotencyKey: String): String {
-      val digest =
-        MessageDigest.getInstance("SHA-256").digest(idempotencyKey.toByteArray(Charsets.UTF_8))
-      val hex =
-        digest.joinToString(separator = "") { byte ->
-          (byte.toInt() and 0xff).toString(16).padStart(2, '0')
-        }
-      return "dw-${hex.take(60)}"
-    }
 
     private const val EVENT_PROCESSING_COMPLETED = "edpa.data_watcher.processing_completed"
     private const val EVENT_PROCESSING_FAILED = "edpa.data_watcher.processing_failed"
