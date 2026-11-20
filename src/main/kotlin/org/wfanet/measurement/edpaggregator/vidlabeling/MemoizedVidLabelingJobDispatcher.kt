@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
+import com.google.protobuf.CodedOutputStream
 import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.ByteBuffer
@@ -29,6 +30,7 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
@@ -37,6 +39,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
@@ -47,6 +50,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /** Creates and publishes deterministic file batches for memoized VID labeling. */
 class MemoizedVidLabelingJobDispatcher(
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsCoroutineStub,
@@ -69,9 +73,32 @@ class MemoizedVidLabelingJobDispatcher(
 
   /** Returns the number of labeling jobs whose WorkItems were resolved. */
   suspend fun dispatch(): Int {
+    val upload =
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadsStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = rawImpressionUpload }
+        )
+      }
+    check(upload.registrationComplete) {
+      "RawImpressionUpload $rawImpressionUpload registration is incomplete"
+    }
     val files = listUploadFiles()
     if (files.isEmpty()) return 0
-    val batches = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
+    // Reserve the returned name, lifecycle metadata and the service's bounded error preview.
+    val fixedJobBytes =
+      vidLabelingJob { cmmsModelLines += modelLine }.serializedSize +
+        CodedOutputStream.computeStringSize(
+          VidLabelingJob.NAME_FIELD_NUMBER,
+          "$rawImpressionUpload/vidLabelingJobs/vidLabelingJob-${"0".repeat(36)}",
+        ) +
+        JOB_RESPONSE_METADATA_MARGIN_BYTES
+    val batches =
+      RawImpressionFileBinPacker.pack(
+        files,
+        maxFileBatchSizeBytes,
+        maxFilesPerBatch = MAX_FILES_PER_JOB,
+        maxFileNamesSizeBytes = MAX_JOB_SIZE_BYTES - fixedJobBytes,
+      )
     val jobs = createVidLabelingJobs(batches)
     jobs.forEach { publishVidLabelerWorkItem(it) }
     return jobs.size
@@ -98,41 +125,54 @@ class MemoizedVidLabelingJobDispatcher(
   }
 
   /**
-   * Creates a `VidLabelingJob` per [batches] entry via `BatchCreateVidLabelingJobs` (chunked to
-   * [maxJobsPerBatchCreate]). Each request carries a deterministic `request_id` keyed by the
-   * batch's **index** (stable across redeliveries even if the upload's file list changed), so a
-   * redelivered last-job-out reuses the existing rows. Each chunk is checked to return exactly as
-   * many jobs as requested so a partial response can't silently drop a batch. Returns each created
-   * job.
+   * Creates deterministic batch-slot jobs against the sealed upload manifest. Equal membership
+   * replays existing jobs; the metadata service rejects changed file/model-line membership. Packing
+   * limits must remain identical across retries. Chunks obey both job count and encoded request
+   * bytes, with margin below the 4 MiB receiver limit for returned resource metadata.
    */
   private suspend fun createVidLabelingJobs(batches: List<List<String>>): List<VidLabelingJob> {
     val created = mutableListOf<VidLabelingJob>()
-    for (group in batches.withIndex().chunked(maxJobsPerBatchCreate)) {
+    var pending = batchCreateVidLabelingJobsRequest { parent = rawImpressionUpload }
+
+    suspend fun flush() {
+      if (pending.requestsCount == 0) return
+      val request = pending
       val response =
         rpcThrottlers.metadataWrite.onReady {
-          vidLabelingJobsStub.batchCreateVidLabelingJobs(
-            batchCreateVidLabelingJobsRequest {
-              parent = rawImpressionUpload
-              for ((batchIndex, batch) in group) {
-                requests += createVidLabelingJobRequest {
-                  parent = rawImpressionUpload
-                  vidLabelingJob = vidLabelingJob {
-                    cmmsModelLines += modelLine
-                    rawImpressionUploadFiles += batch
-                  }
-                  requestId = labelingJobRequestId(batchIndex)
-                }
-              }
-            }
-          )
+          vidLabelingJobsStub.batchCreateVidLabelingJobs(request)
         }
-      check(response.vidLabelingJobsList.size == group.size) {
-        "BatchCreateVidLabelingJobs returned ${response.vidLabelingJobsList.size} jobs for " +
-          "${group.size} requests"
+      check(response.vidLabelingJobsCount == request.requestsCount) {
+        "BatchCreateVidLabelingJobs returned ${response.vidLabelingJobsCount} jobs for " +
+          "${request.requestsCount} requests"
       }
       created.addAll(response.vidLabelingJobsList)
       response.vidLabelingJobsList.forEach(onJobResolved)
+      pending = batchCreateVidLabelingJobsRequest { parent = rawImpressionUpload }
     }
+
+    for ((batchIndex, batch) in batches.withIndex()) {
+      val create = createVidLabelingJobRequest {
+        parent = rawImpressionUpload
+        vidLabelingJob = vidLabelingJob {
+          cmmsModelLines += modelLine
+          rawImpressionUploadFiles += batch
+        }
+        requestId = labelingJobRequestId(batchIndex)
+      }
+      var candidate = pending.copy { requests += create }
+      if (
+        candidate.requestsCount > minOf(maxJobsPerBatchCreate, MAX_JOBS_PER_REQUEST) ||
+          candidate.serializedSize > MAX_BATCH_REQUEST_SIZE_BYTES
+      ) {
+        flush()
+        candidate = pending.copy { requests += create }
+      }
+      check(candidate.serializedSize <= MAX_BATCH_REQUEST_SIZE_BYTES) {
+        "A labeling-job create request exceeds the metadata RPC byte limit"
+      }
+      pending = candidate
+    }
+    flush()
     return created
   }
 
@@ -171,10 +211,9 @@ class MemoizedVidLabelingJobDispatcher(
   }
 
   /**
-   * Deterministic `VidLabelingJob` `request_id` for the batch at [batchIndex], keyed by (upload,
-   * model line, batch index). Keying by index (rather than a filename) keeps batch slot N stable
-   * across redeliveries even if a `RawImpressionUploadFile` was added/removed in between, so the
-   * create reuses the existing row instead of duplicating it.
+   * Request ID for an immutable batch slot, keyed by upload, model line and index. Registration
+   * must be complete and all packing limits unchanged before redispatching the same slots. Changed
+   * membership is a conflict, never an idempotent replay.
    */
   private fun labelingJobRequestId(batchIndex: Int): String =
     deterministicUuid("$rawImpressionUpload|$modelLine|labelingJob|$batchIndex")
@@ -188,6 +227,12 @@ class MemoizedVidLabelingJobDispatcher(
   }
 
   companion object {
+    private const val MAX_FILES_PER_JOB = 1_000
+    private const val MAX_JOB_SIZE_BYTES = 512 * 1024
+    private const val MAX_BATCH_REQUEST_SIZE_BYTES = 3 * 1024 * 1024
+    private const val MAX_JOBS_PER_REQUEST = 50
+    private const val JOB_RESPONSE_METADATA_MARGIN_BYTES = 1024
+
     fun buildParamsTemplate(params: VidRankBuilderParams): VidLabelerParams {
       require(params.modelBlobPath.isNotEmpty()) { "model_blob_path must be set" }
       require(params.hasRawImpressionStorageParams()) {
