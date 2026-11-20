@@ -17,3 +17,4 @@ configMapGenerator:
     files:
     - trusted_certs.pem
     - event_message_descriptor_set.pb
+    - model_line_event_template_versions.textproto
