@@ -55,12 +55,16 @@ internal fun WorkItem.dispatchSource(): VidLabelingDispatchSource? {
   return runCatching {
       val frame = workItemParams.unpack(WorkItem.WorkItemParams::class.java)
       val app = frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
-      require(app.hasSource() && app.source.hasGeneration())
-      VidLabelingDispatchSource.fromUri(
-        app.dataProvider,
-        app.source.dataPath,
-        app.source.generation,
-      )
+      val source =
+        if (app.hasRecovery()) {
+          require(!frame.hasDataPathParams() && app.recovery.hasSource())
+          app.recovery.source
+        } else {
+          require(frame.hasDataPathParams())
+          frame.dataPathParams
+        }
+      require(source.hasGeneration())
+      VidLabelingDispatchSource.fromUri(app.dataProvider, source.dataPath, source.generation)
     }
     .getOrNull()
 }

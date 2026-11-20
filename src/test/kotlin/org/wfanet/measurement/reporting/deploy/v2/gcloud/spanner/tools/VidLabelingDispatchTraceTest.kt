@@ -71,12 +71,11 @@ class VidLabelingDispatchTraceTest {
           appParams =
             vidLabelingDispatchWorkItemParams {
                 this.dataProvider = dataProvider
-                this.source = source
                 if (recovery)
                   this.recovery = recoveryParams {
+                    this.source = source
                     sourceUpload = provider + "/rawImpressionUploads/source"
                     uploadHealingOperation = provider + "/uploadHealingOperations/heal"
-                    overrideModelLines += "modelProviders/mp/modelSuites/ms/modelLines/ml"
                   }
               }
               .pack()
@@ -141,23 +140,22 @@ class VidLabelingDispatchTraceTest {
   }
 
   @Test
-  fun `lookup retains ordinary recovery and legacy tasks and excludes other source identities`() =
-    runBlocking {
-      val inventory =
-        listOf(
-          task(),
-          task("legacy", outer = false),
-          task("recovery", recovery = true, outer = false),
-          task("wrong-generation", generation = 124L),
-          task("wrong-provider", dataProvider = "dataProviders/other"),
-          task("wrong-path", path = "gs://private/raw/other/done"),
-          task("wrong-queue").copy { queue = "other" },
-        )
-      val result = resolver(inventory).resolveDispatch(source, 1)
-      assertThat(result.workItems.map { it.workItem.name })
-        .containsExactly("workItems/dispatch", "workItems/legacy", "workItems/recovery")
-      assertThat(result.workItems.all { it.attempts.size == 1 }).isTrue()
-    }
+  fun `lookup retains valid source modes and excludes missing or other identities`() = runBlocking {
+    val inventory =
+      listOf(
+        task(),
+        task("missing-source", outer = false),
+        task("recovery", recovery = true, outer = false),
+        task("wrong-generation", generation = 124L),
+        task("wrong-provider", dataProvider = "dataProviders/other"),
+        task("wrong-path", path = "gs://private/raw/other/done"),
+        task("wrong-queue").copy { queue = "other" },
+      )
+    val result = resolver(inventory).resolveDispatch(source, 1)
+    assertThat(result.workItems.map { it.workItem.name })
+      .containsExactly("workItems/dispatch", "workItems/recovery")
+    assertThat(result.workItems.all { it.attempts.size == 1 }).isTrue()
+  }
 
   @Test
   fun `done object lookup finds failed task without upload and renders safe lifecycle evidence`() =

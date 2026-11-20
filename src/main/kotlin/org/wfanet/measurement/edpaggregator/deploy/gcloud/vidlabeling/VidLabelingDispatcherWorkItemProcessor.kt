@@ -58,16 +58,12 @@ internal data class VidLabelingDispatchInput(
           VidLabelingDispatchWorkItems.normalize(
             frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
           )
-        require(app.hasSource()) { "Missing dispatch source" }
-        if (app.hasRecovery()) {
-          require(!frame.hasDataPathParams()) {
-            "Recovery source identity must be application-owned"
-          }
-        } else if (frame.hasDataPathParams()) {
-          require(frame.dataPathParams == app.source) { "Ordinary dispatch sources must match" }
-        }
-        // App-only ordinary items remain readable during migration from older intake.
-        return VidLabelingDispatchInput(app.source, app)
+        val source =
+          VidLabelingDispatchWorkItems.source(
+            app,
+            frame.dataPathParams.takeIf { frame.hasDataPathParams() },
+          )
+        return VidLabelingDispatchInput(source, app)
       } catch (e: InvalidProtocolBufferException) {
         throw IllegalArgumentException("Malformed dispatch parameters", e)
       }
@@ -112,6 +108,9 @@ internal class VidLabelingDispatcherWorkItemProcessor(
     val app =
       runCatching { frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java) }
         .getOrNull()
+    val source =
+      if (app?.hasRecovery() == true) app.recovery.source
+      else frame.dataPathParams.takeIf { frame.hasDataPathParams() }
     val safeProvider =
       app?.dataProvider?.takeIf { Regex("^dataProviders/[A-Za-z0-9_-]+$").matches(it) }
     fun evidence(
@@ -132,9 +131,9 @@ internal class VidLabelingDispatcherWorkItemProcessor(
         XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME_STRING to attempt?.resource?.name,
         VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to safeProvider,
         VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to
-          app?.source?.dataPath?.takeIf { it.isNotEmpty() }?.let(VidLabelingTraceLogging::sha256),
+          source?.dataPath?.takeIf { it.isNotEmpty() }?.let(VidLabelingTraceLogging::sha256),
         VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to
-          app?.source?.generation?.takeIf { it > 0L }?.toString(),
+          source?.generation?.takeIf { it > 0L }?.toString(),
         XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "dispatch",
         XmmTraceAttributes.OUTCOME_STRING to outcome,
         XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
@@ -209,12 +208,15 @@ internal class VidLabelingDispatcherWorkItemProcessor(
             safeProvider?.let { provider ->
               attributes.put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, provider)
             }
-            if (it.source.dataPath.isNotEmpty()) {
+            if (source?.dataPath.orEmpty().isNotEmpty()) {
               attributes.put(
                 VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH,
-                VidLabelingTraceLogging.sha256(it.source.dataPath),
+                VidLabelingTraceLogging.sha256(source?.dataPath.orEmpty()),
               )
-              attributes.put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, it.source.generation)
+              attributes.put(
+                VidLabelingTraceAttributes.GCS_OBJECT_GENERATION,
+                source?.generation ?: 0L,
+              )
             }
           }
           Tracing.traceSuspending("edpa.vid_labeling.dispatch.work_item", attributes.build()) {
