@@ -55,6 +55,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.Ranke
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
@@ -67,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
@@ -298,6 +300,11 @@ class VidRankBuilderTest {
       rankerJobsStub = rankerJobsStub,
       rawImpressionUploadModelLinesStub = modelLinesStub,
       vidLabelingJobsStub = vidLabelingJobsStub,
+      rawImpressionUploadsStub =
+        mock<RawImpressionUploadServiceCoroutineStub> {
+          onBlocking { getRawImpressionUpload(any(), any()) } doReturn
+            rawImpressionUpload { registrationComplete = true }
+        },
       rawImpressionUploadFilesStub = filesStub,
       workItemsStub = workItemsStub,
       rawImpressionUpload = UPLOAD,
@@ -402,7 +409,8 @@ class VidRankBuilderTest {
       assertThat(params.modelBlobPathsMap.getValue(MODEL_LINE)).isEqualTo("model/blob")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
       assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
+      // Registration is checked before listing the sealed upload's files.
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(5)
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
       assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
       val rankSpan = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.rank" }
@@ -944,6 +952,11 @@ class VidRankBuilderTest {
         rankerJobsStub = rankerJobs,
         rawImpressionUploadModelLinesStub = modelLinesMock(),
         vidLabelingJobsStub = vidLabelingJobsMock(),
+        rawImpressionUploadsStub =
+          mock<RawImpressionUploadServiceCoroutineStub> {
+            onBlocking { getRawImpressionUpload(any(), any()) } doReturn
+              rawImpressionUpload { registrationComplete = true }
+          },
         rawImpressionUploadFilesStub = filesMock(),
         workItemsStub = mock(),
         rawImpressionUpload = UPLOAD,
@@ -1109,6 +1122,11 @@ class VidRankBuilderTest {
         rankerJobsStub = rankerJobs,
         rawImpressionUploadModelLinesStub = modelLinesMock(),
         vidLabelingJobsStub = vidLabelingJobs,
+        rawImpressionUploadsStub =
+          mock<RawImpressionUploadServiceCoroutineStub> {
+            onBlocking { getRawImpressionUpload(any(), any()) } doReturn
+              rawImpressionUpload { registrationComplete = true }
+          },
         rawImpressionUploadFilesStub = filesMock(),
         workItemsStub = mock(),
         rawImpressionUpload = UPLOAD,

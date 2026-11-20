@@ -26,6 +26,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.R
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -86,6 +87,7 @@ class VidRankBuilderAppRunner :
     val rawImpressionUploadModelLinesClient =
       RawImpressionUploadModelLineServiceCoroutineStub(metadataStorageChannel)
     val vidLabelingJobsClient = VidLabelingJobServiceCoroutineStub(metadataStorageChannel)
+    val rawImpressionUploadsClient = RawImpressionUploadServiceCoroutineStub(metadataStorageChannel)
     val rawImpressionUploadFilesClient =
       RawImpressionUploadFileServiceCoroutineStub(metadataStorageChannel)
 
@@ -108,6 +110,7 @@ class VidRankBuilderAppRunner :
         rankIndexBlobsStub = rankIndexBlobsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
         vidLabelingJobsStub = vidLabelingJobsClient,
+        rawImpressionUploadsStub = rawImpressionUploadsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
         vidLabelerQueue = vidLabelerQueue,
         rpcThrottlers = rpcThrottlers,
