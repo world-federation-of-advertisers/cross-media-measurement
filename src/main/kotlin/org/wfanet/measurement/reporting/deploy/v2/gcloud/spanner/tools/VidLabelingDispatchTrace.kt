@@ -14,9 +14,16 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import java.time.Instant
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherWorkItemIds
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Source identity used for lookup without printing the raw object URI. */
@@ -24,6 +31,11 @@ internal data class VidLabelingDispatchSource(
   val dataProvider: String,
   val pathHash: String,
   val generation: Long,
+  val uri: String,
+  val createTime: Instant?,
+  val dataWatcherIdentifier: String = "vid-labeling-dispatch",
+  val sourceUpload: String = "",
+  val uploadHealingOperation: String = "",
 ) {
   init {
     require(Regex("^dataProviders/[^/]+$").matches(dataProvider)) { "Invalid DataProvider name" }
@@ -31,13 +43,73 @@ internal data class VidLabelingDispatchSource(
     require(generation > 0L) { "Source generation must be positive" }
   }
 
+  fun candidateNames(): List<String> {
+    val time =
+      requireNotNull(createTime) {
+        "Exact done-object creation time is required for dispatch lookup"
+      }
+    require(dataWatcherIdentifier.isNotEmpty()) { "DataWatcher identifier is required" }
+    require(sourceUpload.isEmpty() == uploadHealingOperation.isEmpty()) {
+      "Recovery source upload and healing operation must be supplied together"
+    }
+    val source = dataPathParams {
+      dataPath = uri
+      generation = this@VidLabelingDispatchSource.generation
+      createTime = time.toProtoTime()
+      eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+    }
+    val ordinary = vidLabelingDispatchWorkItemParams {
+      dataProvider = this@VidLabelingDispatchSource.dataProvider
+    }
+    val params = buildList {
+      add(ordinary)
+      if (sourceUpload.isNotEmpty())
+        add(
+          vidLabelingDispatchWorkItemParams {
+            dataProvider = this@VidLabelingDispatchSource.dataProvider
+            recovery = recoveryParams {
+              this.source = source
+              sourceUpload = this@VidLabelingDispatchSource.sourceUpload
+              uploadHealingOperation = this@VidLabelingDispatchSource.uploadHealingOperation
+            }
+          }
+        )
+    }
+    return params.map {
+      "workItems/" +
+        DataWatcherWorkItemIds.workItemId(
+          DataWatcherWorkItemIds.idempotencyKey(dataWatcherIdentifier, source, it)
+        )
+    }
+  }
+
+  override fun toString(): String =
+    "VidLabelingDispatchSource($dataProvider, $pathHash, $generation)"
+
   companion object {
-    fun fromUri(provider: String, uri: String, generation: Long): VidLabelingDispatchSource {
+    fun fromUri(
+      provider: String,
+      uri: String,
+      generation: Long,
+      createTime: Instant? = null,
+      dataWatcherIdentifier: String = "vid-labeling-dispatch",
+      sourceUpload: String = "",
+      uploadHealingOperation: String = "",
+    ): VidLabelingDispatchSource {
       val parsed = SelectedStorageClient.parseBlobUri(uri)
       require(parsed.scheme == "gs" && parsed.key.substringAfterLast('/') == "done") {
         "Source must identify a GCS done object"
       }
-      return VidLabelingDispatchSource(provider, VidLabelingTraceLogging.sha256(uri), generation)
+      return VidLabelingDispatchSource(
+        provider,
+        VidLabelingTraceLogging.sha256(uri),
+        generation,
+        uri,
+        createTime,
+        dataWatcherIdentifier,
+        sourceUpload,
+        uploadHealingOperation,
+      )
     }
   }
 }
@@ -64,9 +136,26 @@ internal fun WorkItem.dispatchSource(): VidLabelingDispatchSource? {
           frame.dataPathParams
         }
       require(source.hasGeneration())
-      VidLabelingDispatchSource.fromUri(app.dataProvider, source.dataPath, source.generation)
+      VidLabelingDispatchSource.fromUri(
+        app.dataProvider,
+        source.dataPath,
+        source.generation,
+        source.createTime.takeIf { source.hasCreateTime() }?.toInstant(),
+        sourceUpload = app.recovery.sourceUpload,
+        uploadHealingOperation = app.recovery.uploadHealingOperation,
+      )
     }
     .getOrNull()
+}
+
+internal fun WorkItem.dispatchCandidateName(identifier: String): String {
+  val frame = workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+  val app = frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+  val source = if (app.hasRecovery()) app.recovery.source else frame.dataPathParams
+  return "workItems/" +
+    DataWatcherWorkItemIds.workItemId(
+      DataWatcherWorkItemIds.idempotencyKey(identifier, source, app)
+    )
 }
 
 internal fun ResolvedWorkItem.dispatchNodes(): List<ExpectedTraceNode> {
