@@ -150,6 +150,8 @@ private fun run(
         // heavy scheduled Report benefits from the same concurrency as the interactive path.
         kingdomMeasurementBatchConcurrency =
           reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
+        measurementPreparationConcurrency =
+          reportingApiServerFlags.measurementPreparationConcurrency,
       )
       .withTrustedPrincipalAuthentication()
 
@@ -170,6 +172,7 @@ private fun run(
         metricSpecConfig,
         authorization,
         SecureRandom().asKotlinRandom(),
+        metricBatchConcurrency = reportingApiServerFlags.reportMetricBatchConcurrency,
       )
       .withTrustedPrincipalAuthentication()
       .withReportScheduleInfoInterceptor()

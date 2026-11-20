@@ -166,6 +166,8 @@ private fun run(
         // which is gated by this same concurrency value.
         kingdomMeasurementBatchConcurrency =
           reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
+        measurementPreparationConcurrency =
+          reportingApiServerFlags.measurementPreparationConcurrency,
       )
       .withTrustedPrincipalAuthentication()
 
@@ -186,6 +188,7 @@ private fun run(
         metricSpecConfig,
         authorization,
         SecureRandom().asKotlinRandom(),
+        metricBatchConcurrency = reportingApiServerFlags.reportMetricBatchConcurrency,
       )
       .withTrustedPrincipalAuthentication()
 
