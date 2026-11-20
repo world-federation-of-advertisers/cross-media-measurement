@@ -490,6 +490,12 @@ class SpannerPoolAssignmentJobService(
           currentJob.state == State.POOL_ASSIGNMENT_STATE_SUCCEEDED &&
             result.markSucceededRequestId == request.requestId
         ) {
+          if (currentJob.encryptedDek != request.encryptedDek) {
+            throw InvalidFieldValueException("request_id") {
+                "$it was reused with a different encrypted_dek"
+              }
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
           val wasLastShard =
             txn.countNonSucceededPoolAssignmentJobs(
               request.dataProviderResourceId,

@@ -24,6 +24,7 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import com.google.rpc.ErrorInfo
 import com.google.type.Date
 import com.google.type.date
 import io.grpc.Status
@@ -47,6 +48,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.common.grpc.Errors as GrpcErrors
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
@@ -230,7 +232,7 @@ class SubpoolRankerTest {
     fake.rows.any { it.blobType == blobType && it.name.startsWith("$upload/") }
 
   @Test
-  fun `competing rank attempt is rejected and retry adopts the committed pair`() =
+  fun `competing rank attempts recover registration mismatch without another attempt`() =
     runBlocking<Unit> {
       val inputKey = writePhase0(listOf(1L to 0, 2L to 0, 3L to 0))
       modelLineStates[UPLOAD] = RawImpressionUploadModelLine.State.RANKING
@@ -251,16 +253,18 @@ class SubpoolRankerTest {
       assertThat(fake.attempts.flatten().map { it.blobUri }.toSet()).hasSize(4)
       val snapshot = fake.rows.single { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
       val dayOnly = fake.rows.single { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
-      assertThat(results.count { it.isSuccess }).isEqualTo(1)
-      val rejected = results.single { it.isFailure }.exceptionOrNull() as io.grpc.StatusException
-      assertThat(rejected.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      val winner = results.single { it.isSuccess }.getOrThrow()
+      assertThat(results.count { it.isSuccess }).isEqualTo(2)
+      val winner = results[0].getOrThrow()
       val retry = ranker().rank(POOL, inputKey, rankedSize = 100)
       assertThat(retry.skipped).isTrue()
       assertThat(fake.attempts).hasSize(2)
-      for (result in listOf(winner, retry)) {
+      for (result in results.map { it.getOrThrow() } + retry) {
         assertThat(result.snapshotRankIndexBlobName).isEqualTo(snapshot.name)
         assertThat(result.dayOnlyRankIndexBlobName).isEqualTo(dayOnly.name)
+      }
+      val winnerUris = setOf(snapshot.blobUri, dayOnly.blobUri)
+      for (uri in fake.attempts.flatten().map { it.blobUri }.filter { it !in winnerUris }) {
+        assertThat(storageClient.getBlob(uri)).isNull()
       }
       assertThat(snapshot.encryptedDek).isEqualTo(dayOnly.encryptedDek)
       assertThat(
@@ -274,6 +278,27 @@ class SubpoolRankerTest {
         )
         .isNotEmpty()
       assertThat(fake.rows).hasSize(2)
+    }
+
+  @Test
+  fun `partial committed pair cannot turn a retry into success`() =
+    runBlocking<Unit> {
+      val key = writePhase0(listOf(1L to 0))
+      ranker().rank(POOL, key, rankedSize = 100)
+      fake.rows.removeAll { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
+      assertFailsWith<IllegalStateException> { ranker().rank(POOL, key, rankedSize = 100) }
+      assertThat(fake.attempts).hasSize(1)
+    }
+
+  @Test
+  fun `missing committed data cannot turn a retry into success`() =
+    runBlocking<Unit> {
+      val key = writePhase0(listOf(1L to 0))
+      ranker().rank(POOL, key, rankedSize = 100)
+      val snapshot = fake.rows.single { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
+      rankStore.deleteBlob(snapshot.blobUri)
+      assertFailsWith<IllegalStateException> { ranker().rank(POOL, key, rankedSize = 100) }
+      assertThat(fake.attempts).hasSize(1)
     }
 
   @Test
@@ -305,24 +330,15 @@ class SubpoolRankerTest {
   }
 
   @Test
-  fun `idempotency gate skips a subpool already ranked for this upload`() = runBlocking {
-    // A SNAPSHOT row already exists under THIS upload (a prior attempt committed).
-    fake.seed(
-      rankIndexBlob {
-        name = "$UPLOAD/rankIndexBlobs/snap-existing"
-        blobType = RankIndexBlob.BlobType.SNAPSHOT
-        cmmsModelLine = MODEL_LINE
-        poolOffset = POOL
-      }
-    )
-    val key = writePhase0(listOf(1L to 0))
-    val before = fake.rows.size
-
-    val result = ranker().rank(POOL, key, rankedSize = 100)
-
-    assertThat(result.skipped).isTrue()
-    assertThat(fake.rows.size).isEqualTo(before) // no new rows created
-  }
+  fun `idempotency gate skips a subpool already ranked for this upload`() =
+    runBlocking<Unit> {
+      val key = writePhase0(listOf(1L to 0))
+      ranker().rank(POOL, key, rankedSize = 100)
+      val before = fake.rows.toList()
+      val result = ranker().rank(POOL, key, rankedSize = 100)
+      assertThat(result.skipped).isTrue()
+      assertThat(fake.rows).containsExactlyElementsIn(before)
+    }
 
   @Test
   fun `warm subpool renews existing fingerprints and allocates new ones`() = runBlocking {
@@ -1041,6 +1057,10 @@ class SubpoolRankerTest {
           synchronized(this@FakeRankIndexBlobs) {
             attempts += request.requestsList.map { it.rankIndexBlob }
             val pending = mutableMapOf<String, RankIndexBlob>()
+            val commitTime = timestamp {
+              seconds = maxOf(clock, (rows.maxOfOrNull { it.createTime.seconds } ?: 0L) + 1L)
+            }
+            clock = commitTime.seconds + 1L
             val created =
               request.requestsList.map { createRequest ->
                 val existing = byRequestId[createRequest.requestId]
@@ -1054,7 +1074,17 @@ class SubpoolRankerTest {
                       existing.blobChecksum == blob.blobChecksum &&
                       existing.encryptedDek == blob.encryptedDek &&
                       existing.maxEventDate == blob.maxEventDate
-                  if (!matches) throw Status.INVALID_ARGUMENT.asException()
+                  if (!matches) {
+                    val info =
+                      ErrorInfo.newBuilder()
+                        .setReason("INVALID_FIELD_VALUE")
+                        .setDomain("test.edpa")
+                        .putMetadata("fieldName", "requests[0].request_id")
+                        .build()
+                    val error =
+                      GrpcErrors.buildStatusRuntimeException(Status.INVALID_ARGUMENT, info)
+                    throw error.status.asException(error.trailers)
+                  }
                   existing.copy { clearDeleteTime() }
                 } else
                   pending.getOrPut(createRequest.requestId) {
@@ -1070,7 +1100,7 @@ class SubpoolRankerTest {
                     blob.copy {
                       name =
                         "${request.parent}/rankIndexBlobs/${blobType.name}-$poolOffset-${clock++}"
-                      createTime = timestamp { seconds = clock }
+                      createTime = commitTime
                     }
                   }
               }

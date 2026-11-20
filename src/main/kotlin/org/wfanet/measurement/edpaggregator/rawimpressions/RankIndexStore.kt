@@ -181,6 +181,11 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
   suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
     encryptedClient(encryptedDek).getBlob(blobKey)?.size ?: 0L
 
+  /** Deletes an unregistered, per-attempt object without modifying any rank metadata. */
+  suspend fun deleteBlob(blobKey: String) {
+    storageClient.getBlob(blobKey)?.delete()
+  }
+
   companion object {
     /**
      * Approximate on-disk bytes per rank-index entry: 12-byte fingerprint + 4-byte fixed32 rank +

@@ -66,7 +66,6 @@ internal class VidLabelingRegistrationBoundaryIntegrationTest : VidLabelingPipel
         edpaBeforeCallFaults.holdNextCall(
           "wfa.measurement.edpaggregator.v1alpha.RankIndexBlobService/BatchCreateRankIndexBlobs"
         )
-      holdNextRankBuilderRedelivery()
       republishQueuedRankBuilders() // D is a real SDK execution, paused after its encrypted file
       // writes.
       held.held.await()
@@ -113,20 +112,12 @@ internal class VidLabelingRegistrationBoundaryIntegrationTest : VidLabelingPipel
 
         held.release() // Registration must reject D's different URI/DEK under the same
         // IDs.
-        awaitHeldRankBuilderRedelivery()
-        val errors = workItemTransport.attemptErrors(item.name)
-        assertThat(errors).hasSize(1)
-        assertThat(errors.single()).contains("INVALID_ARGUMENT")
-        assertThat(rankerStatesFor(item)).isEqualTo(statesAfterC)
-        assertThat(listRankIndexBlobs(upload.name)).containsExactlyElementsIn(winningBlobs)
-        assertThat(vidLabelerWorkItems()).hasSize(if (crashStage == 0) 1 else 0)
-
-        releaseHeldRankBuilderRedelivery()
         awaitPipelineIdle()
         assertThat(rankerStatesFor(item).values)
           .containsExactly("SUCCEEDED", "SUCCEEDED", "SUCCEEDED")
         assertThat(rankBuilderWorkItems().single().state).isEqualTo(WorkItem.State.SUCCEEDED)
-        assertThat(workItemTransport.attemptCount(item.name)).isEqualTo(2)
+        assertThat(workItemTransport.attemptErrors(item.name)).isEmpty()
+        assertThat(workItemTransport.attemptCount(item.name)).isEqualTo(1)
         assertThat(vidLabelerWorkItems()).hasSize(1)
         assertThat(listModelLines(upload.name).single().state)
           .isEqualTo(RawImpressionUploadModelLine.State.LABELING)
@@ -140,6 +131,71 @@ internal class VidLabelingRegistrationBoundaryIntegrationTest : VidLabelingPipel
         assertThat(listMetadata()).hasSize(1)
       } finally {
         held.release()
+      }
+    }
+
+  @Test
+  fun `competing pool assignment recovers the winning DEK without a failed attempt`() =
+    runBlocking<Unit> {
+      withTimeout(90_000L) {
+        visibleModelLineNames.clear()
+        visibleModelLineNames += MEMOIZED_MODEL_LINE
+        withholdNextPoolAssignmentPublications()
+        withholdNextRankBuilderPublications()
+        writeRawFile("pool-mark-race", "input.parquet", listOf("pool-race-person"))
+        val generation = finalizeRawUpload("pool-mark-race")
+        awaitPipelineIdle()
+        val upload = listUploads().single { it.doneBlobGeneration == generation }
+        val item = poolAssignmentWorkItems().single()
+        val method =
+          "wfa.measurement.edpaggregator.v1alpha.PoolAssignmentJobService/MarkPoolAssignmentJobSucceeded"
+        val held = edpaBeforeCallFaults.holdNextCall(method)
+        republishQueuedPoolAssignments()
+        held.held.await()
+        try {
+          val loser =
+            held.requests[0]
+              as org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededRequest
+          edpaBeforeCallFaults.armAfterCommit(method)
+          val crash = assertFailsWith<StatusException> { runPoolAssignerDirect(item) }
+          assertThat(crash.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+          assertThat(held.requests).hasSize(2)
+          val winner =
+            held.requests[1]
+              as org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededRequest
+          assertThat(loser.requestId).isEqualTo(winner.requestId)
+          assertThat(loser.encryptedDek).isNotEqualTo(winner.encryptedDek)
+          val stored = winningPoolJob(winner)
+          assertThat(stored.encryptedDek).isEqualTo(winner.encryptedDek)
+          assertThat(stored.state.name).isEqualTo("SUCCEEDED")
+          assertThat(rankBuilderWorkItems()).isEmpty()
+          assertThat(listModelLines(upload.name).single().state)
+            .isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+          val losingKeys = poisonLosingShard(item, loser)
+          held.release()
+          awaitPipelineIdle()
+          assertThat(workItemTransport.attemptErrors(item.name)).isEmpty()
+          assertThat(workItemTransport.attemptCount(item.name)).isEqualTo(1)
+          assertThat(poolAssignmentWorkItems().single().state).isEqualTo(WorkItem.State.SUCCEEDED)
+          assertThat(winningPoolJob(winner)).isEqualTo(stored)
+          assertNoShardObjects(losingKeys)
+          assertThat(rankBuilderWorkItems()).hasSize(1)
+          val rankParams =
+            rankBuilderWorkItems()
+              .single()
+              .workItemParams
+              .unpack(WorkItem.WorkItemParams::class.java)
+              .appParams
+              .unpack(org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams::class.java)
+          assertThat(rankParams.encryptedSubpoolMapsDek).isEqualTo(winner.encryptedDek)
+          republishQueuedRankBuilders()
+          awaitPipelineIdle()
+          assertThat(listModelLines(upload.name).single().state)
+            .isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+          assertThat(listMetadata()).hasSize(1)
+        } finally {
+          held.release()
+        }
       }
     }
 
