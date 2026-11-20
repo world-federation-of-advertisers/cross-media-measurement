@@ -235,6 +235,7 @@ class SubpoolAssignerApp(
             vidRankBuilderParamsTemplate = vidRankBuilderParamsTemplate,
             dispatchLabeling = { context ->
               MemoizedVidLabelingJobDispatcher(
+                  rawImpressionUploadsStub = rawImpressionUploadsStub,
                   rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
                   vidLabelingJobsStub = vidLabelingJobsStub,
                   workItemsStub = workItemsClient,
