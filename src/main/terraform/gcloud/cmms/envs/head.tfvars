@@ -54,3 +54,5 @@ vid_labeling_healing_labeled_output_object_prefixes = [
   "vid-labeled-impressions/edp/edp7/",
   "vid-labeled-impressions/edp/edpa_meta/",
 ]
+
+meta_impression_query_artifact_version = "0.2.0"
