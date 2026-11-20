@@ -531,14 +531,23 @@ bazel run \
 ```
 
 To inspect dispatch before an upload record exists, replace
-`--raw-impression-upload` with all three of `--data-provider`,
-`--done-object-uri`, and `--done-object-generation`. This reads dispatch
-WorkItems and their attempts directly through the control plane, including
-ordinary, legacy, and recovery tasks for the exact source version. Only the
-object-path hash is rendered. The dispatch table reports stored task/attempt
-states independently of telemetry completeness; an incomplete inventory cannot
-certify the execution outcome. Upload-based lookup also includes dispatch tasks
-for that upload's source version.
+`--raw-impression-upload` with `--data-provider`, `--done-object-uri`,
+`--done-object-generation`, and `--done-object-create-time` (ISO-8601 creation
+time of that exact GCS generation). Lookup computes DataWatcher's deterministic
+task name and uses GetWorkItem, independently of global history and the inventory
+page limit. Only the object-path hash is rendered.
+
+Ordinary dispatch requires no recovery flags. To also inspect an authorized
+recovery intent, supply both `--dispatch-source-upload` and
+`--dispatch-healing-operation` with its immutable resource names. Lookup reads
+at most two task names and lists attempts only for tasks found. It does not
+discover unspecified recovery intents from mutable object metadata.
+`--dispatch-data-watcher-identifier` defaults to `vid-labeling-dispatch`;
+override it when the admitting watched-path configuration uses another identifier.
+Upload lookup obtains source creation time from the upload; supply the same
+recovery flags to identify an authorized historical replay intent.
+Missing identity or failed RPCs leave lookup incomplete, rather than certifying
+absence. Stored task/attempt states remain separate from telemetry completeness.
 
 Repeat `--raw-impression-upload` for a batch. Each upload is isolated into a
 path-safe Markdown artifact, and one malformed or failed upload does not stop

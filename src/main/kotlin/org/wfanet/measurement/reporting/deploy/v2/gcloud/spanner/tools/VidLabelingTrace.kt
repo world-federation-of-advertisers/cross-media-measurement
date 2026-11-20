@@ -51,6 +51,7 @@ import org.wfanet.measurement.common.telemetry.GoogleCloudTraceReader
 import org.wfanet.measurement.common.telemetry.SafeTelemetryText
 import org.wfanet.measurement.common.telemetry.buildCloudTelemetryLoggingOptions
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
@@ -164,6 +165,9 @@ internal data class VidLabelingTraceRequest(
   val traceSourceTimeout: Duration = DEFAULT_TRACE_SOURCE_TIMEOUT,
   val workItemPageLimit: Int = DEFAULT_WORK_ITEM_PAGE_LIMIT,
   val dispatchSource: VidLabelingDispatchSource? = null,
+  val dispatchDataWatcherIdentifier: String = "vid-labeling-dispatch",
+  val dispatchSourceUpload: String = "",
+  val dispatchHealingOperation: String = "",
 )
 
 private data class SourceAttempt<T>(
@@ -423,6 +427,12 @@ internal class VidLabelingTraceCollector(
             baseGraph.upload.name.substringBefore("/rawImpressionUploads/"),
             baseGraph.upload.doneBlobUri,
             baseGraph.upload.doneBlobGeneration,
+            baseGraph.upload.doneBlobCreateTime
+              .takeIf { baseGraph.upload.hasDoneBlobCreateTime() }
+              ?.toInstant(),
+            request.dispatchDataWatcherIdentifier,
+            request.dispatchSourceUpload,
+            request.dispatchHealingOperation,
           )
         }
         .getOrNull()
@@ -761,7 +771,11 @@ internal class VidLabelingTraceCollector(
           VidLabelingExecutionStatus.IN_PROGRESS
         else -> VidLabelingExecutionStatus.UNKNOWN
       }
-    if (items.isEmpty()) warnings += "No matching dispatch WorkItem was found."
+    if (items.isEmpty()) {
+      warnings +=
+        if (resolution != null) "No dispatch WorkItem exists for the supplied source and intent."
+        else "Dispatch WorkItem lookup was incomplete; absence could not be determined."
+    }
     val complete =
       items.isNotEmpty() &&
         statuses.snapshot().all { it.status == "complete" } &&
@@ -1770,6 +1784,31 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
   )
   private var doneObjectUri: String? = null
 
+  @Option(
+    names = ["--done-object-create-time"],
+    description = ["Creation time of the exact done-object generation, in ISO-8601."],
+  )
+  private var doneObjectCreateTime: Instant? = null
+
+  @Option(
+    names = ["--dispatch-data-watcher-identifier"],
+    defaultValue = "vid-labeling-dispatch",
+    description = ["Identifier of the watched-path configuration that admitted dispatch."],
+  )
+  private lateinit var dispatchDataWatcherIdentifier: String
+
+  @Option(
+    names = ["--dispatch-source-upload"],
+    description = ["Immutable recovery source RawImpressionUpload name."],
+  )
+  private var dispatchSourceUpload: String = ""
+
+  @Option(
+    names = ["--dispatch-healing-operation"],
+    description = ["Immutable recovery UploadHealingOperation name."],
+  )
+  private var dispatchHealingOperation: String = ""
+
   @Option(names = ["--done-object-generation"], description = ["Exact done-object generation."])
   private var doneObjectGeneration: Long? = null
 
@@ -1858,9 +1897,16 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
 
   override fun call(): Int = runBlocking {
     val hasDoneInput =
-      doneObjectUri != null || doneObjectGeneration != null || doneObjectProvider != null
+      doneObjectUri != null ||
+        doneObjectGeneration != null ||
+        doneObjectProvider != null ||
+        doneObjectCreateTime != null
     require(!hasDoneInput || rawImpressionUploads.isEmpty()) {
       "Choose upload lookup or done-object lookup"
+    }
+    require(dispatchDataWatcherIdentifier.isNotEmpty()) { "DataWatcher identifier is required" }
+    require(dispatchSourceUpload.isEmpty() == dispatchHealingOperation.isEmpty()) {
+      "--dispatch-source-upload and --dispatch-healing-operation must be supplied together"
     }
     val dispatchSource =
       if (hasDoneInput) {
@@ -1872,6 +1918,12 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
           requireNotNull(doneObjectGeneration) {
             "--done-object-generation is required for done-object lookup"
           },
+          requireNotNull(doneObjectCreateTime) {
+            "--done-object-create-time is required for done-object lookup"
+          },
+          dispatchDataWatcherIdentifier,
+          dispatchSourceUpload,
+          dispatchHealingOperation,
         )
       } else null
     require(dispatchSource != null || rawImpressionUploads.isNotEmpty()) {
@@ -1924,6 +1976,9 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
                 traceSourceTimeout,
                 workItemPageLimit,
                 dispatchSource = dispatchSource,
+                dispatchDataWatcherIdentifier = dispatchDataWatcherIdentifier,
+                dispatchSourceUpload = dispatchSourceUpload,
+                dispatchHealingOperation = dispatchHealingOperation,
               )
             )
           },
@@ -2037,6 +2092,9 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
                 traceSourceTimeout,
                 workItemPageLimit,
                 dispatchSource = dispatchSource,
+                dispatchDataWatcherIdentifier = dispatchDataWatcherIdentifier,
+                dispatchSourceUpload = dispatchSourceUpload,
+                dispatchHealingOperation = dispatchHealingOperation,
               )
             )
           },
