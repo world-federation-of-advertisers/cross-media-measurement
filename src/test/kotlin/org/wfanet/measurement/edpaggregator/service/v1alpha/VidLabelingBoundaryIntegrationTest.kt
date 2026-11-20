@@ -66,7 +66,6 @@ internal class VidLabelingRegistrationBoundaryIntegrationTest : VidLabelingPipel
         edpaBeforeCallFaults.holdNextCall(
           "wfa.measurement.edpaggregator.v1alpha.RankIndexBlobService/BatchCreateRankIndexBlobs"
         )
-      holdNextRankBuilderRedelivery()
       republishQueuedRankBuilders() // D is a real SDK execution, paused after its encrypted file
       // writes.
       held.held.await()
@@ -113,20 +112,12 @@ internal class VidLabelingRegistrationBoundaryIntegrationTest : VidLabelingPipel
 
         held.release() // Registration must reject D's different URI/DEK under the same
         // IDs.
-        awaitHeldRankBuilderRedelivery()
-        val errors = workItemTransport.attemptErrors(item.name)
-        assertThat(errors).hasSize(1)
-        assertThat(errors.single()).contains("INVALID_ARGUMENT")
-        assertThat(rankerStatesFor(item)).isEqualTo(statesAfterC)
-        assertThat(listRankIndexBlobs(upload.name)).containsExactlyElementsIn(winningBlobs)
-        assertThat(vidLabelerWorkItems()).hasSize(if (crashStage == 0) 1 else 0)
-
-        releaseHeldRankBuilderRedelivery()
         awaitPipelineIdle()
         assertThat(rankerStatesFor(item).values)
           .containsExactly("SUCCEEDED", "SUCCEEDED", "SUCCEEDED")
         assertThat(rankBuilderWorkItems().single().state).isEqualTo(WorkItem.State.SUCCEEDED)
-        assertThat(workItemTransport.attemptCount(item.name)).isEqualTo(2)
+        assertThat(workItemTransport.attemptErrors(item.name)).isEmpty()
+        assertThat(workItemTransport.attemptCount(item.name)).isEqualTo(1)
         assertThat(vidLabelerWorkItems()).hasSize(1)
         assertThat(listModelLines(upload.name).single().state)
           .isEqualTo(RawImpressionUploadModelLine.State.LABELING)

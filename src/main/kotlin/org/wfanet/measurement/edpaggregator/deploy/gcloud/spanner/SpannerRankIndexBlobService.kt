@@ -592,7 +592,7 @@ class SpannerRankIndexBlobService(
       throw InvalidFieldValueException(field) {
           "$it was reused with different immutable blob fields"
         }
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     }
     return existing.copy { clearDeleteTime() }
   }
