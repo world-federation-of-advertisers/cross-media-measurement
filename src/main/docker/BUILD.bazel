@@ -8,6 +8,7 @@ load("//build/cosign:image_manifest.bzl", "image_manifest")
 load("//build/cosign:macros.bzl", "sign_all")
 load("//src/main/docker/panel_exchange_client:images.bzl", "AWS_IMAGES", "GCLOUD_IMAGES", "LOCAL_IMAGES")
 load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES")
+load(":macros.bzl", "parallel_push_all")
 
 package(
     default_testonly = True,  #TODO: delete when InMemoryKeyStore and FakeHybridCipher are not used.
@@ -184,4 +185,14 @@ image_manifest(
         name = image_spec.repository,
         registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
     ) for image_spec in LOCAL_IMAGES],
+)
+
+parallel_push_all(
+    name = "push_release_images",
+    images = RELEASE_IMAGES,
+    tag = IMAGE_REPOSITORY_SETTINGS.image_tag,
+    tags = [
+        "manual",
+        "no-remote",
+    ],
 )

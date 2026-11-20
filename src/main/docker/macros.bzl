@@ -14,8 +14,10 @@
 
 """Macros for container images."""
 
+load("@rules_multirun//:defs.bzl", "command", "multirun")
 load(
     "@wfa_common_jvm//build/rules_oci:defs.bzl",
+    _container_push = "container_push",
     _java_image = "java_image",
 )
 load("//build:variables.bzl", "MEASUREMENT_SYSTEM_REPO")
@@ -64,3 +66,39 @@ def java_image(
         visibility = visibility,
         **kwargs
     )
+
+def parallel_push_all(name, images, tag, **kwargs):
+    """Push each destination once in sequential batches of at most four.
+
+    Args:
+      name: Target name.
+      images: Mapping from registry/repository to OCI image label.
+      tag: Tag to publish at each repository.
+      **kwargs: Common attributes forwarded to generated rules.
+    """
+    pushes = []
+    for index, repository in enumerate(sorted(images.keys())):
+        push_name = "{}_push_{}".format(name, index)
+        command_name = push_name + "_command"
+        registry, path = repository.split("/", 1)
+        _container_push(
+            name = push_name,
+            image = images[repository],
+            registry = registry,
+            repository = path,
+            tag = tag,
+            **kwargs
+        )
+        command(name = command_name, command = ":" + push_name, **kwargs)
+        pushes.append(":" + command_name)
+
+    batches = []
+    for start in range(0, len(pushes), 4):
+        batch_name = "{}_batch_{}".format(name, start // 4)
+
+        # rules_multirun 0.12 only treats jobs=0 as parallel. Its concurrent
+        # patched runner joins all started children even if a later launch fails.
+        multirun(name = batch_name, commands = pushes[start:start + 4], jobs = 0, **kwargs)
+        command(name = batch_name + "_command", command = ":" + batch_name, **kwargs)
+        batches.append(":" + batch_name + "_command")
+    multirun(name = name, commands = batches, jobs = 1, keep_going = False, **kwargs)
