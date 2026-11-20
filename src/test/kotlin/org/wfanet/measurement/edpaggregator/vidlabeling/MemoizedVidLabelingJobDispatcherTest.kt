@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Timestamp
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlin.test.assertFailsWith
@@ -25,15 +26,18 @@ import org.junit.Test
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -47,6 +51,10 @@ class MemoizedVidLabelingJobDispatcherTest {
   private val workItems = linkedMapOf<String, WorkItem>()
   private val outcomes = mutableListOf<String>()
   private val pages = mutableListOf<String>()
+  private val createRequests = mutableListOf<BatchCreateVidLabelingJobsRequest>()
+  private val createResponses = mutableListOf<BatchCreateVidLabelingJobsResponse>()
+  private var registrationComplete = true
+  private var pageSize = 2
   private var batchCalls = 0
   private var failBatch = -1
   private var shortResponse = false
@@ -60,6 +68,16 @@ class MemoizedVidLabelingJobDispatcherTest {
   @get:Rule
   val server = GrpcTestServerRule {
     addService(
+      object : RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase() {
+        override suspend fun getRawImpressionUpload(
+          request: org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
+        ) = rawImpressionUpload {
+          name = request.name
+          registrationComplete = this@MemoizedVidLabelingJobDispatcherTest.registrationComplete
+        }
+      }
+    )
+    addService(
       object :
         RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase() {
         override suspend fun listRawImpressionUploadFiles(
@@ -68,8 +86,8 @@ class MemoizedVidLabelingJobDispatcherTest {
           pages += request.pageToken
           val offset = request.pageToken.toIntOrNull() ?: 0
           val files = filesByUpload[request.parent].orEmpty()
-          rawImpressionUploadFiles += files.drop(offset).take(2)
-          if (offset + 2 < files.size) nextPageToken = (offset + 2).toString()
+          rawImpressionUploadFiles += files.drop(offset).take(pageSize)
+          if (offset + pageSize < files.size) nextPageToken = (offset + pageSize).toString()
         }
       }
     )
@@ -77,20 +95,42 @@ class MemoizedVidLabelingJobDispatcherTest {
       object : VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase() {
         override suspend fun batchCreateVidLabelingJobs(
           request: BatchCreateVidLabelingJobsRequest
-        ) = batchCreateVidLabelingJobsResponse {
-          batchCalls++
-          if (batchCalls == failBatch) throw Status.UNAVAILABLE.asException()
-          if (!shortResponse) {
-            for (create in request.requestsList) {
-              vidLabelingJobs +=
-                jobsByRequest.getOrPut(create.requestId) {
-                  create.vidLabelingJob.copy {
-                    name = "${request.parent}/vidLabelingJobs/job-${jobsByRequest.size}"
-                  }
+        ) =
+          batchCreateVidLabelingJobsResponse {
+              batchCalls++
+              createRequests += request
+              if (batchCalls == failBatch) throw Status.UNAVAILABLE.asException()
+              if (!shortResponse) {
+                for (create in request.requestsList) {
+                  val existing = jobsByRequest[create.requestId]
+                  if (
+                    existing != null &&
+                      (existing.rawImpressionUploadFilesList.sorted() !=
+                        create.vidLabelingJob.rawImpressionUploadFilesList.sorted() ||
+                        existing.cmmsModelLinesList.sorted() !=
+                          create.vidLabelingJob.cmmsModelLinesList.sorted())
+                  )
+                    throw Status.ALREADY_EXISTS.asException()
+                  val resolved =
+                    existing
+                      ?: create.vidLabelingJob.copy {
+                        name =
+                          "${request.parent}/vidLabelingJobs/vidLabelingJob-${java.util.UUID.randomUUID()}"
+                        state = VidLabelingJob.State.CREATED
+                        createTime =
+                          Timestamp.newBuilder()
+                            .setSeconds(1_800_000_000L)
+                            .setNanos(123456789)
+                            .build()
+                        updateTime = createTime
+                        etag = "e".repeat(64)
+                      }
+                  jobsByRequest[create.requestId] = resolved
+                  vidLabelingJobs += resolved
                 }
+              }
             }
-          }
-        }
+            .also { createResponses += it }
       }
     )
     addService(
@@ -124,8 +164,15 @@ class MemoizedVidLabelingJobDispatcherTest {
       }
   }
 
-  private fun dispatcher(upload: String = UPLOAD, model: String = MODEL) =
+  private fun dispatcher(
+    upload: String = UPLOAD,
+    model: String = MODEL,
+    maxFileBatchSizeBytes: Long = 100,
+    maxJobsPerBatchCreate: Int = 2,
+  ) =
     MemoizedVidLabelingJobDispatcher(
+      rawImpressionUploadsStub =
+        RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(server.channel),
       rawImpressionUploadFilesStub =
         RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
           server.channel
@@ -143,10 +190,10 @@ class MemoizedVidLabelingJobDispatcherTest {
           modelBlobPaths[model] = "gs://models/model"
         },
       vidLabelerQueue = "queues/labeling",
-      maxFileBatchSizeBytes = 100,
+      maxFileBatchSizeBytes = maxFileBatchSizeBytes,
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       traceContextProvider = { mapOf("traceparent" to "test-trace") },
-      maxJobsPerBatchCreate = 2,
+      maxJobsPerBatchCreate = maxJobsPerBatchCreate,
       onWorkItemPublished = { _, outcome -> outcomes += outcome },
     )
 
@@ -230,6 +277,95 @@ class MemoizedVidLabelingJobDispatcherTest {
       assertThat(dispatcher().dispatch()).isEqualTo(0)
       assertThat(batchCalls).isEqualTo(0)
       assertThat(workItems).isEmpty()
+    }
+
+  @Test
+  fun `50k tiny files serialize into bounded complete jobs and create RPCs`() = runBlocking {
+    pageSize = 500
+    filesByUpload[UPLOAD] =
+      (0 until 50_000).map { index ->
+        rawImpressionUploadFile {
+          name =
+            "$UPLOAD/files/rawImpressionUploadFile-${java.util.UUID.nameUUIDFromBytes(index.toString().toByteArray())}"
+          sizeBytes = 1
+        }
+      }
+    assertThat(
+        dispatcher(maxFileBatchSizeBytes = 1_000_000_000, maxJobsPerBatchCreate = 50).dispatch()
+      )
+      .isEqualTo(50)
+    assertThat(createRequests.size).isGreaterThan(1)
+    assertThat(jobsByRequest.values.flatMap { it.rawImpressionUploadFilesList })
+      .containsExactlyElementsIn(filesByUpload.getValue(UPLOAD).map { it.name })
+    for (job in jobsByRequest.values) {
+      assertThat(job.rawImpressionUploadFilesCount).isAtMost(1_000)
+      assertThat(job.toByteArray().size).isAtMost(512 * 1024)
+    }
+    val largestJob = jobsByRequest.values.maxBy { it.serializedSize }
+    val largestRequest = createRequests.maxBy { it.serializedSize }
+    val largestResponse = createResponses.maxBy { it.serializedSize }
+    assertThat(largestJob.toByteArray().size).isAtMost(512 * 1024)
+    assertThat(largestRequest.toByteArray().size).isAtMost(3 * 1024 * 1024)
+    assertThat(largestResponse.toByteArray().size).isLessThan(4 * 1024 * 1024)
+    for (request in createRequests) {
+      assertThat(request.requestsCount).isAtMost(50)
+      assertThat(request.toByteArray().size).isAtMost(3 * 1024 * 1024)
+    }
+    for (response in createResponses) {
+      assertThat(response.toByteArray().size).isLessThan(4 * 1024 * 1024)
+    }
+  }
+
+  @Test
+  fun `serialized job bytes can split before the file-count cap`() =
+    runBlocking<Unit> {
+      pageSize = 100
+      filesByUpload[UPLOAD] =
+        (0 until 100).map { index ->
+          rawImpressionUploadFile {
+            name = "$UPLOAD/files/${index.toString().padStart(3, '0')}-${"x".repeat(8_000)}"
+            sizeBytes = 1
+          }
+        }
+      assertThat(dispatcher(maxFileBatchSizeBytes = 1_000_000).dispatch()).isGreaterThan(1)
+      for (job in jobsByRequest.values) {
+        assertThat(job.rawImpressionUploadFilesCount).isLessThan(1_000)
+        assertThat(job.toByteArray().size).isAtMost(512 * 1024)
+      }
+      assertThat(jobsByRequest.values.flatMap { it.rawImpressionUploadFilesList })
+        .containsExactlyElementsIn(filesByUpload.getValue(UPLOAD).map { it.name })
+    }
+
+  @Test
+  fun `dispatch requires completed registration before listing files`() = runBlocking {
+    seedFiles()
+    registrationComplete = false
+    assertFailsWith<IllegalStateException> { dispatcher().dispatch() }
+    assertThat(pages).isEmpty()
+    assertThat(createRequests).isEmpty()
+    assertThat(workItems).isEmpty()
+  }
+
+  @Test
+  fun `redispatch rejects a changed file in the same batch slot`() =
+    runBlocking<Unit> {
+      seedFiles()
+      dispatcher().dispatch()
+      val oldJobs = jobsByRequest.toMap()
+      val oldItems = workItems.toMap()
+      val oldSlot = createRequests.first().requestsList.first()
+      filesByUpload[UPLOAD] =
+        filesByUpload.getValue(UPLOAD).mapIndexed { index, file ->
+          if (index == 0) file.copy { name = "$UPLOAD/files/a0" } else file
+        }
+      val error = assertFailsWith<StatusException> { dispatcher().dispatch() }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      val changedSlot = createRequests.last().requestsList.first()
+      assertThat(changedSlot.requestId).isEqualTo(oldSlot.requestId)
+      assertThat(changedSlot.vidLabelingJob.rawImpressionUploadFilesList)
+        .isNotEqualTo(oldSlot.vidLabelingJob.rawImpressionUploadFilesList)
+      assertThat(jobsByRequest).containsExactlyEntriesIn(oldJobs)
+      assertThat(workItems).containsExactlyEntriesIn(oldItems)
     }
 
   companion object {
