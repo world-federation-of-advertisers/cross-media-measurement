@@ -15,11 +15,13 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.pack
@@ -44,7 +46,7 @@ class VidLabelingDispatchTraceTest {
   private val provider = "dataProviders/provider"
   private val uri = "gs://private/raw/day/done"
   private val time = Instant.parse("2026-11-01T00:00:00Z")
-  private val source = VidLabelingDispatchSource.fromUri(provider, uri, 123L)
+  private val source = VidLabelingDispatchSource.fromUri(provider, uri, 123L, time)
 
   private fun task(
     id: String = "dispatch",
@@ -84,13 +86,16 @@ class VidLabelingDispatchTraceTest {
         .pack()
   }
 
-  private fun resolver(inventory: List<WorkItem>, truncated: Boolean = false) =
+  private fun namedTask(recovery: Boolean = false): WorkItem {
+    val item = task(recovery = recovery, outer = !recovery)
+    return item.copy { name = item.dispatchCandidateName("vid-labeling-dispatch") }
+  }
+
+  private fun resolver(inventory: List<WorkItem>) =
     GrpcVidLabelingWorkItemResolver.fromFunctions(
-      listWorkItems = {
-        listWorkItemsResponse {
-          workItems += inventory
-          if (truncated) nextPageToken = "more"
-        }
+      listWorkItems = { error("Dispatch lookup must never list the global WorkItems collection") },
+      getWorkItem = { request ->
+        inventory.firstOrNull { it.name == request.name } ?: throw Status.NOT_FOUND.asException()
       },
       listWorkItemAttempts = { request ->
         listWorkItemAttemptsResponse {
@@ -109,7 +114,11 @@ class VidLabelingDispatchTraceTest {
     upload: RawImpressionUpload? = null,
   ): VidLabelingTraceCollector {
     val message =
-      "event=edpa.vid_labeling.dispatch.work_item xmm.lifecycle.stage=dispatch xmm.outcome=failed xmm.work_item.name=workItems/dispatch xmm.work_item_attempt.name=workItems/dispatch/workItemAttempts/attempt xmm.gcs.object.path_hash=" +
+      "event=edpa.vid_labeling.dispatch.work_item xmm.lifecycle.stage=dispatch xmm.outcome=failed xmm.work_item.name=" +
+        namedTask().name +
+        " xmm.work_item_attempt.name=" +
+        namedTask().name +
+        "/workItemAttempts/attempt xmm.gcs.object.path_hash=" +
         source.pathHash +
         " xmm.gcs.object.generation=123 unsafe_uri=" +
         uri
@@ -140,28 +149,118 @@ class VidLabelingDispatchTraceTest {
   }
 
   @Test
-  fun `lookup retains valid source modes and excludes missing or other identities`() = runBlocking {
-    val inventory =
-      listOf(
-        task(),
-        task("missing-source", outer = false),
-        task("recovery", recovery = true, outer = false),
-        task("wrong-generation", generation = 124L),
-        task("wrong-provider", dataProvider = "dataProviders/other"),
-        task("wrong-path", path = "gs://private/raw/other/done"),
-        task("wrong-queue").copy { queue = "other" },
+  fun `large unrelated inventory cannot truncate exact ordinary and recovery lookup`() =
+    runBlocking {
+      val ordinary = namedTask()
+      val recovery = namedTask(recovery = true)
+      val inventory = (1..10_000).map { task("unrelated-$it") } + ordinary + recovery
+      var listCalls = 0
+      val gets = mutableListOf<String>()
+      val attempts = mutableListOf<String>()
+      val resolver =
+        GrpcVidLabelingWorkItemResolver.fromFunctions(
+          listWorkItems = {
+            listCalls++
+            listWorkItemsResponse {
+              workItems += inventory.take(100)
+              nextPageToken = "more"
+            }
+          },
+          getWorkItem = { request ->
+            gets += request.name
+            inventory.singleOrNull { it.name == request.name }
+              ?: throw Status.NOT_FOUND.asException()
+          },
+          listWorkItemAttempts = { request ->
+            attempts += request.parent
+            listWorkItemAttemptsResponse {
+              workItemAttempts += workItemAttempt {
+                name = request.parent + "/workItemAttempts/old-failed-attempt"
+                state = WorkItemAttempt.State.FAILED
+              }
+            }
+          },
+        )
+      val intent =
+        source.copy(
+          sourceUpload = provider + "/rawImpressionUploads/source",
+          uploadHealingOperation = provider + "/uploadHealingOperations/heal",
+        )
+      val result = resolver.resolveDispatch(intent, pageLimit = 1)
+      assertThat(result.workItems.map { it.workItem.name })
+        .containsExactly(ordinary.name, recovery.name)
+      assertThat(
+          result.workItems.all { it.attempts.single().state == WorkItemAttempt.State.FAILED }
+        )
+        .isTrue()
+      assertThat(result.truncated).isFalse()
+      assertThat(listCalls).isEqualTo(0)
+      assertThat(gets).containsExactly(ordinary.name, recovery.name)
+      assertThat(attempts).containsExactly(ordinary.name, recovery.name)
+      assertThat(result.counts["work_item_gets"]).isEqualTo(2L)
+    }
+
+  @Test
+  fun `identity and immutable intent changes cannot return another dispatch`(): Unit = runBlocking {
+    val ordinary = namedTask()
+    val recovery = namedTask(recovery = true)
+    val intent =
+      source.copy(
+        sourceUpload = provider + "/rawImpressionUploads/source",
+        uploadHealingOperation = provider + "/uploadHealingOperations/heal",
       )
-    val result = resolver(inventory).resolveDispatch(source, 1)
-    assertThat(result.workItems.map { it.workItem.name })
-      .containsExactly("workItems/dispatch", "workItems/recovery")
-    assertThat(result.workItems.all { it.attempts.size == 1 }).isTrue()
+    val resolver = resolver(listOf(ordinary, recovery))
+    for (changed in
+      listOf(
+        intent.copy(
+          dataProvider = "dataProviders/other",
+          sourceUpload = "dataProviders/other/rawImpressionUploads/source",
+          uploadHealingOperation = "dataProviders/other/uploadHealingOperations/heal",
+        ),
+        VidLabelingDispatchSource.fromUri(provider, "gs://private/other/done", 123L, time),
+        intent.copy(generation = 124L),
+        intent.copy(createTime = time.plusNanos(1)),
+        intent.copy(dataWatcherIdentifier = "custom-dispatch"),
+      )) assertThat(resolver.resolveDispatch(changed, 1).workItems).isEmpty()
+    for (changed in
+      listOf(
+        intent.copy(sourceUpload = provider + "/rawImpressionUploads/other"),
+        intent.copy(uploadHealingOperation = provider + "/uploadHealingOperations/other"),
+      )) assertThat(resolver.resolveDispatch(changed, 1).workItems.map { it.workItem.name })
+      .containsExactly(ordinary.name)
+    assertThat(resolver.resolveDispatch(source, 1).workItems.map { it.workItem.name })
+      .containsExactly(ordinary.name)
+  }
+
+  @Test
+  fun `exact name with inconsistent persisted source is rejected`(): Unit = runBlocking {
+    val correct = namedTask()
+    val mismatched = task(generation = 124L).copy { name = correct.name }
+    assertFailsWith<IllegalStateException> {
+      resolver(listOf(mismatched)).resolveDispatch(source, 1)
+    }
+  }
+
+  @Test
+  fun `custom watched path identifier resolves its exact task`() = runBlocking {
+    val item = task()
+    val named = item.copy { name = item.dispatchCandidateName("custom-dispatch") }
+    assertThat(
+        resolver(listOf(named))
+          .resolveDispatch(source.copy(dataWatcherIdentifier = "custom-dispatch"), 1)
+          .workItems
+          .single()
+          .workItem
+          .name
+      )
+      .isEqualTo(named.name)
   }
 
   @Test
   fun `done object lookup finds failed task without upload and renders safe lifecycle evidence`() =
     runBlocking {
       val collection =
-        collector(resolver(listOf(task())))
+        collector(resolver(listOf(namedTask())))
           .collect(
             VidLabelingTraceRequest(
               "",
@@ -173,10 +272,10 @@ class VidLabelingDispatchTraceTest {
           )
       assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.FAILED)
       assertThat(collection.dispatchWorkItems.single().attempts.single().name)
-        .isEqualTo("workItems/dispatch/workItemAttempts/attempt")
+        .isEqualTo(namedTask().name + "/workItemAttempts/attempt")
       assertThat(collection.evidence.single().stage).isEqualTo("dispatch")
       val output = VidLabelingTraceOutput.render(collection)
-      assertThat(output).contains("workItems/dispatch")
+      assertThat(output).contains(namedTask().name)
       assertThat(output).contains("FAILED")
       assertThat(output).contains(source.pathHash)
       assertThat(output).doesNotContain(uri)
@@ -184,21 +283,85 @@ class VidLabelingDispatchTraceTest {
     }
 
   @Test
-  fun `truncated dispatch lookup does not certify absence or execution outcome`() = runBlocking {
+  fun `NOT_FOUND is distinct from unavailable permission denied and timeout`() = runBlocking {
+    for (status in
+      listOf(
+        Status.NOT_FOUND,
+        Status.UNAVAILABLE,
+        Status.PERMISSION_DENIED,
+        Status.DEADLINE_EXCEEDED,
+      )) {
+      var attempts = 0
+      val resolver =
+        GrpcVidLabelingWorkItemResolver.fromFunctions(
+          listWorkItems = { error("No global listing") },
+          getWorkItem = { throw status.asException() },
+          listWorkItemAttempts = {
+            attempts++
+            error("No attempts for missing or failed GET")
+          },
+        )
+      val collection =
+        collector(resolver)
+          .collect(
+            VidLabelingTraceRequest(
+              "",
+              listOf("project"),
+              time.minusSeconds(1),
+              time.plusSeconds(1),
+              dispatchSource = source,
+            )
+          )
+      assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.UNKNOWN)
+      assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+      assertThat(attempts).isEqualTo(0)
+      if (status.code == Status.Code.NOT_FOUND) {
+        assertThat(
+            collection.sourceStatuses.first { it.source == "secure_computation_dispatch" }.status
+          )
+          .isEqualTo("complete")
+        assertThat(collection.warnings)
+          .contains("No dispatch WorkItem exists for the supplied source and intent.")
+      } else {
+        assertThat(
+            collection.sourceStatuses.first { it.source == "secure_computation_dispatch" }.status
+          )
+          .isEqualTo("failed")
+        assertThat(collection.warnings)
+          .contains("Dispatch WorkItem lookup was incomplete; absence could not be determined.")
+        assertThat(collection.warnings)
+          .doesNotContain("No dispatch WorkItem exists for the supplied source and intent.")
+      }
+    }
+  }
+
+  @Test
+  fun `incomplete recovery intent is rejected before lookup`(): Unit = runBlocking {
+    assertFailsWith<IllegalArgumentException> {
+      resolver(emptyList())
+        .resolveDispatch(source.copy(sourceUpload = provider + "/rawImpressionUploads/source"), 1)
+    }
+  }
+
+  @Test
+  fun `missing creation time is incomplete without any control plane lookup`() = runBlocking {
     val collection =
-      collector(resolver(listOf(task()), truncated = true))
+      collector(resolver(emptyList()))
         .collect(
           VidLabelingTraceRequest(
             "",
             listOf("project"),
             time.minusSeconds(1),
             time.plusSeconds(1),
-            workItemPageLimit = 1,
-            dispatchSource = source,
+            dispatchSource = source.copy(createTime = null),
           )
         )
-    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
-    assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.UNKNOWN)
+    assertThat(
+        collection.sourceStatuses.first { it.source == "secure_computation_dispatch" }.status
+      )
+      .isEqualTo("failed")
+    assertThat(collection.warnings)
+      .contains("Dispatch WorkItem lookup was incomplete; absence could not be determined.")
   }
 
   @Test
@@ -210,6 +373,7 @@ class VidLabelingDispatchTraceTest {
           "--data-provider=" + provider,
           "--done-object-uri=" + uri,
           "--done-object-generation=123",
+          "--done-object-create-time=" + time,
           "--observability-project=project",
           "--edpa-public-api-target=unused",
           "--control-plane-api-target=unused",
@@ -223,13 +387,13 @@ class VidLabelingDispatchTraceTest {
           "--allow-partial",
         ),
         VidLabelingTraceDependencies(
-          collector(resolver(listOf(task()))),
+          collector(resolver(listOf(namedTask()))),
           Clock.fixed(time, ZoneOffset.UTC),
           PrintWriter(output),
         ),
       )
     assertThat(code).isEqualTo(0)
-    assertThat(output.toString()).contains("workItems/dispatch")
+    assertThat(output.toString()).contains(namedTask().name)
     assertThat(output.toString()).doesNotContain(uri)
   }
 
@@ -240,11 +404,12 @@ class VidLabelingDispatchTraceTest {
         .setName(provider + "/rawImpressionUploads/upload")
         .setDoneBlobUri(uri)
         .setDoneBlobGeneration(123L)
+        .setDoneBlobCreateTime(time.toProtoTime())
         .setRegistrationComplete(true)
         .setState(RawImpressionUpload.State.COMPLETED)
         .build()
     val result =
-      collector(resolver(listOf(task())), upload)
+      collector(resolver(listOf(namedTask())), upload)
         .collect(
           VidLabelingTraceRequest(
             upload.name,
@@ -253,8 +418,8 @@ class VidLabelingDispatchTraceTest {
             time.plusSeconds(1),
           )
         )
-    assertThat(result.dispatchWorkItems.single().workItem.name).isEqualTo("workItems/dispatch")
-    assertThat(result.evidence.any { it.identifiers["xmm.work_item.name"] == "workItems/dispatch" })
+    assertThat(result.dispatchWorkItems.single().workItem.name).isEqualTo(namedTask().name)
+    assertThat(result.evidence.any { it.identifiers["xmm.work_item.name"] == namedTask().name })
       .isTrue()
     assertThat(VidLabelingTraceOutput.render(result)).contains("Dispatch WorkItems")
   }
