@@ -736,6 +736,14 @@ and SubpoolAssigner. Completed legacy groups are normalized on access or before 
 jobs, preserving their original finalizer response without a whole-table backfill.
 Historical decisions already lost before upgrade cannot be reconstructed.
 
+The updated public completion response uses only `last_shard_result` presence for finality.
+A present empty result starts direct labeling; nonempty offsets and a date start ranking.
+Deploy the matching SubpoolAssigner with the metadata service in a coordinated rollout.
+Successful marks retain a fingerprint of their original immutable input: equal retries replay
+that result, while a reused request ID with different input returns `ALREADY_EXISTS`.
+Legacy success records without original-input evidence cannot be accepted as matching retries;
+reconcile those records before using the new replay contract.
+
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0
 SubpoolAssigner, Phase 1 VidRankBuilder, Phase 2 VidLabeler) as Confidential Space
 TEE apps, plus a VidLabelingDispatcher, VidLabelingMonitor, and

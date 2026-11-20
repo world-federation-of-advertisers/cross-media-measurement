@@ -53,6 +53,7 @@ data class PoolAssignmentJobResult(
   val lastShard: Boolean?,
   val lastShardPoolOffsets: List<Long>,
   val lastShardMaxEventDate: Date?,
+  val markSucceededInputFingerprint: String,
 )
 
 /** Returns whether a [PoolAssignmentJob] with the specified keys exists. */
@@ -646,6 +647,7 @@ private object PoolAssignmentJobEntity {
       PoolAssignmentJob.ShardIndex,
       PoolAssignmentJob.CreateRequestId,
       PoolAssignmentJob.MarkSucceededRequestId,
+      PoolAssignmentJob.MarkSucceededInputFingerprint,
       PoolAssignmentJob.MarkFailedRequestId,
       PoolAssignmentJob.LastShard,
       PoolAssignmentJob.LastShardPoolOffsets,
@@ -690,6 +692,8 @@ private object PoolAssignmentJobEntity {
       else struct.getLongList("LastShardPoolOffsets"),
       if (struct.isNull("LastShardMaxEventDate")) null
       else struct.getDate("LastShardMaxEventDate").toProtoDate(),
+      if (struct.isNull("MarkSucceededInputFingerprint")) ""
+      else struct.getString("MarkSucceededInputFingerprint"),
     )
   }
 }
