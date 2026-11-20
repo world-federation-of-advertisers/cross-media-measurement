@@ -34,6 +34,16 @@ class DataAvailabilitySyncWorkItemPublisher(
 ) {
   data class Result(val workItemName: String, val outcome: String, val state: WorkItem.State)
 
+  data class ExecutionHistory(val failedExecutions: Long, val terminalFailure: Boolean)
+
+  private fun executionHistory(workItem: WorkItem): ExecutionHistory {
+    val failed = workItem.state == WorkItem.State.FAILED
+    return ExecutionHistory(
+      (workItem.generation - if (failed) 0L else 1L).coerceAtLeast(0L),
+      failed,
+    )
+  }
+
   suspend fun ensure(
     dataProvider: String,
     rawImpressionUpload: String,
@@ -44,6 +54,7 @@ class DataAvailabilitySyncWorkItemPublisher(
     doneBlobGeneration: Long,
     doneBlobCreateTime: Instant,
     traceContext: Map<String, String>,
+    onExecutionHistory: (ExecutionHistory) -> Unit = {},
     onFailure: (String, Throwable) -> Unit = { _, _ -> },
   ): Result {
     val request =
@@ -71,12 +82,14 @@ class DataAvailabilitySyncWorkItemPublisher(
         check(created.state != WorkItem.State.SUCCEEDED) {
           "Availability WorkItem $workItemName was suppressed without being scheduled"
         }
+        onExecutionHistory(executionHistory(created))
         return Result(workItemName, "created", created.state)
       }
       val existing = callControlPlane { getWorkItem(dataProvider, workItemName) }
       check(DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
         "Existing WorkItem $workItemName does not match the current availability handoff"
       }
+      onExecutionHistory(executionHistory(existing))
       return when (existing.state) {
         WorkItem.State.QUEUED,
         WorkItem.State.RUNNING,

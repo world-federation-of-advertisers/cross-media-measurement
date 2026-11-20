@@ -429,6 +429,7 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   dataProviderResourceId: String,
   filter: ListImpressionMetadataRequest.Filter,
   limit: Int,
+  includeEntityKeys: Boolean,
   after: ListImpressionMetadataPageToken.After? = null,
 ): Flow<ImpressionMetadataResult> {
   val entityKeyFilter: List<EntityKey> = filter.entityKeysList
@@ -449,7 +450,7 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
     }
 
   val sql = buildString {
-    appendLine(ImpressionMetadataEntity.baseSql(tableIndexDirective))
+    appendLine(ImpressionMetadataEntity.baseSql(tableIndexDirective, includeEntityKeys))
 
     val conjuncts =
       mutableListOf("ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId")
@@ -780,8 +781,25 @@ private object ImpressionMetadataEntity {
    *   other read shapes (by resource id, by blob URI, by create request id) rely on that to keep
    *   using their own indexes.
    */
-  fun baseSql(tableIndexDirective: String = ""): String =
-    """
+  fun baseSql(tableIndexDirective: String, includeEntityKeys: Boolean): String {
+    val entityKeysSql =
+      if (includeEntityKeys) {
+        """
+        ARRAY(
+          SELECT AS STRUCT
+            ImpressionMetadataEntityKeys.EntityType,
+            ImpressionMetadataEntityKeys.EntityId
+          FROM ImpressionMetadataEntityKeys
+          WHERE ImpressionMetadataEntityKeys.DataProviderResourceId = ImpressionMetadata.DataProviderResourceId
+            AND ImpressionMetadataEntityKeys.ImpressionMetadataId = ImpressionMetadata.ImpressionMetadataId
+          ORDER BY ImpressionMetadataEntityKeys.EntityType, ImpressionMetadataEntityKeys.EntityId
+        )
+        """
+          .trimIndent()
+      } else {
+        "ARRAY<STRUCT<EntityType STRING, EntityId STRING>>[]"
+      }
+    return """
     SELECT
       ImpressionMetadata.DataProviderResourceId,
       ImpressionMetadata.ImpressionMetadataId,
@@ -801,22 +819,15 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.State,
       ImpressionMetadata.CreateTime,
       ImpressionMetadata.UpdateTime,
-      ARRAY(
-        SELECT AS STRUCT
-          ImpressionMetadataEntityKeys.EntityType,
-          ImpressionMetadataEntityKeys.EntityId
-        FROM ImpressionMetadataEntityKeys
-        WHERE ImpressionMetadataEntityKeys.DataProviderResourceId = ImpressionMetadata.DataProviderResourceId
-          AND ImpressionMetadataEntityKeys.ImpressionMetadataId = ImpressionMetadata.ImpressionMetadataId
-        ORDER BY ImpressionMetadataEntityKeys.EntityType, ImpressionMetadataEntityKeys.EntityId
-      ) AS EntityKeys,
+      $entityKeysSql AS EntityKeys,
     FROM
       ImpressionMetadata$tableIndexDirective
     """
       .trimIndent()
+  }
 
   /** Base SELECT with no index directive; the optimizer chooses the index. */
-  val BASE_SQL = baseSql()
+  val BASE_SQL = baseSql(tableIndexDirective = "", includeEntityKeys = true)
 
   fun buildImpressionMetadataResult(struct: Struct): ImpressionMetadataResult {
     return ImpressionMetadataResult(

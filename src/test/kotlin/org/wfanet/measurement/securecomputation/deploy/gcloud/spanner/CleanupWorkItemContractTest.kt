@@ -88,7 +88,7 @@ class CleanupWorkItemContractTest {
       val persisted = assertPersisted()
       val source =
         persisted.workItemParams.unpack(WorkItem.WorkItemParams::class.java).dataPathParams
-      assertThat(source.generation).isEqualTo(1L)
+      assertThat(source.hasGeneration()).isFalse()
       assertThat(source.hasCreateTime()).isFalse()
     }
 
@@ -102,8 +102,7 @@ class CleanupWorkItemContractTest {
       val source =
         persisted.workItemParams.unpack(WorkItem.WorkItemParams::class.java).dataPathParams
       assertThat(source.hasGeneration()).isFalse()
-      assertThat(source.hasCreateTime()).isTrue()
-      assertThat(source.sourceEventId).isEqualTo("legacy-event")
+      assertThat(source.hasCreateTime()).isFalse()
     }
 
   @Test
@@ -114,7 +113,6 @@ class CleanupWorkItemContractTest {
     val source = persisted.workItemParams.unpack(WorkItem.WorkItemParams::class.java).dataPathParams
     assertThat(source.hasGeneration()).isFalse()
     assertThat(source.hasCreateTime()).isFalse()
-    assertThat(source.sourceEventId).isEqualTo("legacy-event")
   }
 
   @Test
@@ -135,35 +133,34 @@ class CleanupWorkItemContractTest {
 
   @Test
   fun `ordered deletion still requires creation time`() = runBlocking {
-    assertRejected(
-      "ordered",
-      WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED,
-      1L,
-      PATH,
-    )
+    assertRejected("ordered", 1L, PATH)
   }
 
   @Test
-  fun `finalization still requires creation time`() = runBlocking {
-    assertRejected("", WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED, 1L, PATH)
+  fun `finalization is filtered before creating a cleanup WorkItem`() = runBlocking {
+    watcher()
+      .receivePath(
+        PATH,
+        mapOf(
+          DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
+          DataWatcher.GENERATION_METADATA_KEY to "1",
+          DataWatcher.CREATE_TIME_METADATA_KEY to CREATE_TIME,
+        ),
+      )
+    assertThat(published).isEmpty()
   }
 
   @Test
   fun `zero generation remains invalid even with a deletion event ID`() = runBlocking {
-    assertRejected("", WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED, 0L, PATH)
+    assertRejected("", 0L, PATH)
   }
 
   @Test
   fun `partial deletion identity still requires a source path`() = runBlocking {
-    assertRejected("", WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED, 1L, "")
+    assertRejected("", 1L, "")
   }
 
-  private suspend fun assertRejected(
-    serializationKey: String,
-    eventType: WorkItem.WorkItemParams.DataPathParams.StorageEventType,
-    generation: Long,
-    path: String,
-  ) {
+  private suspend fun assertRejected(serializationKey: String, generation: Long, path: String) {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.createWorkItem(
@@ -177,8 +174,6 @@ class CleanupWorkItemContractTest {
                     dataPathParams = dataPathParams {
                       dataPath = path
                       this.generation = generation
-                      this.eventType = eventType
-                      sourceEventId = "legacy-event"
                     }
                   }
                   .pack()
@@ -211,6 +206,8 @@ class CleanupWorkItemContractTest {
         watchedPath {
           identifier = "cleanup"
           sourcePathRegex = "^gs://bucket/.*"
+          eventTypes += DataWatcher.DELETED_EVENT_TYPE
+          eventTypes += DataWatcher.ARCHIVED_EVENT_TYPE
           controlPlaneQueueSink = controlPlaneQueueSink {
             queue = "test-topid-id"
             allowMissingSourceIdentity = true

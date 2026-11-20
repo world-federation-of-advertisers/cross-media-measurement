@@ -55,18 +55,6 @@ message WorkItem {
         [(google.api.field_behavior) = IMMUTABLE];
     // Parameters for a data path work item.
     message DataPathParams {
-      // Type of storage event that produced this work.
-      enum StorageEventType {
-        // Unspecified storage event type.
-        STORAGE_EVENT_TYPE_UNSPECIFIED = 0;
-
-        // Object-finalized event.
-        FINALIZED = 1;
-
-        // Object-deleted event.
-        DELETED = 2;
-      }
-
       // The data path to process
       string data_path = 1 [(google.api.field_behavior) = REQUIRED];
 
@@ -78,29 +66,6 @@ message WorkItem {
 
       // Creation time of the source object.
       google.protobuf.Timestamp create_time = 3 [
-        (google.api.field_behavior) = OPTIONAL,
-        (google.api.field_behavior) = IMMUTABLE
-      ];
-
-      reserved 4;
-      reserved "metageneration";
-
-      // Storage event type.
-      StorageEventType event_type = 5 [
-        (google.api.field_behavior) = OPTIONAL,
-        (google.api.field_behavior) = IMMUTABLE
-      ];
-
-      // Snapshot of custom object metadata from the first notification for this
-      // generation. Standard identity fields are carried separately above.
-      map<string, string> object_metadata = 6 [
-        (google.api.field_behavior) = OPTIONAL,
-        (google.api.field_behavior) = IMMUTABLE
-      ];
-
-      // Source notification identity when a legacy deletion event has no
-      // object generation. New object events use generation instead.
-      string source_event_id = 7 [
         (google.api.field_behavior) = OPTIONAL,
         (google.api.field_behavior) = IMMUTABLE
       ];

@@ -1493,3 +1493,14 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_work_item_invok
   role       = "roles/run.invoker"
   member     = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
 }
+
+# TODO(world-federation-of-advertisers/cross-media-measurement#4912):
+# Configure and verify operator notification routes for Halo-managed EDPA alerts.
+module "vid_labeling_availability_monitoring" {
+  source                = "../edp-aggregator-availability-monitoring"
+  thresholds            = var.vid_labeling_availability_alert_thresholds
+  notification_channels = var.vid_labeling_healing_alert_notification_channels
+
+  publication_status_storage_roots = var.data_availability_publication_status_storage_roots
+  publication_status_writer_member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}

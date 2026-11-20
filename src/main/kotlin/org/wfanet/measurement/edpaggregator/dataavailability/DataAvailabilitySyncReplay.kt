@@ -63,6 +63,7 @@ class DataAvailabilitySyncReplay(
     val noWork: Int,
     val blockedByGaps: Int,
     val errors: List<ReplayError>,
+    val partiallyPublished: Int = 0,
   )
 
   /** Replays completion blobs sequentially to avoid overwhelming downstream services. */
@@ -70,6 +71,7 @@ class DataAvailabilitySyncReplay(
     val doneBlobUris = listDoneBlobUris()
 
     var published = 0
+    var partiallyPublished = 0
     var noWork = 0
     var blockedByGaps = 0
     val errors = mutableListOf<ReplayError>()
@@ -77,6 +79,15 @@ class DataAvailabilitySyncReplay(
       try {
         when (sync(doneBlobUri)) {
           DataAvailabilitySync.Outcome.PUBLISHED -> published++
+          DataAvailabilitySync.Outcome.PARTIALLY_PUBLISHED -> {
+            published++
+            partiallyPublished++
+          }
+          DataAvailabilitySync.Outcome.PUBLISHED_OTHER_IDENTITIES -> {
+            published++
+            partiallyPublished++
+            blockedByGaps++
+          }
           DataAvailabilitySync.Outcome.NO_WORK -> noWork++
           DataAvailabilitySync.Outcome.BLOCKED_GAPS -> blockedByGaps++
         }
@@ -93,6 +104,7 @@ class DataAvailabilitySyncReplay(
       noWork = noWork,
       blockedByGaps = blockedByGaps,
       errors = errors,
+      partiallyPublished = partiallyPublished,
     )
   }
 

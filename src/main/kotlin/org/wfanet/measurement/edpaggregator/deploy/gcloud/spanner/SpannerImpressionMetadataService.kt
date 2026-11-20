@@ -64,6 +64,7 @@ import org.wfanet.measurement.internal.edpaggregator.GetImpressionMetadataReques
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataView
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
@@ -391,6 +392,15 @@ class SpannerImpressionMetadataService(
   override suspend fun listImpressionMetadata(
     request: ListImpressionMetadataRequest
   ): ListImpressionMetadataResponse {
+    val includeEntityKeys =
+      when (request.view) {
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_UNSPECIFIED,
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL -> true
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC -> false
+        ImpressionMetadataView.UNRECOGNIZED ->
+          throw InvalidFieldValueException("view")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -429,6 +439,7 @@ class SpannerImpressionMetadataService(
             request.dataProviderResourceId,
             request.filter,
             pageSize + 1,
+            includeEntityKeys,
             after,
           )
           .map { it.impressionMetadata }

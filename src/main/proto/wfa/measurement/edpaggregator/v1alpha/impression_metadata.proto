@@ -154,3 +154,16 @@ message ImpressionMetadata {
   // Etag identifying the metadata version for conditional deletion.
   string etag = 15;
 }
+
+// Fields returned for an ImpressionMetadata resource.
+enum ImpressionMetadataView {
+  // Valid default per AIP-157; uses FULL for compatibility with existing
+  // callers.
+  IMPRESSION_METADATA_VIEW_UNSPECIFIED = 0;
+
+  // All fields except entity_keys.
+  IMPRESSION_METADATA_VIEW_BASIC = 1;
+
+  // All fields, including entity_keys.
+  IMPRESSION_METADATA_VIEW_FULL = 2;
+}

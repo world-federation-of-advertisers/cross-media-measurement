@@ -70,6 +70,9 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLineEventTemplateVersions
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
@@ -84,6 +87,7 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.getCertificateRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -153,6 +157,7 @@ abstract class MeasurementConsumerSimulator(
   private val measurementsClient: MeasurementsCoroutineStub,
   private val measurementConsumersClient: MeasurementConsumersCoroutineStub,
   private val certificatesClient: CertificatesCoroutineStub,
+  private val modelLinesClient: ModelLinesCoroutineStub,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
   private val kingdomApiThrottler: Throttler,
@@ -695,13 +700,19 @@ abstract class MeasurementConsumerSimulator(
     logger.info("Duration result is equal to the expected result")
   }
 
-  /** A sequence of operations done in the simulator involving a population measurement. */
+  /**
+   * A sequence of operations done in the simulator involving a population measurement.
+   *
+   * [configuredEventTemplateVersion] is the PDP's local fallback for this model line, or null when
+   * repository metadata supplies the version.
+   */
   suspend fun testPopulation(
     runId: String,
     populationData: PopulationData,
     modelLineName: String,
     populationFilterExpression: String,
     eventMessageDescriptor: Descriptors.Descriptor,
+    configuredEventTemplateVersion: Int?,
   ) {
     logger.info { "Creating population Measurement..." }
     // Create a new measurement on behalf of the measurement consumer.
@@ -725,11 +736,20 @@ abstract class MeasurementConsumerSimulator(
     val populationResult: Result = pollForResult { getPopulationResult(measurementName) }
     logger.info("Got population result from Kingdom: $populationResult")
 
+    val modelLine: ModelLine =
+      kingdomApiThrottler.onReady {
+        modelLinesClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getModelLine(getModelLineRequest { name = measurementInfo.measurementSpec.modelLine })
+      }
+    val eventTemplateVersion =
+      ModelLineEventTemplateVersions.resolve(modelLine, configuredEventTemplateVersion)
     val expectedResult =
       getExpectedPopulationResult(
         measurementInfo,
         populationData.populationSpec,
         eventMessageDescriptor,
+        eventTemplateVersion,
       )
     logger.info("Expected result: $expectedResult")
 
@@ -1181,6 +1201,7 @@ abstract class MeasurementConsumerSimulator(
     measurementInfo: MeasurementInfo,
     populationSpec: PopulationSpec,
     eventMessageDescriptor: Descriptors.Descriptor,
+    eventTemplateVersion: Int,
   ): Result {
     val requisition = measurementInfo.requisitions[0]
     val requisitionSpec = requisition.requisitionSpec
@@ -1194,6 +1215,7 @@ abstract class MeasurementConsumerSimulator(
               populationSpec,
               requisitionFilterExpression,
               eventMessageDescriptor,
+              eventTemplateVersion,
             )
         }
     }

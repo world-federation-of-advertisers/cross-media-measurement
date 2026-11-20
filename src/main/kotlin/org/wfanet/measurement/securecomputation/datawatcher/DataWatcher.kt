@@ -106,6 +106,14 @@ class DataWatcher(
       return
     }
 
+    if (
+      config.eventTypesCount > 0 &&
+        objectMetadata[EVENT_TYPE_METADATA_KEY] !in config.eventTypesList
+    ) {
+      logger.log(Level.FINE, "Configuration ${config.identifier} did not match event type")
+      return
+    }
+
     logger.log(
       Level.INFO,
       "Configuration matched path: config=${config.identifier}, pathHash=${pathHash(path)}",
@@ -167,22 +175,17 @@ class DataWatcher(
     val queueConfig = config.controlPlaneQueueSink
     val objectGeneration =
       objectMetadata[GENERATION_METADATA_KEY]?.toLongOrNull()?.takeIf { it > 0L }
+    require(GENERATION_METADATA_KEY !in objectMetadata || objectGeneration != null) {
+      "Missing or invalid source object generation"
+    }
     val objectCreateTime = objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
-    val storageEventType =
-      when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
-        FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-        // Both archive and delete remove this generation from the live namespace. They use
-        // the same cleanup identity; deleting an already archived generation adds no work.
-        DELETED_EVENT_TYPE,
-        ARCHIVED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-        else -> throw IllegalArgumentException("Missing or invalid storage event type")
-      }
     val sourceEventId =
       if (objectGeneration == null) {
         require(
           queueConfig.allowMissingSourceIdentity &&
             queueConfig.serializationKey.isEmpty() &&
-            storageEventType == WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
+            objectMetadata[EVENT_TYPE_METADATA_KEY] in
+              setOf(DELETED_EVENT_TYPE, ARCHIVED_EVENT_TYPE)
         ) {
           "Missing or invalid source object generation"
         }
@@ -201,20 +204,10 @@ class DataWatcher(
           appParams = queueConfig.appParams
           this.dataPathParams = dataPathParams {
             this.dataPath = path
-            if (objectGeneration != null) generation = objectGeneration
-            if (objectCreateTime != null) createTime = objectCreateTime.toProtoTime()
-            this.sourceEventId = sourceEventId
-            eventType = storageEventType
-            if (queueConfig.includeObjectMetadata) {
-              this.objectMetadata.putAll(
-                objectMetadata -
-                  setOf(
-                    GENERATION_METADATA_KEY,
-                    CREATE_TIME_METADATA_KEY,
-                    EVENT_TYPE_METADATA_KEY,
-                    EVENT_ID_METADATA_KEY,
-                  )
-              )
+            // Partial unordered source identity is encoded in the WorkItem ID.
+            if (objectGeneration != null && objectCreateTime != null) {
+              generation = objectGeneration
+              createTime = objectCreateTime.toProtoTime()
             }
           }
           traceContext.putAll(W3CTraceContext.inject())
@@ -298,23 +291,27 @@ class DataWatcher(
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-    val missingCreateTime =
+    val partialSourceIdentity =
       requestedWorkItem.serializationKey.isEmpty() &&
-        (!existingParams.dataPathParams.hasCreateTime() ||
+        (!existingParams.dataPathParams.hasGeneration() ||
+          !existingParams.dataPathParams.hasCreateTime() ||
+          !requestedParams.dataPathParams.hasGeneration() ||
           !requestedParams.dataPathParams.hasCreateTime())
     check(
       existing.queue == requestedWorkItem.queue &&
         existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
-        // Custom metadata can change without changing the object generation. Keep the first
-        // notification's snapshot while validating the immutable source identity.
         existingParams.dataPathParams.copy {
-          objectMetadata.clear()
-          if (missingCreateTime) clearCreateTime()
+          if (partialSourceIdentity) {
+            clearGeneration()
+            clearCreateTime()
+          }
         } ==
           requestedParams.dataPathParams.copy {
-            objectMetadata.clear()
-            if (missingCreateTime) clearCreateTime()
+            if (partialSourceIdentity) {
+              clearGeneration()
+              clearCreateTime()
+            }
           }
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"

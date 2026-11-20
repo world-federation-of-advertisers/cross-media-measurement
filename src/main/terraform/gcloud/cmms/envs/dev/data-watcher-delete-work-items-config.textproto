@@ -3,9 +3,10 @@
 watched_paths {
   identifier: "data-availability-cleanup"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/(?:vid-labeled-impressions/)?edp/edp7/.*"
+  event_types: "google.cloud.storage.object.v1.deleted"
+  event_types: "google.cloud.storage.object.v1.archived"
   control_plane_queue_sink {
     queue: "data-availability-cleanup-queue"
-    include_object_metadata: true
     allow_missing_source_identity: true
     app_params {
       [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
@@ -17,9 +18,10 @@ watched_paths {
 watched_paths {
   identifier: "data-availability-cleanup"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/(?:vid-labeled-impressions/)?edp/edpa_meta/.*"
+  event_types: "google.cloud.storage.object.v1.deleted"
+  event_types: "google.cloud.storage.object.v1.archived"
   control_plane_queue_sink {
     queue: "data-availability-cleanup-queue"
-    include_object_metadata: true
     allow_missing_source_identity: true
     app_params {
       [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
@@ -31,9 +33,10 @@ watched_paths {
 watched_paths {
   identifier: "data-availability-cleanup"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/(?:vid-labeled-impressions/)?edp/edpa_video_pub/.*"
+  event_types: "google.cloud.storage.object.v1.deleted"
+  event_types: "google.cloud.storage.object.v1.archived"
   control_plane_queue_sink {
     queue: "data-availability-cleanup-queue"
-    include_object_metadata: true
     allow_missing_source_identity: true
     app_params {
       [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
@@ -45,9 +48,10 @@ watched_paths {
 watched_paths {
   identifier: "data-availability-cleanup"
   source_path_regex: "^gs://secure-computation-storage-dev-bucket/(?:vid-labeled-impressions/)?edp/edpa_retail_pub/.*"
+  event_types: "google.cloud.storage.object.v1.deleted"
+  event_types: "google.cloud.storage.object.v1.archived"
   control_plane_queue_sink {
     queue: "data-availability-cleanup-queue"
-    include_object_metadata: true
     allow_missing_source_identity: true
     app_params {
       [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {

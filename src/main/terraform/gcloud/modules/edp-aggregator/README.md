@@ -78,8 +78,9 @@ internal prefix. External upload producers do not need to change their paths.
 The deletion watcher stores one cleanup WorkItem for each file generation before
 acknowledging the notification. Delete and archive notifications for the same
 generation share a job. Older notifications without a generation use their
-notification ID. The worker reads current metadata and checks for a live file
-when it executes; queued jobs do not store a metadata etag.
+notification ID. The worker looks up current metadata by the file path and
+checks for a live file when it executes. Queued jobs do not store object
+metadata or a metadata etag.
 
 The deletion watcher also limits queue writes: it runs at most
 `data_watcher_delete_max_instances` instances (default 10), with one event per
@@ -129,10 +130,6 @@ new notifications to the HTTP route, set the routing setting to `false`; queued
 jobs still need the updated worker to finish. Older workers receiving a queued
 job return an error, preserving it for retry. Older metadata APIs likewise
 cause retryable failures until they support conditional deletion.
-
-The 10,000-event application test checks intake, deduplication, and completion
-with five parallel workers. It does not measure deployed API capacity. Measure
-queue age and API load when selecting production worker and rate settings.
 
 The metadata deletion watcher receives both object-deleted and object-archived
 events. In a versioned bucket, deleting a live object without specifying a

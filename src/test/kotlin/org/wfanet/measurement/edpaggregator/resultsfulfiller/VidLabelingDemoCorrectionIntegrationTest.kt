@@ -445,6 +445,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
      */
     private val MODEL_LINE_CONFIG: VidLabelerParams.ModelLineConfig =
       VidLabelerParamsKt.modelLineConfig {
+        eventTemplateVersion = 1
         labelerInputFieldMapping += labelerInputFieldMapping {
           fieldPath = "event_id.id"
           scalar = scalarColumn { column = EVENT_ID_COLUMN }

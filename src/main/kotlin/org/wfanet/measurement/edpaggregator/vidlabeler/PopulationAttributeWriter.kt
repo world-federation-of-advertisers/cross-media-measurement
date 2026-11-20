@@ -50,7 +50,17 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 class PopulationAttributeWriter(
   private val eventDescriptor: Descriptors.Descriptor,
   populationSpec: PopulationSpec,
+  eventTemplateVersion: Int,
 ) {
+  constructor(
+    eventDescriptor: Descriptors.Descriptor,
+    populationSpec: PopulationSpec,
+  ) : this(
+    eventDescriptor,
+    populationSpec,
+    EventTemplates.getEventDescriptor(eventDescriptor).currentVersion,
+  )
+
   /** One population-attribute value to set: which template holds it, which field, what value. */
   private class AttributeValue(
     val templateField: FieldDescriptor,
@@ -88,7 +98,7 @@ class PopulationAttributeWriter(
 
   /** Population-attribute fields of each event template, from the `population_attribute` option. */
   private val populationFieldsByTemplate: Map<Descriptors.Descriptor, List<FieldDescriptor>> =
-    EventTemplates.getPopulationFieldsByTemplateType(eventDescriptor)
+    EventTemplates.getPopulationFieldsByTemplateType(eventDescriptor, eventTemplateVersion)
 
   // VID ranges flattened across subpopulations and sorted by start, searched per impression.
   private val rangeStarts: LongArray
@@ -100,7 +110,7 @@ class PopulationAttributeWriter(
     // binary search in [valuesFor] resolves to exactly one subpopulation) and every population
     // attribute is set on every subpopulation (so [attributeValues] never copies a proto3 default
     // over a real value). Same check the Kingdom runs when a Population is registered.
-    PopulationSpecValidator.validate(populationSpec, eventDescriptor)
+    PopulationSpecValidator.validate(populationSpec, eventDescriptor, eventTemplateVersion)
 
     val flattened =
       populationSpec.subpopulationsList

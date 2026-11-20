@@ -600,25 +600,10 @@ class SpannerWorkItemsService(
       throw InvalidFieldValueException("work_item_params.data_path_params.data_path")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val hasGeneration = dataPathParams.hasGeneration()
-    val hasCreateTime = dataPathParams.hasCreateTime()
-    val isUnorderedDeletion =
-      serializationKey.isEmpty() &&
-        dataPathParams.eventType ==
-          PublicWorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-    val hasCleanupIdentity =
-      if (hasGeneration) dataPathParams.generation > 0L
-      else dataPathParams.sourceEventId.isNotBlank()
-    // Older deletion notifications can have a partial storage identity. Unordered cleanup
-    // deduplicates them through the WorkItem resource ID rather than source-version ordering.
-    if (isUnorderedDeletion && hasCleanupIdentity && (!hasGeneration || !hasCreateTime)) {
-      if (dataPathParams.dataPath.isEmpty()) {
-        throw RequiredFieldNotSetException("work_item_params.data_path_params.data_path")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      return null
-    }
-    val sourceMetadataRequired = serializationKey.isNotEmpty() || hasGeneration || hasCreateTime
+    val sourceMetadataRequired =
+      serializationKey.isNotEmpty() ||
+        dataPathParams.hasGeneration() ||
+        dataPathParams.hasCreateTime()
     if (!sourceMetadataRequired) {
       return null
     }

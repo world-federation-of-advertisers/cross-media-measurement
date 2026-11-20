@@ -29,6 +29,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
@@ -38,7 +39,16 @@ import org.wfanet.measurement.integration.common.EventGroupConfig
 @RunWith(JUnit4::class)
 class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSimulatorTest() {
 
-  override fun createSimulator(eventGroupRefIds: List<String>): MeasurementConsumerSimulator {
+  override fun createSimulator(eventGroupRefIds: List<String>): MeasurementConsumerSimulator =
+    createSimulator(eventGroupRefIds) { throw ShortCircuitException() }
+
+  override fun createPopulationSimulator(): MeasurementConsumerSimulator =
+    createSimulator(emptyList(), null)
+
+  private fun createSimulator(
+    eventGroupRefIds: List<String>,
+    onMeasurementsCreated: (() -> Unit)?,
+  ): MeasurementConsumerSimulator {
     val syntheticEventGroupMap =
       eventGroupRefIds.associateWith { EventGroupConfig.LegacySpec(SYNTHETIC_SPEC) }
     return EdpAggregatorMeasurementConsumerSimulator(
@@ -49,7 +59,8 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
       measurementsClient = MeasurementsCoroutineStub(grpcTestServerRule.channel),
       measurementConsumersClient = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
       certificatesClient = CertificatesCoroutineStub(grpcTestServerRule.channel),
-      trustedCertificates = emptyMap(),
+      modelLinesClient = ModelLinesCoroutineStub(grpcTestServerRule.channel),
+      trustedCertificates = TRUSTED_CERTIFICATES,
       messageInstance = TestEvent.getDefaultInstance(),
       expectedDirectNoiseMechanism = NoiseMechanism.GEOMETRIC,
       populationSpec = populationSpec {},
@@ -59,7 +70,7 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
       listEventGroupsEntityTypes = emptyList(),
       listEventGroupsDataProviders = listOf(DATA_PROVIDER_NAME),
       kingdomApiThrottler = kingdomApiThrottler,
-      onMeasurementsCreated = { throw ShortCircuitException() },
+      onMeasurementsCreated = onMeasurementsCreated,
     )
   }
 

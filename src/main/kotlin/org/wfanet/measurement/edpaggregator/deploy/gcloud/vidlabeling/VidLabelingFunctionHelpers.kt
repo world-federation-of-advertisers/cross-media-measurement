@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.ExtensionRegistry
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
@@ -24,7 +26,11 @@ import java.io.File
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
+import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.EventTemplates
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getResultsFulfillerConfigAsByteArray
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams as ConfigTransportLayerSecurityParams
@@ -98,6 +104,30 @@ object VidLabelingFunctionHelpers {
     return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
   }
 
+  /** Rejects unsupported versions before a model line is claimed or work is published. */
+  suspend fun validateEventTemplateVersion(
+    config: VidLabelerParams.ModelLineConfig,
+    version: Int,
+    googleProjectId: String,
+  ) {
+    val bytes =
+      getResultsFulfillerConfigAsByteArray(googleProjectId, config.eventTemplateDescriptorBlobUri)
+    val extensions =
+      ExtensionRegistry.newInstance().also { EventAnnotationsProto.registerAllExtensions(it) }
+    val descriptorSet = DescriptorProtos.FileDescriptorSet.parseFrom(bytes, extensions)
+    val descriptor =
+      requireNotNull(
+        ProtoReflection.buildDescriptors(
+            listOf(descriptorSet),
+            ProtoReflection.WELL_KNOWN_TYPES.asSequence().asIterable(),
+          )
+          .firstOrNull { it.fullName == config.eventTemplateType }
+      ) {
+        "EventTemplate descriptor not found for type: ${config.eventTemplateType}"
+      }
+    EventTemplates.getPopulationFields(descriptor, version)
+  }
+
   fun convertModelLineConfigs(
     configModelLines: Map<String, VidLabelingConfig.ModelLineConfig>
   ): Map<String, VidLabelerParams.ModelLineConfig> {
@@ -110,6 +140,7 @@ object VidLabelingFunctionHelpers {
         requiredEntityKeyFieldMapping.putAll(configModelLine.requiredEntityKeyFieldMappingMap)
         optionalEntityKeyFieldMapping.putAll(configModelLine.optionalEntityKeyFieldMappingMap)
         populationSpecBlobUri = configModelLine.populationSpecBlobUri
+        eventTemplateVersion = configModelLine.eventTemplateVersion
       }
     }
   }

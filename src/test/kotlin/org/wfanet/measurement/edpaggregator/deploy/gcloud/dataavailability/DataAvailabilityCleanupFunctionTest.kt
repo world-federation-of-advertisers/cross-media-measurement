@@ -245,7 +245,10 @@ class DataAvailabilityCleanupFunctionTest {
       override suspend fun listImpressionMetadata(request: ListImpressionMetadataRequest) =
         listImpressionMetadataResponse {
           lists.incrementAndGet()
-          impressionMetadata += records.values.filter { it.blobUri in request.filter.blobUrisList }
+          impressionMetadata +=
+            records.values
+              .filter { it.blobUri in request.filter.blobUrisList }
+              .map { if (legacyEtag) it.copy { etag = "" } else it }
         }
 
       override suspend fun markImpressionMetadataDeleted(
@@ -305,7 +308,7 @@ class DataAvailabilityCleanupFunctionTest {
       }
       .also { records[it.name] = it }
 
-  private fun queued(record: ImpressionMetadata, includeName: Boolean): WorkItem =
+  private fun queued(record: ImpressionMetadata): WorkItem =
     workItem {
         name = "workItems/cleanup-" + record.name.substringAfterLast("-")
         generation = 1
@@ -318,9 +321,6 @@ class DataAvailabilityCleanupFunctionTest {
                 dataPath = record.blobUri
                 generation = 1
                 createTime = timestamp { seconds = 1 }
-                eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-                if (includeName)
-                  objectMetadata[WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY] = record.name
               }
             }
             .pack()
@@ -341,7 +341,7 @@ class DataAvailabilityCleanupFunctionTest {
       Optional.ofNullable(headers[it.getArgument<String>(0)])
     }
     val response = mock<HttpResponse>()
-    var code = 0
+    var code = 200
     doAnswer {
         code = it.getArgument(0)
         null
@@ -355,19 +355,29 @@ class DataAvailabilityCleanupFunctionTest {
   private fun deliver(item: WorkItem): Int = invoke(function(), item.toByteArray(), emptyMap())
 
   @Test
-  fun `service completes cleanup using the queued metadata name`() {
+  fun `service resolves current metadata by the queued object path`() {
     val record = record(1)
-    val item = queued(record, true)
+    val item = queued(record)
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(items.getValue(item.name).state).isEqualTo(WorkItem.State.SUCCEEDED)
     assertThat(records.getValue(record.name).state).isEqualTo(ImpressionMetadata.State.DELETED)
-    assertThat(lists.get()).isEqualTo(0)
+    assertThat(lists.get()).isEqualTo(1)
     assertThat(lastEtag[record.name]).isEqualTo("version-1")
   }
 
   @Test
-  fun `service looks up metadata when an old event has no resource name`() {
-    val item = queued(record(1), false)
+  fun `service accepts a legacy queued path without generation or creation time`() {
+    val original = queued(record(1))
+    val params =
+      original.workItemParams.unpack(WorkItem.WorkItemParams::class.java).copy {
+        dataPathParams =
+          dataPathParams.copy {
+            clearGeneration()
+            clearCreateTime()
+          }
+      }
+    val item = original.copy { workItemParams = params.pack() }
+    items[item.name] = item
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(lists.get()).isEqualTo(1)
     assertThat(marks.get()).isEqualTo(1)
@@ -389,7 +399,7 @@ class DataAvailabilityCleanupFunctionTest {
   @Test
   fun `service reads the metadata version when the delayed job executes`() {
     val record = record(1)
-    val item = queued(record, true)
+    val item = queued(record)
     records[record.name] = record.copy { etag = "replacement-version" }
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(lastEtag[record.name]).isEqualTo("replacement-version")
@@ -398,7 +408,7 @@ class DataAvailabilityCleanupFunctionTest {
   @Test
   fun `service preserves a replacement file uploaded after enqueueing`() {
     val record = record(1)
-    val item = queued(record, true)
+    val item = queued(record)
     File(root, "files/1").apply {
       parentFile.mkdirs()
       writeText("replacement")
@@ -411,7 +421,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service acknowledges successful duplicate deliveries without repeating cleanup`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(marks.get()).isEqualTo(1)
@@ -420,7 +430,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service rejects an active duplicate so delivery can retry`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     items[item.name] = item.copy { state = WorkItem.State.RUNNING }
     assertThat(deliver(item)).isEqualTo(500)
     assertThat(marks.get()).isEqualTo(0)
@@ -428,7 +438,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service acknowledges an obsolete execution generation`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     items[item.name] = item.copy { generation = 2 }
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(marks.get()).isEqualTo(0)
@@ -436,7 +446,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service retries temporary metadata failures after the worker restarts`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     failuresRemaining.set(1)
     assertThat(deliver(item)).isEqualTo(500)
     assertThat(items.getValue(item.name).state).isEqualTo(WorkItem.State.QUEUED)
@@ -447,7 +457,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service retries when an older public API lacks conditional deletion`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     legacyApi = true
     assertThat(deliver(item)).isEqualTo(500)
     assertThat(items.getValue(item.name).state).isEqualTo(WorkItem.State.QUEUED)
@@ -458,7 +468,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service retries when an older API omits the metadata version`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     legacyEtag = true
     assertThat(deliver(item)).isEqualTo(500)
     assertThat(marks.get()).isEqualTo(0)
@@ -468,7 +478,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service accepts an older publisher's internal WorkItem envelope`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     val internal =
       org.wfanet.measurement.internal.securecomputation.controlplane.workItem {
         workItemResourceId = item.name.substringAfter("/")
@@ -477,13 +487,13 @@ class DataAvailabilityCleanupFunctionTest {
         workItemParams = item.workItemParams
       }
     assertThat(invoke(function(), internal.toByteArray(), emptyMap())).isEqualTo(200)
-    assertThat(lists.get()).isEqualTo(0)
+    assertThat(lists.get()).isEqualTo(1)
     assertThat(marks.get()).isEqualTo(1)
   }
 
   @Test
   fun `service retries completion without repeating metadata deletion`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     completionFailuresRemaining.set(1)
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(marks.get()).isEqualTo(1)
@@ -491,7 +501,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service handles a lost completion response without failing the completed job`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     loseCompletionResponse = true
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(items.getValue(item.name).state).isEqualTo(WorkItem.State.SUCCEEDED)
@@ -501,7 +511,7 @@ class DataAvailabilityCleanupFunctionTest {
 
   @Test
   fun `service accepts older attempt responses without a lease`() {
-    val item = queued(record(1), true)
+    val item = queued(record(1))
     leasedAttempts = false
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(renewed.isCompleted).isFalse()
@@ -509,26 +519,24 @@ class DataAvailabilityCleanupFunctionTest {
   }
 
   @Test
-  fun `service records a finalized event as a terminal failure`() {
-    val original = queued(record(1), true)
-    val params =
-      original.workItemParams.unpack(WorkItem.WorkItemParams::class.java).copy {
-        dataPathParams =
-          dataPathParams.copy {
-            eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-          }
-      }
-    val item = original.copy { workItemParams = params.pack() }
-    items[item.name] = item
-    assertThat(deliver(item)).isEqualTo(200)
-    assertThat(items.getValue(item.name).state).isEqualTo(WorkItem.State.FAILED)
+  fun `intake filters finalized events before creating cleanup work`() = runBlocking {
+    val record = record(1)
+    watcher()
+      .receivePath(
+        record.blobUri,
+        notification(record, 1) +
+          (DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE),
+      )
+    assertThat(items).isEmpty()
+    assertThat(attempts).isEmpty()
     assertThat(marks.get()).isEqualTo(0)
+    assertThat(lists.get()).isEqualTo(0)
   }
 
   @Test
   fun `service rejects cleanup against another storage bucket`() {
     val record = record(1).copy { blobUri = "gs://another-bucket/files/1" }
-    val item = queued(record, true)
+    val item = queued(record)
     assertThat(deliver(item)).isEqualTo(200)
     assertThat(items.getValue(item.name).state).isEqualTo(WorkItem.State.FAILED)
     assertThat(marks.get()).isEqualTo(0)
@@ -537,7 +545,7 @@ class DataAvailabilityCleanupFunctionTest {
   @Test
   fun `service renews the attempt while storage checking waits`() = runBlocking {
     val record = record(1)
-    val item = queued(record, true)
+    val item = queued(record)
     val entered = CompletableDeferred<Unit>()
     val release = CompletableDeferred<Unit>()
     val renewal = Channel<Unit>(Channel.UNLIMITED)
@@ -584,7 +592,7 @@ class DataAvailabilityCleanupFunctionTest {
   @Test
   fun `a failed cleanup does not hold up other files or repeat successful deletions`() =
     runBlocking {
-      val batch = (0 until 10).map { queued(record(it), true) }
+      val batch = (0 until 10).map { queued(record(it)) }
       failuresRemaining.set(1)
       Executors.newFixedThreadPool(5).asCoroutineDispatcher().use { dispatcher ->
         val results = batch.map { item -> async(dispatcher) { deliver(item) } }.awaitAll()
@@ -603,9 +611,10 @@ class DataAvailabilityCleanupFunctionTest {
         watchedPath {
           identifier = "cleanup"
           sourcePathRegex = "^gs://bucket/.*"
+          eventTypes += DataWatcher.DELETED_EVENT_TYPE
+          eventTypes += DataWatcher.ARCHIVED_EVENT_TYPE
           controlPlaneQueueSink = controlPlaneQueueSink {
             queue = "data-availability-cleanup-queue"
-            includeObjectMetadata = true
             allowMissingSourceIdentity = true
             appParams = dataAvailabilityCleanupParams { dataProvider = PROVIDER }.pack()
           }
@@ -704,18 +713,27 @@ class DataAvailabilityCleanupFunctionTest {
   }
 
   @Test
-  fun `repeated notifications retain the first custom metadata snapshot`() = runBlocking {
-    val record = record(1)
-    val watcher = watcher()
-    watcher.receivePath(record.blobUri, notification(record, 1) + ("label" to "original"))
-    watcher.receivePath(record.blobUri, notification(record, 1) + ("label" to "updated"))
-    assertThat(items).hasSize(1)
-    val item = items.values.single()
-    val params = item.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-    assertThat(params.dataPathParams.objectMetadataMap["label"]).isEqualTo("original")
-    assertThat(deliver(item)).isEqualTo(200)
-    assertThat(marks.get()).isEqualTo(1)
-  }
+  fun `repeated notifications ignore custom metadata changes and use current records`() =
+    runBlocking {
+      val record = record(1)
+      val watcher = watcher()
+      watcher.receivePath(record.blobUri, notification(record, 1) + ("label" to "original"))
+      watcher.receivePath(record.blobUri, notification(record, 1) + ("label" to "updated"))
+      assertThat(items).hasSize(1)
+      val item = items.values.single()
+      val params = item.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      assertThat(params.dataPathParams.dataPath).isEqualTo(record.blobUri)
+      assertThat(
+          params.appParams
+            .unpack(
+              org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams::class.java
+            )
+            .dataProvider
+        )
+        .isEqualTo(PROVIDER)
+      assertThat(deliver(item)).isEqualTo(200)
+      assertThat(marks.get()).isEqualTo(1)
+    }
 
   @Test
   fun `notifications with and without creation time share the generation's cleanup job`() =
@@ -750,7 +768,7 @@ class DataAvailabilityCleanupFunctionTest {
       }
       assertThat(items.values.count { it.state == WorkItem.State.SUCCEEDED }).isEqualTo(10_000)
       assertThat(marks.get()).isEqualTo(10_000)
-      assertThat(lists.get()).isEqualTo(0)
+      assertThat(lists.get()).isEqualTo(10_000)
     }
 
   private fun failure(reason: String, state: String) =

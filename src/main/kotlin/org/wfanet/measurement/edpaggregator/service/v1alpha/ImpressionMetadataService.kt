@@ -54,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataView
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkImpressionMetadataDeletedRequest
@@ -79,6 +80,7 @@ import org.wfanet.measurement.internal.edpaggregator.EntityKey as InternalEntity
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataView as InternalImpressionMetadataView
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken as InternalListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt.filter as internalListImpressionMetadataRequestFilter
@@ -930,6 +932,17 @@ class ImpressionMetadataService(
   override suspend fun listImpressionMetadata(
     request: ListImpressionMetadataRequest
   ): ListImpressionMetadataResponse {
+    val internalView =
+      when (request.view) {
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_UNSPECIFIED,
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL ->
+          InternalImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC ->
+          InternalImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC
+        ImpressionMetadataView.UNRECOGNIZED ->
+          throw InvalidFieldValueException("view")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -1037,6 +1050,7 @@ class ImpressionMetadataService(
           internalListImpressionMetadataRequest {
             dataProviderResourceId = dataProviderKey.dataProviderId
             this.pageSize = pageSize
+            view = internalView
             if (internalPageToken != null) {
               pageToken = internalPageToken
             }
@@ -1370,13 +1384,7 @@ class ImpressionMetadataService(
 
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
-    /**
-     * Maximum page size for `ListImpressionMetadata`.
-     *
-     * Large enough that a report's impression metadata is fetched in a handful of paginated calls;
-     * rows are small (a blob URI plus a few fields), so a page of this size stays well under the
-     * gRPC message-size limit.
-     */
+    /** Maximum number of impression metadata entries returned in a page. */
     private const val MAX_PAGE_SIZE = 1000
   }
 }

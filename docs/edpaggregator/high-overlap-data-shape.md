@@ -379,9 +379,20 @@ while the EDPA cloud test provisions its distinct low-overlap entities and model
 Reporting does not upload EventGroups or invoke `EventGroupSync`, so it does not
 share the low-overlap test's sync operation. The suites still share processing capacity.
 
-Run `high-overlap-seeding.yml` for the environment before these tests when specs
-change or an EDP is added. Do not reseed while either test is running, because
-seeding replaces the dataset. Both jobs are gated on `run-tests`. To update an
+`Update CMMS` prepares the high-overlap dataset before running its cloud tests.
+A matching manifest reuses the existing data. A missing or malformed manifest,
+changed specs, or a changed EDP set triggers seeding: previous impression paths
+and BigQuery rows for the model line are removed, then the new manifest is published after setup
+succeeds. Seeding runs in a separate job so it does not consume test time limits.
+`SeedHighOverlapDataset --only-if-needed` performs the same check; without the
+flag, the command forces a refresh.
+
+Run `high-overlap-seeding.yml` for the environment to prepare the dataset. It
+reuses matching data by default; select `force-refresh` to reseed it regardless
+of the manifest. It shares `Update CMMS`'s environment concurrency group and
+waits for any deployment and its tests to finish. Before running either test
+workflow directly, prepare the dataset first; do not reseed while a directly
+dispatched test is running. Both jobs are gated on `run-tests`. To update an
 environment without running them, dispatch `update-cmms` with `run-tests: false`
 and then launch whichever test workflow you want directly.
 
@@ -423,9 +434,10 @@ Nothing in this repository creates a `ModelLine`; every `ensureModelLine` is a
 lookup that fails if absent. So the line is provisioned once per environment by
 an operator, using the `ModelRepository` tool, and referenced by resource name.
 
-`model-lines create` requires `--population`, because it creates the ModelLine, a
-`ModelRelease` and a `ModelRollout` together. Bootstrap it against any existing
-Population: seeding then creates the correct high overlap Population
+`model-lines create` requires `--population` and `--event-template-version`,
+because it creates the ModelLine, a `ModelRelease` and a `ModelRollout` together.
+Use the event-template version defining the high overlap PopulationSpec. Bootstrap
+it against an existing Population with that contract: seeding then creates the correct high overlap Population
 and attaches its own release and rollout, which supersedes the bootstrap because
 the PDP resolves the **most recent** rollout on a line.
 
