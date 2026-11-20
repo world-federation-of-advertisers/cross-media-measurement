@@ -94,6 +94,11 @@ object TrusTeeV2Starter {
               descriptorSet = multimeasurement.eventDescriptor.descriptorSet
               eventMessageType = multimeasurement.eventDescriptor.eventMessageType
             }
+          vidSamplingInterval =
+            TrusTeeV2Kt.vidSamplingInterval {
+              start = measurementSpec.vidSamplingInterval.start
+              width = measurementSpec.vidSamplingInterval.width
+            }
         }
     }
 

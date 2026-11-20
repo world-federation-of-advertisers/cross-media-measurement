@@ -2788,6 +2788,11 @@ class HeraldTest {
               descriptorSet = EVENT_DESCRIPTOR_SET
               eventMessageType = "test.Event"
             }
+          vidSamplingInterval =
+            TrusTeeV2Kt.vidSamplingInterval {
+              start = 0.1f
+              width = 0.5f
+            }
         }
       )
   }
