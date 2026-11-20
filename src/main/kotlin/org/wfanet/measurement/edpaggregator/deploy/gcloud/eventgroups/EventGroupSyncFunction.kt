@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups
 
-import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.BlobId
@@ -29,8 +28,6 @@ import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
-import io.opentelemetry.context.Context
-import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.net.HttpURLConnection
@@ -71,8 +68,9 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemCloudFunction
+import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemInvocation
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -82,19 +80,25 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * EventGroups with the kingdom and writes the complete map for the configured provider and entity
  * types to storage.
  */
-class EventGroupSyncFunction() : HttpFunction {
+class EventGroupSyncFunction() : WorkItemCloudFunction() {
 
-  override fun service(request: HttpRequest, response: HttpResponse) {
+  override fun isWorkItemRequest(request: HttpRequest): Boolean {
+    logger.fine("Starting EventGroupSyncFunction")
+    return request.getFirstHeader("x-goog-pubsub-message-id").isPresent ||
+      request.contentType.orElse("").substringBefore(';') == "application/octet-stream"
+  }
+
+  override fun flushTelemetry() {
+    EdpaTelemetry.flush()
+  }
+
+  override fun handleFailure(error: Exception, response: HttpResponse) {
+    reportFailure(error, response, Attributes.empty())
+  }
+
+  override fun serviceLegacyRequest(request: HttpRequest, response: HttpResponse) {
     var failureAttributes: Attributes = Attributes.empty()
     try {
-      logger.fine("Starting EventGroupSyncFunction")
-      if (
-        request.getFirstHeader("x-goog-pubsub-message-id").isPresent ||
-          request.contentType.orElse("").substringBefore(';') == "application/octet-stream"
-      ) {
-        runBlocking { serviceWorkItem(WorkItemPublicationCodec.parse(request.inputStream)) }
-        return
-      }
       val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
       logger.fine(
         "Received DataWatcher path hash: " +
@@ -113,28 +117,27 @@ class EventGroupSyncFunction() : HttpFunction {
         synchronize(eventGroupSyncConfig, readEventGroups(eventGroupSyncConfig, dataWatcherPath)) {}
       }
     } catch (e: Exception) {
-      functionFailureCounter.add(1, failureAttributes)
-      val errorType = e::class.java.simpleName
-      val errorCode = Status.fromThrowable(e).code.name
-      if (isRetryableKingdomFailure(e)) {
-        logger.warning(
-          "Transient EventGroupSync failure; requesting redelivery: " +
-            "errorType=$errorType, errorCode=$errorCode"
-        )
-        response.setStatusCode(HttpURLConnection.HTTP_UNAVAILABLE)
-        response.writer.write("EventGroup sync failed due to a transient error")
-        return
-      }
-      logger.warning("EventGroupSync failed: errorType=$errorType, errorCode=$errorCode")
-      response.setStatusCode(HttpURLConnection.HTTP_INTERNAL_ERROR)
-      response.writer.write("EventGroup sync failed")
-      return
-    } finally {
-      // Critical: flush metrics and traces before function terminates
-      // Without this, all telemetry recorded during execution will be lost
-      // because Cloud Functions freeze background threads after return
-      EdpaTelemetry.flush()
+      reportFailure(e, response, failureAttributes)
     }
+  }
+
+  private fun reportFailure(e: Exception, response: HttpResponse, failureAttributes: Attributes) {
+    functionFailureCounter.add(1, failureAttributes)
+    val errorType = e::class.java.simpleName
+    val errorCode = Status.fromThrowable(e).code.name
+    if (isRetryableKingdomFailure(e)) {
+      logger.warning(
+        "Transient EventGroupSync failure; requesting redelivery: " +
+          "errorType=$errorType, errorCode=$errorCode"
+      )
+      response.setStatusCode(HttpURLConnection.HTTP_UNAVAILABLE)
+      response.writer.write("EventGroup sync failed due to a transient error")
+      return
+    }
+    logger.warning("EventGroupSync failed: errorType=$errorType, errorCode=$errorCode")
+    response.setStatusCode(HttpURLConnection.HTTP_INTERNAL_ERROR)
+    response.writer.write("EventGroup sync failed")
+    return
   }
 
   private suspend fun synchronize(
@@ -229,7 +232,7 @@ class EventGroupSyncFunction() : HttpFunction {
     return EventGroupReader(storage).read(uri.key)
   }
 
-  private suspend fun serviceWorkItem(workItem: WorkItem) {
+  override suspend fun createWorkItemInvocation(workItem: WorkItem): WorkItemInvocation {
     val input = EventGroupSyncWorkItem.parse(workItem)
     val config =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
@@ -258,11 +261,13 @@ class EventGroupSyncFunction() : HttpFunction {
             delay(ExponentialBackoff().durationForAttempt(attempt).toMillis())
           },
         )
-      val parentContext =
-        Tracing.withW3CTraceContext(input.params.traceContextMap) { Context.current() }
-      withContext(parentContext.asContextElement()) { processor.process(input) }
-    } finally {
+      return processor.createInvocation(
+        input,
+        close = { withContext(NonCancellable + Dispatchers.IO) { channel.shutdownNow() } },
+      )
+    } catch (e: Exception) {
       withContext(NonCancellable + Dispatchers.IO) { channel.shutdownNow() }
+      throw e
     }
   }
 

@@ -55,4 +55,7 @@ message ModelLine {
   google.protobuf.Timestamp create_time = 10;
   // When the 'ModelLine' was last updated.
   google.protobuf.Timestamp update_time = 11;
+
+  // Immutable event-template version. Absent on historical model lines.
+  optional int32 event_template_version = 12;
 }
