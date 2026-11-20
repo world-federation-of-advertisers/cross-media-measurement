@@ -18,11 +18,12 @@ let KingdomPublicApiTarget = (#Target & {name: "v2alpha-public-api-server"}).tar
 let MountRoot = "/etc/\(#AppName)/pdp"
 
 #PopulationRequisitionFulfillerConfig: {
-	dataProviderResourceName:     string
-	dataProviderCertResourceName: string
-	throttlerMinimumInterval:     string | *"2s"
-	kingdomRpcMinInterval:        string | *"200ms"
-	eventMessageTypeUrl:          string
+	dataProviderResourceName:                 string
+	dataProviderCertResourceName:             string
+	throttlerMinimumInterval:                 string | *"2s"
+	kingdomRpcMinInterval:                    string | *"200ms"
+	eventMessageTypeUrl:                      string
+	modelLineEventTemplateVersionsConfigPath: string | *""
 }
 
 #PopulationRequisitionFulfiller: {
@@ -59,6 +60,9 @@ let MountRoot = "/etc/\(#AppName)/pdp"
 				"--cert-collection-file=\(MountRoot)/config/trusted_certs.pem",
 				"--event-message-descriptor-set=\(MountRoot)/config/event_message_descriptor_set.pb",
 				"--event-message-type-url=\(_config.eventMessageTypeUrl)",
+				if _config.modelLineEventTemplateVersionsConfigPath != "" {
+					"--model-line-event-template-versions-config=\(_config.modelLineEventTemplateVersionsConfigPath)"
+				},
 			]
 		}
 		spec: template: spec: {

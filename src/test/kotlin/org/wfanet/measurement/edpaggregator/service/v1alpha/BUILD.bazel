@@ -32,6 +32,7 @@ kt_jvm_library(
     associates = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:data_availability_sync_function"],
     deps = [
         "//imports/java/com/google/auth:oauth_http2",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",

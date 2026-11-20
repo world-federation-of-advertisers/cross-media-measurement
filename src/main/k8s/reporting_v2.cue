@@ -340,6 +340,14 @@ package k8s
 		}
 	}
 
+	deploymentPodDisruptionBudgets: [Name=string]: #PodDisruptionBudget & {
+		metadata: {
+			_component: "reporting"
+			name:       Name
+		}
+		spec: selector: deployments[Name].spec.selector
+	}
+
 	cronJobs: [Name=_]: #CronJob & {
 		_name:       Name
 		_secretName: Reporting._secretName
