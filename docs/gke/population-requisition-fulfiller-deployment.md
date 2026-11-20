@@ -143,11 +143,13 @@ the Kustomization directory:
 ### Historical model-line versions
 
 The PDP reads `ModelLine.event_template_version` from the Kingdom. Historical
-lines without this field require an explicit fallback config. Pass
-`--model-line-event-template-versions-config=/etc/<app-name>/pdp/config/model_line_versions.textproto`
-to the daemon by adding it to the generated Deployment container arguments.
-Add the file to the `files` list in `pdp_config/kustomization.yaml` so that the
-`pdp-config` ConfigMap mounts it. CUE deployments can set
+lines without this field require an explicit fallback config. The managed GKE
+Deployment mounts `model_line_event_template_versions.textproto` from `pdp-config`
+and passes it with `--model-line-event-template-versions-config`. Supply this
+file in the Kustomization directory alongside the descriptor set. The managed
+configuration workflow writes version 1 for its two synthetic model lines,
+matching the `testing.v1` descriptor; custom deployments must supply the actual
+versions of their own populations. Other CUE deployments can set
 `modelLineEventTemplateVersionsConfigPath` on the PDP config.
 
 The file uses

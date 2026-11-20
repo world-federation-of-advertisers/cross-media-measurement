@@ -19,9 +19,10 @@ _pdpCertName:         string @tag("pdp_cert_name")
 _eventMessageTypeUrl: string @tag("event_message_type_url")
 
 _populationRequisitionFulfillerConfig: #PopulationRequisitionFulfillerConfig & {
-	dataProviderResourceName:     _pdpName
-	dataProviderCertResourceName: _pdpCertName
-	eventMessageTypeUrl:          _eventMessageTypeUrl
+	dataProviderResourceName:                 _pdpName
+	dataProviderCertResourceName:             _pdpCertName
+	eventMessageTypeUrl:                      _eventMessageTypeUrl
+	modelLineEventTemplateVersionsConfigPath: "/etc/\(#AppName)/pdp/config/model_line_event_template_versions.textproto"
 }
 
 objectSets: [

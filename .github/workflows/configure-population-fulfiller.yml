@@ -17,7 +17,7 @@ name: "Configure Population Requisition Fulfiller"
 run-name: >-
   Configure Population Requisition Fulfiller [${{ inputs.environment }}] |
   apply=${{ inputs.apply }},
-  image-tag=${{ inputs.existing-image-tag }}
+  image-tag=${{ inputs.image-tag }}
 
 on:
   workflow_call:
@@ -154,6 +154,21 @@ jobs:
         run: >
           cp "$BAZEL_BIN/src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1/test_event_descriptor_set.pb"
           "$KUSTOMIZATION_PATH/src/main/k8s/dev/pdp_config/event_message_descriptor_set.pb"
+
+      # These managed synthetic lines use the testing.v1 descriptor copied above. Older
+      # lines lack repository metadata; the fulfiller also checks for version conflicts.
+      - name: Configure historical model-line versions
+        run: |
+          cat << EOF > "$KUSTOMIZATION_PATH/src/main/k8s/dev/pdp_config/model_line_event_template_versions.textproto"
+          model_line_event_template_versions {
+            key: "$MODEL_LINE_NAME"
+            value: 1
+          }
+          model_line_event_template_versions {
+            key: "$HIGH_OVERLAP_MODEL_LINE"
+            value: 1
+          }
+          EOF
 
       - name: Upload Kustomization artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
