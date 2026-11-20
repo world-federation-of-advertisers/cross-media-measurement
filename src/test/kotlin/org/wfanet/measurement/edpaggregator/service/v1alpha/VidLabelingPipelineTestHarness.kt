@@ -1184,6 +1184,7 @@ abstract class VidLabelingPipelineTestHarness(
         RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
         modelLineRowsStub,
         VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
+        uploadsStub,
         filesStub,
         workItemsStub,
         params.rawImpressionUpload,
@@ -1474,6 +1475,7 @@ abstract class VidLabelingPipelineTestHarness(
             VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(
               edpaPublicServer.channel
             ),
+          rawImpressionUploadsStub = uploadsStub,
           rawImpressionUploadFilesStub = filesStub,
           vidLabelerQueue = VID_LABELER_QUEUE,
           rpcThrottlers = throttlers,
