@@ -1,6 +1,9 @@
 --- a/internal/multirun.py
 +++ b/internal/multirun.py
-@@ -61,6 +61 @@
+@@ -58,20 +58,23 @@
+     if forward_stdin:
+         kwargs["stdin"] = subprocess.PIPE
+ 
 -    processes = [
 -        (command, _run_command(command, block=False, **kwargs))
 -        for command
@@ -8,13 +11,14 @@
 -    ]
 -
 +    processes = []
-@@ -68,5 +62,0 @@
+     threads = []
 -    if forward_stdin:
 -        stdin_thread = threading.Thread(target=_forward_stdin, args=(processes,))
 -        stdin_thread.start()
 -        threads.append(stdin_thread)
 -
-@@ -74,0 +65,13 @@
+     success = True
+     try:
 +        for command in commands:
 +            try:
 +                processes.append((command, _run_command(command, block=False, **kwargs)))
@@ -28,3 +32,6 @@
 +            stdin_thread.start()
 +            threads.append(stdin_thread)
 +
+         for command, process in processes:
+             if print_command and buffer_output:
+                 print(command.tag, flush=True)
