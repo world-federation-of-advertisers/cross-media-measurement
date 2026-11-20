@@ -24,6 +24,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
+import com.google.protobuf.ByteString
 import com.google.protobuf.util.Timestamps
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
@@ -37,6 +38,8 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Semaphore
@@ -77,11 +80,13 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.edpaggregator.testing.RawImpressionColumns
 import org.wfanet.measurement.loadtest.edpaggregator.testing.RawImpressionsWriter
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.ParquetEncryptionConfig
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
 import org.wfanet.virtualpeople.common.LabelerOutput
 import org.wfanet.virtualpeople.common.VirtualPersonActivity
@@ -118,6 +123,9 @@ class VidLabelingSinkTest {
     encryptionKeySemaphore: Semaphore =
       Semaphore(BaseVidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
     publicationObserver: (LabeledOutputPublication) -> Unit = {},
+    storageClientFactory: (String) -> ConditionalOperationStorageClient = { uri ->
+      SelectedStorageClient(SelectedStorageClient.parseBlobUri(uri), tempFolder.root)
+    },
   ) =
     MemoizedVidLabelingSink(
       inputBlobUri = "file:///raw/file-1.parquet",
@@ -132,6 +140,7 @@ class VidLabelingSinkTest {
       metrics = testMetrics,
       encryptionKeySemaphore = encryptionKeySemaphore,
       publicationObserver = publicationObserver,
+      storageClientFactory = storageClientFactory,
     )
 
   /** Sum of a long counter's points matching [attributes] exactly. */
@@ -209,6 +218,53 @@ class VidLabelingSinkTest {
         .isEqualTo(1)
       first.close()
       second.close()
+    }
+
+  @Test
+  fun `sidecar collision adopts existing winning data without reading its payload`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L)))
+      val input = listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1))
+      val metadata = RawImpressionFileMetadata(LocalDate.of(1970, 1, 1))
+      val first = sink(contexts, fileMetadata = metadata)
+      first.processBatch(input)
+      first.commit()
+      first.close()
+      val original = readSoleBlobDetails()
+      var winningGets = 0
+      var winningReads = 0
+      val factory: (String) -> ConditionalOperationStorageClient = { uri ->
+        val delegate =
+          SelectedStorageClient(SelectedStorageClient.parseBlobUri(uri), tempFolder.root)
+        if (uri != original.blobUri) delegate
+        else
+          object : ConditionalOperationStorageClient by delegate {
+            override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+              winningGets++
+              val blob = delegate.getBlob(blobKey)
+              return if (blob == null) null
+              else
+                object : StorageClient.Blob by blob {
+                  override fun read(): Flow<ByteString> = flow {
+                    winningReads++
+                    error("The winning labeled payload must not be read during collision recovery")
+                  }
+                }
+            }
+          }
+      }
+      val retry = sink(contexts, fileMetadata = metadata, storageClientFactory = factory)
+      try {
+        retry.processBatch(input)
+        retry.commit()
+      } finally {
+        retry.close()
+      }
+      assertThat(winningGets).isEqualTo(1)
+      assertThat(winningReads).isEqualTo(0)
+      assertThat(readSoleBlobDetails()).isEqualTo(original)
+      assertThat(readImpressions(original)).hasSize(1)
     }
 
   @Test
