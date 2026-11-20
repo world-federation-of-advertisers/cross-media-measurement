@@ -39,6 +39,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
@@ -291,19 +292,49 @@ class SubpoolAssigner(
     // so the service can union the offsets and reduce the dates to a max across shards, persisting
     // both on the parent RawImpressionUploadModelLine.
     val markResponse =
-      rpcThrottlers.metadataWrite.onReady {
-        poolAssignmentJobsStub.markPoolAssignmentJobSucceeded(
-          markPoolAssignmentJobSucceededRequest {
-            name = poolAssignmentJob
-            etag = job.etag
-            // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
-            // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
-            requestId = deterministicUuid("$poolAssignmentJob|succeeded")
-            encryptedDek = dek
-            poolOffsets += subpoolIds
-            sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
-          }
+      try {
+        rpcThrottlers.metadataWrite.onReady {
+          poolAssignmentJobsStub.markPoolAssignmentJobSucceeded(
+            markPoolAssignmentJobSucceededRequest {
+              name = poolAssignmentJob
+              etag = job.etag
+              // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so
+              // the
+              // server returns the cached LastShardResult instead of hitting the etag-mismatch
+              // path.
+              requestId = deterministicUuid("$poolAssignmentJob|succeeded")
+              encryptedDek = dek
+              poolOffsets += subpoolIds
+              sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
+            }
+          )
+        }
+      } catch (e: StatusException) {
+        val info = e.errorInfo
+        val replayMismatch =
+          e.status.code == Status.Code.INVALID_ARGUMENT &&
+            info?.reason == "INVALID_FIELD_VALUE" &&
+            info.metadataMap["fieldName"] == "request_id"
+        if (
+          !replayMismatch &&
+            e.status.code != Status.Code.ABORTED &&
+            e.status.code != Status.Code.FAILED_PRECONDITION
         )
+          throw e
+        val current =
+          rpcThrottlers.metadataRead.onReady {
+            poolAssignmentJobsStub.getPoolAssignmentJob(
+              getPoolAssignmentJobRequest { name = poolAssignmentJob }
+            )
+          }
+        if (current.state != PoolAssignmentJob.State.SUCCEEDED) throw e
+        check(current.hasEncryptedDek()) {
+          "Succeeded pool assignment has no winning encrypted DEK"
+        }
+        if (current.encryptedDek != dek) {
+          for (poolOffset in subpoolIds) store.delete(shardSubpoolKey(shardIndex, poolOffset, dek))
+        }
+        return recoverIfLastShardOut()
       }
 
     // 4. Last-shard-out: merge per-shard blobs into one blob per subpool, then fan out Phase 1.
