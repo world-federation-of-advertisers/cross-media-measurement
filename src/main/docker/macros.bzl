@@ -97,7 +97,7 @@ def parallel_push_all(name, images, tag, **kwargs):
         batch_name = "{}_batch_{}".format(name, start // 4)
 
         # rules_multirun 0.12 only treats jobs=0 as parallel. Its concurrent
-        # runner joins all children, including after a failed push.
+        # patched runner joins all started children even if a later launch fails.
         multirun(name = batch_name, commands = pushes[start:start + 4], jobs = 0, **kwargs)
         command(name = batch_name + "_command", command = ":" + batch_name, **kwargs)
         batches.append(":" + batch_name + "_command")

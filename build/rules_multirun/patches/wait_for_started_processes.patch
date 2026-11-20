@@ -1,0 +1,30 @@
+--- a/internal/multirun.py
++++ b/internal/multirun.py
+@@ -61,6 +61 @@
+-    processes = [
+-        (command, _run_command(command, block=False, **kwargs))
+-        for command
+-        in commands
+-    ]
+-
++    processes = []
+@@ -68,5 +62,0 @@
+-    if forward_stdin:
+-        stdin_thread = threading.Thread(target=_forward_stdin, args=(processes,))
+-        stdin_thread.start()
+-        threads.append(stdin_thread)
+-
+@@ -74,0 +65,13 @@
++        for command in commands:
++            try:
++                processes.append((command, _run_command(command, block=False, **kwargs)))
++            except OSError as error:
++                print(f"Failed to launch {command.tag}: {error}", file=sys.stderr, flush=True)
++                success = False
++                break
++
++        if forward_stdin and processes:
++            stdin_thread = threading.Thread(target=_forward_stdin, args=(processes,))
++            stdin_thread.start()
++            threads.append(stdin_thread)
++
