@@ -24,12 +24,19 @@ on:
         type: string
         required: true
 
+    outputs:
+      image-manifest-artifact:
+        description: "Published image digests and pinned signing tool"
+        value: ${{ jobs.push-images.outputs.image-manifest-artifact }}
+
 permissions:
   contents: read
 
 jobs:
   push-images:
     runs-on: ubuntu-24.04
+    outputs:
+      image-manifest-artifact: ${{ steps.image-manifest.outputs.artifact-name }}
     permissions:
       packages: write
     env:
@@ -72,6 +79,7 @@ jobs:
           //src/main/docker:push_tee_app_gke_images
           //src/main/docker/panel_exchange_client:push_all_images
           //src/main/docker:push_all_eks_images
+          //src/main/docker:release_image_manifest
 
       - name: Push images
         run: |
@@ -79,3 +87,27 @@ jobs:
           bazelisk run //src/main/docker:push_tee_app_gke_images
           bazelisk run //src/main/docker/panel_exchange_client:push_all_images
           bazelisk run //src/main/docker:push_all_eks_images
+
+      - id: image-manifest
+        name: Prepare published image manifest
+        env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
+        run: |
+          set -euo pipefail
+          manifest_dir="$RUNNER_TEMP/published-images"
+          mkdir -p "$manifest_dir"
+          bazel_bin=$(bazelisk info bazel-bin)
+          jq --arg commit "$GITHUB_SHA" --arg tag "$IMAGE_TAG" \
+            '{commit: $commit, image_tag: $tag, images: .}' \
+            "$bazel_bin/src/main/docker/release_image_manifest.json" > "$manifest_dir/images.json"
+          cp -L "$bazel_bin/src/main/docker/release_image_manifest.cosign" "$manifest_dir/cosign"
+          echo "artifact-name=published-images-${IMAGE_TAG}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload published image manifest
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ steps.image-manifest.outputs.artifact-name }}
+          path: ${{ runner.temp }}/published-images/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 1

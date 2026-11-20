@@ -86,13 +86,14 @@ jobs:
       packages: write    
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
+      image-manifest-artifact: ${{ needs.push-images.outputs.image-manifest-artifact }}
       kms-key-resource-name: "${{ vars.IMAGE_SIGNING_TEST_KEY_RESOURCE_NAME }}"
       service-account: ${{ vars.IMAGE_SIGNING_TEST_SA }}
       workload-identity-provider: ${{ vars.IMAGE_SIGNING_TEST_WORKLOAD_IDENTITY_PROVIDER }}
 
   sign-images-with-release-key:
     uses: ./.github/workflows/sign-images.yml
-    needs: [get-image-tag, push-images]
+    needs: [get-image-tag, push-images, sign-images-with-dev-key]
     if: inputs.use-release-key
     secrets: inherit
     permissions:
@@ -101,6 +102,7 @@ jobs:
       packages: write    
     with:
       image-tag: ${{ needs.get-image-tag.outputs.image-tag }}
+      image-manifest-artifact: ${{ needs.push-images.outputs.image-manifest-artifact }}
       kms-key-resource-name: "${{ vars.IMAGE_SIGNING_RELEASE_KEY_RESOURCE_NAME }}"
       service-account: ${{ vars.IMAGE_SIGNING_RELEASE_SA }}
       workload-identity-provider: ${{ vars.IMAGE_SIGNING_RELEASE_WORKLOAD_IDENTITY_PROVIDER }}
