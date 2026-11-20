@@ -162,6 +162,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+          InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -235,6 +236,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+          InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -360,6 +362,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+          InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -441,6 +444,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+          InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -567,6 +571,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+          InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -672,6 +677,7 @@ class ImpressionMetadataService(
         InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+        InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -739,6 +745,7 @@ class ImpressionMetadataService(
         InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+        InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -833,6 +840,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+          InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -1091,6 +1099,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+          InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -1157,6 +1166,7 @@ class ImpressionMetadataService(
           InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+          InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

@@ -18,7 +18,16 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
+import com.google.type.date
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.util.UUID
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
@@ -34,12 +43,15 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
+import org.wfanet.measurement.internal.edpaggregator.MarkPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.batchCreatePoolAssignmentJobsRequest
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createPoolAssignmentJobRequest
 import org.wfanet.measurement.internal.edpaggregator.encryptedDek
+import org.wfanet.measurement.internal.edpaggregator.getPoolAssignmentJobRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.markPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.internal.edpaggregator.poolAssignmentJob
@@ -460,6 +472,188 @@ class SpannerPoolAssignmentJobServiceTest : PoolAssignmentJobServiceTest() {
     for (index in requests.indices) {
       assertThat(api.markPoolAssignmentJobSucceeded(requests[index])).isEqualTo(original[index])
     }
+  }
+
+  private suspend fun originalMarkInput():
+    Pair<
+      PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase,
+      org.wfanet.measurement.internal.edpaggregator.MarkPoolAssignmentJobSucceededRequest,
+    > {
+    val api = newService(IdGenerator.Default)
+    createParentUpload("fingerprint-provider", "fingerprint-upload")
+    createRawImpressionUploadModelLine(
+      "fingerprint-provider",
+      "fingerprint-upload",
+      "fingerprint-model",
+    )
+    val job =
+      api.createPoolAssignmentJob(
+        createPoolAssignmentJobRequest {
+          requestId = UUID.randomUUID().toString()
+          poolAssignmentJob = poolAssignmentJob {
+            dataProviderResourceId = "fingerprint-provider"
+            rawImpressionUploadResourceId = "fingerprint-upload"
+            cmmsModelLine = "fingerprint-model"
+            shardIndex = 0
+          }
+        }
+      )
+    return api to
+      markPoolAssignmentJobSucceededRequest {
+        dataProviderResourceId = job.dataProviderResourceId
+        rawImpressionUploadResourceId = job.rawImpressionUploadResourceId
+        poolAssignmentJobResourceId = job.poolAssignmentJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+        encryptedDek = encryptedDek {
+          kekUri = "fake-kms://same-key"
+          ciphertext = ByteString.copyFromUtf8("dek-a")
+        }
+        poolOffsets += listOf(7L, 11L)
+        maxEventDate = date {
+          year = 2026
+          month = 6
+          day = 25
+        }
+      }
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded rejects changed immutable input on replay`() = runBlocking {
+    val (api, request) = originalMarkInput()
+    val original = api.markPoolAssignmentJobSucceeded(request)
+    val conflictingInputs =
+      listOf(
+        request.copy {
+          encryptedDek = request.encryptedDek.copy { ciphertext = ByteString.copyFromUtf8("dek-b") }
+        },
+        request.copy {
+          encryptedDek = request.encryptedDek.copy { kekUri = "fake-kms://different-key" }
+        },
+        request.copy {
+          poolOffsets.clear()
+          poolOffsets += 19L
+        },
+        request.copy { maxEventDate = request.maxEventDate.toBuilder().setDay(26).build() },
+      )
+    for (conflict in conflictingInputs) {
+      val error =
+        assertFailsWith<StatusRuntimeException> { api.markPoolAssignmentJobSucceeded(conflict) }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(api.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
+    }
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded normalizes offsets and excludes etag from replay input`() =
+    runBlocking {
+      val (api, request) = originalMarkInput()
+      val original = api.markPoolAssignmentJobSucceeded(request)
+      val reordered =
+        request.copy {
+          poolOffsets.clear()
+          poolOffsets += listOf(11L, 7L, 7L)
+          etag = original.poolAssignmentJob.etag
+        }
+      assertThat(api.markPoolAssignmentJobSucceeded(reordered)).isEqualTo(original)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded preserves date presence in replay input`() = runBlocking {
+    val (api, base) = originalMarkInput()
+    val request =
+      base.copy {
+        poolOffsets.clear()
+        clearMaxEventDate()
+        clearEncryptedDek()
+      }
+    val original = api.markPoolAssignmentJobSucceeded(request)
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        api.markPoolAssignmentJobSucceeded(request.copy { maxEventDate = base.maxEventDate })
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(api.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded rejects a legacy replay without original input evidence`() =
+    runBlocking {
+      val (api, request) = originalMarkInput()
+      val original = api.markPoolAssignmentJobSucceeded(request)
+      spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
+        txn.executeUpdate(
+          statement(
+            "UPDATE PoolAssignmentJob SET MarkSucceededInputFingerprint = NULL WHERE DataProviderResourceId = @provider"
+          ) {
+            bind("provider").to(request.dataProviderResourceId)
+          }
+        )
+      }
+      val error =
+        assertFailsWith<StatusRuntimeException> { api.markPoolAssignmentJobSucceeded(request) }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(
+          api.getPoolAssignmentJob(
+            getPoolAssignmentJobRequest {
+              dataProviderResourceId = request.dataProviderResourceId
+              rawImpressionUploadResourceId = request.rawImpressionUploadResourceId
+              poolAssignmentJobResourceId = request.poolAssignmentJobResourceId
+            }
+          )
+        )
+        .isEqualTo(original.poolAssignmentJob)
+    }
+
+  private suspend fun concurrentReplay(sameInput: Boolean) {
+    val (api, request) = originalMarkInput()
+    val other =
+      if (sameInput) request
+      else
+        request.copy {
+          encryptedDek = request.encryptedDek.copy { ciphertext = ByteString.copyFromUtf8("dek-b") }
+        }
+    val start = CompletableDeferred<Unit>()
+    val results =
+      kotlinx.coroutines.coroutineScope {
+        val attempts =
+          listOf(request, other).map { input ->
+            async(Dispatchers.Default) {
+              start.await()
+              try {
+                api.markPoolAssignmentJobSucceeded(input) to null
+              } catch (e: StatusRuntimeException) {
+                null to e.status.code
+              }
+            }
+          }
+        start.complete(Unit)
+        attempts.awaitAll()
+      }
+    val winners = results.mapNotNull { it.first }
+    val failures = results.mapNotNull { it.second }
+    if (sameInput) {
+      assertThat(winners).hasSize(2)
+      assertThat(winners[1]).isEqualTo(winners[0])
+      assertThat(failures).isEmpty()
+    } else {
+      assertThat(winners).hasSize(1)
+      assertThat(failures).containsExactly(Status.Code.ALREADY_EXISTS)
+      val accepted =
+        if (winners.single().poolAssignmentJob.encryptedDek == request.encryptedDek) request
+        else other
+      assertThat(api.markPoolAssignmentJobSucceeded(accepted)).isEqualTo(winners.single())
+    }
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded replays concurrent identical input`() = runBlocking {
+    concurrentReplay(sameInput = true)
+  }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded rejects concurrent different DEKs`() = runBlocking {
+    concurrentReplay(sameInput = false)
   }
 
   companion object {

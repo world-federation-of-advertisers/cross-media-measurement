@@ -43,6 +43,8 @@ object Errors {
     ETAG_MISMATCH,
     REQUIRED_FIELD_NOT_SET,
     INVALID_FIELD_VALUE,
+    POOL_ASSIGNMENT_NOT_READY,
+    PRECONDITION_FAILED,
   }
 
   enum class Metadata(val key: String) {
@@ -59,6 +61,7 @@ object Errors {
     RAW_IMPRESSION_UPLOAD("rawImpressionUpload"),
     RAW_IMPRESSION_UPLOAD_FILE("rawImpressionUploadFile"),
     FIELD_NAME("fieldName"),
+    CMMS_MODEL_LINE("cmmsModelLine"),
   }
 }
 
@@ -417,3 +420,47 @@ class RawImpressionUploadFileNotFoundException(fileResourceName: String, cause: 
     }
   }
 }
+
+/** Pool-assignment evidence does not yet permit direct labeling. */
+class PoolAssignmentNotReadyException(
+  uploadResourceName: String,
+  cmmsModelLine: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.POOL_ASSIGNMENT_NOT_READY,
+    "Pool assignment is not ready for direct labeling",
+    mapOf(
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD to uploadResourceName,
+      Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
+    ),
+    cause,
+  ) {
+  companion object : Factory<PoolAssignmentNotReadyException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.POOL_ASSIGNMENT_NOT_READY
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): PoolAssignmentNotReadyException =
+      PoolAssignmentNotReadyException(
+        RawImpressionUploadKey(
+            internalMetadata.getValue(InternalErrors.Metadata.DATA_PROVIDER_RESOURCE_ID),
+            internalMetadata.getValue(InternalErrors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID),
+          )
+          .toName(),
+        internalMetadata.getValue(InternalErrors.Metadata.CMMS_MODEL_LINE),
+        cause,
+      )
+  }
+}
+
+/** Safe public translation of an unclassified internal precondition failure. */
+class PreconditionFailedException(cause: Throwable? = null) :
+  ServiceException(
+    Errors.Reason.PRECONDITION_FAILED,
+    "Request precondition failed",
+    emptyMap(),
+    cause,
+  )

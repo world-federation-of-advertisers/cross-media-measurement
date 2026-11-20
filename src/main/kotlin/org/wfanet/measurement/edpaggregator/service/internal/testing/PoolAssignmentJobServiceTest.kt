@@ -1420,10 +1420,9 @@ abstract class PoolAssignmentJobServiceTest {
     }
 
   @Test
-  fun `markPoolAssignmentJobSucceeded omits last_shard_result when no shard wrote impressions`() =
+  fun `markPoolAssignmentJobSucceeded returns an empty last_shard_result when no shard wrote impressions`() =
     runBlocking {
-      // A last shard that wrote no impressions (no pool offsets, no max event date) must omit
-      // last_shard_result entirely rather than emit a malformed all-empty result.
+      // Presence identifies the final shard even when every shard produced no ranked output.
       val shard: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
@@ -1449,7 +1448,9 @@ abstract class PoolAssignmentJobServiceTest {
           }
         )
 
-      assertThat(response.hasLastShardResult()).isFalse()
+      assertThat(response.hasLastShardResult()).isTrue()
+      assertThat(response.lastShardResult.poolOffsetsList).isEmpty()
+      assertThat(response.lastShardResult.hasMaxEventDate()).isFalse()
       assertThat(response.lastShard).isTrue()
     }
 
@@ -1485,7 +1486,7 @@ abstract class PoolAssignmentJobServiceTest {
       val final = service.markPoolAssignmentJobSucceeded(requests[1])
       assertThat(early.lastShard).isFalse()
       assertThat(final.lastShard).isTrue()
-      assertThat(final.hasLastShardResult()).isFalse()
+      assertThat(final.hasLastShardResult()).isTrue()
       assertThat(service.markPoolAssignmentJobSucceeded(requests[0])).isEqualTo(early)
       assertThat(service.markPoolAssignmentJobSucceeded(requests[1])).isEqualTo(final)
     }
@@ -1514,7 +1515,7 @@ abstract class PoolAssignmentJobServiceTest {
       }
       val response = service.markPoolAssignmentJobSucceeded(request)
       assertThat(response.lastShard).isTrue()
-      assertThat(response.hasLastShardResult()).isFalse()
+      assertThat(response.hasLastShardResult()).isTrue()
       assertThat(response.poolAssignmentJob.hasEncryptedDek()).isFalse()
       assertThat(
           getRawImpressionUploadModelLineMergedDek(
@@ -1707,6 +1708,8 @@ abstract class PoolAssignmentJobServiceTest {
             etag = shard.etag
             encryptedDek = ENCRYPTED_DEK
             this.requestId = requestId
+            poolOffsets += POOL_OFFSETS
+            maxEventDate = MAX_EVENT_DATE
           }
         )
 
