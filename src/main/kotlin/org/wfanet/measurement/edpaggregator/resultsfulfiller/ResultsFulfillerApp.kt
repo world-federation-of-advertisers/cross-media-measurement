@@ -102,6 +102,7 @@ class ResultsFulfillerApp(
   private val requisitionsThrottler: Throttler,
   private val kingdomThrottler: Throttler,
   private val metrics: ResultsFulfillerMetrics,
+  private val logMeasurementValues: Boolean,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -237,6 +238,7 @@ class ResultsFulfillerApp(
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
         trusTeeV2ImpressionCountMode = fulfillerParams.trusTeeV2Config.impressionCountMode,
         trusTeeV2MaxFrequencyPerUser = fulfillerParams.trusTeeV2Config.maxFrequencyPerUserOrNull,
+        logMeasurementValues = logMeasurementValues,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {

@@ -663,6 +663,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     processBuilder
       .command()
       .add("--internal-api-target=${"localhost:${reportingServer.internalReportingServer.port}"}")
+    processBuilder.command().add("--log-noise-correction-values=true")
     processBuilder.command().add("--tls-cert-file=${REPORTING_TLS_CERT_FILE.path}")
     processBuilder.command().add("--tls-key-file=${REPORTING_TLS_KEY_FILE.path}")
     processBuilder.command().add("--cert-collection-file=${ALL_ROOT_CERTS_FILE.path}")

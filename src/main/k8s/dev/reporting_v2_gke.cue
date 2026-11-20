@@ -134,7 +134,18 @@ reporting: #Reporting & {
 	}
 
 	_verboseGrpcServerLogging: true
-	_logNoiseCorrectionValues: true
+	if _measurementValueLoggingEnabled {
+		_logMeasurementValues: true
+	}
+	if !_measurementValueLoggingEnabled {
+		_logMeasurementValues: false
+	}
+	if _noiseCorrectionValueLoggingEnabled {
+		_logNoiseCorrectionValues: true
+	}
+	if !_noiseCorrectionValueLoggingEnabled {
+		_logNoiseCorrectionValues: false
+	}
 
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {

@@ -401,6 +401,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -536,6 +537,7 @@ class ResultsFulfillerAppTest {
           metrics = ResultsFulfillerMetrics.create(),
           requisitionsThrottler = FakeThrottler(),
           kingdomThrottler = FakeThrottler(),
+          logMeasurementValues = false,
         )
       // Empty metadata is treated as transient (the fetcher writes metadata just after the blob,
       // and DataWatcher dispatches on the blob), so runWork throws to nack the work item for retry
@@ -680,6 +682,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -823,6 +826,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -953,6 +957,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1115,6 +1120,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1274,6 +1280,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }
@@ -1439,6 +1446,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1600,6 +1608,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
 
     // Should fail because TrusTeeConfig is missing but kekUri is present (impressions exist)
