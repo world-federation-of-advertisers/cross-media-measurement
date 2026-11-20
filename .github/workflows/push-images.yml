@@ -110,4 +110,4 @@ jobs:
           path: ${{ runner.temp }}/published-images/
           if-no-files-found: error
           compression-level: 0
-          retention-days: 1
+          retention-days: 30

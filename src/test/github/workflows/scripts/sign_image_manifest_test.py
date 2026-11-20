@@ -20,7 +20,6 @@ from pathlib import Path
 import subprocess
 import tempfile
 import threading
-import time
 import unittest
 from unittest import mock
 
@@ -68,7 +67,6 @@ class SignImageManifestTest(unittest.TestCase):
                 maximum = max(maximum, active)
             if index < 4:
                 first_batch.wait(timeout=5)
-            time.sleep(0.01)
             with lock:
                 active -= 1
                 completed.append(reference)
