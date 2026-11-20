@@ -74,6 +74,8 @@ object DataServices {
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping?,
     eventMessageDescriptor: Descriptors.Descriptor?,
     disableMetricsReuse: Boolean,
+    validateInsertBasicReport: Boolean,
+    validateCreateReportingSet: Boolean,
     coroutineContext: CoroutineContext,
   ): Services {
     val idGenerator = LegacyIdGeneratorAdapter(idGenerator)
@@ -87,6 +89,7 @@ object DataServices {
           spannerClient,
           postgresClient,
           impressionQualificationFilterMapping,
+          validateInsertBasicReport,
           coroutineContext,
         )
       } else {
@@ -128,7 +131,12 @@ object DataServices {
         PostgresMeasurementsService(idGenerator, postgresClient, coroutineContext),
       metricsService = PostgresMetricsService(idGenerator, postgresClient, coroutineContext),
       reportingSetsService =
-        PostgresReportingSetsService(idGenerator, postgresClient, coroutineContext),
+        PostgresReportingSetsService(
+          idGenerator,
+          postgresClient,
+          validateCreateReportingSet,
+          coroutineContext,
+        ),
       reportsService =
         PostgresReportsService(idGenerator, postgresClient, disableMetricsReuse, coroutineContext),
       reportSchedulesService =

@@ -43,6 +43,8 @@ private const val EVENT_ID_FIELD_PATH = "event_id.id"
  * fields are OPTIONAL at the proto level but required at runtime; without this pre-flight check a
  * missing value is stamped empty onto every WorkItem and only fails at Phase-2 — after Phase-0
  * sharding and Phase-1 ranking on the memoized path, then Pub/Sub retries and a DLQ FAILED cascade.
+ * The event-template version may be omitted here; dispatch resolves it from the model repository
+ * and validates any configured fallback before claiming work.
  */
 fun requireValidModelLineConfigs(config: VidLabelingConfig) {
   for ((modelLine, modelLineConfig) in config.modelLineConfigsMap) {
@@ -60,6 +62,9 @@ fun requireValidModelLineConfigs(config: VidLabelingConfig) {
     }
     require(modelLineConfig.populationSpecBlobUri.isNotEmpty()) {
       "population_spec_blob_uri missing for model line $modelLine on ${config.dataProvider}"
+    }
+    require(modelLineConfig.eventTemplateVersion >= 0) {
+      "event_template_version must be positive when configured for model line $modelLine"
     }
     require(
       modelLineConfig.requiredEntityKeyFieldMappingMap.isNotEmpty() ||

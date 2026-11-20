@@ -145,6 +145,9 @@ message ListImpressionMetadataRequest {
     string raw_impression_upload_resource_id = 8;
   }
   Filter filter = 4;
+
+  // Fields to return. Defaults to FULL; BASIC omits entity_keys.
+  ImpressionMetadataView view = 5;
 }
 
 message ListImpressionMetadataResponse {

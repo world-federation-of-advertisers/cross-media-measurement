@@ -529,7 +529,7 @@ class DataAvailabilitySyncWorkItemPublisherTest {
       DONE_GENERATION,
       DONE_CREATE_TIME,
       traceContext,
-      onFailure,
+      onFailure = onFailure,
     )
 
   private class FakeClient {

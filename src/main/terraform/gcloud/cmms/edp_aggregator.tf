@@ -264,6 +264,7 @@ locals {
           "--kingdom-public-api-target", var.kingdom_public_api_target,
           "--secure-computation-public-api-target", var.secure_computation_public_api_target,
           "--metadata-storage-public-api-target", var.metadata_storage_public_api_target,
+          "--log-measurement-values=${var.log_measurement_values}",
           "--subscription-id", "results-fulfiller-subscription",
           "--google-project-id", data.google_client_config.default.project,
         ],
@@ -722,4 +723,7 @@ module "edp_aggregator" {
   vid_labeling_healing_controller_scheduler_config     = local.vid_labeling_healing_controller_scheduler_config
   vid_labeling_healing_labeled_output_object_prefixes  = var.vid_labeling_healing_labeled_output_object_prefixes
   vid_labeling_healing_alert_notification_channels     = var.vid_labeling_healing_alert_notification_channels
+  vid_labeling_availability_alert_thresholds           = var.vid_labeling_availability_alert_thresholds
+
+  data_availability_publication_status_storage_roots = var.data_availability_publication_status_storage_roots
 }

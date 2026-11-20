@@ -323,6 +323,7 @@ private val MODEL_LINE = modelLine {
   }
   type = ModelLine.Type.PROD
   holdbackModelLine = HOLDBACK_MODEL_LINE_NAME
+  eventTemplateVersion = 1
   createTime = timestamp { seconds = 3000 }
   updateTime = timestamp { seconds = 3000 }
 }
@@ -1603,6 +1604,7 @@ class MeasurementSystemTest {
           "--display-name=Display name",
           "--description=Description",
           "--active-start-time=$MODEL_LINE_ACTIVE_START_TIME",
+          "--event-template-version=1",
           "--active-end-time=$MODEL_LINE_ACTIVE_END_TIME",
           "--type=PROD",
           "--holdback-model-line=$HOLDBACK_MODEL_LINE_NAME",
@@ -1631,6 +1633,7 @@ class MeasurementSystemTest {
           "create",
           "--parent=$MODEL_SUITE_NAME",
           "--active-start-time=$MODEL_LINE_ACTIVE_START_TIME",
+          "--event-template-version=1",
           "--type=PROD",
         )
     callCli(args)

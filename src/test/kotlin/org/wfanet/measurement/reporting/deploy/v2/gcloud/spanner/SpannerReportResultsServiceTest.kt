@@ -53,9 +53,14 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
         spannerClient,
         postgresClient,
         impressionQualificationFilterMapping,
+        validateInsertBasicReport = true,
         idGenerator = idGenerator,
       ),
-      PostgresReportingSetsService(integerIdGenerator, postgresClient),
+      PostgresReportingSetsService(
+        integerIdGenerator,
+        postgresClient,
+        validateCreateReportingSet = true,
+      ),
       PostgresMeasurementConsumersService(integerIdGenerator, postgresClient),
     )
   }

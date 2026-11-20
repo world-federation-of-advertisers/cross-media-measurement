@@ -265,6 +265,7 @@ then run:
 
 ```bash
 java -jar VerifyVidLabeledImpressions_deploy.jar \
+  --log-measurement-values=true \
   --kms-type=GCP \
   --kek-uri='<EDP_KEY_URI>' \
   --scheme='gs://' \
@@ -273,6 +274,10 @@ java -jar VerifyVidLabeledImpressions_deploy.jar \
   --event-message-type-url='type.googleapis.com/<MARKET_EVENT_MESSAGE>' \
   --event-message-descriptor-set='<FILE_DESCRIPTOR_SET>'
 ```
+
+This example enables aggregate count diagnostics, as Halo's cloud tests do.
+Markets may omit the flag or set `--log-measurement-values=false`. Raw impression
+fields are omitted from sample and failure logs with either setting.
 
 The date-folder scan verifies every nonempty file whose filename contains
 `metadata`, including every sidecar for a split upload. To verify explicitly

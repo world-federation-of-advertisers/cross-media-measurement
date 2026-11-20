@@ -35,7 +35,7 @@ class PostgresReportsServiceTest : ReportsServiceTest<PostgresReportsService>() 
     return Services(
       PostgresReportsService(idGenerator, client, disableMetricsReuse),
       PostgresMetricsService(idGenerator, client),
-      PostgresReportingSetsService(idGenerator, client),
+      PostgresReportingSetsService(idGenerator, client, validateCreateReportingSet = true),
       PostgresMeasurementConsumersService(idGenerator, client),
       PostgresMetricCalculationSpecsService(idGenerator, client),
       PostgresReportSchedulesService(idGenerator, client),

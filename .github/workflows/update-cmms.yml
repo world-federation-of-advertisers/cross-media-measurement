@@ -453,9 +453,42 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
+  prepare-high-overlap-dataset:
+    if: >-
+      ${{ inputs.run-tests && !cancelled()
+      && needs.update-kingdom.result == 'success'
+      && needs.update-population-fulfiller.result == 'success'
+      && needs.update-aggregator-duchy.result == 'success'
+      && needs.update-worker1-duchy.result == 'success'
+      && needs.update-worker2-duchy.result == 'success'
+      && needs.update-simulators.result == 'success'
+      && needs.update-reporting-v2.result == 'success'
+      && needs.update-secure-computation.result == 'success'
+      && needs.update-edp-aggregator-service.result == 'success' }}
+    needs: [
+      update-kingdom,
+      update-population-fulfiller,
+      update-aggregator-duchy,
+      update-worker1-duchy,
+      update-worker2-duchy,
+      update-simulators,
+      update-reporting-v2,
+      update-secure-computation,
+      update-edp-aggregator-service
+    ]
+    uses: ./.github/workflows/prepare-high-overlap-dataset.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+      only-if-needed: true
+
   run-tests:
     if: inputs.run-tests
     needs: [
+      prepare-high-overlap-dataset,
       update-kingdom,
       update-population-fulfiller,
       update-aggregator-duchy,
@@ -474,11 +507,11 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
-  # Reporting reads the separately seeded high-overlap dataset, so these suites can run together.
-  # Each deployment must succeed before the EDPA cloud test starts.
+  # Prepare the shared fixture before either EDPA suite starts; the suites can run together.
   run-edpa-cloud-test:
     if: >-
       ${{ inputs.run-tests && !cancelled()
+      && needs.prepare-high-overlap-dataset.result == 'success'
       && needs.update-kingdom.result == 'success'
       && needs.update-population-fulfiller.result == 'success'
       && needs.update-aggregator-duchy.result == 'success'
@@ -489,6 +522,7 @@ jobs:
       && needs.update-secure-computation.result == 'success'
       && needs.update-edp-aggregator-service.result == 'success' }}
     needs: [
+      prepare-high-overlap-dataset,
       update-kingdom,
       update-population-fulfiller,
       update-aggregator-duchy,
@@ -522,6 +556,7 @@ jobs:
   run-edpa-reporting-integration-test:
     if: inputs.run-tests
     needs: [
+      prepare-high-overlap-dataset,
       update-kingdom,
       update-population-fulfiller,
       update-aggregator-duchy,

@@ -55,6 +55,7 @@ object DirectMeasurementResultFactory {
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
     impressionCapMode: ImpressionCapMode,
+    logMeasurementValues: Boolean,
   ): Measurement.Result =
     buildMeasurementResult(
       measurementSpec,
@@ -84,6 +85,7 @@ object DirectMeasurementResultFactory {
           impressionMaxFrequencyPerUser,
           totalUncappedImpressions,
           impressionCapMode,
+          logMeasurementValues = logMeasurementValues,
         )
       },
       {
@@ -109,6 +111,7 @@ object DirectMeasurementResultFactory {
     impressionMaxFrequencyPerUser: Int?,
     totalUncappedImpressions: Long,
     impressionCapMode: ImpressionCapMode,
+    logMeasurementValues: Boolean,
   ): Measurement.Result =
     buildMeasurementResult(
       measurementSpec,
@@ -138,6 +141,7 @@ object DirectMeasurementResultFactory {
           impressionMaxFrequencyPerUser,
           totalUncappedImpressions,
           impressionCapMode,
+          logMeasurementValues = logMeasurementValues,
         )
       },
       {

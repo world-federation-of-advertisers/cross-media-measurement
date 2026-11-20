@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.GetModelLineRequest
 import org.wfanet.measurement.internal.kingdom.ModelLine
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.SetActiveEndTimeRequest
+import org.wfanet.measurement.internal.kingdom.SetModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.internal.kingdom.SetModelLineHoldbackModelLineRequest
 import org.wfanet.measurement.internal.kingdom.SetModelLineTypeRequest
 import org.wfanet.measurement.internal.kingdom.StreamModelLinesRequest
@@ -49,6 +50,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelL
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateModelLine
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetActiveEndTime
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineEventTemplateVersion
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineHoldbackModelLine
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SetModelLineType
 
@@ -60,6 +62,9 @@ class SpannerModelLinesService(
 ) : ModelLinesCoroutineImplBase(coroutineContext) {
 
   override suspend fun createModelLine(request: ModelLine): ModelLine {
+    grpcRequire(!request.hasEventTemplateVersion() || request.eventTemplateVersion > 0) {
+      "event_template_version must be positive"
+    }
     if (!request.hasActiveStartTime()) {
       throw RequiredFieldNotSetException("active_start_time")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -101,6 +106,24 @@ class SpannerModelLinesService(
     } catch (e: ModelLineNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ModelLineTypeIllegalException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+  }
+
+  override suspend fun setModelLineEventTemplateVersion(
+    request: SetModelLineEventTemplateVersionRequest
+  ): ModelLine {
+    grpcRequire(request.externalModelProviderId != 0L) {
+      "external_model_provider_id not specified"
+    }
+    grpcRequire(request.externalModelSuiteId != 0L) { "external_model_suite_id not specified" }
+    grpcRequire(request.externalModelLineId != 0L) { "external_model_line_id not specified" }
+    grpcRequire(request.eventTemplateVersion > 0) { "event_template_version must be positive" }
+    return try {
+      SetModelLineEventTemplateVersion(request).execute(client, idGenerator)
+    } catch (e: ModelLineNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: ModelLineInvalidArgsException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
   }

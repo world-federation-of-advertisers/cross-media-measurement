@@ -34,6 +34,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
@@ -60,6 +61,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
   measurementsClient: MeasurementsCoroutineStub,
   measurementConsumersClient: MeasurementConsumersCoroutineStub,
   certificatesClient: CertificatesCoroutineStub,
+  modelLinesClient: ModelLinesCoroutineStub,
   trustedCertificates: Map<ByteString, X509Certificate>,
   private val messageInstance: Message,
   expectedDirectNoiseMechanism: NoiseMechanism,
@@ -95,6 +97,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
     measurementsClient,
     measurementConsumersClient,
     certificatesClient,
+    modelLinesClient,
     trustedCertificates,
     expectedDirectNoiseMechanism,
     kingdomApiThrottler,
