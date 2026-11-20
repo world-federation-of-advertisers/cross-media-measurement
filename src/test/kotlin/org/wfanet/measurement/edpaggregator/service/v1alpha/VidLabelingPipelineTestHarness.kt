@@ -30,6 +30,7 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 import io.grpc.ForwardingServerCall
+import io.grpc.ForwardingServerCallListener
 import io.grpc.Metadata
 import io.grpc.ServerCall
 import io.grpc.ServerCallHandler
@@ -1137,6 +1138,60 @@ abstract class VidLabelingPipelineTestHarness(
       VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       uploadsStub,
     )
+
+  protected suspend fun seedCompletedRankerSiblings(workItem: WorkItem) {
+    val params =
+      workItem.workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(VidRankBuilderParams::class.java)
+    val jobs = RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel)
+    for (offset in listOf(100L, 200L)) {
+      val created =
+        jobs.createRankerJob(
+          org.wfanet.measurement.edpaggregator.v1alpha.createRankerJobRequest {
+            parent = params.rawImpressionUpload
+            requestId = java.util.UUID.randomUUID().toString()
+            rankerJob =
+              org.wfanet.measurement.edpaggregator.v1alpha.rankerJob {
+                cmmsModelLine = params.modelLine
+                poolOffsets += offset
+              }
+          }
+        )
+      val completed =
+        jobs.markRankerJobSucceeded(
+          org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededRequest {
+            name = created.name
+            etag = created.etag
+            requestId = java.util.UUID.randomUUID().toString()
+          }
+        )
+      check(!completed.isLastJob)
+    }
+  }
+
+  protected suspend fun rankerStatesFor(workItem: WorkItem): Map<String, String> {
+    val params =
+      workItem.workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(VidRankBuilderParams::class.java)
+    val jobs = RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel)
+    return jobs
+      .listRankerJobs(
+        org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest {
+          parent = params.rawImpressionUpload
+          filter =
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt.filter {
+              cmmsModelLine = params.modelLine
+            }
+          pageSize = 100
+        }
+      )
+      .rankerJobsList
+      .associate { it.name to it.state.name }
+  }
 
   protected suspend fun runRankBuilderDirect(workItem: WorkItem): VidRankBuilder.Result {
     val params =
@@ -2314,6 +2369,34 @@ abstract class VidLabelingPipelineTestHarness(
   }
 
   protected class BeforeCallFaultInterceptor : ServerInterceptor {
+    class HeldCall(val fullMethodName: String) {
+      val held = CompletableDeferred<Unit>()
+      val requests = java.util.concurrent.CopyOnWriteArrayList<Any>()
+      private val released = java.util.concurrent.CountDownLatch(1)
+
+      fun release() {
+        released.countDown()
+      }
+
+      fun awaitRelease() {
+        check(released.await(60, java.util.concurrent.TimeUnit.SECONDS)) {
+          "verification gate timed out"
+        }
+      }
+    }
+
+    private var heldCall: HeldCall? = null
+    private var observedCall: HeldCall? = null
+
+    @Synchronized
+    fun holdNextCall(fullMethodName: String): HeldCall {
+      check(heldCall == null)
+      return HeldCall(fullMethodName).also {
+        heldCall = it
+        observedCall = it
+      }
+    }
+
     private enum class Stage {
       BEFORE_HANDLER,
       AFTER_COMMIT_BEFORE_RESPONSE,
@@ -2355,6 +2438,30 @@ abstract class VidLabelingPipelineTestHarness(
       headers: Metadata,
       next: ServerCallHandler<ReqT, RespT>,
     ): ServerCall.Listener<ReqT> {
+      val pause =
+        synchronized(this) {
+          heldCall
+            ?.takeIf { it.fullMethodName == call.methodDescriptor.fullMethodName }
+            ?.also { heldCall = null }
+        }
+      val observer =
+        synchronized(this) {
+          observedCall?.takeIf { it.fullMethodName == call.methodDescriptor.fullMethodName }
+        }
+      if (observer != null) {
+        val listener = next.startCall(call, headers)
+        return object :
+          ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(listener) {
+          override fun onMessage(message: ReqT) {
+            observer.requests += message
+            if (pause != null) {
+              pause.held.complete(Unit)
+              pause.awaitRelease()
+            }
+            super.onMessage(message)
+          }
+        }
+      }
       val stage =
         synchronized(this) {
           val current = fault
@@ -2781,6 +2888,14 @@ abstract class VidLabelingPipelineTestHarness(
       if (workItem.workItemParams.`is`(WorkItem.WorkItemParams::class.java))
         workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java).dataPathParams
       else WorkItem.WorkItemParams.DataPathParams.getDefaultInstance()
+
+    fun attemptErrors(workItemName: String): List<String> =
+      attempts.values
+        .filter {
+          attemptParents[it.name] == workItemName && it.state == WorkItemAttempt.State.FAILED
+        }
+        .sortedBy { it.attemptNumber }
+        .map { it.errorMessage }
 
     fun attemptCount(workItemName: String): Int = attemptParents.values.count { it == workItemName }
 

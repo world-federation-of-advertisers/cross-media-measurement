@@ -104,7 +104,11 @@ class SpannerRankIndexBlobService(
               request.requestId,
             )
           if (existing != null) {
-            return@run existing.rankIndexBlob
+            return@run replayCreatedBlob(
+              existing.rankIndexBlob,
+              request.rankIndexBlob,
+              "request_id",
+            )
           }
 
           val rawImpressionUploadId =
@@ -218,10 +222,14 @@ class SpannerRankIndexBlobService(
               request.requestsList.map { it.requestId },
             )
 
-          request.requestsList.map { subRequest ->
+          request.requestsList.mapIndexed { index, subRequest ->
             val existing = existingByRequestId[subRequest.requestId]
             if (existing != null) {
-              existing.rankIndexBlob
+              replayCreatedBlob(
+                existing.rankIndexBlob,
+                subRequest.rankIndexBlob,
+                "requests[$index].request_id",
+              )
             } else {
               insertNewRankIndexBlob(
                 txn,
@@ -564,6 +572,29 @@ class SpannerRankIndexBlobService(
       result.rankIndexBlobId,
     )
     return result.rankIndexBlob
+  }
+
+  /** Returns the original create response if its immutable fields match the replay. */
+  private fun replayCreatedBlob(
+    existing: RankIndexBlob,
+    requested: RankIndexBlob,
+    field: String,
+  ): RankIndexBlob {
+    val matches =
+      existing.cmmsModelLine == requested.cmmsModelLine &&
+        existing.blobType == requested.blobType &&
+        existing.poolOffset == requested.poolOffset &&
+        existing.blobUri == requested.blobUri &&
+        existing.blobChecksum == requested.blobChecksum &&
+        existing.encryptedDek == requested.encryptedDek &&
+        existing.maxEventDate == requested.maxEventDate
+    if (!matches) {
+      throw InvalidFieldValueException(field) {
+          "$it was reused with different immutable blob fields"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return existing.copy { clearDeleteTime() }
   }
 
   private fun validateCreateRequest(request: CreateRankIndexBlobRequest) {

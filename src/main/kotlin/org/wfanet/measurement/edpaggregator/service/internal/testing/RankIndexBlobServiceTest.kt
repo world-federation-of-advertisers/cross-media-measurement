@@ -509,6 +509,117 @@ abstract class RankIndexBlobServiceTest {
     }
 
   @Test
+  fun `createRankIndexBlob validates replay fields and reconstructs its original response`() =
+    runBlocking<Unit> {
+      val request = createRankIndexBlobRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rankIndexBlob = newInternalBlob(blobUri = "$BLOB_URI/strict-original")
+      }
+      val original = service.createRankIndexBlob(request)
+      val variants = immutableReplayMismatches(request.rankIndexBlob)
+      for (variant in variants) {
+        val error =
+          assertFailsWith<StatusRuntimeException> {
+            service.createRankIndexBlob(request.copy { rankIndexBlob = variant })
+          }
+        assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        assertThat(error.message).contains("request_id")
+      }
+      deleteBlob(original.rankIndexBlobResourceId)
+      createBlob(blobUri = "$BLOB_URI/strict-replacement")
+      assertThat(service.createRankIndexBlob(request)).isEqualTo(original)
+      assertThat(
+          service
+            .getRankIndexBlob(
+              getRankIndexBlobRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                rankIndexBlobResourceId = original.rankIndexBlobResourceId
+              }
+            )
+            .hasDeleteTime()
+        )
+        .isTrue()
+    }
+
+  @Test
+  fun `batchCreateRankIndexBlobs validates replay fields atomically after deletion`() =
+    runBlocking<Unit> {
+      val request = batchCreateRankIndexBlobsRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        requests += createRankIndexBlobRequest {
+          requestId = UUID.randomUUID().toString()
+          rankIndexBlob = newInternalBlob(blobUri = "$BLOB_URI/strict-snapshot")
+        }
+        requests += createRankIndexBlobRequest {
+          requestId = UUID.randomUUID().toString()
+          rankIndexBlob =
+            newInternalBlob(
+              blobType = BlobType.BLOB_TYPE_DAY_ONLY,
+              blobUri = "$BLOB_URI/strict-day",
+            )
+        }
+      }
+      val original = service.batchCreateRankIndexBlobs(request)
+      original.rankIndexBlobsList.forEach { deleteBlob(it.rankIndexBlobResourceId) }
+      val replacement = createBlob(blobUri = "$BLOB_URI/strict-new-snapshot")
+      assertThat(service.batchCreateRankIndexBlobs(request)).isEqualTo(original)
+      for (index in request.requestsList.indices) {
+        for (variant in immutableReplayMismatches(request.requestsList[index].rankIndexBlob)) {
+          val error =
+            assertFailsWith<StatusRuntimeException> {
+              service.batchCreateRankIndexBlobs(
+                request.copy {
+                  requests.clear()
+                  requests += createRankIndexBlobRequest {
+                    requestId = UUID.randomUUID().toString()
+                    rankIndexBlob =
+                      newInternalBlob(poolOffset = 1L, blobUri = "$BLOB_URI/must-not-commit")
+                  }
+                  requests += request.requestsList[index].copy { rankIndexBlob = variant }
+                }
+              )
+            }
+          assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+          assertThat(error.errorInfo?.metadataMap?.get(Errors.Metadata.FIELD_NAME.key))
+            .isEqualTo("requests[1].request_id")
+          assertThat(
+              service
+                .listRankIndexBlobs(
+                  listRankIndexBlobsRequest {
+                    dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                    rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                  }
+                )
+                .rankIndexBlobsList
+            )
+            .containsExactly(replacement)
+        }
+      }
+    }
+
+  private fun immutableReplayMismatches(blob: RankIndexBlob): List<RankIndexBlob> =
+    listOf(
+      blob.copy { blobUri += "/other" },
+      blob.copy {
+        encryptedDek =
+          encryptedDek.toBuilder().setCiphertext("other-key".toByteStringUtf8()).build()
+      },
+      blob.copy { blobChecksum = "other-checksum".toByteStringUtf8() },
+      blob.copy { poolOffset = blob.poolOffset + 1L },
+      blob.copy { cmmsModelLine += "-other" },
+      blob.copy {
+        blobType =
+          if (blob.blobType == BlobType.BLOB_TYPE_SNAPSHOT) BlobType.BLOB_TYPE_DAY_ONLY
+          else BlobType.BLOB_TYPE_SNAPSHOT
+      },
+      blob.copy { maxEventDate = maxEventDate.toBuilder().setYear(maxEventDate.year + 1).build() },
+    )
+
+  @Test
   fun `snapshot replacement after soft deletion preserves original request replay`() =
     runBlocking<Unit> {
       val requestId = UUID.randomUUID().toString()
@@ -518,9 +629,7 @@ abstract class RankIndexBlobServiceTest {
       assertThat(replacement.rankIndexBlobResourceId).isNotEqualTo(original.rankIndexBlobResourceId)
       assertThat(replacement.hasDeleteTime()).isFalse()
       val replay = createBlob(blobUri = "$BLOB_URI/original", requestId = requestId)
-      assertThat(replay.rankIndexBlobResourceId).isEqualTo(original.rankIndexBlobResourceId)
-      assertThat(replay.blobUri).isEqualTo(original.blobUri)
-      assertThat(replay.encryptedDek).isEqualTo(original.encryptedDek)
+      assertThat(replay).isEqualTo(original)
       val listed =
         service.listRankIndexBlobs(
           listRankIndexBlobsRequest {
@@ -768,7 +877,7 @@ abstract class RankIndexBlobServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             requests += createRankIndexBlobRequest {
               requestId = existingRequestId
-              rankIndexBlob = newInternalBlob(poolOffset = 0L)
+              rankIndexBlob = existing
             }
             requests += createRankIndexBlobRequest {
               requestId = UUID.randomUUID().toString()
@@ -778,8 +887,7 @@ abstract class RankIndexBlobServiceTest {
         )
 
       assertThat(response.rankIndexBlobsList).hasSize(2)
-      assertThat(response.rankIndexBlobsList[0].rankIndexBlobResourceId)
-        .isEqualTo(existing.rankIndexBlobResourceId)
+      assertThat(response.rankIndexBlobsList[0]).isEqualTo(existing)
       assertThat(response.rankIndexBlobsList[1].rankIndexBlobResourceId)
         .isNotEqualTo(existing.rankIndexBlobResourceId)
     }

@@ -17,9 +17,13 @@
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
+import io.grpc.StatusException
 import java.time.ZoneOffset
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.DIRECT_MODEL_LINE
@@ -29,6 +33,116 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 
 internal class VidLabelingRegistrationBoundaryIntegrationTest : VidLabelingPipelineTestHarness() {
+  @Test
+  fun `late duplicate rank registration retries without undoing completed phase one`() =
+    runBlocking<Unit> { verifyStrictDuplicate(0) }
+
+  @Test
+  fun `duplicate rank registration retries after winner crashes before Mark`() =
+    runBlocking<Unit> { verifyStrictDuplicate(1) }
+
+  @Test
+  fun `duplicate rank registration recovers winner Mark before handoff`() =
+    runBlocking<Unit> { verifyStrictDuplicate(2) }
+
+  private suspend fun verifyStrictDuplicate(crashStage: Int) =
+    withTimeout(90_000L) {
+      visibleModelLineNames.clear()
+      visibleModelLineNames += MEMOIZED_MODEL_LINE
+      withholdNextRankBuilderPublications()
+      withholdNextVidLabelerPublications()
+      writeRawFile("strict-race-$crashStage", "input.parquet", listOf("strict-person"))
+      val generation = finalizeRawUpload("strict-race-$crashStage")
+      awaitPipelineIdle()
+      val upload = listUploads().single { it.doneBlobGeneration == generation }
+      val item = rankBuilderWorkItems().single()
+      seedCompletedRankerSiblings(item)
+      val before = rankerStatesFor(item)
+      assertThat(before).hasSize(3)
+      assertThat(before.values.count { it == "SUCCEEDED" }).isEqualTo(2)
+      assertThat(before.values.count { it == "CREATED" }).isEqualTo(1)
+
+      val held =
+        edpaBeforeCallFaults.holdNextCall(
+          "wfa.measurement.edpaggregator.v1alpha.RankIndexBlobService/BatchCreateRankIndexBlobs"
+        )
+      holdNextRankBuilderRedelivery()
+      republishQueuedRankBuilders() // D is a real SDK execution, paused after its encrypted file
+      // writes.
+      held.held.await()
+      assertThat(listRankIndexBlobs(upload.name)).isEmpty()
+      try {
+        val markMethod =
+          "wfa.measurement.edpaggregator.v1alpha.RankerJobService/MarkRankerJobSucceeded"
+        when (crashStage) {
+          1 -> edpaBeforeCallFaults.arm(markMethod)
+          2 -> edpaBeforeCallFaults.armAfterCommit(markMethod)
+        }
+        if (crashStage == 0) {
+          val winner = runRankBuilderDirect(item) // C is another real ranker body for the same job.
+          assertThat(winner.lastJobOut).isTrue()
+        } else {
+          val lostResponse = assertFailsWith<StatusException> { runRankBuilderDirect(item) }
+          assertThat(lostResponse.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+        }
+        assertThat(held.requests).hasSize(2)
+        val registrationRequests =
+          held.requests.map {
+            it as org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRankIndexBlobsRequest
+          }
+        val loserRequest = registrationRequests[0]
+        val winnerRequest = registrationRequests[1]
+        assertThat(loserRequest.requestsList.map { it.requestId })
+          .containsExactlyElementsIn(winnerRequest.requestsList.map { it.requestId })
+          .inOrder()
+        assertThat(loserRequest.requestsList.map { it.rankIndexBlob.blobUri })
+          .isNotEqualTo(winnerRequest.requestsList.map { it.rankIndexBlob.blobUri })
+        assertThat(loserRequest.requestsList.map { it.rankIndexBlob.encryptedDek })
+          .isNotEqualTo(winnerRequest.requestsList.map { it.rankIndexBlob.encryptedDek })
+        val winningBlobs = listRankIndexBlobs(upload.name)
+        assertThat(winningBlobs).hasSize(2)
+        val statesAfterC = rankerStatesFor(item)
+        assertThat(statesAfterC.values.count { it == "SUCCEEDED" })
+          .isEqualTo(if (crashStage == 1) 2 else 3)
+        assertThat(vidLabelerWorkItems()).hasSize(if (crashStage == 0) 1 else 0)
+        assertThat(listModelLines(upload.name).single().state)
+          .isEqualTo(
+            if (crashStage == 0) RawImpressionUploadModelLine.State.LABELING
+            else RawImpressionUploadModelLine.State.RANKING
+          )
+
+        held.release() // Registration must reject D's different URI/DEK under the same
+        // IDs.
+        awaitHeldRankBuilderRedelivery()
+        val errors = workItemTransport.attemptErrors(item.name)
+        assertThat(errors).hasSize(1)
+        assertThat(errors.single()).contains("INVALID_ARGUMENT")
+        assertThat(rankerStatesFor(item)).isEqualTo(statesAfterC)
+        assertThat(listRankIndexBlobs(upload.name)).containsExactlyElementsIn(winningBlobs)
+        assertThat(vidLabelerWorkItems()).hasSize(if (crashStage == 0) 1 else 0)
+
+        releaseHeldRankBuilderRedelivery()
+        awaitPipelineIdle()
+        assertThat(rankerStatesFor(item).values)
+          .containsExactly("SUCCEEDED", "SUCCEEDED", "SUCCEEDED")
+        assertThat(rankBuilderWorkItems().single().state).isEqualTo(WorkItem.State.SUCCEEDED)
+        assertThat(workItemTransport.attemptCount(item.name)).isEqualTo(2)
+        assertThat(vidLabelerWorkItems()).hasSize(1)
+        assertThat(listModelLines(upload.name).single().state)
+          .isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+        assertThat(listRankIndexBlobs(upload.name)).containsExactlyElementsIn(winningBlobs)
+
+        republishQueuedVidLabelers()
+        awaitPipelineIdle()
+        assertThat(vidLabelerWorkItems().single().state).isEqualTo(WorkItem.State.SUCCEEDED)
+        assertThat(listModelLines(upload.name).single().state)
+          .isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+        assertThat(listMetadata()).hasSize(1)
+      } finally {
+        held.release()
+      }
+    }
+
   @Test
   fun `one hundred one files cross registration and metadata batch boundaries without loss`() =
     runBlocking {
