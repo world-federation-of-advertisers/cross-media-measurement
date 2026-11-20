@@ -106,6 +106,7 @@ class SpannerVidLabelingJobService(
               request.requestId,
             )
           if (existing != null) {
+            validateIdempotentCreate(existing.vidLabelingJob, job)
             return@run existing.vidLabelingJob
           }
 
@@ -244,6 +245,7 @@ class SpannerVidLabelingJobService(
           request.requestsList.map { subRequest ->
             val existing = existingByRequestId[subRequest.requestId]
             if (existing != null) {
+              validateIdempotentCreate(existing.vidLabelingJob, subRequest.vidLabelingJob)
               existing.vidLabelingJob
             } else {
               val vidLabelingJobId =
@@ -650,6 +652,21 @@ class SpannerVidLabelingJobService(
       EtagMismatchException.check(requestEtag, currentJob.etag)
     } catch (e: EtagMismatchException) {
       throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
+  }
+
+  /** Original file/model-line membership is immutable; ordering alone is insignificant. */
+  private fun validateIdempotentCreate(existing: VidLabelingJob, requested: VidLabelingJob) {
+    if (
+      existing.cmmsModelLinesList.sorted() != requested.cmmsModelLinesList.sorted() ||
+        existing.rawImpressionUploadFilesList.sorted() !=
+          requested.rawImpressionUploadFilesList.sorted()
+    ) {
+      throw VidLabelingJobAlreadyExistsException(
+          existing.dataProviderResourceId,
+          existing.rawImpressionUploadResourceId,
+        )
+        .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     }
   }
 

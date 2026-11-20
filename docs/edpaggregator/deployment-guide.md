@@ -2005,3 +2005,12 @@ If a previous recovery already exists, it must be older than the configured
 `staleness_threshold` before another is created. A missing/future creation time or
 failed lookup defers recovery. This prevents repeated health requests or a lost
 HTTP response from consuming all three attempts while recovery is still in progress.
+
+Memoized Phase-2 dispatch requires a registration-complete upload before listing its
+immutable files. Keep the packing limits identical across retries: raw-byte limit,
+1,000 files per job, 512 KiB serialized job metadata, and 3 MiB/50 jobs per create RPC.
+Deploy matching metadata-service replay validation before updated producers.
+A reused labeling-job request ID with changed file or model-line membership returns
+ALREADY_EXISTS; retrying unchanged input preserves its existing job. Changing packing
+limits for an in-progress upload requires explicit reconciliation rather than treating
+changed batch-slot membership as replay.
