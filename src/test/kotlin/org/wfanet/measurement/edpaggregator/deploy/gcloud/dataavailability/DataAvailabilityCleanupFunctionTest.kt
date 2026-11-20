@@ -50,6 +50,7 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.grpc.JsonServiceConfig
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
@@ -275,6 +276,14 @@ class DataAvailabilityCleanupFunctionTest {
     addService(attemptService)
     addService(metadataService)
   }
+
+  // A channel timeout uses the system clock and cannot be compared with the test clock.
+  @get:Rule
+  val fakeClockServer =
+    GrpcTestServerRule(defaultServiceConfig = JsonServiceConfig("{}")) {
+      addService(itemService)
+      addService(attemptService)
+    }
   private val config = dataAvailabilitySyncConfig {
     dataProvider = PROVIDER
     dataAvailabilityStorage = storageParams { gcs = gcsStorage { bucketName = "bucket" } }
@@ -573,8 +582,8 @@ class DataAvailabilityCleanupFunctionTest {
         },
         {
           Pair(
-            WorkItemsGrpcKt.WorkItemsCoroutineStub(server.channel),
-            WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(server.channel),
+            WorkItemsGrpcKt.WorkItemsCoroutineStub(fakeClockServer.channel),
+            WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub(fakeClockServer.channel),
           )
         },
         { awaitCancellation() },
