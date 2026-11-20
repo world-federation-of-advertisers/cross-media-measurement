@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:27 dbms:cloudspanner
+-- changeset marcopremier:28 dbms:cloudspanner
 -- comment: Exclude deleted snapshots from rank-index natural-key uniqueness.
 
 ALTER TABLE RankIndexBlob ADD COLUMN DayOnlyPoolOffset INT64 AS (

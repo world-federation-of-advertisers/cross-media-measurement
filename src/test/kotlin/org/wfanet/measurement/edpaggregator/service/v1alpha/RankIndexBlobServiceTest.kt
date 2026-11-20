@@ -200,6 +200,36 @@ class RankIndexBlobServiceTest {
   }
 
   @Test
+  fun `rank replay mismatch preserves structured field details`() =
+    runBlocking<Unit> {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      val request = createRankIndexBlobRequest {
+        parent = UPLOAD_KEY.toName()
+        requestId = UUID.randomUUID().toString()
+        rankIndexBlob = newPublicBlob()
+      }
+      val original = service.createRankIndexBlob(request)
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRankIndexBlob(
+            request
+              .toBuilder()
+              .setRankIndexBlob(
+                request.rankIndexBlob
+                  .toBuilder()
+                  .setBlobUri(request.rankIndexBlob.blobUri + "/different")
+                  .build()
+              )
+              .build()
+          )
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(error.errorInfo?.reason).isEqualTo("INVALID_FIELD_VALUE")
+      assertThat(error.errorInfo?.metadataMap?.get("fieldName")).isEqualTo("request_id")
+      assertThat(service.createRankIndexBlob(request)).isEqualTo(original)
+    }
+
+  @Test
   fun `createRankIndexBlob returns a blob successfully`() =
     runBlocking<Unit> {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
