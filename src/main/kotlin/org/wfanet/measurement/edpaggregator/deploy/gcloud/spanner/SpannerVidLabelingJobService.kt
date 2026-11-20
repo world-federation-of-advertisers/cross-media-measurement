@@ -32,6 +32,7 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.VidLabelingJobResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.cacheVidLabelingJobMarkResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countOtherNonSucceededVidLabelingJobsForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingJobsByCreateRequestIds
@@ -429,25 +430,33 @@ class SpannerVidLabelingJobService(
 
         val currentJob = result.vidLabelingJob
 
-        // Idempotency: if already succeeded by this same request_id, return the original response,
-        // recomputing the completed model lines so the replay matches the first response (AIP-155).
+        // Retain the decision made by the original successful transaction, including an empty
+        // result. Legacy rows predate this cache; terminal timestamps and membership are immutable.
         if (
           currentJob.state == State.VID_LABELING_STATE_SUCCEEDED &&
             result.markSucceededRequestId == request.requestId
         ) {
-          return@run TransactionResult(
-            currentJob,
-            completedModelLines =
-              currentJob.cmmsModelLinesList.filter { modelLine ->
-                txn.countOtherNonSucceededVidLabelingJobsForModelLine(
-                  request.dataProviderResourceId,
-                  result.rawImpressionUploadId,
-                  modelLine,
-                  result.vidLabelingJobId,
-                ) == 0L
-              },
-            isReplay = true,
-          )
+          val originalCompletedModelLines =
+            result.markSucceededCompletedModelLines
+              ?: currentJob.cmmsModelLinesList
+                .filter { modelLine ->
+                  txn.countOtherNonSucceededVidLabelingJobsForModelLine(
+                    request.dataProviderResourceId,
+                    result.rawImpressionUploadId,
+                    modelLine,
+                    result.vidLabelingJobId,
+                    asOf = currentJob.updateTime,
+                  ) == 0L
+                }
+                .also { original ->
+                  txn.cacheVidLabelingJobMarkResult(
+                    request.dataProviderResourceId,
+                    result.rawImpressionUploadId,
+                    result.vidLabelingJobId,
+                    original,
+                  )
+                }
+          return@run TransactionResult(currentJob, originalCompletedModelLines, isReplay = true)
         }
 
         checkMarkPrecondition(
@@ -457,20 +466,8 @@ class SpannerVidLabelingJobService(
           currentJob = currentJob,
         )
 
-        txn.updateVidLabelingJobState(
-          dataProviderResourceId = request.dataProviderResourceId,
-          rawImpressionUploadId = result.rawImpressionUploadId,
-          vidLabelingJobId = result.vidLabelingJobId,
-          state = State.VID_LABELING_STATE_SUCCEEDED,
-        ) {
-          set("MarkSucceededRequestId").to(request.requestId)
-          // Clear any error message from a prior FAILED attempt; it is only set while FAILED.
-          set("ErrorMessage").to(null as String?)
-        }
-
         // A model line is complete when none of its sibling jobs (covering that model line) remain
-        // non-SUCCEEDED. The buffered update above is not visible in this read, so the current job
-        // is excluded by ID rather than relying on its persisted state.
+        // non-SUCCEEDED. Exclude this job because its success is written below.
         val completedModelLines: List<String> =
           currentJob.cmmsModelLinesList.filter { modelLine ->
             txn.countOtherNonSucceededVidLabelingJobsForModelLine(
@@ -480,6 +477,18 @@ class SpannerVidLabelingJobService(
               result.vidLabelingJobId,
             ) == 0L
           }
+
+        txn.updateVidLabelingJobState(
+          dataProviderResourceId = request.dataProviderResourceId,
+          rawImpressionUploadId = result.rawImpressionUploadId,
+          vidLabelingJobId = result.vidLabelingJobId,
+          state = State.VID_LABELING_STATE_SUCCEEDED,
+        ) {
+          set("MarkSucceededRequestId").to(request.requestId)
+          set("MarkSucceededCompletedModelLines").toStringArray(completedModelLines)
+          // Clear any error message from a prior FAILED attempt; it is only set while FAILED.
+          set("ErrorMessage").to(null as String?)
+        }
 
         TransactionResult(
           updatedJob =

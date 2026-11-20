@@ -44,6 +44,7 @@ data class VidLabelingJobResult(
   val vidLabelingJobId: Long,
   val markSucceededRequestId: String,
   val markFailedRequestId: String,
+  val markSucceededCompletedModelLines: List<String>? = null,
 )
 
 /** Returns whether a [VidLabelingJob] with the specified keys exists. */
@@ -269,7 +270,14 @@ suspend fun AsyncDatabaseClient.ReadContext.countOtherNonSucceededVidLabelingJob
   rawImpressionUploadId: Long,
   cmmsModelLine: String,
   excludeVidLabelingJobId: Long,
+  asOf: com.google.protobuf.Timestamp? = null,
 ): Long {
+  val unfinishedPredicate =
+    if (asOf == null) "CAST(VidLabelingJob.State AS INT64) != @succeededState"
+    else
+      """VidLabelingJob.CreateTime < @asOf AND
+        (CAST(VidLabelingJob.State AS INT64) != @succeededState
+         OR VidLabelingJob.UpdateTime > @asOf)"""
   val sql =
     """
     SELECT COUNT(*) AS Cnt
@@ -278,7 +286,7 @@ suspend fun AsyncDatabaseClient.ReadContext.countOtherNonSucceededVidLabelingJob
       AND VidLabelingJob.RawImpressionUploadId = @rawImpressionUploadId
       AND @cmmsModelLine IN UNNEST(VidLabelingJob.CmmsModelLines)
       AND VidLabelingJob.VidLabelingJobId != @excludeVidLabelingJobId
-      AND CAST(VidLabelingJob.State AS INT64) != @succeededState
+      AND ($unfinishedPredicate)
     """
       .trimIndent()
 
@@ -290,6 +298,7 @@ suspend fun AsyncDatabaseClient.ReadContext.countOtherNonSucceededVidLabelingJob
           bind("cmmsModelLine").to(cmmsModelLine)
           bind("excludeVidLabelingJobId").to(excludeVidLabelingJobId)
           bind("succeededState").to(State.VID_LABELING_STATE_SUCCEEDED.number.toLong())
+          if (asOf != null) bind("asOf").to(asOf.toInstant().toGcloudTimestamp())
         },
         Options.tag("action=countOtherNonSucceededVidLabelingJobsForModelLine"),
       )
@@ -344,6 +353,21 @@ fun AsyncDatabaseClient.TransactionContext.updateVidLabelingJobState(
   }
 }
 
+/** Caches a legacy successful mark without changing its original response timestamps. */
+fun AsyncDatabaseClient.TransactionContext.cacheVidLabelingJobMarkResult(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  vidLabelingJobId: Long,
+  completedModelLines: List<String>,
+) {
+  bufferUpdateMutation("VidLabelingJob") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("VidLabelingJobId").to(vidLabelingJobId)
+    set("MarkSucceededCompletedModelLines").toStringArray(completedModelLines)
+  }
+}
+
 private object VidLabelingJobEntity {
   val BASE_SQL =
     """
@@ -358,6 +382,7 @@ private object VidLabelingJobEntity {
       VidLabelingJob.CreateRequestId,
       VidLabelingJob.MarkSucceededRequestId,
       VidLabelingJob.MarkFailedRequestId,
+      VidLabelingJob.MarkSucceededCompletedModelLines,
       VidLabelingJob.State,
       VidLabelingJob.ErrorMessage,
       VidLabelingJob.CreateTime,
@@ -391,6 +416,8 @@ private object VidLabelingJobEntity {
         struct.getString("MarkSucceededRequestId")
       },
       if (struct.isNull("MarkFailedRequestId")) "" else struct.getString("MarkFailedRequestId"),
+      if (struct.isNull("MarkSucceededCompletedModelLines")) null
+      else struct.getStringList("MarkSucceededCompletedModelLines"),
     )
   }
 }
