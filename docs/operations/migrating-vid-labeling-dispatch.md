@@ -10,15 +10,14 @@ deadline, up to 100 approximate delivery attempts, and 10–600-second backoff.
 ## Payload and recovery
 
 `WorkItem.WorkItemParams.app_params` contains `VidLabelingDispatchWorkItemParams`.
-It carries provider and exact source URI/generation/creation time/event type. Its
-optional recovery message carries ModelLine names, the source upload resource name,
-and the complete UploadHealingOperation resource name.
-Ordinary dispatch also populates outer `data_path_params` with the same source
-identity, enabling generic source admission and indexed lookup. Recovery leaves
-that outer source unset so an approved replay of the same or a historical
-generation is not suppressed. The dispatcher validates recovery authorization
-and retains its own authoritative source checks. Older app-only ordinary jobs
-remain readable; duplicate intake reuses their stored parameters and trace.
+It carries the provider and optional recovery references. Ordinary dispatch carries
+its exact source URI/generation/creation time/event type only in outer
+`data_path_params`, enabling standard source admission and indexed lookup.
+Recovery instead carries that complete source in `app_params.recovery.source`,
+with the source upload and authorizing UploadHealingOperation resource names.
+The dispatcher derives authorized ModelLines from that operation's selected
+recovery-target steps, then validates checkpoint, source and row authorization.
+Recovery leaves outer source unset so approved historical replay is not suppressed.
 
 The stable intake ID includes source identity and dispatch intent. Ordinary intake
 and approved correction replay of one generation are distinct jobs. Equivalent
@@ -69,7 +68,8 @@ queued dispatch must not be activated until this readiness is verified.
 
 ## Inspect and retry
 
-Inspect a failed WorkItem, its attempts, and `app_params.source` before retrying.
+Inspect a failed WorkItem, its attempts, and its source before retrying: outer
+`data_path_params` for ordinary work or `app_params.recovery.source` for replay.
 Use the existing WorkItems API with the exact execution generation inspected:
 
 ```shell
@@ -81,7 +81,7 @@ grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
 ```
 
 Execution generation belongs to the WorkItem; it differs from the GCS object
-version in `app_params.source.generation`. Retry advances execution generation while
+version in the selected source's `generation`. Retry advances execution generation while
 retaining source identity and original parameters. Duplicate source notifications do
 not restart terminal jobs. Correct invalid configuration/authorization before retrying;
 use a new `done` generation only for an actual revised upload, not to restart a job.
