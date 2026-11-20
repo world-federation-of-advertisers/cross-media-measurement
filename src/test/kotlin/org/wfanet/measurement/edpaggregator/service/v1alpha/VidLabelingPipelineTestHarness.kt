@@ -130,6 +130,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.watchedPath
+import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
@@ -1191,6 +1192,110 @@ abstract class VidLabelingPipelineTestHarness(
       )
       .rankerJobsList
       .associate { it.name to it.state.name }
+  }
+
+  protected suspend fun runPoolAssignerDirect(workItem: WorkItem) {
+    val rawParquetClient = { storageConfig: StorageConfig, kms: KmsClient ->
+      parquetClient(
+        kms,
+        if (storageConfig.blobPrefix?.startsWith("gs://") == true) Path("gs://$fileBucket/")
+        else Path("file:///$fileBucket"),
+      )
+    }
+    SubpoolAssignerApp(
+        subscriptionId = POOL_ASSIGNER_QUEUE,
+        queueSubscriber = workItemTransport,
+        parser = WorkItem.parser(),
+        workItemsClient = workItemsStub,
+        workItemAttemptsClient = workItemAttemptsStub,
+        vidRankBuilderQueue = RANK_BUILDER_QUEUE,
+        kmsClients = mapOf(providerName to kmsClient),
+        getSubpoolMapStorageConfig = {
+          StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
+        },
+        getRawImpressionsStorageConfig = {
+          StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
+        },
+        getModelStorageConfig = {
+          StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)
+        },
+        rawImpressionUploadsStub = uploadsStub,
+        rawImpressionUploadModelLinesStub = modelLineRowsStub,
+        rankerJobsStub =
+          RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
+        poolAssignmentJobsStub =
+          PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+            edpaPublicServer.channel
+          ),
+        rawImpressionUploadFilesStub = filesStub,
+        buildParquetStorageClient = rawParquetClient,
+        buildSubpoolMapStorageClient = { mapStorage },
+        loadPoolEmitLabeler = { _, uri ->
+          VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(
+            checkNotNull(fileStorage.getBlob(SelectedStorageClient.parseBlobUri(uri).key))
+              .read()
+              .flatten()
+          )
+        },
+        getSubpoolMapKekUri = { kekUri },
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+      )
+      .runWork(workItem.workItemParams)
+  }
+
+  protected suspend fun poisonLosingShard(
+    workItem: WorkItem,
+    mark: org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededRequest,
+  ): List<String> {
+    val params =
+      workItem.workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams::class.java)
+    val client =
+      EncryptedStorage.buildEncryptedMesosStorageClient(
+        mapStorage,
+        kmsClient,
+        mark.encryptedDek.kekUri,
+        mark.encryptedDek,
+      )
+    return mark.poolOffsetsList.map { pool ->
+      val key =
+        SubpoolFingerprintsStore.shardSubpoolKey(
+          SelectedStorageClient.parseBlobUri(params.subpoolMapStorageParams.blobPrefix).key,
+          params.rawImpressionUpload,
+          params.modelLine,
+          params.shardIndex,
+          pool,
+          mark.encryptedDek,
+        )
+      client.writeBlob(
+        key,
+        flowOf(
+          org.wfanet.measurement.edpaggregator.v1alpha
+            .subpoolFingerprints {
+              poolOffset = pool
+              fingerprints = ByteString.copyFrom(ByteArray(12) { 0x7f.toByte() })
+            }
+            .toByteString()
+        ),
+      )
+      key
+    }
+  }
+
+  protected suspend fun winningPoolJob(
+    mark: org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededRequest
+  ): org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob =
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(edpaPublicServer.channel)
+      .getPoolAssignmentJob(
+        org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest {
+          name = mark.name
+        }
+      )
+
+  protected suspend fun assertNoShardObjects(keys: List<String>) {
+    for (key in keys) assertThat(mapStorage.getBlob(key)).isNull()
   }
 
   protected suspend fun runRankBuilderDirect(workItem: WorkItem): VidRankBuilder.Result {
@@ -2433,24 +2538,6 @@ abstract class VidLabelingPipelineTestHarness(
             ?.takeIf { it.fullMethodName == call.methodDescriptor.fullMethodName }
             ?.also { heldCall = null }
         }
-      val observer =
-        synchronized(this) {
-          observedCall?.takeIf { it.fullMethodName == call.methodDescriptor.fullMethodName }
-        }
-      if (observer != null) {
-        val listener = next.startCall(call, headers)
-        return object :
-          ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(listener) {
-          override fun onMessage(message: ReqT) {
-            observer.requests += message
-            if (pause != null) {
-              pause.held.complete(Unit)
-              pause.awaitRelease()
-            }
-            super.onMessage(message)
-          }
-        }
-      }
       val stage =
         synchronized(this) {
           val current = fault
@@ -2468,29 +2555,51 @@ abstract class VidLabelingPipelineTestHarness(
             }
           }
         }
-      return when (stage) {
-        null -> next.startCall(call, headers)
-        Stage.BEFORE_HANDLER -> {
-          call.close(Status.UNAVAILABLE.withDescription("injected before-call failure"), Metadata())
-          object : ServerCall.Listener<ReqT>() {}
-        }
-        Stage.AFTER_COMMIT_BEFORE_RESPONSE -> {
-          val forwardingCall =
-            object : ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
-              override fun close(status: Status, trailers: Metadata) {
-                if (status.isOk) {
-                  super.close(
-                    Status.UNAVAILABLE.withDescription("injected response loss after commit"),
-                    trailers,
-                  )
-                } else {
-                  super.close(status, trailers)
+      val listener =
+        when (stage) {
+          null -> next.startCall(call, headers)
+          Stage.BEFORE_HANDLER -> {
+            call.close(
+              Status.UNAVAILABLE.withDescription("injected before-call failure"),
+              Metadata(),
+            )
+            object : ServerCall.Listener<ReqT>() {}
+          }
+          Stage.AFTER_COMMIT_BEFORE_RESPONSE -> {
+            val forwardingCall =
+              object : ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
+                override fun close(status: Status, trailers: Metadata) {
+                  if (status.isOk) {
+                    super.close(
+                      Status.UNAVAILABLE.withDescription("injected response loss after commit"),
+                      trailers,
+                    )
+                  } else {
+                    super.close(status, trailers)
+                  }
                 }
               }
+            next.startCall(forwardingCall, headers)
+          }
+        }
+      val observer =
+        synchronized(this) {
+          observedCall?.takeIf { it.fullMethodName == call.methodDescriptor.fullMethodName }
+        }
+      if (observer != null) {
+        return object :
+          ForwardingServerCallListener.SimpleForwardingServerCallListener<ReqT>(listener) {
+          override fun onMessage(message: ReqT) {
+            observer.requests += message
+            if (pause != null) {
+              pause.held.complete(Unit)
+              pause.awaitRelease()
             }
-          next.startCall(forwardingCall, headers)
+            super.onMessage(message)
+          }
         }
       }
+      return listener
     }
   }
 

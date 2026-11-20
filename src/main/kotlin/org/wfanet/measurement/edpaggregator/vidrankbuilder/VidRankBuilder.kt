@@ -66,6 +66,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.BlobChangedException
 
 /**
  * Phase-1 per-WorkItem logic for the memoized VID assignment pipeline (analog of
@@ -230,6 +231,13 @@ class VidRankBuilder(
           subpoolRanker.rank(poolOffset, blobUri, rankedSize)
         } catch (e: CancellationException) {
           throw e
+        } catch (e: BlobChangedException) {
+          val current =
+            rpcThrottlers.metadataRead.onReady {
+              rankerJobsStub.getRankerJob(getRankerJobRequest { name = rankerJob })
+            }
+          if (current.state != RankerJob.State.SUCCEEDED) throw e
+          return recoverIfLastJobOut()
         } catch (e: Exception) {
           logRankLifecycle(
             Level.WARNING,
