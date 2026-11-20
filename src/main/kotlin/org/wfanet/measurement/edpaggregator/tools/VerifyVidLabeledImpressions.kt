@@ -77,6 +77,13 @@ enum class KmsType {
 )
 class VerifyVidLabeledImpressions : Callable<Int> {
   @Option(
+    names = ["--log-measurement-values"],
+    defaultValue = "false",
+    description = ["Include impression counts in diagnostic logs. Disabled by default."],
+  )
+  private var logMeasurementValues: Boolean = false
+
+  @Option(
     names = ["--kms-type"],
     description = ["Type of kms: \${COMPLETION-CANDIDATES}"],
     required = true,
@@ -434,21 +441,24 @@ class VerifyVidLabeledImpressions : Callable<Int> {
         storagePath = storagePath,
         eventMessageInstance = eventMessageInstance,
         expectedEventTypeUrl = eventMessageTypeUrl,
+        logMeasurementValues = logMeasurementValues,
       )
     lastResult = result
 
     logger.info("\n========== VERIFICATION SUMMARY ==========")
     logger.info("  Blobs processed: ${result.totalBlobsProcessed}")
-    logger.info("  Total impressions decrypted: ${result.totalImpressions}")
-    for ((eventGroupReferenceId, count) in
-      result.impressionsByEventGroupReferenceId.toSortedMap()) {
-      logger.info("  Event group '$eventGroupReferenceId': $count impressions")
-    }
-    for ((entityKey, count) in
-      result.impressionsByEntityKey.toSortedMap(
-        compareBy<EntityKey> { it.entityType }.thenBy { it.entityId }
-      )) {
-      logger.info("  Entity '${entityKey.entityType}=${entityKey.entityId}': $count impressions")
+    if (logMeasurementValues) {
+      logger.info("  Total impressions decrypted: ${result.totalImpressions}")
+      for ((eventGroupReferenceId, count) in
+        result.impressionsByEventGroupReferenceId.toSortedMap()) {
+        logger.info("  Event group '$eventGroupReferenceId': $count impressions")
+      }
+      for ((entityKey, count) in
+        result.impressionsByEntityKey.toSortedMap(
+          compareBy<EntityKey> { it.entityType }.thenBy { it.entityId }
+        )) {
+        logger.info("  Entity '${entityKey.entityType}=${entityKey.entityId}': $count impressions")
+      }
     }
     logger.info("  Errors: ${result.errors}")
     if (result.errors == 0) {
@@ -670,6 +680,7 @@ class VerifyVidLabeledImpressions : Callable<Int> {
       storagePath: File?,
       eventMessageInstance: Message?,
       expectedEventTypeUrl: String,
+      logMeasurementValues: Boolean,
     ): VerificationResult {
       var totalImpressions = 0L
       var totalBlobsProcessed = 0
@@ -844,18 +855,14 @@ class VerifyVidLabeledImpressions : Callable<Int> {
                 .build()
             }
 
-            if (index < 3) {
-              val entityKeysSummary =
-                impression.entityKeysList.joinToString(", ") { "${it.entityType}=${it.entityId}" }
-              logger.info(
-                "  Record[$index]: vid=${impression.vid}, " +
-                  "eventTime=${impression.eventTime}, entityKeys=[$entityKeysSummary]"
-              )
-            }
             blobImpressionCount++
             stage = VerificationStage.READING_IMPRESSIONS
           }
-          logger.info("  Decrypted $blobImpressionCount impression records")
+          if (logMeasurementValues) {
+            logger.info("  Decrypted $blobImpressionCount impression records")
+          } else {
+            logger.info("  Decrypted impression records")
+          }
           stage = VerificationStage.VALIDATING_BLOB
           check(blobImpressionCount > 0L) { "Impression blob is empty" }
 
@@ -877,15 +884,14 @@ class VerifyVidLabeledImpressions : Callable<Int> {
           for ((entityKey, count) in blobImpressionsByEntityKey) {
             impressionsByEntityKey.merge(entityKey, count, Long::plus)
           }
-          logger.info("  PASS: $metadataUri - $blobImpressionCount impressions verified")
+          logger.info("  PASS: $metadataUri - impression records verified")
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
           errors++
           logger.log(
             Level.SEVERE,
-            "  FAIL: $metadataUri while ${stage.description}: ${e.message}",
-            e,
+            "  FAIL: $metadataUri while ${stage.description}: ${e.javaClass.simpleName}",
           )
         }
       }

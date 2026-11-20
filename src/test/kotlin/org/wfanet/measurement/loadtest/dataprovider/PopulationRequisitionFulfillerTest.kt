@@ -24,6 +24,10 @@ import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Instant
 import java.time.LocalDate
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -274,6 +278,7 @@ class PopulationRequisitionFulfillerTest {
       modelLinesStub,
       if (configuredVersion == null) emptyMap() else mapOf(MODEL_LINE_NAME to configuredVersion),
       dummyKingdomRpcThrottler,
+      logMeasurementValues = false,
     )
   }
 
@@ -505,6 +510,76 @@ class PopulationRequisitionFulfillerTest {
   }
 
   @Test
+  fun `standalone fulfillment logs omit measurement values when disabled`() {
+    val logs = fulfillPopulationAndCaptureLogs(logMeasurementValues = false)
+    assertThat(logs).contains("Fulfilled direct requisition ${REQUISITION.name}")
+    assertThat(logs).contains("with measurement type ${MEASUREMENT_SPEC.measurementTypeCase}")
+    assertThat(logs).doesNotContain("MeasurementResult:")
+    assertThat(logs).doesNotContain("value: ${VID_RANGE_1.size()}")
+    assertThat(logs).doesNotContain("MeasurementSpec:")
+    assertThat(logs).doesNotContain("RequisitionSpec:")
+  }
+
+  @Test
+  fun `standalone fulfillment logs include measurement values when enabled`() {
+    val logs = fulfillPopulationAndCaptureLogs(logMeasurementValues = true)
+    assertThat(logs).contains("Fulfilled direct requisition ${REQUISITION.name}")
+    assertThat(logs).contains("Direct MeasurementResult:")
+    assertThat(logs).contains("value: ${VID_RANGE_1.size()}")
+    assertThat(logs).contains("Direct MeasurementSpec:")
+  }
+
+  private fun fulfillPopulationAndCaptureLogs(logMeasurementValues: Boolean): String {
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
+    }
+    return captureLogs {
+      runBlocking {
+        PopulationRequisitionFulfiller(
+            PDP_DATA,
+            certificatesStub,
+            requisitionsStub,
+            dummyThrottler,
+            TRUSTED_CERTIFICATES,
+            modelRolloutsStub,
+            modelReleasesStub,
+            populationsStub,
+            EVENT_MESSAGE_DESCRIPTOR,
+            modelLinesStub = modelLinesStub,
+            modelLineEventTemplateVersions = emptyMap(),
+            kingdomRpcThrottler = dummyKingdomRpcThrottler,
+            logMeasurementValues = logMeasurementValues,
+          )
+          .executeRequisitionFulfillingWorkflow()
+      }
+    }
+  }
+
+  private fun captureLogs(block: () -> Unit): String {
+    val logs = StringBuffer()
+    val formatter = SimpleFormatter()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          logs.append(formatter.format(record))
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger("")
+    logger.addHandler(handler)
+    try {
+      block()
+    } finally {
+      logger.removeHandler(handler)
+    }
+    return logs.toString()
+  }
+
+  @Test
   fun `fulfills requisition for 18-34 age range`() {
     requisitionsServiceMock.stub {
       onBlocking { listRequisitions(any()) }
@@ -525,6 +600,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -577,6 +653,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -632,6 +709,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -688,6 +766,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -740,6 +819,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -786,6 +866,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -836,6 +917,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -886,6 +968,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -915,6 +998,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -970,6 +1054,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -1025,6 +1110,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
 
@@ -1075,6 +1161,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { requisitionFulfiller.executeRequisitionFulfillingWorkflow() }
@@ -1104,6 +1191,7 @@ class PopulationRequisitionFulfillerTest {
         modelLinesStub = modelLinesStub,
         modelLineEventTemplateVersions = emptyMap(),
         kingdomRpcThrottler = sharedThrottler,
+        logMeasurementValues = false,
       )
     }
   }
