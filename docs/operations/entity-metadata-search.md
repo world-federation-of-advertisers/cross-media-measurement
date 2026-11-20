@@ -24,7 +24,8 @@ traversed in sorted key order and list order is preserved.
    write the values array in the same mutation as `EntityMetadata`. Absent or
    cleared metadata produces an empty array rather than NULL.
 3. Run `BackfillEntityMetadataValues` against the same database, first with
-   `--dry-run`, then without it. The binary target is
+   `--dry-run` to count missing rows in a single read-only query, then without
+   it to write the values. The binary target is
    `//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/tools:BackfillEntityMetadataValues`.
    It requires `--spanner-project`, `--spanner-instance`, and
    `--spanner-database`; obtain the exact deployment identifiers before

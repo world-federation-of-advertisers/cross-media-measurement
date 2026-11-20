@@ -20,6 +20,7 @@ import java.util.logging.FileHandler
 import java.util.logging.Logger
 import java.util.logging.SimpleFormatter
 import kotlin.properties.Delegates
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
@@ -44,7 +45,7 @@ class BackfillEntityMetadataValues : Runnable {
 
   @set:CommandLine.Option(
     names = ["--batch-size"],
-    description = ["Maximum rows per transaction."],
+    description = ["Maximum rows per write transaction."],
     defaultValue = "100",
   )
   private var batchSize by Delegates.notNull<Int>()
@@ -68,14 +69,27 @@ class BackfillEntityMetadataValues : Runnable {
     val handler = FileHandler(logFile.toString(), true).apply { formatter = SimpleFormatter() }
     logger.addHandler(handler)
     try {
-      runBlocking { spannerFlags.usingSpanner { spanner -> backfill(spanner.databaseClient) } }
+      val rowCount = runBlocking {
+        spannerFlags.usingSpanner { spanner -> countOrBackfill(spanner.databaseClient) }
+      }
+      logger.info { "Completed entity metadata values backfill: rows=$rowCount, dryRun=$dryRun" }
     } finally {
       logger.removeHandler(handler)
       handler.close()
     }
   }
 
-  private suspend fun backfill(client: AsyncDatabaseClient) {
+  private suspend fun countOrBackfill(client: AsyncDatabaseClient): Long {
+    if (dryRun) {
+      return client
+        .singleUse()
+        .executeQuery(
+          statement("SELECT COUNT(*) AS MissingEntityMetadataValues $MISSING_VALUES_SQL")
+        )
+        .single()
+        .getLong("MissingEntityMetadataValues")
+    }
+
     var after: RowKey? = null
     var rowCount = 0L
     while (true) {
@@ -83,7 +97,7 @@ class BackfillEntityMetadataValues : Runnable {
       val rows =
         client.readWriteTransaction().run { transaction ->
           val query =
-            statement(BASE_SQL) {
+            statement("SELECT DataProviderId, EventGroupId, EntityMetadata $MISSING_VALUES_SQL") {
               if (cursor != null) {
                 appendClause(
                   "AND (DataProviderId > @dataProviderId " +
@@ -96,16 +110,14 @@ class BackfillEntityMetadataValues : Runnable {
               bind("batchSize").to(batchSize.toLong())
             }
           val batch = transaction.executeQuery(query).toList()
-          if (!dryRun) {
-            for (row in batch) {
-              val metadata =
-                if (row.isNull("EntityMetadata")) Struct.getDefaultInstance()
-                else row.getProtoMessage("EntityMetadata", Struct.getDefaultInstance())
-              transaction.bufferUpdateMutation("EventGroups") {
-                set("DataProviderId").to(row.getLong("DataProviderId"))
-                set("EventGroupId").to(row.getLong("EventGroupId"))
-                set("EntityMetadataValues").toStringArray(EntityMetadataValues.flatten(metadata))
-              }
+          for (row in batch) {
+            val metadata =
+              if (row.isNull("EntityMetadata")) Struct.getDefaultInstance()
+              else row.getProtoMessage("EntityMetadata", Struct.getDefaultInstance())
+            transaction.bufferUpdateMutation("EventGroups") {
+              set("DataProviderId").to(row.getLong("DataProviderId"))
+              set("EventGroupId").to(row.getLong("EventGroupId"))
+              set("EntityMetadataValues").toStringArray(EntityMetadataValues.flatten(metadata))
             }
           }
           batch
@@ -117,9 +129,9 @@ class BackfillEntityMetadataValues : Runnable {
       val last = rows.last()
       after = RowKey(last.getLong("DataProviderId"), last.getLong("EventGroupId"))
       rowCount += rows.size
-      logger.info { "${if (dryRun) "Would backfill" else "Backfilled"} $rowCount EventGroups" }
+      logger.info { "Backfilled $rowCount EventGroups" }
     }
-    logger.info { "Completed entity metadata values backfill: rows=$rowCount, dryRun=$dryRun" }
+    return rowCount
   }
 
   private data class RowKey(val dataProviderId: Long, val eventGroupId: Long)
@@ -129,13 +141,7 @@ class BackfillEntityMetadataValues : Runnable {
       Logger.getLogger(BackfillEntityMetadataValues::class.java.name).apply {
         useParentHandlers = false
       }
-    private val BASE_SQL =
-      """
-      SELECT DataProviderId, EventGroupId, EntityMetadata
-      FROM EventGroups
-      WHERE EntityMetadataValues IS NULL
-      """
-        .trimIndent()
+    private const val MISSING_VALUES_SQL = "FROM EventGroups WHERE EntityMetadataValues IS NULL"
   }
 }
 

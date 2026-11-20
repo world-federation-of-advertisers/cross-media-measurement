@@ -179,14 +179,17 @@ class BackfillEntityMetadataValuesTest {
   }
 
   @Test
-  fun `main dry run leaves all missing values unchanged across batches`(): Unit = runBlocking {
+  fun `main dry run counts only missing values without changing rows`(): Unit = runBlocking {
     createEventGroup(struct { fields["name"] = value { stringValue = "Violet" } })
     createEventGroup(null)
     clearSearchValues()
+    createEventGroup(Struct.getDefaultInstance())
     val before = readRows()
 
     runBackfill("--dry-run", "--batch-size=1")
 
+    assertThat(temporaryFolder.root.resolve("backfill.log").readText())
+      .contains("Completed entity metadata values backfill: rows=2, dryRun=true")
     assertThat(readRows()).containsExactlyElementsIn(before)
     assertThat(search("violet")).isEmpty()
   }
