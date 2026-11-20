@@ -206,6 +206,7 @@ spanner_emulator_test(
     srcs = ["RankIndexBlobServiceTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.RankIndexBlobServiceTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_rank_index_blob_service",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:errors",
