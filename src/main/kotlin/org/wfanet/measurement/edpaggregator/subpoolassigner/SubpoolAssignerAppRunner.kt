@@ -29,6 +29,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -43,9 +44,9 @@ import picocli.CommandLine
  * mutual-TLS channel to the Secure Computation control plane for `WorkItem` / `WorkItemAttempt`
  * writes and a mutual-TLS channel to the EDP Aggregator metadata-storage public API for the
  * `RawImpressionUpload`, `RawImpressionUploadFile`, `RawImpressionUploadModelLine`, `RankerJob`,
- * and `PoolAssignmentJob` services, subscribes to the Phase-0 Pub/Sub topic, wires the production
- * storage / Parquet / pool-emit-model / per-EDP KEK seams (via [BaseVidLabelingTeeAppRunner]), and
- * hands everything to [SubpoolAssignerApp.run].
+ * `VidLabelingJob`, and `PoolAssignmentJob` services, subscribes to the Phase-0 Pub/Sub topic,
+ * wires the production storage / Parquet / pool-emit-model / per-EDP KEK seams (via
+ * [BaseVidLabelingTeeAppRunner]), and hands everything to [SubpoolAssignerApp.run].
  */
 @CommandLine.Command(name = "subpool_assigner_app_runner")
 class SubpoolAssignerAppRunner :
@@ -60,6 +61,13 @@ class SubpoolAssignerAppRunner :
     required = true,
   )
   private lateinit var vidRankBuilderQueue: String
+
+  @CommandLine.Option(
+    names = ["--vid-labeler-queue"],
+    description = ["Resource name of the queue for Phase-2 VID labeling after empty Phase 0."],
+    required = true,
+  )
+  private lateinit var vidLabelerQueue: String
 
   private val getStorageConfig: (StorageParams) -> StorageConfig = { storageParams ->
     // Carry blob_prefix so buildStorageClient can root the multi-key subpool-map store at its
@@ -97,6 +105,7 @@ class SubpoolAssignerAppRunner :
         workItemsClient = workItemsClient,
         workItemAttemptsClient = workItemAttemptsClient,
         vidRankBuilderQueue = vidRankBuilderQueue,
+        vidLabelerQueue = vidLabelerQueue,
         kmsClients = kmsClientsMap,
         getSubpoolMapStorageConfig = getStorageConfig,
         getRawImpressionsStorageConfig = getStorageConfig,
@@ -104,6 +113,7 @@ class SubpoolAssignerAppRunner :
         rawImpressionUploadsStub = rawImpressionUploadsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
         rankerJobsStub = rankerJobsClient,
+        vidLabelingJobsStub = VidLabelingJobServiceCoroutineStub(metadataStorageChannel),
         poolAssignmentJobsStub = poolAssignmentJobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
         buildParquetStorageClient = { cfg, kms -> buildParquetStorageClient(cfg, kms) },
