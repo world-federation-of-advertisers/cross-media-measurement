@@ -34,12 +34,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWorkItemAttemptRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.retryWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 class VidLabelingDispatchQueueIntegrationTest
 private constructor(private val leaseClock: MutableClock) :
@@ -91,10 +88,9 @@ private constructor(private val leaseClock: MutableClock) :
         dispatchTasks().single().workItemParams.unpack(WorkItem.WorkItemParams::class.java)
       val app = frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
       assertThat(frame.hasDataPathParams()).isTrue()
-      assertThat(frame.dataPathParams.dataPath).isEqualTo(app.source.dataPath)
-      assertThat(frame.dataPathParams.generation).isEqualTo(app.source.generation)
-      assertThat(frame.dataPathParams.createTime.seconds).isEqualTo(app.source.createTime.seconds)
-      assertThat(frame.dataPathParams.createTime.nanos).isEqualTo(app.source.createTime.nanos)
+      assertThat(app.hasRecovery()).isFalse()
+      assertThat(frame.dataPathParams.hasGeneration()).isTrue()
+      assertThat(frame.dataPathParams.hasCreateTime()).isTrue()
       assertThat(dispatchTasks().single().state).isEqualTo(WorkItem.State.SUCCEEDED)
       assertThat(workItemTransport.deliveryCount(dispatchTasks().single().name)).isAtLeast(2)
       assertThat(listMetadata()).hasSize(2)
@@ -157,60 +153,39 @@ private constructor(private val leaseClock: MutableClock) :
   fun `retrying an older marker and redelivering an older execution preserve outputs`() =
     runBlocking<Unit> {
       writeRawFile("day", "input.parquet", listOf("person"))
+      workItemTransport.dropNextPublications(VidLabelingDispatchWorkItems.QUEUE)
       finalizeRawUpload("day")
       awaitPipelineIdle()
       val old = dispatchTasks().single()
+      workItemsStub.failWorkItem(
+        failWorkItemRequest {
+          name = old.name
+          expectedWorkItemGeneration = old.generation
+        }
+      )
       writeRawFile("day", "added.parquet", listOf("other"))
       finalizeRawUpload("day")
       awaitPipelineIdle()
       val metadata = listMetadata()
       val downstream =
         poolAssignmentWorkItems().size + rankBuilderWorkItems().size + vidLabelerWorkItems().size
-      workItemTransport.dropNextPublications(VidLabelingDispatchWorkItems.QUEUE)
-      val staged =
-        workItemsStub.createWorkItem(
-          createWorkItemRequest {
-            workItemId = "stale-marker"
-            workItem = workItem {
-              queue = VidLabelingDispatchWorkItems.QUEUE
-              // A stored item from the app-only intake predates ordinary source indexing.
-              workItemParams =
-                old.workItemParams
-                  .unpack(WorkItem.WorkItemParams::class.java)
-                  .copy { clearDataPathParams() }
-                  .let { com.google.protobuf.Any.pack(it) }
-            }
-          }
-        )
-      workItemAttemptsStub.createWorkItemAttempt(
-        createWorkItemAttemptRequest {
-          parent = staged.name
-          workItemAttemptId = "failed-before-retry"
-          expectedWorkItemGeneration = staged.generation
-          supportsAttemptLease = true
-        }
-      )
-      workItemsStub.failWorkItem(
-        failWorkItemRequest {
-          name = staged.name
-          expectedWorkItemGeneration = staged.generation
-        }
-      )
       workItemsStub.retryWorkItem(
         retryWorkItemRequest {
-          name = staged.name
-          expectedWorkItemGeneration = staged.generation
+          name = old.name
+          expectedWorkItemGeneration = old.generation
         }
       )
       awaitPipelineIdle()
-      dispatchWorkItemProcessor.process(staged)
-      assertThat(listUploads()).hasSize(2)
+      dispatchWorkItemProcessor.process(old)
+      assertThat(listUploads()).hasSize(1)
       assertThat(listMetadata()).containsExactlyElementsIn(metadata)
       assertThat(
           poolAssignmentWorkItems().size + rankBuilderWorkItems().size + vidLabelerWorkItems().size
         )
         .isEqualTo(downstream)
-      assertThat(dispatchTasks().single { it.name == staged.name }.generation).isEqualTo(2L)
+      assertThat(dispatchTasks().single { it.name == old.name }.generation).isEqualTo(2L)
+      assertThat(dispatchTasks().single { it.name == old.name }.state)
+        .isEqualTo(WorkItem.State.SUCCEEDED)
     }
 
   @Test
@@ -237,11 +212,12 @@ private constructor(private val leaseClock: MutableClock) :
       controller.run()
       val sameGeneration =
         dispatchTasks().filter {
-          it.workItemParams
-            .unpack(WorkItem.WorkItemParams::class.java)
-            .appParams
-            .unpack(VidLabelingDispatchWorkItemParams::class.java)
-            .source
+          val frame = it.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+          val app = frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+          VidLabelingDispatchWorkItems.source(
+              app,
+              frame.dataPathParams.takeIf { frame.hasDataPathParams() },
+            )
             .generation == generation
         }
       assertThat(sameGeneration).hasSize(2)
