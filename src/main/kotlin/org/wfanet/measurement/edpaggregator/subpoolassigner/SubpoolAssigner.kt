@@ -307,13 +307,13 @@ class SubpoolAssigner(
       }
 
     // 4. Last-shard-out: dispatch ranking for discovered pools, or file labeling for empty work.
-    val lastShardOut = markResponse.lastShard || markResponse.hasLastShardResult()
+    val lastShardOut = markResponse.hasLastShardResult()
     if (lastShardOut) {
       val parent =
         requireNotNull(getParent()) {
           "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
         }
-      if (markResponse.hasLastShardResult()) {
+      if (markResponse.lastShardResult.poolOffsetsCount > 0) {
         runLastShardOut(
           parent,
           markResponse.lastShardResult.poolOffsetsList,
@@ -321,6 +321,9 @@ class SubpoolAssigner(
           mergedDek = markResponse.poolAssignmentJob.encryptedDek,
         )
       } else {
+        check(!markResponse.lastShardResult.hasMaxEventDate()) {
+          "Empty final-shard result has a ranked event date"
+        }
         runEmptyLastShardOut(parent)
       }
     }

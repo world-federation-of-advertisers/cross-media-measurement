@@ -291,7 +291,9 @@ class SubpoolAssignerTest {
     onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doAnswer
       {
         order.add("succeeded")
-        markPoolAssignmentJobSucceededResponse { lastShard = true }
+        markPoolAssignmentJobSucceededResponse {
+          lastShardResult = MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {}
+        }
       }
     onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
       listPoolAssignmentJobsResponse { poolAssignmentJobs += shards }
