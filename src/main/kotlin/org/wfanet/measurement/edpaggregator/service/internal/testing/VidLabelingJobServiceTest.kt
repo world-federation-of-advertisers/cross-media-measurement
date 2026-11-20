@@ -67,6 +67,8 @@ abstract class VidLabelingJobServiceTest {
     rawImpressionUploadResourceId: String,
   )
 
+  protected abstract suspend fun clearSuccessfulMarkResult(job: VidLabelingJob)
+
   @Before
   fun initService() {
     service = newService()
@@ -816,6 +818,80 @@ abstract class VidLabelingJobServiceTest {
         )
 
       assertThat(response2).isEqualTo(response1)
+    }
+
+  @Test
+  fun `successful Mark replay preserves original responsibility after siblings change`() =
+    runBlocking<Unit> {
+      val first = createJob()
+      val last = createJob(rawImpressionUploadFiles = listOf(FILE_2))
+      fun request(job: VidLabelingJob) = markVidLabelingJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        vidLabelingJobResourceId = job.vidLabelingJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+      }
+      val firstRequest = request(first)
+      val firstResponse = service.markVidLabelingJobSucceeded(firstRequest)
+      assertThat(firstResponse.hasLastVidLabelingJobResult()).isFalse()
+      val lastRequest = request(last)
+      val lastResponse = service.markVidLabelingJobSucceeded(lastRequest)
+      assertThat(lastResponse.lastVidLabelingJobResult.completedModelLinesList)
+        .containsExactly(CMMS_MODEL_LINE)
+      assertThat(service.markVidLabelingJobSucceeded(firstRequest)).isEqualTo(firstResponse)
+      // A later job cannot take responsibility away from the original last job on replay.
+      createJob()
+      assertThat(service.markVidLabelingJobSucceeded(lastRequest)).isEqualTo(lastResponse)
+    }
+
+  @Test
+  fun `successful Mark replay retains a partial model-line result for current and legacy rows`() =
+    runBlocking<Unit> {
+      for (legacy in listOf(false, true)) {
+        val first = createJob(cmmsModelLines = listOf(CMMS_MODEL_LINE_2, CMMS_MODEL_LINE))
+        val sibling = createJob(cmmsModelLines = listOf(CMMS_MODEL_LINE))
+        fun request(job: VidLabelingJob) = markVidLabelingJobSucceededRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          vidLabelingJobResourceId = job.vidLabelingJobResourceId
+          etag = job.etag
+          requestId = UUID.randomUUID().toString()
+        }
+        val originalRequest = request(first)
+        val originalResponse = service.markVidLabelingJobSucceeded(originalRequest)
+        assertThat(originalResponse.lastVidLabelingJobResult.completedModelLinesList)
+          .containsExactly(CMMS_MODEL_LINE_2)
+        if (legacy) clearSuccessfulMarkResult(originalResponse.vidLabelingJob)
+        service.markVidLabelingJobSucceeded(request(sibling))
+        assertThat(service.markVidLabelingJobSucceeded(originalRequest)).isEqualTo(originalResponse)
+        assertThat(service.markVidLabelingJobSucceeded(originalRequest)).isEqualTo(originalResponse)
+      }
+    }
+
+  @Test
+  fun `legacy successful Mark replay preserves original responsibility and timestamps`() =
+    runBlocking<Unit> {
+      val first = createJob()
+      val last = createJob(rawImpressionUploadFiles = listOf(FILE_2))
+      fun request(job: VidLabelingJob) = markVidLabelingJobSucceededRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        vidLabelingJobResourceId = job.vidLabelingJobResourceId
+        etag = job.etag
+        requestId = UUID.randomUUID().toString()
+      }
+      val firstRequest = request(first)
+      val firstResponse = service.markVidLabelingJobSucceeded(firstRequest)
+      clearSuccessfulMarkResult(firstResponse.vidLabelingJob)
+      val lastRequest = request(last)
+      val lastResponse = service.markVidLabelingJobSucceeded(lastRequest)
+      clearSuccessfulMarkResult(lastResponse.vidLabelingJob)
+      createJob()
+      assertThat(service.markVidLabelingJobSucceeded(firstRequest)).isEqualTo(firstResponse)
+      assertThat(service.markVidLabelingJobSucceeded(lastRequest)).isEqualTo(lastResponse)
+      assertThat(service.markVidLabelingJobSucceeded(firstRequest)).isEqualTo(firstResponse)
+      assertThat(service.markVidLabelingJobSucceeded(lastRequest)).isEqualTo(lastResponse)
     }
 
   @Test

@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Mutation
+import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Value
 import org.junit.ClassRule
 import org.junit.Rule
@@ -25,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingJob
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
 
 class SpannerVidLabelingJobServiceTest : VidLabelingJobServiceTest() {
@@ -64,6 +66,23 @@ class SpannerVidLabelingJobServiceTest : VidLabelingJobServiceTest() {
         .to(Value.COMMIT_TIMESTAMP)
         .build()
     spannerDatabase.databaseClient.write(listOf(mutation))
+  }
+
+  override suspend fun clearSuccessfulMarkResult(job: VidLabelingJob) {
+    spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
+      txn.executeUpdate(
+        Statement.newBuilder(
+            "UPDATE VidLabelingJob SET MarkSucceededCompletedModelLines = NULL " +
+              "WHERE DataProviderResourceId = @provider " +
+              "AND VidLabelingJobResourceId = @job"
+          )
+          .bind("provider")
+          .to(job.dataProviderResourceId)
+          .bind("job")
+          .to(job.vidLabelingJobResourceId)
+          .build()
+      )
+    }
   }
 
   companion object {
