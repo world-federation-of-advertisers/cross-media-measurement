@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Extracted from .github/workflows/terraform-cmms-v2.yml.
 name: Prepare CMMS Terraform inputs
 description: Download and validate the immutable inputs for a CMMS rollout
 inputs:

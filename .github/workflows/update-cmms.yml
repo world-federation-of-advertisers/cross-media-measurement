@@ -79,6 +79,9 @@ jobs:
     uses: ./.github/workflows/prepare-terraform-cmms-inputs.yml
     needs: [publish-images]
     secrets: inherit
+    permissions:
+      contents: read
+      packages: read
     with:
       environment: ${{ inputs.environment }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
@@ -235,6 +238,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: read
     with:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
@@ -388,6 +392,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
+      packages: read
     with:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
