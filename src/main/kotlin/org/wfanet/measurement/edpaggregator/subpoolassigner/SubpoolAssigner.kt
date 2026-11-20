@@ -317,6 +317,7 @@ class SubpoolAssigner(
             info.metadataMap["fieldName"] == "request_id"
         if (
           !replayMismatch &&
+            e.status.code != Status.Code.ALREADY_EXISTS &&
             e.status.code != Status.Code.ABORTED &&
             e.status.code != Status.Code.FAILED_PRECONDITION
         )
