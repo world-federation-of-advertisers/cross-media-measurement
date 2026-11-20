@@ -39,6 +39,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.Ranke
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
@@ -51,6 +52,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
@@ -243,6 +245,11 @@ class VidRankBuilderAppTest {
       rankIndexBlobsStub = mock<RankIndexBlobServiceCoroutineStub>(),
       rawImpressionUploadModelLinesStub = modelLinesStub,
       vidLabelingJobsStub = vidLabelingJobsStub,
+      rawImpressionUploadsStub =
+        mock<RawImpressionUploadServiceCoroutineStub> {
+          onBlocking { getRawImpressionUpload(any(), any()) } doReturn
+            rawImpressionUpload { registrationComplete = true }
+        },
       rawImpressionUploadFilesStub = filesStub,
       vidLabelerQueue = QUEUE,
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
