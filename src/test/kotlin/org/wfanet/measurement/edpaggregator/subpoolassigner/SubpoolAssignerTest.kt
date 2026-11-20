@@ -267,6 +267,62 @@ class SubpoolAssignerTest {
     SubpoolFingerprintsAccumulator().apply { add(subpoolId, 1L, 1) }
 
   @Test
+  fun `success Mark conflict acknowledges a recorded winner without another Mark`() = runBlocking {
+    var reads = 0
+    val jobs =
+      mock<PoolAssignmentJobServiceCoroutineStub> {
+        onBlocking { getPoolAssignmentJob(any(), any()) } doAnswer
+          {
+            if (reads++ == 0) jobResponse(PoolAssignmentJob.State.CREATED)
+            else
+              poolAssignmentJob {
+                state = PoolAssignmentJob.State.SUCCEEDED
+                encryptedDek = DEK_GEN
+              }
+          }
+        onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doAnswer
+          {
+            throw Status.ALREADY_EXISTS.asException()
+          }
+      }
+    val ranker = rankerStubMock()
+    val work = workItemsStubMock()
+    val lines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {}
+      }
+    val result =
+      assigner(storeMock(), jobs, lines, ranker, work, accumulator = accumulatorWith(7L)).assign()
+    assertThat(result.outcome).isEqualTo("already_completed")
+    verifyBlocking(jobs, times(1)) { markPoolAssignmentJobSucceeded(any(), any()) }
+    verifyBlocking(jobs, times(2)) { getPoolAssignmentJob(any(), any()) }
+    verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
+    verifyBlocking(work, never()) { createWorkItem(any(), any()) }
+    verifyBlocking(lines, never()) { markRawImpressionUploadModelLineRanking(any(), any()) }
+  }
+
+  @Test
+  fun `success Mark conflict remains retryable without a recorded successful winner`() =
+    runBlocking {
+      val jobs =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.CREATED)
+          onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doAnswer
+            {
+              throw Status.ALREADY_EXISTS.asException()
+            }
+        }
+      val error =
+        assertFailsWith<StatusException> {
+          assigner(storeMock(), jobs, mock(), accumulator = accumulatorWith(7L)).assign()
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      verifyBlocking(jobs, times(1)) { markPoolAssignmentJobSucceeded(any(), any()) }
+    }
+
+  @Test
   fun `retry after a shard blob write but before Mark selects a fresh decryptable attempt`() =
     runBlocking<Unit> {
       AeadConfig.register()
