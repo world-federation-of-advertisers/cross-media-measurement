@@ -75,6 +75,14 @@ jobs:
       existing-image-tag: ${{ inputs.existing-image-tag }}
       use-release-key: ${{ inputs.environment == 'qa' && github.actor == 'github-actions[bot]' }}
 
+  prepare-terraform-inputs:
+    uses: ./.github/workflows/prepare-terraform-cmms-inputs.yml
+    needs: [publish-images]
+    secrets: inherit
+    with:
+      environment: ${{ inputs.environment }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+
   scan-images:
     uses: ./.github/workflows/scan-images.yml
     needs: [publish-images]
@@ -222,7 +230,7 @@ jobs:
 
   terraform-quiesced:
     uses: ./.github/workflows/terraform-cmms-v2.yml
-    needs: [publish-images, update-secure-computation-dlq-paused]
+    needs: [publish-images, prepare-terraform-inputs, update-secure-computation-dlq-paused]
     secrets: inherit
     permissions:
       contents: read
@@ -231,6 +239,7 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      prepared-input-artifact: ${{ needs.prepare-terraform-inputs.outputs.input-artifact }}
       tee-consumers-enabled: false
       requisition-fetcher-enabled: false
 
@@ -374,7 +383,7 @@ jobs:
 
   terraform:
     uses: ./.github/workflows/terraform-cmms-v2.yml
-    needs: [publish-images, update-secure-computation, update-edp-aggregator-service]
+    needs: [publish-images, prepare-terraform-inputs, update-secure-computation, update-edp-aggregator-service]
     secrets: inherit
     permissions:
       contents: read
@@ -383,6 +392,7 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      prepared-input-artifact: ${{ needs.prepare-terraform-inputs.outputs.input-artifact }}
       tee-consumers-enabled: true
       requisition-fetcher-enabled: true
 
