@@ -91,6 +91,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
@@ -356,28 +357,29 @@ class VidLabelingDispatcherFunctionTest {
       this.generation = 7L
       workItemParams =
         workItemParams {
+            val source = dataPathParams {
+              dataPath = sourceUri
+              this.generation = generation
+              createTime =
+                sourceCreateTime
+                  ?: run {
+                    val file = File(tempFolder.root, sourceUri.substringAfter("file:////"))
+                    if (file.exists())
+                      Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+                        .creationTime()
+                        .toInstant()
+                        .toProtoTime()
+                    else Timestamps.fromMillis(1L)
+                  }
+              eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+            }
             appParams =
               vidLabelingDispatchWorkItemParams {
                   dataProvider = provider
-                  if (appRecovery != null) this.recovery = appRecovery
-                  source = dataPathParams {
-                    dataPath = sourceUri
-                    this.generation = generation
-                    createTime =
-                      sourceCreateTime
-                        ?: run {
-                          val file = File(tempFolder.root, sourceUri.substringAfter("file:////"))
-                          if (file.exists())
-                            Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
-                              .creationTime()
-                              .toInstant()
-                              .toProtoTime()
-                          else Timestamps.fromMillis(1L)
-                        }
-                    eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-                  }
+                  if (appRecovery != null) recovery = appRecovery.copy { this.source = source }
                 }
                 .pack()
+            if (appRecovery == null) dataPathParams = source
           }
           .pack()
     }
@@ -502,7 +504,6 @@ class VidLabelingDispatcherFunctionTest {
     val recovery =
       org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt
         .recoveryParams {
-          overrideModelLines += MODEL_LINE
           sourceUpload = RECOVERY_SOURCE_UPLOAD
           uploadHealingOperation =
             DATA_PROVIDER + "/uploadHealingOperations/" + EVICTION_OPERATION_ID

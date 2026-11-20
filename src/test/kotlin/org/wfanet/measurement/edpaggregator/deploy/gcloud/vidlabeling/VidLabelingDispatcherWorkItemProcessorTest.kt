@@ -91,15 +91,11 @@ class VidLabelingDispatcherWorkItemProcessorTest {
             vidLabelingDispatchWorkItemParams {
                 dataProvider = "dataProviders/provider"
                 if (appRecovery != null) recovery = appRecovery
-                source = dataPathParams {
-                  dataPath = "gs://raw/day/done"
-                  generation = 11L
-                  createTime = Instant.parse("2026-01-01T00:00:00Z").toProtoTime()
-                  eventType = event
-                }
               }
               .pack()
-          if (outerSource != null) dataPathParams = outerSource
+          if (appRecovery == null)
+            dataPathParams = outerSource ?: ordinarySource().copy { eventType = event }
+          else if (outerSource != null) dataPathParams = outerSource
           traceContext["traceparent"] = "00-11111111111111111111111111111111-1111111111111111-01"
         }
         .pack()
@@ -135,29 +131,19 @@ class VidLabelingDispatcherWorkItemProcessorTest {
     }
 
   private fun recovery() = recoveryParams {
-    overrideModelLines +=
-      listOf(
-        "modelProviders/mp/modelSuites/ms/modelLines/second",
-        "modelProviders/mp/modelSuites/ms/modelLines/first",
-      )
+    source = ordinarySource()
     sourceUpload = "dataProviders/provider/rawImpressionUploads/source"
     uploadHealingOperation = "dataProviders/provider/uploadHealingOperations/operation"
   }
 
   @Test
-  fun `processing preserves complete grouped recovery and normalizes its model lines`() =
+  fun `processing preserves grouped recovery references and exact source`() =
     runBlocking<Unit> {
       processor { input, guard ->
           assertThat(input.appParams.recovery.sourceUpload)
             .isEqualTo("dataProviders/provider/rawImpressionUploads/source")
           assertThat(input.appParams.recovery.uploadHealingOperation)
             .isEqualTo("dataProviders/provider/uploadHealingOperations/operation")
-          assertThat(input.appParams.recovery.overrideModelLinesList)
-            .containsExactly(
-              "modelProviders/mp/modelSuites/ms/modelLines/first",
-              "modelProviders/mp/modelSuites/ms/modelLines/second",
-            )
-            .inOrder()
           assertThat(input.source.generation).isEqualTo(11L)
           guard()
           UploadOutcome.SUCCEEDED
@@ -212,23 +198,32 @@ class VidLabelingDispatcherWorkItemProcessorTest {
     }
 
   @Test
-  fun `ordinary source mismatches fail before dispatch`() =
+  fun `ordinary outer source is authoritative without an application copy`() =
     runBlocking<Unit> {
-      val source = ordinarySource()
-      for (mismatch in
+      for (source in
         listOf(
-          source.copy { dataPath = "gs://raw/other/done" },
-          source.copy { generation = 12L },
-          source.copy { createTime = Instant.parse("2026-01-02T00:00:00Z").toProtoTime() },
-          source.copy {
-            eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-          },
+          ordinarySource(),
+          ordinarySource().copy { dataPath = "gs://raw/other/done" },
+          ordinarySource().copy { generation = 12L },
+          ordinarySource().copy { createTime = Instant.parse("2026-01-02T00:00:00Z").toProtoTime() },
         )) {
-        processor { _, _ -> error("Must not dispatch mismatched sources") }
-          .process(task(outerSource = mismatch))
+        processor { input, _ ->
+            assertThat(input.source).isEqualTo(source)
+            UploadOutcome.SUCCEEDED
+          }
+          .process(task(outerSource = source))
       }
-      verifyBlocking(items, times(4)) { failWorkItem(any()) }
-      verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
+      verifyBlocking(attempts, times(4)) { completeWorkItemAttempt(any()) }
+    }
+
+  @Test
+  fun `ordinary work without outer source fails before dispatch`() =
+    runBlocking<Unit> {
+      val original = task()
+      val frame = original.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      processor { _, _ -> error("Missing source must not dispatch") }
+        .process(original.copy { workItemParams = frame.copy { clearDataPathParams() }.pack() })
+      verifyBlocking(items, times(1)) { failWorkItem(any()) }
     }
 
   @Test
