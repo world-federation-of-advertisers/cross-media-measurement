@@ -1841,6 +1841,67 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `recovery derives only its approved source group without a copied model list`() =
+    runBlocking {
+      val sourceName = DATA_PROVIDER_NAME + "/rawImpressionUploads/source-upload"
+      val source = rawImpressionUpload {
+        name = sourceName
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 100
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+      }
+      stubRawImpressionUploadCreation()
+      stubRecoverySource(source, recoveryPredecessorUpload = "")
+      val blob = createMockBlob(FOLDER_PREFIX + "/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubOverrideResolutionChain()
+      val operation =
+        org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+          name = DATA_PROVIDER_NAME + "/uploadHealingOperations/" + EVICTION_OPERATION_ID
+          state =
+            org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+          steps +=
+            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+              sourceRawImpressionUpload = sourceName
+              cmmsModelLine = MODEL_LINE_1
+              recoveryTarget = true
+              state =
+                org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+                  .WAITING_FOR_REPLACEMENT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            }
+          steps +=
+            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+              sourceRawImpressionUpload = DATA_PROVIDER_NAME + "/rawImpressionUploads/other-source"
+              cmmsModelLine = MODEL_LINE_2
+              recoveryTarget = true
+              state =
+                org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+                  .WAITING_FOR_REPLACEMENT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            }
+        }
+      createDispatcher(
+          recoverySourceUpload = sourceName,
+          recoveryOperationId = EVICTION_OPERATION_ID,
+          getHealingOperation = { operation },
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      val requests = argumentCaptor<BatchCreateRawImpressionUploadModelLinesRequest>()
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        batchCreateRawImpressionUploadModelLines(requests.capture())
+      }
+      assertThat(
+          requests.firstValue.requestsList.map { it.rawImpressionUploadModelLine.cmmsModelLine }
+        )
+        .containsExactly(MODEL_LINE_1)
+      verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+    }
+
+  @Test
   fun `committed recovery rejects mismatched scope and checkpoint before registration`() =
     runBlocking {
       val source = rawImpressionUpload {
@@ -1887,14 +1948,7 @@ class VidLabelingDispatcherTest {
             }
         }
       for (invalidScope in
-        listOf(
-          "source",
-          "operation",
-          "provider",
-          "empty-models",
-          "extra-model",
-          "duplicate-model",
-        )) {
+        listOf("source", "operation", "provider", "extra-model", "duplicate-model")) {
         val suppliedOperation =
           operation
             .toBuilder()

@@ -120,13 +120,16 @@ class VidLabelingDispatcherFunction : WorkItemCloudFunction() {
           } else
             runtime
               .createDispatcher(
-                input.appParams.dataProvider,
-                input.source.dataPath,
-                input.appParams.recovery.overrideModelLinesList,
-                input.appParams.recovery.sourceUpload.takeIf { it.isNotEmpty() },
-                UploadHealingOperationKey.fromName(input.appParams.recovery.uploadHealingOperation)
-                  ?.uploadHealingOperationId,
-                guard,
+                dataProvider = input.appParams.dataProvider,
+                doneBlobPath = input.source.dataPath,
+                recoverySourceUpload =
+                  input.appParams.recovery.sourceUpload.takeIf { it.isNotEmpty() },
+                evictionOperationId =
+                  UploadHealingOperationKey.fromName(
+                      input.appParams.recovery.uploadHealingOperation
+                    )
+                    ?.uploadHealingOperationId,
+                beforeRpc = guard,
               )
               .upload(input.source.dataPath, input.source.generation)
         },
