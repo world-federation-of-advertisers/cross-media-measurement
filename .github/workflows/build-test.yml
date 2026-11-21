@@ -141,6 +141,7 @@ jobs:
         run: >
           tools/bazel-with-results bazel build --worker_quit_after_build
           //...
+          //src/main/docker:release_image_manifest
           //src/main/k8s/local:cmms
           //src/main/k8s/dev:edp_simulators
 
