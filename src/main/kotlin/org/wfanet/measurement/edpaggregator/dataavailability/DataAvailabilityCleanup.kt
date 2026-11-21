@@ -19,43 +19,29 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
-import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markImpressionMetadataDeletedRequest
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /**
- * Handles cleanup of ImpressionMetadata records when GCS objects are deleted.
+ * Soft-deletes metadata for removed objects while preserving synchronized replacements.
  *
- * This class coordinates the workflow that occurs after an OBJECT_DELETE event is detected in GCS.
- * It handles:
- * - Looking up ImpressionMetadata records by blob URI when a resource ID is not provided.
- * - Calling DeleteImpressionMetadata to soft-delete the corresponding Spanner record.
- * - Recording cleanup metrics for observability.
+ * Cleanup reads the metadata version before checking storage and deletes only if that version still
+ * matches. Noncurrent object deletion and archive notifications are safe to process repeatedly.
  *
- * The cleanup operation is idempotent - if the record has already been deleted, the operation
- * succeeds silently.
- *
- * Typical workflow:
- * 1. A deleted blob path and optional resource ID are passed to [cleanup].
- * 2. If a resource ID is provided, it is used directly for deletion.
- * 3. If no resource ID is provided, the ImpressionMetadata is looked up by blob URI.
- * 4. The ImpressionMetadata record is soft-deleted.
- * 5. Metrics are recorded for the cleanup operation.
- *
- * @property impressionMetadataServiceStub gRPC stub for interacting with the ImpressionMetadata
- *   service.
- * @property dataProviderName The resource name of the data provider, used as a parent identifier in
- *   gRPC requests.
- * @property storageClient Storage client for checking if a live version of a deleted object still
- *   exists. When object versioning is enabled, a noncurrent version deletion fires an OBJECT_DELETE
- *   event but the live version still exists. Cleanup will skip deletion when a live version is
- *   detected.
+ * @property impressionMetadataServiceStub Stub for the ImpressionMetadata service.
+ * @property dataProviderName Resource name of the data provider.
+ * @property storageClient Storage client for checking whether a live object remains.
+ * @property throttler Regulates each metadata RPC, including rechecks after a version conflict.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilityCleanup(
@@ -63,6 +49,7 @@ class DataAvailabilityCleanup(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub,
   private val dataProviderName: String,
   private val storageClient: StorageClient,
+  private val throttler: Throttler,
   private val metrics: DataAvailabilityCleanupMetrics = DataAvailabilityCleanupMetrics(),
 ) {
 
@@ -86,9 +73,9 @@ class DataAvailabilityCleanup(
   /**
    * Cleans up an ImpressionMetadata record after its corresponding GCS object is deleted.
    *
-   * This function is triggered when an OBJECT_DELETE event is detected in GCS. It soft-deletes the
-   * ImpressionMetadata record either by resource ID (if provided) or by looking up the record using
-   * the blob URI.
+   * The metadata is read before checking for a live object. Its etag guards the subsequent deletion
+   * against synchronization that commits after the read. A conflict restarts the checks once;
+   * further conflicts fail so that the notification can be retried.
    *
    * @param deletedBlobPath The full Cloud Storage object path of the deleted blob.
    * @param impressionMetadataResourceId Optional. The resource name of the ImpressionMetadata to
@@ -103,61 +90,25 @@ class DataAvailabilityCleanup(
     var cleanupStatus = CleanupStatus.SUCCESS
 
     try {
-      // Check if a live version of the object still exists. If it does, this
-      // OBJECT_DELETE event is for a noncurrent version (e.g., lifecycle cleanup)
-      // and the ImpressionMetadata record should remain active.
-      val blobUri = SelectedStorageClient.parseBlobUri(deletedBlobPath)
-      val liveBlob = storageClient.getBlob(blobUri.key)
-      if (liveBlob != null) {
-        logger.info(
-          "Live version still exists for $deletedBlobPath. " +
-            "Skipping cleanup (noncurrent version deletion)."
-        )
-        metrics.cleanupSkippedCounter.add(
-          1,
-          Attributes.of(
-            DataAvailabilityCleanupMetrics.DATA_PROVIDER_KEY_ATTR,
-            dataProviderName,
-            DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR,
-            DataAvailabilityCleanupMetrics.CLEANUP_SKIP_REASON_NONCURRENT_VERSION,
-          ),
-        )
-        cleanupStatus = CleanupStatus.SKIPPED
-        return CleanupResult(cleanupStatus)
-      }
-
-      val resourceIdToDelete: String? =
-        if (!impressionMetadataResourceId.isNullOrEmpty()) {
-          logger.info(
-            "Using resource ID from header for deleted blob: $deletedBlobPath, " +
-              "resourceId: $impressionMetadataResourceId"
-          )
-          impressionMetadataResourceId
-        } else {
-          // Look up the ImpressionMetadata by blob URI
-          logger.info(
-            "No resource ID provided. Looking up ImpressionMetadata by blob URI: $deletedBlobPath"
-          )
-          lookupResourceIdByBlobUri(deletedBlobPath).also {
-            if (it == null) {
-              cleanupStatus = CleanupStatus.SKIPPED
-            }
+      for (attempt in 1..MAX_CLEANUP_ATTEMPTS) {
+        try {
+          cleanupStatus = cleanupOnce(deletedBlobPath, impressionMetadataResourceId)
+          return CleanupResult(cleanupStatus)
+        } catch (e: StatusException) {
+          if (
+            attempt == MAX_CLEANUP_ATTEMPTS ||
+              e.status.code != Status.Code.ABORTED ||
+              e.errorInfo?.domain != ERROR_DOMAIN ||
+              e.errorInfo?.reason != ETAG_MISMATCH_REASON
+          ) {
+            throw e
           }
+          logger.info("ImpressionMetadata changed during cleanup. Rechecking $deletedBlobPath")
         }
-
-      if (resourceIdToDelete != null) {
-        cleanupStatus = deleteImpressionMetadata(resourceIdToDelete)
       }
-
-      return CleanupResult(cleanupStatus)
+      error("Cleanup attempts exhausted")
     } catch (e: Exception) {
       cleanupStatus = CleanupStatus.FAILED
-      // Log the exception with context before rethrowing
-      logger.log(
-        Level.SEVERE,
-        "Cleanup failed for blob: $deletedBlobPath, resourceId: $impressionMetadataResourceId",
-        e,
-      )
       // Record RPC error metric if it's a gRPC error
       if (e is StatusException) {
         metrics.cleanupErrorsCounter.add(
@@ -176,20 +127,76 @@ class DataAvailabilityCleanup(
     }
   }
 
-  /**
-   * Looks up an ImpressionMetadata resource ID by blob URI.
-   *
-   * @param blobUri The blob URI to search for.
-   * @return The resource name of the ImpressionMetadata, or null if not found.
-   */
-  private suspend fun lookupResourceIdByBlobUri(blobUri: String): String? {
-    val listResponse =
-      impressionMetadataServiceStub.listImpressionMetadata(
-        listImpressionMetadataRequest {
-          parent = dataProviderName
-          filter = ListImpressionMetadataRequestKt.filter { blobUris += blobUri }
-        }
+  private suspend fun cleanupOnce(
+    deletedBlobPath: String,
+    impressionMetadataResourceId: String?,
+  ): CleanupStatus {
+    val metadata: ImpressionMetadata? =
+      if (!impressionMetadataResourceId.isNullOrEmpty()) {
+        getImpressionMetadata(impressionMetadataResourceId)
+      } else {
+        lookupMetadataByBlobUri(deletedBlobPath)
+      }
+    if (metadata == null || metadata.state == ImpressionMetadata.State.DELETED) {
+      return CleanupStatus.SKIPPED
+    }
+
+    // A live object means this notification removed a noncurrent version.
+    val blobUri = SelectedStorageClient.parseBlobUri(deletedBlobPath)
+    if (storageClient.getBlob(blobUri.key) != null) {
+      logger.info(
+        "Live version still exists for $deletedBlobPath. " +
+          "Skipping cleanup (noncurrent version deletion)."
       )
+      metrics.cleanupSkippedCounter.add(
+        1,
+        Attributes.of(
+          DataAvailabilityCleanupMetrics.DATA_PROVIDER_KEY_ATTR,
+          dataProviderName,
+          DataAvailabilityCleanupMetrics.CLEANUP_STATUS_ATTR,
+          DataAvailabilityCleanupMetrics.CLEANUP_SKIP_REASON_NONCURRENT_VERSION,
+        ),
+      )
+      return CleanupStatus.SKIPPED
+    }
+
+    if (metadata.etag.isEmpty()) {
+      throw Status.UNAVAILABLE.withDescription(
+          "Upgrade the EDPA public API server before retrying cleanup."
+        )
+        .asException()
+    }
+    return deleteImpressionMetadata(metadata)
+  }
+
+  /** Returns the named metadata, or null if it no longer exists. */
+  private suspend fun getImpressionMetadata(name: String): ImpressionMetadata? {
+    return try {
+      throttler.onReady {
+        impressionMetadataServiceStub.getImpressionMetadata(
+          getImpressionMetadataRequest { this.name = name }
+        )
+      }
+    } catch (e: StatusException) {
+      if (e.status.code == Status.Code.NOT_FOUND) {
+        null
+      } else {
+        throw e
+      }
+    }
+  }
+
+  /** Returns the metadata for the exact blob URI, or null if it no longer exists. */
+  private suspend fun lookupMetadataByBlobUri(blobUri: String): ImpressionMetadata? {
+    val listResponse =
+      throttler.onReady {
+        impressionMetadataServiceStub.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = dataProviderName
+            filter = ListImpressionMetadataRequestKt.filter { blobUris += blobUri }
+          }
+        )
+      }
 
     val results = listResponse.impressionMetadataList
     if (results.isEmpty()) {
@@ -205,20 +212,21 @@ class DataAvailabilityCleanup(
       )
       return null
     }
-    return results.single().name
+    return results.single()
   }
 
-  /**
-   * Deletes an ImpressionMetadata record by resource ID.
-   *
-   * @param resourceId The resource name of the ImpressionMetadata to delete.
-   * @return The cleanup status after attempting deletion.
-   */
-  private suspend fun deleteImpressionMetadata(resourceId: String): CleanupStatus {
+  /** Deletes the observed version, skipping metadata that was deleted concurrently. */
+  private suspend fun deleteImpressionMetadata(metadata: ImpressionMetadata): CleanupStatus {
+    val resourceId = metadata.name
     return try {
-      impressionMetadataServiceStub.deleteImpressionMetadata(
-        deleteImpressionMetadataRequest { name = resourceId }
-      )
+      throttler.onReady {
+        impressionMetadataServiceStub.markImpressionMetadataDeleted(
+          markImpressionMetadataDeletedRequest {
+            name = resourceId
+            etag = metadata.etag
+          }
+        )
+      }
       logger.info("Successfully soft-deleted ImpressionMetadata: $resourceId")
       // Record successful deletion
       metrics.recordsDeletedCounter.add(
@@ -232,12 +240,18 @@ class DataAvailabilityCleanup(
       )
       CleanupStatus.SUCCESS
     } catch (e: StatusException) {
-      if (e.status.code == Status.Code.NOT_FOUND) {
-        // Idempotent - the record may have already been deleted
-        logger.info("ImpressionMetadata not found (already deleted): $resourceId")
-        CleanupStatus.SKIPPED
-      } else {
-        throw e
+      when {
+        e.status.code == Status.Code.NOT_FOUND -> {
+          logger.info("ImpressionMetadata not found (already deleted): $resourceId")
+          CleanupStatus.SKIPPED
+        }
+        e.status.code == Status.Code.UNIMPLEMENTED ->
+          throw Status.UNAVAILABLE.withDescription(
+              "Upgrade the EDPA public API server before retrying cleanup."
+            )
+            .withCause(e)
+            .asException()
+        else -> throw e
       }
     }
   }
@@ -271,6 +285,9 @@ class DataAvailabilityCleanup(
   }
 
   companion object {
+    private const val MAX_CLEANUP_ATTEMPTS = 2
+    private const val ERROR_DOMAIN = "edpaggregator.halo-cmm.org"
+    private const val ETAG_MISMATCH_REASON = "ETAG_MISMATCH"
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }

@@ -14,3 +14,34 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
+
+kt_jvm_library(
+    name = "vid_labeling_awaiter",
+    srcs = ["VidLabelingAwaiter.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
+    name = "managed_done_blob_cleanup",
+    srcs = ["ManagedDoneBlobCleanup.kt"],
+    deps = ["@wfa_common_jvm//imports/java/com/google/cloud/storage"],
+)
+
+kt_jvm_library(
+    name = "impression_metadata_awaiter",
+    srcs = ["ImpressionMetadataAwaiter.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)

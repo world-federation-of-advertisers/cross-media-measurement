@@ -154,6 +154,7 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     eventQuery: SyntheticGeneratorEventQuery,
     vidIndexMap: InMemoryVidIndexMap,
     logSketchDetails: Boolean,
+    logMeasurementValues: Boolean,
     throttler: MinimumIntervalThrottler,
     kingdomRpcThrottler: MinimumIntervalThrottler,
     health: SettableHealth,
@@ -200,6 +201,7 @@ class EdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       health = health,
       trusTeeEncryptionParams = trusTeeEncryptionParams,
       kingdomRpcThrottler = kingdomRpcThrottler,
+      logMeasurementValues = logMeasurementValues,
     )
   }
 

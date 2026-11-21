@@ -150,6 +150,7 @@ private fun run(
         // heavy scheduled Report benefits from the same concurrency as the interactive path.
         kingdomMeasurementBatchConcurrency =
           reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
+        logMeasurementValues = v2AlphaFlags.logMeasurementValues,
       )
       .withTrustedPrincipalAuthentication()
 

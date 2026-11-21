@@ -12,10 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common
+syntax = "proto3";
 
-/** Numeric values stored in `EventGroupHierarchies.State`. */
-enum class EventGroupHierarchyState(val number: Long) {
-  PENDING(1),
-  ACTIVE(2),
+package wfa.measurement.config;
+
+option java_package = "org.wfanet.measurement.config";
+option java_multiple_files = true;
+
+// Configuration for historical model lines lacking repository version metadata.
+message PopulationRequisitionFulfillerConfig {
+  // Positive event-template versions keyed by ModelLine resource name.
+  // A supplied value must match a repository version when both are present.
+  map<string, int32> model_line_event_template_versions = 1;
 }

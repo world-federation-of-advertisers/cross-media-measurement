@@ -268,6 +268,7 @@ class SubpoolAssignerApp(
         // PopulationSpec pass-through (REQUIRED): forwarded verbatim so the Phase-1 last-out can
         // stamp it on the Phase-2 VidLabeler ModelLineConfig, which rejects a WorkItem without it.
         populationSpecBlobUri = params.populationSpecBlobUri
+        eventTemplateVersion = params.eventTemplateVersion
         // Per-impression entity-key columns pass-through (OPTIONAL), mirroring the descriptor.
         requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
         optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)

@@ -31,10 +31,12 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.to
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyDetails
 import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyDetails.Level
+import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyState
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.entityKey
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
@@ -42,7 +44,6 @@ import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyConflictException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyPath
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyState
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader.HierarchyKey
@@ -146,7 +147,7 @@ internal class EventGroupHierarchyWriter(
           .trimIndent()
       ) {
         bind("dataProviderId" to dataProviderId)
-        bind("state").to(EventGroupHierarchyState.ACTIVE.number)
+        bind("state").toInt64(EventGroupHierarchyState.ACTIVE)
       }
     return buildMap {
       transaction.transactionContext.executeQuery(query).collect { row ->

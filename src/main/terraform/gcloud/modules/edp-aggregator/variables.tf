@@ -471,6 +471,46 @@ variable "edp_aggregator_api_server_ip_address" {
   default     = null
 }
 
+variable "data_availability_cleanup_work_item_queue" {
+  description = "Pub/Sub queue for storage deletion metadata cleanup WorkItems."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
+}
+
+variable "data_availability_cleanup_max_instances" {
+  description = "Maximum parallel cleanup deliveries; each instance handles one request."
+  type        = number
+  default     = 5
+  validation {
+    condition     = var.data_availability_cleanup_max_instances >= 1 && floor(var.data_availability_cleanup_max_instances) == var.data_availability_cleanup_max_instances
+    error_message = "Cleanup maximum instances must be a positive integer."
+  }
+}
+
+variable "data_availability_cleanup_alert_notification_channels" {
+  description = "Monitoring channels for delayed or failed cleanup WorkItems."
+  type        = list(string)
+  default     = []
+}
+
+variable "data_availability_cleanup_max_queue_age_seconds" {
+  description = "Age of the oldest outstanding cleanup delivery before alerting."
+  type        = number
+  default     = 1800
+}
+
+variable "data_watcher_delete_max_instances" {
+  description = "Maximum deletion watcher instances; each handles one event."
+  type        = number
+  default     = 10
+}
+
 
 variable "data_availability_monitor_service_account_name" {
   description = "Name of the DataAvailabilityMonitor service account."
@@ -652,4 +692,39 @@ variable "event_group_sync_memory" {
   type        = string
   nullable    = true
   default     = null
+}
+
+variable "vid_labeling_availability_alert_thresholds" {
+  description = "VID-labeling availability alert thresholds; ages are in seconds."
+  type = object({
+    pending_age_seconds     = optional(number, 86400)
+    failed_executions       = optional(number, 3)
+    publication_age_seconds = optional(number, 3600)
+  })
+  default = {}
+
+  validation {
+    condition = (
+      var.vid_labeling_availability_alert_thresholds.pending_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.publication_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.failed_executions >= 1 &&
+      floor(var.vid_labeling_availability_alert_thresholds.failed_executions) == var.vid_labeling_availability_alert_thresholds.failed_executions
+    )
+    error_message = "Ages must be positive and failed_executions must be a positive integer."
+  }
+}
+
+variable "data_availability_publication_status_storage_roots" {
+  description = "Additional GCS buckets mapped to source output-root prefixes for publication status access."
+  type        = map(set(string))
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for bucket, prefixes in var.data_availability_publication_status_storage_roots :
+      bucket != "" && length(prefixes) > 0 &&
+      alltrue([for prefix in prefixes : !startswith(prefix, "/")])
+    ])
+    error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
+  }
 }

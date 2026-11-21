@@ -206,7 +206,7 @@ jobs:
           EDP_DELEGATES: dashboard-compliance@${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}.iam.gserviceaccount.com
           EDP_IMPERSONATE_SA: edp-${{ matrix.edp.name }}-dashboard@${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}.iam.gserviceaccount.com
         run: |
-          bazel test \
+          tools/bazel-with-results bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
           --test_env=BIGQUERY_REGION \
@@ -220,4 +220,4 @@ jobs:
       - name: Upload Bazel testlogs
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-        if: failure() && steps.run-tests.outcome == 'failure'
+        if: ${{ !cancelled() && (steps.run-tests.outcome == 'success' || steps.run-tests.outcome == 'failure') }}

@@ -66,6 +66,13 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
   )
   private lateinit var trustedCertCollectionFilePath: String
 
+  @CommandLine.Option(
+    names = ["--log-measurement-values"],
+    defaultValue = "false",
+    description = ["Include measurement values in diagnostic logs. Disabled by default."],
+  )
+  private var logMeasurementValues: Boolean = false
+
   @CommandLine.ArgGroup(exclusive = false, multiplicity = "1..*", heading = "Duchy info\n")
   lateinit var duchyInfos: List<DuchyFlags>
     private set
@@ -310,6 +317,7 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
         kingdomThrottler =
           MaximumRateThrottler(1_000_000_000.0 / kingdomRequisitionsMinInterval.toNanos()),
         metrics = metrics,
+        logMeasurementValues = logMeasurementValues,
       )
 
     runBlockingWithTelemetry { resultsFulfillerApp.run() }

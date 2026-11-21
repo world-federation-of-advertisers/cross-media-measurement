@@ -50,6 +50,7 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param kingdomThrottler paces outbound `FulfillDirectRequisition` calls to Kingdom.
  * @param dataProviderSigningKeyHandle The signing key handle for the data provider.
  * @param dataProviderCertificateKey The certificate key for the data provider.
+ * @param logMeasurementValues Whether to include measurement values in diagnostic logs.
  */
 class DirectMeasurementFulfiller(
   private val requisitionName: String,
@@ -64,12 +65,19 @@ class DirectMeasurementFulfiller(
   private val requisitionsStub: RequisitionsCoroutineStub,
   private val requisitionsThrottler: Throttler,
   private val kingdomThrottler: Throttler,
+  private val logMeasurementValues: Boolean,
 ) : MeasurementFulfiller {
   private val logger: Logger = Logger.getLogger(this::class.java.name)
 
   /** Fulfills a requisition. */
   override suspend fun fulfillRequisition() {
-    logger.log(Level.INFO, "Direct MeasurementResult: $measurementResult")
+    logger.info(
+      "Fulfilling direct requisition $requisitionName with result types " +
+        measurementResult.allFields.keys.joinToString { it.name }
+    )
+    if (logMeasurementValues) {
+      logger.log(Level.INFO, "Direct MeasurementResult: $measurementResult")
+    }
 
     DataProviderCertificateKey.fromName(requisitionDataProviderCertificateName)
       ?: throw Exception("Invalid data provider certificate")
@@ -95,6 +103,7 @@ class DirectMeasurementFulfiller(
             }
           )
         }
+        logger.info("Fulfilled direct requisition $requisitionName")
       } else {
         logger.info("Cannot fulfill requisition $requisitionName with state ${requisition.state}")
       }

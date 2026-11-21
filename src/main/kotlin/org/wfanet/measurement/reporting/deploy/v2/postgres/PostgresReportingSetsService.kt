@@ -49,9 +49,16 @@ import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetExce
 
 private const val MAX_BATCH_SIZE = 1000
 
+/**
+ * Postgres ReportingSets service.
+ *
+ * [validateCreateReportingSet] validates membership and references before inserting. A standalone
+ * custom set can omit its Campaign Group even when validation is enabled.
+ */
 class PostgresReportingSetsService(
   private val idGenerator: IdGenerator,
   private val client: DatabaseClient,
+  private val validateCreateReportingSet: Boolean,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ReportingSetsCoroutineImplBase(coroutineContext) {
   override suspend fun createReportingSet(request: CreateReportingSetRequest): ReportingSet {
@@ -87,7 +94,9 @@ class PostgresReportingSetsService(
       }
     }
     return try {
-      CreateReportingSet(request).execute(client, idGenerator)
+      CreateReportingSet(request, validateCreateReportingSet).execute(client, idGenerator)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: ReportingSetNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ReportingSetAlreadyExistsException) {

@@ -17,6 +17,7 @@
 package org.wfanet.measurement.common.edpaggregator
 
 import com.google.protobuf.TypeRegistry
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
@@ -28,5 +29,6 @@ object DataWatcherConfigTypes {
       .add(ResultsFulfillerParams.getDescriptor())
       .add(EventGroupSyncParams.getDescriptor())
       .add(ExternalDataAvailabilitySyncParams.getDescriptor())
+      .add(DataAvailabilityCleanupParams.getDescriptor())
       .build()
 }

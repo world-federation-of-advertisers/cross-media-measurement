@@ -145,7 +145,7 @@ def main():
 
     (args.output_dir / "status.json").write_text(json.dumps(status, indent=2) + "\n")
     (args.output_dir / "errors.json").write_text(json.dumps(errors, indent=2) + "\n")
-    summary = ["## EDP Aggregator rollout diagnostics", ""]
+    summary = ["## Kubernetes rollout diagnostics", ""]
     for deployment in status["deployments"]:
         reasons = [condition.get("reason", "") for condition in deployment["status"].get("conditions", [])]
         summary.append(f"- Deployment `{deployment['name']}`: {', '.join(reasons)}.")

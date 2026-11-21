@@ -137,8 +137,9 @@ locals {
   # Secrets access for data_watcher_delete (same as data_watcher)
   data_watcher_delete_secrets_access = local.data_watcher_secrets_access
 
-  # Cleanup does not call the Secure Computation control plane.
-  data_availability_cleanup_secrets_access = local.data_availability_service_secrets_access
+  data_availability_cleanup_secrets_access = concat(
+    local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]
+  )
 
   requisition_fetcher_secrets_access = concat(
     [
@@ -348,8 +349,11 @@ module "data_watcher_delete_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
+  additional_trigger_event_types              = ["archived"]
   retry_on_failure                            = true
   uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_delete_config.generation
+  max_instances                               = var.data_watcher_delete_max_instances
+  concurrency                                 = 1
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -439,8 +443,8 @@ module "data_availability_sync_cloud_function" {
   ]
   # The RPC throttler is process-local. Bound service-wide concurrency to protect the shared
   # ImpressionMetadata service from completion-marker bursts.
-  max_instances   = 5
-  concurrency     = 1
+  max_instances = 5
+  concurrency   = 1
 
   # WorkItem attempts renew their leases while synchronizing, independently of source-event delivery.
   timeout_seconds = 3600
@@ -463,6 +467,11 @@ module "data_availability_cleanup_cloud_function" {
   uber_jar_path                            = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
   config_path                              = var.data_availability_sync_config.local_path
   secrets_to_access                        = [for key in local.data_availability_cleanup_secrets_access : local.all_secrets[key].secret_id]
+  # The metadata throttler is shared within an instance; each instance handles one delivery.
+  max_instances   = var.data_availability_cleanup_max_instances
+  concurrency     = 1
+  timeout_seconds = 600
+
 }
 
 module "result_fulfiller_queue" {
@@ -787,6 +796,143 @@ resource "google_cloud_run_service_iam_member" "data_availability_sync_work_item
   service    = var.data_availability_sync_function_name
   role       = "roles/run.invoker"
   member     = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
+}
+module "data_availability_cleanup_work_item_queue" {
+  source = "../pubsub"
+
+  depends_on = [google_service_account_iam_member.data_availability_cleanup_work_item_token_creator]
+
+  topic_name                 = var.data_availability_cleanup_work_item_queue.topic_name
+  subscription_name          = var.data_availability_cleanup_work_item_queue.subscription_name
+  ack_deadline_seconds       = var.data_availability_cleanup_work_item_queue.ack_deadline_seconds
+  max_delivery_attempts      = var.data_availability_cleanup_work_item_queue.max_delivery_attempts
+  minimum_backoff            = var.data_availability_cleanup_work_item_queue.minimum_backoff
+  maximum_backoff            = var.data_availability_cleanup_work_item_queue.maximum_backoff
+  enable_message_ordering    = false
+  push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_cleanup_function_name}"
+  push_service_account_email = module.data_availability_cleanup_cloud_function.cloud_function_service_account.email
+  push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_cleanup_function_name}"
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_cleanup_work_item_publisher" {
+  topic  = module.data_availability_cleanup_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_cleanup_work_item_dead_letter_publisher" {
+  topic  = module.data_availability_cleanup_work_item_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_cleanup_work_item_dead_letter_subscriber" {
+  subscription = module.data_availability_cleanup_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+# Allow operator workloads using the EDPA internal identity to redeliver failed cleanup work.
+resource "google_pubsub_topic_iam_member" "data_availability_cleanup_work_item_operator_publisher" {
+  topic  = module.data_availability_cleanup_work_item_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_cleanup_work_item_operator_dead_letter_subscriber" {
+  subscription = module.data_availability_cleanup_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_service_account_iam_member" "data_availability_cleanup_work_item_token_creator" {
+  service_account_id = module.data_availability_cleanup_cloud_function.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_service_iam_member" "data_availability_cleanup_work_item_invoker" {
+  depends_on = [module.data_availability_cleanup_cloud_function]
+  service    = var.data_availability_cleanup_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_availability_cleanup_cloud_function.cloud_function_service_account.email}"
+}
+
+resource "google_monitoring_alert_policy" "data_availability_cleanup_queue" {
+  display_name          = "Metadata cleanup is delayed or has failed deliveries"
+  combiner              = "OR"
+  notification_channels = var.data_availability_cleanup_alert_notification_channels
+
+  conditions {
+    display_name = "Oldest cleanup delivery exceeds the configured age"
+    condition_threshold {
+      filter          = "resource.type = \"pubsub_subscription\" AND metric.type = \"pubsub.googleapis.com/subscription/oldest_unacked_message_age\" AND resource.labels.subscription_id = \"${module.data_availability_cleanup_work_item_queue.pubsub_subscription.name}\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = var.data_availability_cleanup_max_queue_age_seconds
+      duration        = "300s"
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MAX"
+      }
+    }
+  }
+  conditions {
+    display_name = "Cleanup dead-letter queue contains failed deliveries"
+    condition_threshold {
+      filter          = "resource.type = \"pubsub_subscription\" AND metric.type = \"pubsub.googleapis.com/subscription/num_undelivered_messages\" AND resource.labels.subscription_id = \"${module.data_availability_cleanup_work_item_queue.dead_letter_subscription.name}\""
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "300s"
+      aggregations {
+        alignment_period   = "60s"
+        per_series_aligner = "ALIGN_MAX"
+      }
+    }
+  }
+  conditions {
+    display_name = "Cleanup delivery was dead-lettered"
+    condition_threshold {
+      filter = join(" AND ", [
+        "resource.type = \"pubsub_subscription\"",
+        "metric.type = \"pubsub.googleapis.com/subscription/dead_letter_message_count\"",
+        "resource.labels.subscription_id = \"${module.data_availability_cleanup_work_item_queue.pubsub_subscription.name}\"",
+        "metric.labels.response_code = \"success\"",
+      ])
+      comparison      = "COMPARISON_GT"
+      threshold_value = 0
+      duration        = "0s"
+      aggregations {
+        alignment_period   = "300s"
+        per_series_aligner = "ALIGN_SUM"
+      }
+    }
+  }
+  documentation {
+    content   = "Check the oldest cleanup delivery and WorkItem failures. Increase cleanup worker capacity only within the metadata API budget. Retry failed WorkItems after repairing the cause. Storage deletion continues while cleanup waits."
+    mime_type = "text/markdown"
+  }
+}
+
+resource "google_monitoring_alert_policy" "data_availability_cleanup_failed_work_item" {
+  display_name          = "Metadata cleanup WorkItem requires operator retry"
+  combiner              = "OR"
+  notification_channels = var.data_availability_cleanup_alert_notification_channels
+  conditions {
+    display_name = "Cleanup worker records a failed WorkItem"
+    condition_matched_log {
+      filter = "textPayload:\"Cleanup WorkItem requires operator retry\" OR jsonPayload.message:\"Cleanup WorkItem requires operator retry\""
+    }
+  }
+  alert_strategy {
+    notification_rate_limit {
+      period = "3600s"
+    }
+    auto_close = "86400s"
+  }
+  documentation {
+    content   = "Find the failed WorkItem in the cleanup worker log, repair the cause, and retry that WorkItem. Other files continue processing."
+    mime_type = "text/markdown"
+  }
 }
 resource "google_compute_address" "edp_aggregator_api_server" {
   name    = "edp-aggregator-system"
@@ -1346,4 +1492,15 @@ resource "google_cloud_run_service_iam_member" "event_group_sync_work_item_invok
   service    = var.event_group_sync_function_name
   role       = "roles/run.invoker"
   member     = "serviceAccount:${module.event_group_sync_cloud_function.cloud_function_service_account.email}"
+}
+
+# TODO(world-federation-of-advertisers/cross-media-measurement#4912):
+# Configure and verify operator notification routes for Halo-managed EDPA alerts.
+module "vid_labeling_availability_monitoring" {
+  source                = "../edp-aggregator-availability-monitoring"
+  thresholds            = var.vid_labeling_availability_alert_thresholds
+  notification_channels = var.vid_labeling_healing_alert_notification_channels
+
+  publication_status_storage_roots = var.data_availability_publication_status_storage_roots
+  publication_status_writer_member = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }

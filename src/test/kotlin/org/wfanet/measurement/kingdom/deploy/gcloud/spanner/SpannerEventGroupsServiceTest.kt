@@ -27,8 +27,9 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyDetails
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyState
+import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyState
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.EventGroupAndHelperServices
 import org.wfanet.measurement.kingdom.service.internal.testing.EventGroupsServiceTest
@@ -82,7 +83,7 @@ class SpannerEventGroupsServiceTest : EventGroupsServiceTest<SpannerEventGroupsS
         .set("ExternalEventGroupHierarchyId")
         .to("test-hierarchy")
         .set("State")
-        .to(EventGroupHierarchyState.ACTIVE.number)
+        .toInt64(EventGroupHierarchyState.ACTIVE)
         .set("EventGroupHierarchyDetails")
         .to(Value.protoMessage(details))
         .set("CreateTime")

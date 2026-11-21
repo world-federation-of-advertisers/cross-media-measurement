@@ -126,5 +126,8 @@ databaseChangeLog:
     file: create-unlinked-client-accounts-table.sql
     relativeToChangeLogFile: true
 - include:
+    file: add-model-line-event-template-version.sql
+    relativeToChangeLogFile: true
+- include:
     file: add-event-group-hierarchy.sql
     relativeToChangeLogFile: true

@@ -54,3 +54,14 @@ message EventGroupHierarchyDetails {
   // or added at the least granular end.
   repeated Level levels = 1;
 }
+
+// Activation state of an EventGroupHierarchy.
+enum EventGroupHierarchyState {
+  EVENT_GROUP_HIERARCHY_STATE_UNSPECIFIED = 0;
+
+  // Paths and ancestors are being derived. The hierarchy is not served.
+  PENDING = 1;
+
+  // Paths and ancestors are complete. The hierarchy is served.
+  ACTIVE = 2;
+}

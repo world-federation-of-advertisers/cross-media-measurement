@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "log_measurement_values" {
+  description = "Enable measurement-value diagnostics in the Halo ResultsFulfiller example. Markets may set this to false."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "cluster_location" {
   description = "Location of Kubernetes clusters. Defaults to provider zone."
   type        = string
@@ -570,6 +577,51 @@ variable "dashboard_compliance_uber_jar_path" {
   default     = null
 }
 
+variable "data_watcher_delete_work_item_config_file_path" {
+  description = "Deletion watcher configuration for WorkItem routing."
+  type        = string
+}
+
+variable "data_availability_cleanup_work_item_dispatch_enabled" {
+  description = "Switch deletion events to WorkItems after upgrading the queue registry, cleanup worker, and deletion watcher."
+  type        = bool
+  default     = false
+}
+
+variable "data_availability_cleanup_max_instances" {
+  description = "Maximum cleanup instances, with one request per instance."
+  type        = number
+  default     = 5
+}
+
+variable "data_availability_cleanup_alert_notification_channels" {
+  description = "Monitoring notification channels for cleanup queue alerts."
+  type        = list(string)
+  default     = []
+}
+
+variable "data_availability_cleanup_max_queue_age_seconds" {
+  description = "Maximum cleanup delivery age before alerting."
+  type        = number
+  default     = 1800
+}
+
+variable "data_watcher_delete_max_instances" {
+  description = "Maximum deletion watcher instances, with one request per instance."
+  type        = number
+  default     = 10
+}
+
+variable "data_watcher_delete_control_plane_throttler_millis" {
+  description = "Minimum interval between deletion watcher's control-plane RPCs per instance."
+  type        = number
+  default     = 100
+  validation {
+    condition     = var.data_watcher_delete_control_plane_throttler_millis >= 0 && floor(var.data_watcher_delete_control_plane_throttler_millis) == var.data_watcher_delete_control_plane_throttler_millis
+    error_message = "Throttler milliseconds must be a nonnegative integer."
+  }
+}
+
 variable "dashboard_alert_notification_channels" {
   description = "Cloud Monitoring notification channel IDs (Slack/PagerDuty) to notify on dashboard compliance check failures. Empty creates the policy without notifications."
   type        = list(string)
@@ -581,4 +633,39 @@ variable "event_group_sync_memory" {
   type        = string
   nullable    = true
   default     = null
+}
+
+variable "vid_labeling_availability_alert_thresholds" {
+  description = "VID-labeling availability alert thresholds; ages are in seconds."
+  type = object({
+    pending_age_seconds     = optional(number, 86400)
+    failed_executions       = optional(number, 3)
+    publication_age_seconds = optional(number, 3600)
+  })
+  default = {}
+
+  validation {
+    condition = (
+      var.vid_labeling_availability_alert_thresholds.pending_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.publication_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.failed_executions >= 1 &&
+      floor(var.vid_labeling_availability_alert_thresholds.failed_executions) == var.vid_labeling_availability_alert_thresholds.failed_executions
+    )
+    error_message = "Ages must be positive and failed_executions must be a positive integer."
+  }
+}
+
+variable "data_availability_publication_status_storage_roots" {
+  description = "Additional GCS buckets mapped to source output-root prefixes for publication status access."
+  type        = map(set(string))
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for bucket, prefixes in var.data_availability_publication_status_storage_roots :
+      bucket != "" && length(prefixes) > 0 &&
+      alltrue([for prefix in prefixes : !startswith(prefix, "/")])
+    ])
+    error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
+  }
 }

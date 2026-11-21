@@ -280,6 +280,7 @@ class MetricsService(
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   kingdomMeasurementBatchConcurrency: Int,
+  private val logMeasurementValues: Boolean,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -2803,7 +2804,14 @@ class MetricsService(
           try {
             result = buildMetricResult(source, variances)
           } catch (e: Exception) {
-            logger.log(Level.SEVERE, "buildMetricResult exception:", e)
+            if (logMeasurementValues) {
+              logger.log(Level.SEVERE, "buildMetricResult exception:", e)
+            } else {
+              logger.log(
+                Level.SEVERE,
+                "buildMetricResult failed for $name: ${e.javaClass.simpleName}",
+              )
+            }
             state = Metric.State.FAILED
             when (e) {
               is MeasurementVarianceNotComputableException -> {
