@@ -192,3 +192,17 @@ file is deleted after the command.
 CI test workflows upload testlogs as GitHub artifacts after both successful and
 failed test commands. Use those logs when the BuildBuddy invocation is incomplete.
 Artifact upload is best effort; the build/test verdict remains the correctness gate.
+
+The Build and test workflow expands the existing `//...` test selection and
+assigns each selected Bazel test to exactly one group. Four runners execute
+tests requiring local resources, while another
+runner executes the remaining tests. Kubernetes correctness tests run separately.
+The required Build and test check succeeds only when every selected job succeeds.
+
+For a performance comparison, dispatch the workflow twice at the same revision,
+using the `serial` and `parallel` test layouts with `force_test_execution` enabled
+for both. This bypasses test-result caching while retaining build-artifact caching.
+The serial layout also checks the original test selection against the partitioned
+test list. Each group verifies its assigned targets against Bazel's results and rejects
+cached results when execution is forced. Test lists, execution counts, and logs
+are uploaded as workflow artifacts.
