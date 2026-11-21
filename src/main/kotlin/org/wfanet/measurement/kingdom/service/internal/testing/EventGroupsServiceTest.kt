@@ -19,6 +19,7 @@ import com.google.cloud.spanner.SpannerException
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.copy
 import com.google.protobuf.struct
 import com.google.protobuf.util.Timestamps
 import com.google.protobuf.value
@@ -48,6 +49,7 @@ import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.kingdom.AccountsGrpcKt.AccountsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
@@ -58,6 +60,8 @@ import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventG
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.AdMetadataKt.campaignMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.EventGroupMetadataKt.adMetadata
 import org.wfanet.measurement.internal.kingdom.EventGroupDetailsKt.eventGroupMetadata
+import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyDetails
+import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyDetailsKt.level
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.entityKey
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
@@ -79,6 +83,7 @@ import org.wfanet.measurement.internal.kingdom.deleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupActivity
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
+import org.wfanet.measurement.internal.kingdom.eventGroupHierarchyDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
@@ -143,6 +148,16 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     private set
 
   protected abstract fun newServices(idGenerator: IdGenerator): EventGroupAndHelperServices<T>
+
+  protected abstract suspend fun seedActiveHierarchy(
+    externalDataProviderId: Long,
+    details: EventGroupHierarchyDetails,
+  )
+
+  /** Returns persisted paths by external EventGroup ID, including groups with no path. */
+  protected abstract suspend fun readStoredEntityPaths(
+    externalDataProviderId: Long
+  ): Map<Long, String?>
 
   @Before
   fun initServices() {
@@ -2726,6 +2741,375 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       assertThat(fetched.entityKey).isEqualTo(ENTITY_KEY)
       assertThat(fetched.entityMetadata).isEqualTo(ENTITY_METADATA)
     }
+
+  @Test
+  fun `createEventGroup derives both ancestors and persists their paths`() = runBlocking {
+    val request = newHierarchicalCreateRequest()
+    val externalDataProviderId = request.eventGroup.externalDataProviderId
+    val expectedEntityKeysByPath =
+      mapOf(
+        "campaign/X/" to
+          entityKey {
+            entityType = "campaign"
+            entityId = "X"
+          },
+        "campaign/X/line-item/L1/" to
+          entityKey {
+            entityType = "line-item"
+            entityId = "L1"
+          },
+        "campaign/X/line-item/L1/creative/C1/" to request.eventGroup.entityKey,
+      )
+
+    val leaf = eventGroupsService.createEventGroup(request)
+
+    val storedPaths = readStoredEntityPaths(externalDataProviderId)
+    assertThat(storedPaths.values).containsExactlyElementsIn(expectedEntityKeysByPath.keys)
+    assertThat(storedPaths[leaf.externalEventGroupId])
+      .isEqualTo("campaign/X/line-item/L1/creative/C1/")
+    for ((externalEventGroupId, path) in storedPaths) {
+      val fetched =
+        eventGroupsService.getEventGroup(
+          getEventGroupRequest {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalEventGroupId = externalEventGroupId
+          }
+        )
+      assertThat(fetched.entityKey).isEqualTo(expectedEntityKeysByPath.getValue(checkNotNull(path)))
+    }
+  }
+
+  @Test
+  fun `createEventGroup rejects a leaf missing the intermediate ancestor ID`() = runBlocking {
+    val request = newHierarchicalCreateRequest()
+    val invalidRequest =
+      request.copy {
+        eventGroup =
+          eventGroup.copy { entityMetadata = entityMetadata.copy { fields.remove("line_item_id") } }
+      }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.createEventGroup(invalidRequest)
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(readStoredEntityPaths(request.eventGroup.externalDataProviderId)).isEmpty()
+  }
+
+  @Test
+  fun `createEventGroup accepts an indexed hierarchy key at the size limit`() = runBlocking {
+    val request = newIndexedHierarchyRequest(creativeIdLength = 2129)
+
+    val created = eventGroupsService.createEventGroup(request)
+
+    assertThat(created.entityKey).isEqualTo(request.eventGroup.entityKey)
+    assertThat(readStoredEntityPaths(request.eventGroup.externalDataProviderId)).hasSize(3)
+  }
+
+  @Test
+  fun `createEventGroup rejects an oversized indexed hierarchy path before writing`() =
+    runBlocking {
+      val request = newIndexedHierarchyRequest(creativeIdLength = 2130)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { eventGroupsService.createEventGroup(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.description).contains("Spanner index key")
+      assertThat(readStoredEntityPaths(request.eventGroup.externalDataProviderId)).isEmpty()
+    }
+
+  private suspend fun newIndexedHierarchyRequest(creativeIdLength: Int): CreateEventGroupRequest {
+    // Fixed-width key columns and the repeated entity type add 32 bytes to the leaf path.
+    return newHierarchicalCreateRequest()
+      .withCreativePath(
+        campaignId = "a".repeat(3000),
+        lineItemId = "b".repeat(3000),
+        creativeId = "c".repeat(creativeIdLength),
+        campaignName = "Campaign X",
+      )
+  }
+
+  @Test
+  fun `createEventGroup rejects a metadata ID that differs from the requested entity ID`() =
+    runBlocking {
+      val request = newHierarchicalCreateRequest()
+      val invalidRequest =
+        request.copy {
+          eventGroup =
+            eventGroup.copy { entityKey = entityKey.copy { entityId = "another-creative" } }
+        }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.createEventGroup(invalidRequest)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(readStoredEntityPaths(request.eventGroup.externalDataProviderId)).isEmpty()
+    }
+
+  @Test
+  fun `createEventGroup reuses a stored derived ancestor and expands its rollups`() = runBlocking {
+    val firstRequest =
+      newHierarchicalCreateRequest().copy {
+        requestId = "first-creative"
+        eventGroup =
+          eventGroup.copy {
+            dataAvailabilityInterval = interval {
+              startTime = Instant.ofEpochSecond(100).toProtoTime()
+              endTime = Instant.ofEpochSecond(200).toProtoTime()
+            }
+          }
+      }
+    val externalDataProviderId = firstRequest.eventGroup.externalDataProviderId
+    val first = eventGroupsService.createEventGroup(firstRequest)
+    val ancestorId =
+      readStoredEntityPaths(externalDataProviderId).entries.single { it.value == "campaign/X/" }.key
+    val secondRequest =
+      firstRequest.withCreativePath(campaignId = "X", lineItemId = "L2", creativeId = "C2").copy {
+        requestId = "second-creative"
+        eventGroup =
+          eventGroup.copy {
+            mediaTypes.clear()
+            mediaTypes += MediaType.DISPLAY
+            dataAvailabilityInterval = interval {
+              startTime = Instant.ofEpochSecond(50).toProtoTime()
+            }
+          }
+      }
+
+    eventGroupsService.createEventGroup(secondRequest)
+
+    val ancestor =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          this.externalDataProviderId = externalDataProviderId
+          externalEventGroupId = ancestorId
+        }
+      )
+    assertThat(ancestor.mediaTypesList).containsExactly(MediaType.VIDEO, MediaType.DISPLAY)
+    assertThat(ancestor.dataAvailabilityInterval)
+      .isEqualTo(interval { startTime = Instant.ofEpochSecond(50).toProtoTime() })
+    assertThat(ancestor.entityMetadata)
+      .isEqualTo(
+        struct {
+          fields["campaign_id"] = value { stringValue = "X" }
+          fields["campaign_name"] = value { stringValue = "Campaign X" }
+        }
+      )
+    assertThat(eventGroupsService.createEventGroup(firstRequest)).isEqualTo(first)
+  }
+
+  @Test
+  fun `batchCreateEventGroups shares a derived ancestor and keeps similar paths distinct`(): Unit =
+    runBlocking {
+      val firstLeaf = newHierarchicalCreateRequest()
+      val secondLeaf =
+        firstLeaf.withCreativePath(campaignId = "X", lineItemId = "L2", creativeId = "C2")
+      val otherBranch =
+        firstLeaf.withCreativePath(campaignId = "X2", lineItemId = "L3", creativeId = "C3")
+      val request = hierarchyBatch(firstLeaf, secondLeaf, otherBranch)
+
+      val response = eventGroupsService.batchCreateEventGroups(request)
+
+      val expectedLeafPaths =
+        mapOf(
+          "C1" to "campaign/X/line-item/L1/creative/C1/",
+          "C2" to "campaign/X/line-item/L2/creative/C2/",
+          "C3" to "campaign/X2/line-item/L3/creative/C3/",
+        )
+      val storedPaths = readStoredEntityPaths(request.externalDataProviderId)
+      assertThat(storedPaths.values)
+        .containsExactlyElementsIn(
+          expectedLeafPaths.values +
+            listOf(
+              "campaign/X/",
+              "campaign/X/line-item/L1/",
+              "campaign/X/line-item/L2/",
+              "campaign/X2/",
+              "campaign/X2/line-item/L3/",
+            )
+        )
+      assertThat(response.eventGroupsList).hasSize(expectedLeafPaths.size)
+      assertThat(
+          response.eventGroupsList.associate {
+            it.entityKey.entityId to storedPaths[it.externalEventGroupId]
+          }
+        )
+        .containsExactlyEntriesIn(expectedLeafPaths)
+    }
+
+  @Test
+  fun `batchCreateEventGroups rejects conflicting shared ancestor metadata without writing groups`() =
+    runBlocking {
+      val firstLeaf = newHierarchicalCreateRequest()
+      val conflictingLeaf =
+        firstLeaf.withCreativePath(
+          campaignId = "X",
+          lineItemId = "L2",
+          creativeId = "C2",
+          campaignName = "Conflicting campaign name",
+        )
+      val request = hierarchyBatch(firstLeaf, conflictingLeaf)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchCreateEventGroups(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo?.metadataMap)
+        .containsEntry("field_name", "requests.1.event_group.entity_metadata")
+      assertThat(readStoredEntityPaths(request.externalDataProviderId)).isEmpty()
+    }
+
+  @Test
+  fun `batchCreateEventGroups reports the original batch index after replayed requests`(): Unit =
+    runBlocking {
+      val first = newHierarchicalCreateRequest().copy { requestId = "first-creative" }
+      val externalDataProviderId = first.eventGroup.externalDataProviderId
+      eventGroupsService.createEventGroup(first)
+      val existingPaths = readStoredEntityPaths(externalDataProviderId)
+      val invalid =
+        first.withCreativePath(campaignId = "X", lineItemId = "L2", creativeId = "C2").copy {
+          clearRequestId()
+          eventGroup =
+            eventGroup.copy {
+              entityMetadata = entityMetadata.copy { fields.remove("line_item_id") }
+            }
+        }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchCreateEventGroups(hierarchyBatch(first, invalid))
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo?.metadataMap)
+        .containsEntry("field_name", "requests.1.event_group.entity_metadata")
+      assertThat(readStoredEntityPaths(externalDataProviderId))
+        .containsExactlyEntriesIn(existingPaths)
+    }
+
+  @Test
+  fun `batchCreateEventGroups rejects reuse of an ordinary ancestor and leaves it unchanged`() =
+    runBlocking {
+      val descendant = newHierarchicalCreateRequest()
+      val externalDataProviderId = descendant.eventGroup.externalDataProviderId
+      val ordinaryRequest =
+        descendant.copy {
+          eventGroup =
+            eventGroup.copy {
+              providedEventGroupId = "ordinary-campaign-X"
+              entityKey = entityKey {
+                entityType = "campaign"
+                entityId = "X"
+              }
+              entityMetadata = struct {
+                fields["campaign_id"] = value { stringValue = "X" }
+                fields["campaign_name"] = value { stringValue = "Campaign X" }
+              }
+            }
+        }
+      val ordinary = eventGroupsService.createEventGroup(ordinaryRequest)
+      val existingPaths = readStoredEntityPaths(externalDataProviderId)
+      val unrelatedLeaf =
+        descendant.withCreativePath(campaignId = "X2", lineItemId = "L2", creativeId = "C2")
+      val request = hierarchyBatch(unrelatedLeaf, descendant)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          eventGroupsService.batchCreateEventGroups(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(readStoredEntityPaths(externalDataProviderId))
+        .containsExactlyEntriesIn(existingPaths)
+      assertThat(
+          eventGroupsService.getEventGroup(
+            getEventGroupRequest {
+              this.externalDataProviderId = externalDataProviderId
+              externalEventGroupId = ordinary.externalEventGroupId
+            }
+          )
+        )
+        .isEqualTo(ordinary)
+    }
+
+  private fun hierarchyBatch(
+    first: CreateEventGroupRequest,
+    vararg rest: CreateEventGroupRequest,
+  ): BatchCreateEventGroupsRequest = batchCreateEventGroupsRequest {
+    externalDataProviderId = first.eventGroup.externalDataProviderId
+    requests += first
+    requests += rest.asList()
+  }
+
+  private fun CreateEventGroupRequest.withCreativePath(
+    campaignId: String,
+    lineItemId: String,
+    creativeId: String,
+    campaignName: String = "Campaign $campaignId",
+  ): CreateEventGroupRequest = copy {
+    eventGroup =
+      eventGroup.copy {
+        providedEventGroupId = creativeId
+        entityKey = entityKey.copy { entityId = creativeId }
+        entityMetadata =
+          entityMetadata.copy {
+            fields["campaign_id"] = value { stringValue = campaignId }
+            fields["campaign_name"] = value { stringValue = campaignName }
+            fields["line_item_id"] = value { stringValue = lineItemId }
+            fields["creative_id"] = value { stringValue = creativeId }
+          }
+      }
+  }
+
+  private suspend fun newHierarchicalCreateRequest(): CreateEventGroupRequest {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    seedActiveHierarchy(
+      dataProvider.externalDataProviderId,
+      eventGroupHierarchyDetails {
+        levels += level {
+          entityType = "campaign"
+          idEntityMetadataKey = "campaign_id"
+          entityMetadataKeys += "campaign_name"
+        }
+        levels += level {
+          entityType = "line-item"
+          idEntityMetadataKey = "line_item_id"
+        }
+        levels += level {
+          entityType = "creative"
+          idEntityMetadataKey = "creative_id"
+        }
+      },
+    )
+
+    return createEventGroupRequest {
+      eventGroup = eventGroup {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+        providedEventGroupId = PROVIDED_EVENT_GROUP_ID
+        mediaTypes += MediaType.VIDEO
+        details = DETAILS
+        entityKey = entityKey {
+          entityType = "creative"
+          entityId = "C1"
+        }
+        entityMetadata = struct {
+          fields["campaign_id"] = value { stringValue = "X" }
+          fields["campaign_name"] = value { stringValue = "Campaign X" }
+          fields["line_item_id"] = value { stringValue = "L1" }
+          fields["creative_id"] = value { stringValue = "C1" }
+        }
+      }
+    }
+  }
 
   @Test
   fun `createEventGroup without entity_key defaults entity_type to campaign on Get`() =

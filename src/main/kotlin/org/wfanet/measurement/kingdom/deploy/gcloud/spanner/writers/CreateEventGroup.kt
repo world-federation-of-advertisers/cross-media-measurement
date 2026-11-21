@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import org.wfanet.measurement.common.identity.ExternalId
-import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -27,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.CreateEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupKt
+import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
@@ -67,7 +67,9 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
         return existingEventGroup
       }
     }
-    return createEventGroup(idGenerator, dataProviderId, measurementConsumerId, request)
+    return EventGroupHierarchyWriter(this, dataProviderId)
+      .create(listOf(EventGroupHierarchyWriter.Creation(request, measurementConsumerId)))
+      .single()
   }
 
   override fun ResultScope<EventGroup>.buildResult(): EventGroup {
@@ -88,10 +90,11 @@ class CreateEventGroup(private val request: CreateEventGroupRequest) :
 
 /** Buffers an insert mutation for the EventGroups table. */
 internal fun SpannerWriter.TransactionScope.createEventGroup(
-  idGenerator: IdGenerator,
   dataProviderId: InternalId,
   measurementConsumerId: InternalId,
   request: CreateEventGroupRequest,
+  entityPath: String? = null,
+  isLeaf: Boolean = true,
 ): EventGroup {
   val internalEventGroupId: InternalId = idGenerator.generateInternalId()
   val externalEventGroupId: ExternalId = idGenerator.generateExternalId()
@@ -126,16 +129,18 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     if (request.eventGroup.hasEntityMetadata()) {
       set("EntityMetadata").to(request.eventGroup.entityMetadata)
     }
+    if (entityPath != null) {
+      set("EntityPath").to(entityPath)
+      set("IsLeaf").to(isLeaf)
+    }
     set("State").toInt64(EventGroup.State.ACTIVE)
   }
 
-  for (mediaType in request.eventGroup.mediaTypesList) {
-    transactionContext.bufferInsertMutation("EventGroupMediaTypes") {
-      set("DataProviderId").to(dataProviderId)
-      set("EventGroupId").to(internalEventGroupId)
-      set("MediaType").to(mediaType)
-    }
-  }
+  insertEventGroupMediaTypes(
+    dataProviderId,
+    internalEventGroupId,
+    request.eventGroup.mediaTypesList,
+  )
 
   return request.eventGroup.copy {
     this.externalEventGroupId = externalEventGroupId.value
@@ -147,6 +152,20 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     // response so it matches what a subsequent Get returns.
     if (!request.eventGroup.hasEntityKey()) {
       entityKey = EventGroupKt.entityKey { entityType = Table.DEFAULT_ENTITY_TYPE }
+    }
+  }
+}
+
+internal fun SpannerWriter.TransactionScope.insertEventGroupMediaTypes(
+  dataProviderId: InternalId,
+  eventGroupId: InternalId,
+  mediaTypes: Iterable<MediaType>,
+) {
+  for (mediaType in mediaTypes) {
+    transactionContext.bufferInsertMutation(Table.EVENT_GROUP_MEDIA_TYPES) {
+      set("DataProviderId").to(dataProviderId)
+      set("EventGroupId").to(eventGroupId)
+      set("MediaType").to(mediaType)
     }
   }
 }
