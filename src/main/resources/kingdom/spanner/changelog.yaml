@@ -128,3 +128,6 @@ databaseChangeLog:
 - include:
     file: add-model-line-event-template-version.sql
     relativeToChangeLogFile: true
+- include:
+    file: allow-multiple-requisitions-per-data-provider.sql
+    relativeToChangeLogFile: true
