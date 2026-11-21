@@ -222,11 +222,13 @@ class EventGroupsService(
       internalEventGroupsStub.createEventGroup(internalRequest).toEventGroup()
     } catch (e: StatusException) {
       throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
+          Status.INVALID_ARGUMENT.withDescription(e.status.description)
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
         else -> Status.UNKNOWN
-      }.toExternalStatusRuntimeException(e)
+      }.toExternalStatusRuntimeException(e, ::toPublicCreateFieldName)
     }
   }
 
@@ -289,11 +291,13 @@ class EventGroupsService(
       }
     } catch (e: StatusException) {
       throw when (e.status.code) {
+        Status.Code.INVALID_ARGUMENT ->
+          Status.INVALID_ARGUMENT.withDescription(e.status.description)
         Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
         Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
         else -> Status.UNKNOWN
-      }.toExternalStatusRuntimeException(e)
+      }.toExternalStatusRuntimeException(e, ::toPublicCreateFieldName)
     }
   }
 
@@ -433,6 +437,11 @@ class EventGroupsService(
         }
       }
     }
+  }
+
+  private fun toPublicCreateFieldName(internalFieldName: String): String {
+    return BATCH_REQUEST_FIELD_PREFIX.replaceFirst(internalFieldName, "requests[\$1].")
+      .replace("event_group.entity_metadata", "event_group.event_group_metadata.entity_metadata")
   }
 
   override suspend fun deleteEventGroup(request: DeleteEventGroupRequest): EventGroup {
@@ -692,6 +701,7 @@ class EventGroupsService(
   }
 
   companion object {
+    private val BATCH_REQUEST_FIELD_PREFIX = Regex("^requests\\.(\\d+)\\.")
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 2_000
     /** Substituted into `entity_type_in` when the caller omits the filter. */

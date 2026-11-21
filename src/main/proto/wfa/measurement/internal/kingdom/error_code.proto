@@ -88,6 +88,8 @@ enum ErrorCode {
   EXCHANGE_STEP_NOT_FOUND = 25;
   /** EventGroup state is in an illegal state for the operation. */
   EVENT_GROUP_STATE_ILLEGAL = 26;
+  /** An existing EventGroup is incompatible with the requested hierarchy write. */
+  EVENT_GROUP_HIERARCHY_CONFLICT = 57;
   /** Required duchies are inactive */
   DUCHY_NOT_ACTIVE = 27;
   /** Measurement etag requested does not match actual Measurement etag. */

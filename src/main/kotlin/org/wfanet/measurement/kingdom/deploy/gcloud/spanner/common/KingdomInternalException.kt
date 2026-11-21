@@ -700,6 +700,11 @@ class EventGroupStateIllegalException(
       )
 }
 
+class EventGroupHierarchyConflictException(message: String) :
+  KingdomInternalException(ErrorCode.EVENT_GROUP_HIERARCHY_CONFLICT, message) {
+  override val context: Map<String, String> = emptyMap()
+}
+
 class EventGroupMetadataDescriptorNotFoundException(
   val externalDataProviderId: ExternalId,
   val externalEventGroupMetadataDescriptorId: ExternalId,
