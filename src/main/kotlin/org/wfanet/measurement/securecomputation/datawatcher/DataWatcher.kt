@@ -35,6 +35,7 @@ import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
@@ -48,6 +49,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
@@ -63,14 +65,19 @@ class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
   private val workItemIdGenerator: (String) -> String = ::deterministicWorkItemId,
-  private val idTokenProvider: IdTokenProvider =
-    GoogleCredentials.getApplicationDefault() as? IdTokenProvider
-      ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
+  private val idTokenProvider: IdTokenProvider? = null,
   private val meter: Meter = Instrumentation.meter,
   private val controlPlaneThrottler: Throttler? = null,
 ) {
   private val metrics =
     DataWatcherMetrics(meter = meter, sinkTypeKey = ATTR_SINK_TYPE_KEY, queueKey = ATTR_QUEUE_KEY)
+  private val httpIdTokenProvider by lazy {
+    idTokenProvider
+      ?: (GoogleCredentials.getApplicationDefault() as? IdTokenProvider
+        ?: throw IllegalArgumentException(
+          "Application Default Credentials do not provide ID token"
+        ))
+  }
 
   /**
    * Receives a path for evaluation against configured watched paths.
@@ -96,6 +103,14 @@ class DataWatcher(
         Level.FINE,
         "Configuration ${config.identifier} did not match pathHash=${pathHash(path)}",
       )
+      return
+    }
+
+    if (
+      config.eventTypesCount > 0 &&
+        objectMetadata[EVENT_TYPE_METADATA_KEY] !in config.eventTypesList
+    ) {
+      logger.log(Level.FINE, "Configuration ${config.identifier} did not match event type")
       return
     }
 
@@ -127,6 +142,8 @@ class DataWatcher(
         shouldLog = false,
       )
       throw e
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
       val isRetryable =
@@ -138,7 +155,10 @@ class DataWatcher(
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
           WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
-      if (isRetryable || isRecoveryOperation) {
+      val isCleanupDispatch =
+        config.sinkConfigCase == WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK &&
+          config.controlPlaneQueueSink.allowMissingSourceIdentity
+      if (isRetryable || isRecoveryOperation || isCleanupDispatch) {
         // Retryable failures and recovery operations must be at-least-once. Surfacing the failure
         // keeps the Eventarc delivery unacknowledged so it is retried and, after exhaustion,
         // retained in the configured DLQ.
@@ -155,26 +175,40 @@ class DataWatcher(
     val queueConfig = config.controlPlaneQueueSink
     val objectGeneration =
       objectMetadata[GENERATION_METADATA_KEY]?.toLongOrNull()?.takeIf { it > 0L }
-        ?: throw IllegalArgumentException("Missing or invalid source object generation")
-    val objectCreateTime =
-      objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
-        ?: throw IllegalArgumentException("Missing source object creation time")
-    val storageEventType =
-      when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
-        FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-        DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-        else -> throw IllegalArgumentException("Missing or invalid storage event type")
-      }
-    val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
+    require(GENERATION_METADATA_KEY !in objectMetadata || objectGeneration != null) {
+      "Missing or invalid source object generation"
+    }
+    val objectCreateTime = objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
+    val sourceEventId =
+      if (objectGeneration == null) {
+        require(
+          queueConfig.allowMissingSourceIdentity &&
+            queueConfig.serializationKey.isEmpty() &&
+            objectMetadata[EVENT_TYPE_METADATA_KEY] in
+              setOf(DELETED_EVENT_TYPE, ARCHIVED_EVENT_TYPE)
+        ) {
+          "Missing or invalid source object generation"
+        }
+        requireNotNull(objectMetadata[EVENT_ID_METADATA_KEY]?.takeIf { it.isNotBlank() }) {
+          "Missing source event ID"
+        }
+      } else ""
+    require(objectCreateTime != null || queueConfig.allowMissingSourceIdentity) {
+      "Missing source object creation time"
+    }
+    val identity = objectGeneration?.toString() ?: "event:$sourceEventId"
+    val idempotencyKey = "${config.identifier}\u0000$path\u0000$identity"
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
           this.dataPathParams = dataPathParams {
             this.dataPath = path
-            generation = objectGeneration
-            createTime = objectCreateTime.toProtoTime()
-            eventType = storageEventType
+            // Partial unordered source identity is encoded in the WorkItem ID.
+            if (objectGeneration != null && objectCreateTime != null) {
+              generation = objectGeneration
+              createTime = objectCreateTime.toProtoTime()
+            }
           }
           traceContext.putAll(W3CTraceContext.inject())
         }
@@ -221,10 +255,7 @@ class DataWatcher(
   ) {
     val existingWorkItemParams = validateExistingWorkItem(workItemId, requestedWorkItem)
     try {
-      ensureWorkItem(
-        workItemId,
-        requestedWorkItem.toBuilder().setWorkItemParams(existingWorkItemParams).build(),
-      )
+      ensureWorkItem(workItemId, requestedWorkItem.copy { workItemParams = existingWorkItemParams })
     } catch (e: Exception) {
       if (e.grpcStatusCode() != Status.Code.FAILED_PRECONDITION) {
         throw e
@@ -260,11 +291,28 @@ class DataWatcher(
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    val partialSourceIdentity =
+      requestedWorkItem.serializationKey.isEmpty() &&
+        (!existingParams.dataPathParams.hasGeneration() ||
+          !existingParams.dataPathParams.hasCreateTime() ||
+          !requestedParams.dataPathParams.hasGeneration() ||
+          !requestedParams.dataPathParams.hasCreateTime())
     check(
       existing.queue == requestedWorkItem.queue &&
         existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
-        existingParams.dataPathParams == requestedParams.dataPathParams
+        existingParams.dataPathParams.copy {
+          if (partialSourceIdentity) {
+            clearGeneration()
+            clearCreateTime()
+          }
+        } ==
+          requestedParams.dataPathParams.copy {
+            if (partialSourceIdentity) {
+              clearGeneration()
+              clearCreateTime()
+            }
+          }
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }
@@ -277,7 +325,7 @@ class DataWatcher(
     objectMetadata: Map<String, String>,
   ) {
     val idToken: IdToken =
-      idTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
+      httpIdTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
     val jwt = idToken.tokenValue
 
     val httpEndpointConfig = config.httpEndpointSink
@@ -468,7 +516,9 @@ class DataWatcher(
     const val GENERATION_METADATA_KEY: String = "__datawatcher_object_generation__"
     const val CREATE_TIME_METADATA_KEY: String = "__datawatcher_object_create_time__"
     const val EVENT_TYPE_METADATA_KEY: String = "__datawatcher_storage_event_type__"
+    const val EVENT_ID_METADATA_KEY: String = "__datawatcher_event_id__"
     const val FINALIZED_EVENT_TYPE: String = "google.cloud.storage.object.v1.finalized"
+    const val ARCHIVED_EVENT_TYPE: String = "google.cloud.storage.object.v1.archived"
     const val DELETED_EVENT_TYPE: String = "google.cloud.storage.object.v1.deleted"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"

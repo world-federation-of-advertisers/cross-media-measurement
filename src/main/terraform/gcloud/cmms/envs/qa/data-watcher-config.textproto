@@ -3,6 +3,7 @@
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-qa-bucket/edp7/event-groups/(.*)"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "event-group-sync-queue"
     serialization_key: "event-group-sync:dataProviders/MPxlwJmFW7A"
@@ -16,6 +17,7 @@ watched_paths {
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-qa-bucket/edpa_meta/event-groups/(.*)"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "event-group-sync-queue"
     serialization_key: "event-group-sync:dataProviders/WLb7yRONEO4"
@@ -29,6 +31,7 @@ watched_paths {
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/edp/edp7/model-line/[^/]+/[^/]+/done$"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "data-availability-sync-queue"
     serialization_key: "data-availability:dataProviders/MPxlwJmFW7A"
@@ -42,6 +45,7 @@ watched_paths {
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/edp/edpa_meta/model-line/[^/]+/[^/]+/done$"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "data-availability-sync-queue"
     serialization_key: "data-availability:dataProviders/WLb7yRONEO4"
@@ -55,6 +59,7 @@ watched_paths {
 watched_paths {
   identifier: "vid-labeling-dispatch"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/raw-impressions/edp/edp7/[^/]+/done$"
+  event_types: "google.cloud.storage.object.v1.finalized"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-qa.cloudfunctions.net/vid-labeling-dispatcher"
     app_params {
@@ -68,6 +73,7 @@ watched_paths {
 watched_paths {
   identifier: "vid-labeling-dispatch"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/raw-impressions/edp/edpa_meta/[^/]+/done$"
+  event_types: "google.cloud.storage.object.v1.finalized"
   http_endpoint_sink {
     endpoint_uri: "https://us-central1-halo-cmm-qa.cloudfunctions.net/vid-labeling-dispatcher"
     app_params {
@@ -81,6 +87,7 @@ watched_paths {
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-qa-bucket/event_group_scale/event-groups/(.*)"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "event-group-sync-queue"
     serialization_key: "event-group-sync:dataProviders/d97ekA2iWks"
@@ -94,6 +101,7 @@ watched_paths {
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-qa-bucket/edpa_video_pub/event-groups/(.*)"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "event-group-sync-queue"
     serialization_key: "event-group-sync:dataProviders/FAROIT4Wkwc"
@@ -107,6 +115,7 @@ watched_paths {
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/edp/edpa_video_pub/model-line/[^/]+/[^/]+/done$"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "data-availability-sync-queue"
     serialization_key: "data-availability:dataProviders/FAROIT4Wkwc"
@@ -122,6 +131,7 @@ watched_paths {
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://secure-computation-storage-qa-bucket/edpa_retail_pub/event-groups/(.*)"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "event-group-sync-queue"
     serialization_key: "event-group-sync:dataProviders/YxARUD4Wzcg"
@@ -135,6 +145,7 @@ watched_paths {
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://secure-computation-storage-qa-bucket/edp/edpa_retail_pub/model-line/[^/]+/[^/]+/done$"
+  event_types: "google.cloud.storage.object.v1.finalized"
   control_plane_queue_sink {
     queue: "data-availability-sync-queue"
     serialization_key: "data-availability:dataProviders/YxARUD4Wzcg"

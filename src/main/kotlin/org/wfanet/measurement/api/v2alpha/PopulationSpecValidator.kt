@@ -100,10 +100,27 @@ object PopulationSpecValidator {
    * @throws PopulationSpecValidationException if [populationSpec] is invalid
    */
   fun validate(populationSpec: PopulationSpec, eventMessageDescriptor: Descriptors.Descriptor) {
+    validate(
+      populationSpec,
+      eventMessageDescriptor,
+      EventTemplates.getEventDescriptor(eventMessageDescriptor).currentVersion,
+    )
+  }
+
+  /**
+   * Validates [populationSpec] against population fields present in [eventTemplateVersion].
+   *
+   * @throws PopulationSpecValidationException if [populationSpec] is invalid
+   */
+  fun validate(
+    populationSpec: PopulationSpec,
+    eventMessageDescriptor: Descriptors.Descriptor,
+    eventTemplateVersion: Int,
+  ) {
     validateVidRangesList(populationSpec).getOrThrow()
 
     val unsetPopulationFields: List<PopulationSpecValidationException.PopulationFieldNotSetDetail> =
-      getUnsetPopulationFields(populationSpec, eventMessageDescriptor)
+      getUnsetPopulationFields(populationSpec, eventMessageDescriptor, eventTemplateVersion)
     if (unsetPopulationFields.isNotEmpty()) {
       throw PopulationSpecValidationException(
         "Not all populations fields are set",
@@ -115,11 +132,12 @@ object PopulationSpecValidator {
   private fun getUnsetPopulationFields(
     populationSpec: PopulationSpec,
     eventMessageDescriptor: Descriptors.Descriptor,
+    eventTemplateVersion: Int,
   ): List<PopulationSpecValidationException.PopulationFieldNotSetDetail> {
     val typeRegistry = TypeRegistry.newBuilder().add(eventMessageDescriptor).build()
     val populationFieldsByTemplateType:
       Map<Descriptors.Descriptor, List<Descriptors.FieldDescriptor>> =
-      EventTemplates.getPopulationFieldsByTemplateType(eventMessageDescriptor)
+      EventTemplates.getPopulationFieldsByTemplateType(eventMessageDescriptor, eventTemplateVersion)
     return buildList {
       populationSpec.subpopulationsList.forEachIndexed { subPopulationIndex, subPopulation ->
         for ((templateType, populationFields) in populationFieldsByTemplateType) {

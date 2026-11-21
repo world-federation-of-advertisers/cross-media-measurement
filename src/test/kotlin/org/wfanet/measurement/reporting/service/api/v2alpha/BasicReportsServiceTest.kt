@@ -243,9 +243,10 @@ class BasicReportsServiceTest {
       .thenReturn(enumerateValidModelLinesResponse { modelLines += ModelLine.getDefaultInstance() })
   }
 
+  private val postgresDatabaseClient by lazy { postgresDatabaseProvider.createDatabase() }
+
   val grpcTestServerRule = GrpcTestServerRule {
     val spannerDatabaseClient = spannerDatabase.databaseClient
-    val postgresDatabaseClient = postgresDatabaseProvider.createDatabase()
     val idGenerator = RandomIdGenerator(Clock.systemUTC(), Random(1))
 
     addService(permissionsServiceMock)
@@ -255,14 +256,25 @@ class BasicReportsServiceTest {
         spannerDatabaseClient,
         postgresDatabaseClient,
         IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+        validateInsertBasicReport = true,
       )
     )
     addService(
-      SpannerReportResultsService(spannerDatabaseClient, IMPRESSION_QUALIFICATION_FILTER_MAPPING)
+      SpannerReportResultsService(
+        spannerDatabaseClient,
+        IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+        clock = Clock.systemUTC(),
+      )
     )
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))
     addService(PostgresMetricCalculationSpecsService(idGenerator, postgresDatabaseClient))
-    addService(PostgresReportingSetsService(idGenerator, postgresDatabaseClient))
+    addService(
+      PostgresReportingSetsService(
+        idGenerator,
+        postgresDatabaseClient,
+        validateCreateReportingSet = true,
+      )
+    )
     addService(ImpressionQualificationFiltersService(IMPRESSION_QUALIFICATION_FILTER_MAPPING))
     addService(modelLinesServiceMock)
   }
@@ -10841,10 +10853,15 @@ class BasicReportsServiceTest {
       }
     }
 
+    // This read conversion fixture deliberately includes legacy component identities.
     internalBasicReport =
-      internalBasicReportsService.insertBasicReport(
-        insertBasicReportRequest { basicReport = internalBasicReport }
-      )
+      SpannerBasicReportsService(
+          spannerDatabase.databaseClient,
+          postgresDatabaseClient,
+          IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+          validateInsertBasicReport = false,
+        )
+        .insertBasicReport(insertBasicReportRequest { basicReport = internalBasicReport })
 
     val basicReportName =
       BasicReportKey(
@@ -11638,6 +11655,7 @@ class BasicReportsServiceTest {
     )
 
     var internalBasicReport = internalBasicReport {
+      externalReportId = "2237"
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       externalBasicReportId = basicReportId
       externalCampaignGroupId = reportingSetId
@@ -11720,6 +11738,7 @@ class BasicReportsServiceTest {
       )
 
       var internalBasicReport = internalBasicReport {
+        externalReportId = "2237"
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalBasicReportId = basicReportId
         externalCampaignGroupId = reportingSetId
@@ -11779,6 +11798,7 @@ class BasicReportsServiceTest {
     )
 
     val internalBasicReport = internalBasicReport {
+      externalReportId = "2237"
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       externalBasicReportId = basicReportId
       externalCampaignGroupId = reportingSetId
@@ -11836,6 +11856,7 @@ class BasicReportsServiceTest {
     )
 
     val internalBasicReport = internalBasicReport {
+      externalReportId = "2237"
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       externalBasicReportId = basicReportId
       externalCampaignGroupId = reportingSetId
@@ -11894,6 +11915,7 @@ class BasicReportsServiceTest {
     )
 
     val internalBasicReport = internalBasicReport {
+      externalReportId = "2237"
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       externalBasicReportId = basicReportId
       externalCampaignGroupId = reportingSetId
@@ -11996,6 +12018,7 @@ class BasicReportsServiceTest {
       )
 
       val internalBasicReport = internalBasicReport {
+        externalReportId = "2237"
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         externalBasicReportId = basicReportId
         externalCampaignGroupId = reportingSetId
@@ -12110,6 +12133,7 @@ class BasicReportsServiceTest {
     )
 
     val internalBasicReport = internalBasicReport {
+      externalReportId = "2237"
       this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
       externalBasicReportId = basicReportId
       externalCampaignGroupId = reportingSetId
@@ -12480,6 +12504,7 @@ class BasicReportsServiceTest {
         internalBasicReportsService.insertBasicReport(
           insertBasicReportRequest {
             basicReport = internalBasicReport {
+              externalReportId = "2237"
               this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
               externalBasicReportId = healthyBasicReportId
               externalCampaignGroupId = campaignGroupId

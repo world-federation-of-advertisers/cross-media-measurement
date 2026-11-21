@@ -303,6 +303,7 @@ class Population(val clock: Clock, val idGenerator: IdGenerator) {
           externalHoldbackModelLineId = holdbackModelLine.externalModelLineId
         }
         type = modelLineType
+        eventTemplateVersion = 1
       }
     )
   }

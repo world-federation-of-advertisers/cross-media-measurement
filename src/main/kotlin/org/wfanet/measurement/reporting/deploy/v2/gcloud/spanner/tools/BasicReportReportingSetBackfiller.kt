@@ -1575,7 +1575,8 @@ class BasicReportReportingSetBackfiller(
               externalCampaignGroupId = campaignGroupKey.externalCampaignGroupId
               primitive = ReportingSetKt.primitive { eventGroupKeys += membership }
             }
-          }
+          },
+          validateCreateReportingSet = true,
         )
         .execute(postgresClient, idGenerator)
     logger.info {

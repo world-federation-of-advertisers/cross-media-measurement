@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.common.OpenEndTimeRange
@@ -58,6 +59,14 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
     )
   }
 
+  override fun createPopulationSimulator(): MeasurementConsumerSimulator =
+    createSimulator(
+      emptyList(),
+      initialResultPollingDelay = Duration.ofMillis(1),
+      maximumResultPollingDelay = Duration.ofMillis(1),
+      onMeasurementsCreated = null,
+    )
+
   private fun createSimulator(
     eventGroupRefIds: List<String>,
     initialResultPollingDelay: Duration,
@@ -72,7 +81,8 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
       measurementsClient = MeasurementsCoroutineStub(grpcTestServerRule.channel),
       measurementConsumersClient = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
       certificatesClient = CertificatesCoroutineStub(grpcTestServerRule.channel),
-      trustedCertificates = emptyMap(),
+      modelLinesClient = ModelLinesCoroutineStub(grpcTestServerRule.channel),
+      trustedCertificates = TRUSTED_CERTIFICATES,
       eventQuery = STUB_EVENT_QUERY,
       expectedDirectNoiseMechanism = NoiseMechanism.GEOMETRIC,
       kingdomApiThrottler = kingdomApiThrottler,

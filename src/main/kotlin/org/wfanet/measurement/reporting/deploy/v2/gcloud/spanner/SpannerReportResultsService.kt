@@ -20,21 +20,32 @@ import com.google.cloud.spanner.Options
 import com.google.protobuf.Empty
 import com.google.type.DateTime
 import io.grpc.Status
+import java.time.Clock
+import java.time.Duration
+import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.RandomIdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.common.toProtoDateTime
+import org.wfanet.measurement.common.toZonedDateTime
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsResponse
+import org.wfanet.measurement.internal.reporting.v2.BeginReportResultAssemblyRequest
+import org.wfanet.measurement.internal.reporting.v2.CleanupReportResultAssembliesRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.DiscardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.GetReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListReportingSetResultsRequest
@@ -43,13 +54,17 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultView
+import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
+import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.nonCumulativeStartOrNull
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportResultAssembly
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportResultResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSetResultResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.discardReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertNoisyReportResultValues
@@ -57,12 +72,15 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportResultValues
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingSetResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingWindowResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readAbandonedReportResultAssemblies
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResultAssembly
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingSetResultIds
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportingWindowResultIds
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readUnprocessedReportingSetResults
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.renewReportResultAssembly
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExistsWithExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExists
@@ -87,6 +105,7 @@ import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetExce
 class SpannerReportResultsService(
   private val spannerClient: AsyncDatabaseClient,
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  private val clock: Clock,
   private val idGenerator: IdGenerator = RandomIdGenerator(),
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ReportResultsGrpcKt.ReportResultsCoroutineImplBase(coroutineContext) {
@@ -95,6 +114,171 @@ class SpannerReportResultsService(
       .currentVersion
   private val groupingDimensions =
     GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
+
+  override suspend fun beginReportResultAssembly(
+    request: BeginReportResultAssemblyRequest
+  ): ReportResult {
+    try {
+      validate(
+        createReportResultRequest {
+          cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+          reportResult = request.reportResult
+        }
+      )
+      if (request.externalBasicReportId.isEmpty()) {
+        throw RequiredFieldNotSetException("external_basic_report_id")
+      }
+      if (request.requestId.isEmpty()) {
+        throw RequiredFieldNotSetException("request_id")
+      }
+      if (UUID.fromString(request.requestId).toString() != request.requestId) {
+        throw IllegalArgumentException("request_id must be a UUID")
+      }
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: IllegalArgumentException) {
+      throw Status.INVALID_ARGUMENT.withDescription("request_id must be a UUID")
+        .withCause(e)
+        .asRuntimeException()
+    }
+    val normalizedReportStart = request.reportResult.reportStart.toZonedDateTime().toProtoDateTime()
+    return spannerClient
+      .readWriteTransaction(Options.tag("action=beginReportResultAssembly"))
+      .run { txn ->
+        val owner =
+          getAssemblyOwner(txn, request.cmmsMeasurementConsumerId, request.externalBasicReportId)
+        val existing =
+          txn.readReportResultAssembly(
+            request.cmmsMeasurementConsumerId,
+            owner.measurementConsumerId,
+            owner.basicReportId,
+          )
+        val existingAssembly = existing?.assembly
+        if (existing != null && existingAssembly?.requestId == request.requestId) {
+          if (existing.reportResult.reportStart != normalizedReportStart) {
+            throw Status.INVALID_ARGUMENT.withDescription(
+                "request_id reused with different metadata"
+              )
+              .asRuntimeException()
+          }
+          return@run existing.reportResult
+        }
+        requireAssemblyPending(owner)
+        if (existing != null) {
+          if (checkNotNull(existingAssembly).leaseExpirationTime > clock.instant()) {
+            throw Status.ALREADY_EXISTS.withDescription("Report assembly has an active lease")
+              .asRuntimeException()
+          }
+          if (
+            !txn.discardReportResult(
+              request.cmmsMeasurementConsumerId,
+              existing.reportResult.externalReportResultId,
+            )
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription("Assembly is already complete")
+              .asRuntimeException()
+          }
+        }
+        val reportResultId =
+          idGenerator.generateNewId { txn.reportResultExists(owner.measurementConsumerId, it) }
+        val externalReportResultId =
+          idGenerator.generateNewId {
+            txn.reportResultExistsWithExternalId(owner.measurementConsumerId, it)
+          }
+        txn.insertReportResult(
+          owner.measurementConsumerId,
+          reportResultId,
+          externalReportResultId,
+          normalizedReportStart,
+          ReportResultAssembly(
+            owner.basicReportId,
+            request.requestId,
+            clock.instant().plus(ASSEMBLY_LEASE_DURATION),
+          ),
+        )
+        request.reportResult.copy {
+          cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+          this.externalReportResultId = externalReportResultId
+          reportStart = normalizedReportStart
+        }
+      }
+  }
+
+  override suspend fun cleanupReportResultAssemblies(
+    request: CleanupReportResultAssembliesRequest
+  ): Empty {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val candidates =
+      spannerClient
+        .singleUse()
+        .readAbandonedReportResultAssemblies(
+          request.cmmsMeasurementConsumerId,
+          clock.instant(),
+          ASSEMBLY_CLEANUP_BATCH_SIZE,
+          externalReportResultId = null,
+        )
+        .toList()
+    for (externalReportResultId in candidates) {
+      spannerClient.readWriteTransaction(Options.tag("action=cleanupReportResultAssembly")).run {
+        txn ->
+        // Recheck eligibility transactionally against lease renewals and final publication.
+        if (
+          txn
+            .readAbandonedReportResultAssemblies(
+              request.cmmsMeasurementConsumerId,
+              clock.instant(),
+              1,
+              externalReportResultId,
+            )
+            .firstOrNull() != null
+        ) {
+          txn.discardReportResult(request.cmmsMeasurementConsumerId, externalReportResultId)
+        }
+      }
+    }
+    return Empty.getDefaultInstance()
+  }
+
+  private suspend fun getAssemblyOwner(
+    txn: AsyncDatabaseClient.ReadContext,
+    cmmsMeasurementConsumerId: String,
+    externalBasicReportId: String,
+  ): BasicReportResult {
+    return try {
+      txn.getBasicReportByExternalId(cmmsMeasurementConsumerId, externalBasicReportId)
+    } catch (e: BasicReportNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    }
+  }
+
+  private fun requireAssemblyPending(owner: BasicReportResult) {
+    if (owner.basicReport.state != BasicReport.State.REPORT_CREATED) {
+      throw BasicReportStateInvalidException(
+          owner.basicReport.cmmsMeasurementConsumerId,
+          owner.basicReport.externalBasicReportId,
+          owner.basicReport.state,
+        )
+        .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+  }
+
+  override suspend fun discardReportResult(request: DiscardReportResultRequest): Empty {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.externalReportResultId == 0L) {
+      throw RequiredFieldNotSetException("external_report_result_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    spannerClient.readWriteTransaction(Options.tag("action=discardReportResult")).run { txn ->
+      txn.discardReportResult(request.cmmsMeasurementConsumerId, request.externalReportResultId)
+    }
+    return Empty.getDefaultInstance()
+  }
 
   override suspend fun createReportResult(request: CreateReportResultRequest): ReportResult {
     try {
@@ -126,6 +310,7 @@ class SpannerReportResultsService(
         reportResultId,
         externalReportResultId,
         request.reportResult.reportStart,
+        assembly = null,
       )
 
       request.reportResult.copy {
@@ -176,6 +361,33 @@ class SpannerReportResultsService(
   override suspend fun batchCreateReportingSetResults(
     request: BatchCreateReportingSetResultsRequest
   ): BatchCreateReportingSetResultsResponse {
+    return writeReportingSetResults(request, assemblyOwner = null)
+  }
+
+  override suspend fun batchCreateReportResultAssembly(
+    request: BatchCreateReportResultAssemblyRequest
+  ): BatchCreateReportingSetResultsResponse {
+    if (request.externalBasicReportId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_basic_report_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return writeReportingSetResults(
+      batchCreateReportingSetResultsRequest {
+        cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+        externalReportResultId = request.externalReportResultId
+        requests += request.requestsList
+        if (request.finalBatch) {
+          externalBasicReportId = request.externalBasicReportId
+        }
+      },
+      assemblyOwner = request.externalBasicReportId,
+    )
+  }
+
+  private suspend fun writeReportingSetResults(
+    request: BatchCreateReportingSetResultsRequest,
+    assemblyOwner: String?,
+  ): BatchCreateReportingSetResultsResponse {
     try {
       validate(request)
     } catch (e: RequiredFieldNotSetException) {
@@ -201,12 +413,34 @@ class SpannerReportResultsService(
     val txnRunner: AsyncDatabaseClient.TransactionRunner =
       spannerClient.readWriteTransaction(Options.tag("action=batchCreateReportingSetResults"))
     return txnRunner.run { txn: AsyncDatabaseClient.TransactionContext ->
-      val (measurementConsumerId, reportResultId) =
+      val result =
         try {
           txn.readReportResult(request.cmmsMeasurementConsumerId, request.externalReportResultId)
         } catch (e: ReportResultNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
+      val (measurementConsumerId, reportResultId) = result
+      if (assemblyOwner == null) {
+        if (result.assembly != null) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "Owned results require the assembly batch API"
+            )
+            .asRuntimeException()
+        }
+      } else {
+        val owner = getAssemblyOwner(txn, request.cmmsMeasurementConsumerId, assemblyOwner)
+        if (result.assembly?.basicReportId != owner.basicReportId) {
+          throw Status.FAILED_PRECONDITION.withDescription("Assembly owner does not match")
+            .asRuntimeException()
+        }
+        requireAssemblyPending(owner)
+        val now = clock.instant()
+        if (checkNotNull(result.assembly).leaseExpirationTime <= now) {
+          throw Status.FAILED_PRECONDITION.withDescription("Report assembly lease has expired")
+            .asRuntimeException()
+        }
+        txn.renewReportResultAssembly(result, now.plus(ASSEMBLY_LEASE_DURATION))
+      }
 
       if (request.externalBasicReportId.isNotEmpty()) {
         associateBasicReport(
@@ -288,6 +522,12 @@ class SpannerReportResultsService(
   }
 
   private fun validate(request: BatchCreateReportingSetResultsRequest) {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+    }
+    if (request.externalReportResultId == 0L) {
+      throw RequiredFieldNotSetException("external_report_result_id")
+    }
     val seenDimensions = mutableSetOf<ReportingSetResult.Dimension>()
     request.requestsList.mapIndexed { index, reportingSetRequest ->
       val requestPath = "requests[$index]"
@@ -394,6 +634,16 @@ class SpannerReportResultsService(
         basicReport.externalBasicReportId,
         basicReport.state,
       )
+    }
+    val assembly =
+      txn.readReportResultAssembly(
+        cmmsMeasurementConsumerId,
+        basicReportResult.measurementConsumerId,
+        basicReportResult.basicReportId,
+      )
+    if (assembly != null && assembly.reportResultId != reportResultId) {
+      throw Status.FAILED_PRECONDITION.withDescription("Another assembly attempt owns this report")
+        .asRuntimeException()
     }
     txn.setBasicReportStateToUnprocessedResultsReady(
       basicReportResult.measurementConsumerId,
@@ -626,5 +876,10 @@ class SpannerReportResultsService(
       basicReportResult.measurementConsumerId,
       basicReportResult.basicReportId,
     )
+  }
+
+  companion object {
+    private val ASSEMBLY_LEASE_DURATION: Duration = Duration.ofMinutes(10)
+    private const val ASSEMBLY_CLEANUP_BATCH_SIZE = 100
   }
 }

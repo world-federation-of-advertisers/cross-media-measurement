@@ -23,6 +23,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -98,6 +99,7 @@ abstract class InProcessLifeOfAMeasurementIntegrationTest(
         publicMeasurementsClient,
         publicMeasurementConsumersClient,
         publicCertificatesClient,
+        ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel),
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         inProcessCmmsComponents.eventQuery,
         NoiseMechanism.CONTINUOUS_GAUSSIAN,

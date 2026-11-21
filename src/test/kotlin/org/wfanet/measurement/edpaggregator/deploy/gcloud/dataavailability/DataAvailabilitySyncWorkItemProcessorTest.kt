@@ -57,7 +57,6 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKey
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
@@ -165,6 +164,38 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   }
 
   @Test
+  fun `process completes ready source after partial publication under the synchronization lease`() =
+    runBlocking {
+      stubAttemptCreation()
+      var availabilityMarked = false
+      whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doAnswer
+        {
+          check(availabilityMarked)
+          check(!leaseClient.active)
+          workItemAttempt {
+            name = ATTEMPT_NAME
+            state = WorkItemAttempt.State.SUCCEEDED
+          }
+        }
+      val processor =
+        processor(
+          synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PARTIALLY_PUBLISHED },
+          markAvailabilitySynchronized = {
+            check(leaseClient.active)
+            availabilityMarked = true
+          },
+        )
+
+      processor.process(input())
+
+      verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
+      verifyBlocking(workItemAttemptsStub, never()) { failWorkItemAttempt(any(), any<Metadata>()) }
+      verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+      assertThat(leaseClient.renewCount).isEqualTo(1)
+      assertThat(leaseClient.releaseCount).isEqualTo(1)
+    }
+
+  @Test
   fun `process completes attempt when upload produced no labeled output`() = runBlocking {
     stubAttemptCreation()
     var availabilityMarked = false
@@ -227,6 +258,44 @@ class DataAvailabilitySyncWorkItemProcessorTest {
     assertThat(leaseClient.active).isFalse()
     assertThat(leaseClient.releaseCount).isEqualTo(1)
   }
+
+  @Test
+  fun `process leaves triggering source pending after other identities were published`() =
+    runBlocking {
+      stubAttemptCreation()
+      whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+        workItemAttempt {
+          name = ATTEMPT_NAME
+          state = WorkItemAttempt.State.FAILED
+        }
+      whenever(workItemsStub.failWorkItem(any(), any<Metadata>())) doReturn
+        workItem {
+          name = WORK_ITEM_NAME
+          state = WorkItem.State.FAILED
+          generation = 1L
+        }
+      var availabilityMarked = false
+      processor(
+          synchronize = { _, _, onStage ->
+            onStage(DataAvailabilitySync.Stage.GAP_POLICY)
+            DataAvailabilitySync.Outcome.PUBLISHED_OTHER_IDENTITIES
+          },
+          markAvailabilitySynchronized = { availabilityMarked = true },
+        )
+        .process(input())
+
+      val failure = argumentCaptor<FailWorkItemRequest>()
+      verifyBlocking(workItemsStub) { failWorkItem(failure.capture(), any<Metadata>()) }
+      assertThat(failure.firstValue.name).isEqualTo(WORK_ITEM_NAME)
+      assertThat(failure.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
+      verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+      verifyBlocking(workItemAttemptsStub, never()) {
+        completeWorkItemAttempt(any(), any<Metadata>())
+      }
+      assertThat(availabilityMarked).isFalse()
+      assertThat(leaseClient.active).isFalse()
+      assertThat(leaseClient.releaseCount).isEqualTo(1)
+    }
 
   @Test
   fun `process fails attempt and propagates retryable error`() = runBlocking {
@@ -726,7 +795,6 @@ class DataAvailabilitySyncWorkItemProcessorTest {
             dataPath = DONE_BLOB_URI
             generation = 7L
             createTime = timestamp { seconds = 1_800_000_000L }
-            eventType = StorageEventType.FINALIZED
           }
         }
       )

@@ -17,6 +17,8 @@ package org.wfanet.measurement.loadtest.measurementconsumer
 import com.google.common.truth.Truth.assertThat
 import com.google.type.Interval
 import com.google.type.interval
+import io.grpc.Status
+import io.grpc.StatusException
 import java.nio.file.Paths
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -27,6 +29,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.CertificatesGrpcKt.CertificatesCoroutineImplBase
@@ -35,26 +38,47 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCorou
 import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.population
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.subPopulation
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt.vidRange
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
+import org.wfanet.measurement.api.v2alpha.certificate
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.dataProvider
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.encryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.eventGroup
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedCommon
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsResponse
+import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementConsumer
+import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
+import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
+import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.consent.client.dataprovider.encryptResult
+import org.wfanet.measurement.consent.client.dataprovider.signResult
 import org.wfanet.measurement.consent.client.measurementconsumer.signEncryptionPublicKey
 
 abstract class AbstractMeasurementConsumerSimulatorTest {
@@ -81,6 +105,7 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
   }
 
   protected val certificatesServiceMock: CertificatesCoroutineImplBase = mockService()
+  protected val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -89,6 +114,7 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
     addService(dataProvidersServiceMock)
     addService(measurementsServiceMock)
     addService(certificatesServiceMock)
+    addService(modelLinesServiceMock)
   }
 
   protected class ShortCircuitException : RuntimeException("short-circuit")
@@ -96,6 +122,8 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
   protected abstract fun createSimulator(
     eventGroupRefIds: List<String>
   ): MeasurementConsumerSimulator
+
+  protected abstract fun createPopulationSimulator(): MeasurementConsumerSimulator
 
   protected fun stubEventGroups(refIds: List<String>) {
     eventGroupsServiceMock.stub {
@@ -206,6 +234,134 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
       .isEqualTo("$DATA_PROVIDER_NAME/eventGroups/sim-eg-wanted")
   }
 
+  private fun stubPopulationResult(repositoryVersion: Int?) {
+    modelLinesServiceMock.stub {
+      onBlocking { getModelLine(any()) }
+        .thenReturn(
+          modelLine {
+            name = POPULATION_MODEL_LINE
+            if (repositoryVersion != null) eventTemplateVersion = repositoryVersion
+          }
+        )
+    }
+    certificatesServiceMock.stub {
+      onBlocking { getCertificate(any()) }
+        .thenReturn(
+          certificate {
+            name = DATA_PROVIDER.certificate
+            x509Der = SECRETS_DIR.resolve("mc_cs_cert.der").readByteString()
+          }
+        )
+    }
+    val encryptedResult =
+      encryptResult(
+        signResult(result { population = population { value = 100 } }, MC_SIGNING_KEY),
+        MC_ENCRYPTION_PUBLIC_KEY,
+      )
+    measurementsServiceMock.stub {
+      onBlocking { getMeasurement(any()) }
+        .thenReturn(
+          measurement {
+            name = "$MC_NAME/measurements/m1"
+            state = Measurement.State.SUCCEEDED
+            results += resultOutput {
+              certificate = DATA_PROVIDER.certificate
+              this.encryptedResult = encryptedResult
+            }
+          }
+        )
+    }
+  }
+
+  private suspend fun testVersionedPopulation(
+    configuredVersion: Int?,
+    specification: PopulationSpec,
+    filter: String,
+  ) {
+    createPopulationSimulator()
+      .testPopulation(
+        "population-version-regression",
+        PopulationData(DATA_PROVIDER_NAME, specification),
+        POPULATION_MODEL_LINE,
+        filter,
+        VersionedEvent.getDescriptor(),
+        configuredVersion,
+      )
+  }
+
+  @Test
+  fun `population expectation preserves historical version across backfill and config removal`() =
+    runBlocking {
+      for ((repositoryVersion, configuredVersion) in listOf(null to 1, 1 to 1, 1 to null)) {
+        clearInvocations(modelLinesServiceMock)
+        val priorThrottlerCalls = kingdomApiThrottler.invocationCount
+        stubPopulationResult(repositoryVersion)
+        testVersionedPopulation(
+          configuredVersion,
+          HISTORICAL_POPULATION,
+          "versioned_common.retired == 2",
+        )
+        verifyBlocking(modelLinesServiceMock) {
+          getModelLine(getModelLineRequest { name = POPULATION_MODEL_LINE })
+        }
+        assertThat(kingdomApiThrottler.invocationCount).isEqualTo(priorThrottlerCalls + 6)
+      }
+    }
+
+  @Test
+  fun `population expectation uses newer model-line version for added field`() = runBlocking {
+    stubPopulationResult(3)
+    val specification = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 100
+        }
+        attributes +=
+          versionedCommon {
+              original = VersionedCommon.Segment.SEGMENT_A
+              later = VersionedCommon.Segment.SEGMENT_B
+            }
+            .pack()
+      }
+    }
+    testVersionedPopulation(null, specification, "versioned_common.later == 2")
+  }
+
+  @Test
+  fun `population expectation rejects conflicting repository and configured versions`() =
+    runBlocking {
+      stubPopulationResult(3)
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          testVersionedPopulation(1, HISTORICAL_POPULATION, "versioned_common.retired == 2")
+        }
+      assertThat(error.message).contains("does not match")
+    }
+
+  @Test
+  fun `population expectation rejects missing repository and configured versions`() = runBlocking {
+    stubPopulationResult(null)
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        testVersionedPopulation(null, HISTORICAL_POPULATION, "versioned_common.retired == 2")
+      }
+    assertThat(error.message).contains("missing")
+  }
+
+  @Test
+  fun `population expectation does not fall back on repository read failure`() = runBlocking {
+    stubPopulationResult(null)
+    modelLinesServiceMock.stub {
+      onBlocking { getModelLine(any()) }.thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    }
+    val error =
+      assertFailsWith<StatusException> {
+        testVersionedPopulation(1, HISTORICAL_POPULATION, "versioned_common.retired == 2")
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+  }
+
   protected class RecordingThrottler : Throttler {
     private val invocationCounter = AtomicInteger()
 
@@ -226,6 +382,24 @@ abstract class AbstractMeasurementConsumerSimulatorTest {
           )
         )
         .toFile()
+
+    private const val POPULATION_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
+    private val HISTORICAL_POPULATION = populationSpec {
+      subpopulations += subPopulation {
+        vidRanges += vidRange {
+          startVid = 1
+          endVidInclusive = 100
+        }
+        attributes +=
+          versionedCommon {
+              original = VersionedCommon.Segment.SEGMENT_A
+              retired = VersionedCommon.Segment.SEGMENT_B
+            }
+            .pack()
+      }
+    }
+    private val MC_ROOT = readCertificate(SECRETS_DIR.resolve("mc_root.pem"))
+    val TRUSTED_CERTIFICATES = mapOf(requireNotNull(MC_ROOT.authorityKeyIdentifier) to MC_ROOT)
 
     const val MC_NAME = "measurementConsumers/mc1"
     private const val MC_CERT_NAME = "$MC_NAME/certificates/cert1"

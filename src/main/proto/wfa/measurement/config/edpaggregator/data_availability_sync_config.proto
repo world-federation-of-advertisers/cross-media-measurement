@@ -118,6 +118,12 @@ message DataAvailabilitySyncConfig {
   // Internal model line resource name to its storage location.
   map<string, ModelLineDataSource> model_line_data_sources = 12;
 
+  // Internal ModelLines whose availability must never be published directly.
+  // Keep this setting when changing cutovers or retiring comparison aliases.
+  // Explicit aliases of these sources still publish their native coverage.
+  repeated string hidden_model_lines = 14
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
+
   // List of model lines to use for a single mapping entry.
   message ModelLineList {
     repeated string model_lines = 1;
