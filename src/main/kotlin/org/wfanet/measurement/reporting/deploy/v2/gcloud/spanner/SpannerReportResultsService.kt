@@ -434,7 +434,12 @@ class SpannerReportResultsService(
             .asRuntimeException()
         }
         requireAssemblyPending(owner)
-        txn.renewReportResultAssembly(result, clock.instant().plus(ASSEMBLY_LEASE_DURATION))
+        val now = clock.instant()
+        if (checkNotNull(result.assembly).leaseExpirationTime <= now) {
+          throw Status.FAILED_PRECONDITION.withDescription("Report assembly lease has expired")
+            .asRuntimeException()
+        }
+        txn.renewReportResultAssembly(result, now.plus(ASSEMBLY_LEASE_DURATION))
       }
 
       if (request.externalBasicReportId.isNotEmpty()) {

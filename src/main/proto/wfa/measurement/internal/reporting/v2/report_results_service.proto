@@ -33,6 +33,7 @@ service ReportResults {
       returns (ReportResult);
 
   // Writes a batch for the current assembly attempt and renews its lease.
+  // Rejects expired leases with FAILED_PRECONDITION before writing results.
   // Only the final batch makes the results available for validation and
   // correction.
   rpc BatchCreateReportResultAssembly(BatchCreateReportResultAssemblyRequest)

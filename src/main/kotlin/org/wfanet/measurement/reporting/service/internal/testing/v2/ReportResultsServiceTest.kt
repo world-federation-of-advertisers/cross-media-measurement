@@ -380,6 +380,101 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
+  fun `expired assembly batches leave committed children and owner unchanged`() {
+    val begin = newAssemblyRequest()
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+    reportResultsStub.batchCreateReportResultAssembly(
+      assemblyBatch(begin, result, finalBatch = false)
+    )
+    val listRequest = listReportingSetResultsRequest {
+      cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      externalReportResultId = result.externalReportResultId
+      view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNPROCESSED
+    }
+    val committed = reportResultsStub.listReportingSetResults(listRequest)
+    val ownerRequest = getBasicReportRequest {
+      cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      externalBasicReportId = begin.externalBasicReportId
+    }
+    val owner = basicReportsStub.getBasicReport(ownerRequest)
+    currentTime = currentTime.plus(Duration.ofMinutes(11))
+
+    for (finalBatch in listOf(false, true)) {
+      val expired =
+        assertFailsWith<StatusException> {
+          reportResultsStub.batchCreateReportResultAssembly(
+            assemblyBatch(begin, result, finalBatch = finalBatch)
+          )
+        }
+      assertThat(expired.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+    assertThat(reportResultsStub.listReportingSetResults(listRequest)).isEqualTo(committed)
+    assertThat(basicReportsStub.getBasicReport(ownerRequest)).isEqualTo(owner)
+
+    reportResultsStub.cleanupReportResultAssemblies(
+      cleanupReportResultAssembliesRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      }
+    )
+    val missing =
+      assertFailsWith<StatusException> {
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      }
+    assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `assembly batch at exact lease expiry requires a fresh attempt`() {
+    val begin = newAssemblyRequest()
+    val expired = reportResultsStub.beginReportResultAssembly(begin)
+    currentTime = currentTime.plus(Duration.ofMinutes(10))
+
+    val failure =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportResultAssembly(
+          assemblyBatch(begin, expired, finalBatch = true)
+        )
+      }
+    assertThat(failure.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(
+        reportResultsStub
+          .listReportingSetResults(
+            listReportingSetResultsRequest {
+              cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+              externalReportResultId = expired.externalReportResultId
+              view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNPROCESSED
+            }
+          )
+          .reportingSetResultsList
+      )
+      .isEmpty()
+    val ownerRequest = getBasicReportRequest {
+      cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      externalBasicReportId = begin.externalBasicReportId
+    }
+    val owner = basicReportsStub.getBasicReport(ownerRequest)
+    assertThat(owner.state).isEqualTo(BasicReport.State.REPORT_CREATED)
+    assertThat(owner.externalReportResultId).isEqualTo(0L)
+
+    val replacement =
+      reportResultsStub.beginReportResultAssembly(
+        begin.copy { requestId = UUID.randomUUID().toString() }
+      )
+    assertThat(replacement.externalReportResultId).isNotEqualTo(expired.externalReportResultId)
+    reportResultsStub.batchCreateReportResultAssembly(
+      assemblyBatch(begin, replacement, finalBatch = true)
+    )
+    val completed = basicReportsStub.getBasicReport(ownerRequest)
+    assertThat(completed.state).isEqualTo(BasicReport.State.UNPROCESSED_RESULTS_READY)
+    assertThat(completed.externalReportResultId).isEqualTo(replacement.externalReportResultId)
+  }
+
+  @Test
   fun `batch writes renew the lease and only the final batch completes assembly`() {
     val begin = newAssemblyRequest()
     val result = reportResultsStub.beginReportResultAssembly(begin)
