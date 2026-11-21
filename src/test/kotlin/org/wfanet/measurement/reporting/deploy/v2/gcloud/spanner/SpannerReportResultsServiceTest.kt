@@ -47,6 +47,7 @@ class SpannerReportResultsServiceTest : ReportResultsServiceTest() {
         spannerClient,
         impressionQualificationFilterMapping,
         idGenerator = idGenerator,
+        clock = clock,
       ),
       SpannerBasicReportsService(
         spannerClient,

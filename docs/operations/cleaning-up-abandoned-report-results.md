@@ -6,11 +6,39 @@ owned-attempt recovery. New owned assembly attempts recover automatically.
 trees left by older workers before upgrading to this release. No recurring
 manual cleanup schedule is needed.
 
+Assembly records the owning BasicReport before writing any result batches.
+The result remains unavailable for validation and optional noise correction
+until the final batch commits.
+
+## Automatic recovery
+
+Each assembly attempt has a ten-minute lease, renewed by committed batch writes.
+A retry discards an expired unfinished tree and rebuilds all its results from the
+completed public Report. The result ID identifies the attempt, so a worker from
+a discarded attempt cannot write to or complete its replacement. Fulfillment
+does not run again.
+
+The assembly job also reclaims up to 100 abandoned attempts on each run for
+each measurement consumer configured with an offline principal. This cleanup
+requires the job to keep running for that consumer. It removes expired
+unfinished attempts and attempts whose owner has failed, become invalid, or no
+longer exists. Cleanup rechecks the
+lease, owner state, and completed association transactionally. Completed trees
+and actively leased attempts for live reports are preserved.
+
+A transformation or batch taking longer than ten minutes can lose its lease
+and need to rebuild. Track repeated assembly failures when tuning worker
+capacity; a lease does not guarantee progress if assembly cannot finish.
+
 ## Deployment order
 
 Apply the Reporting Spanner migration, update all Reporting servers, then update
-the assembly worker. Wait for older assembly writers and their in-flight RPCs
-to finish before recording the environment's upgrade completion time.
+the assembly worker. The worker uses separate assembly RPCs; an older server
+rejects them until it is updated. Keeping the existing RPCs allows older workers
+to finish during the server rollout.
+
+Wait for older assembly writers and their in-flight RPCs to finish before
+recording the environment's upgrade completion time.
 
 ## Optional cleanup of pre-upgrade rows
 

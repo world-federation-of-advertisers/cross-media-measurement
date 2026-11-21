@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner
 
+import java.time.Clock
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.rules.TestRule
@@ -114,6 +115,7 @@ class SpannerBasicReportsServiceTest : BasicReportsServiceTest<SpannerBasicRepor
       SpannerReportResultsService(
         spannerClient = spannerDatabaseClient,
         impressionQualificationFilterMapping = impressionQualificationFilterMapping,
+        clock = Clock.systemUTC(),
       ),
     )
   }

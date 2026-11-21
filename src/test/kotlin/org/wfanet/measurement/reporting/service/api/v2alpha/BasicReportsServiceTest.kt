@@ -260,7 +260,11 @@ class BasicReportsServiceTest {
       )
     )
     addService(
-      SpannerReportResultsService(spannerDatabaseClient, IMPRESSION_QUALIFICATION_FILTER_MAPPING)
+      SpannerReportResultsService(
+        spannerDatabaseClient,
+        IMPRESSION_QUALIFICATION_FILTER_MAPPING,
+        clock = Clock.systemUTC(),
+      )
     )
     addService(PostgresMeasurementConsumersService(idGenerator, postgresDatabaseClient))
     addService(PostgresMetricCalculationSpecsService(idGenerator, postgresDatabaseClient))

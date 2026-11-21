@@ -454,7 +454,8 @@ alone does not establish that a result tree is inactive.
 
 The command rechecks the creation cutoff, absence of ownership, and association
 in each deletion transaction, then deletes the parent and its children together.
-Candidates are read in pages of 100, oldest first. `--limit` caps the number examined per run.
+Candidates are read in pages of 100, oldest first. `--limit` caps the number
+examined per run.
 Output contains external result IDs and examined/deleted/skipped counts.
 `limit_reached=true` indicates that the run stopped at its cap. A
 failure exits nonzero and reports partial progress; rerunning the command
