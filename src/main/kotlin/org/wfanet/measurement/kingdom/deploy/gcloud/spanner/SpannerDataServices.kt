@@ -29,6 +29,7 @@ class SpannerDataServices(
   private val client: AsyncDatabaseClient,
   override val knownEventGroupMetadataTypes: Iterable<Descriptors.FileDescriptor> = emptyList(),
   private val maxEventGroupReadStaleness: Duration = Duration.ofSeconds(1L),
+  private val enableEntityMetadataSearch: Boolean = false,
 ) : DataServices {
   override fun buildDataServices(coroutineContext: CoroutineContext): KingdomDataServices {
     return KingdomDataServices(
@@ -45,7 +46,13 @@ class SpannerDataServices(
         coroutineContext,
       ),
       SpannerEventGroupActivitiesService(idGenerator, client, coroutineContext),
-      SpannerEventGroupsService(idGenerator, client, maxEventGroupReadStaleness, coroutineContext),
+      SpannerEventGroupsService(
+        idGenerator,
+        client,
+        maxEventGroupReadStaleness,
+        coroutineContext,
+        enableEntityMetadataSearch = enableEntityMetadataSearch,
+      ),
       SpannerMeasurementConsumersService(idGenerator, client, coroutineContext),
       SpannerMeasurementsService(idGenerator, client, coroutineContext),
       SpannerPublicKeysService(idGenerator, client, coroutineContext),

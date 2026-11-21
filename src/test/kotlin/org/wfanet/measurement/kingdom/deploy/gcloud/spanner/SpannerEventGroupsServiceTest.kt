@@ -38,7 +38,13 @@ class SpannerEventGroupsServiceTest : EventGroupsServiceTest<SpannerEventGroupsS
     idGenerator: IdGenerator
   ): EventGroupAndHelperServices<SpannerEventGroupsService> {
     val spannerServices =
-      SpannerDataServices(clock, idGenerator, spannerDatabase.databaseClient).buildDataServices()
+      SpannerDataServices(
+          clock,
+          idGenerator,
+          spannerDatabase.databaseClient,
+          enableEntityMetadataSearch = true,
+        )
+        .buildDataServices()
 
     return EventGroupAndHelperServices(
       spannerServices.eventGroupsService as SpannerEventGroupsService,

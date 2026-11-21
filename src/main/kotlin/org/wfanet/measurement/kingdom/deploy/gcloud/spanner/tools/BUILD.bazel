@@ -2,6 +2,28 @@ load("@rules_java//java:defs.bzl", "java_binary")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/docker:macros.bzl", "java_image")
 
+kt_jvm_library(
+    name = "backfill_entity_metadata_values",
+    srcs = ["BackfillEntityMetadataValues.kt"],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/tools:__pkg__"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/common",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+java_binary(
+    name = "BackfillEntityMetadataValues",
+    main_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.tools.BackfillEntityMetadataValuesKt",
+    tags = ["manual"],
+    runtime_deps = [":backfill_entity_metadata_values"],
+)
+
 java_binary(
     name = "UpdateSchema",
     args = [

@@ -35,6 +35,7 @@ class StreamEventGroups(
   private val internalDataProviderId: InternalId?,
   private val internalMeasurementConsumerId: InternalId?,
   limit: Int = 0,
+  private val enableEntityMetadataSearch: Boolean = false,
 ) : SimpleSpannerQuery<EventGroupReader.Result>() {
   override val reader =
     (if (internalDataProviderId == null) {
@@ -141,7 +142,15 @@ class StreamEventGroups(
           .to(filter.dataAvailabilityEndTimeOnOrAfter.toGcloudTimestamp())
       }
       if (filter.metadataSearchQuery.isNotEmpty()) {
-        add("SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)")
+        add(
+          if (enableEntityMetadataSearch) {
+            "(SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY) " +
+              "OR SEARCH(EntityMetadata_Tokens, @$METADATA_SEARCH_QUERY) " +
+              "OR SEARCH(EntityType_Tokens, @$METADATA_SEARCH_QUERY))"
+          } else {
+            "SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)"
+          }
+        )
         bind(METADATA_SEARCH_QUERY).to(filter.metadataSearchQuery)
       }
 

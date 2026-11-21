@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EntityMetadataValues
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
@@ -135,6 +136,7 @@ internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
         Value.protoMessage(null, Struct.getDescriptor())
       }
     set("EntityMetadata").to(entityMetadataValue)
+    set("EntityMetadataValues").toStringArray(EntityMetadataValues.flatten(request.entityMetadata))
   }
 
   transactionContext.syncMediaTypes(
