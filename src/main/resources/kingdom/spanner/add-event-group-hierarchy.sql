@@ -39,9 +39,7 @@ CREATE TABLE EventGroupHierarchies (
   -- https://google.aip.dev/122#resource-id-segments.
   ExternalEventGroupHierarchyId STRING(63) NOT NULL,
 
-  -- Hierarchy activation state, encoded as an integer. PENDING while paths and
-  -- ancestors are being derived; ACTIVE once complete. A PENDING hierarchy is
-  -- not served.
+  -- Encoded wfa.measurement.internal.kingdom.EventGroupHierarchyState.
   State INT64 NOT NULL,
 
   EventGroupHierarchyDetails `wfa.measurement.internal.kingdom.EventGroupHierarchyDetails`
