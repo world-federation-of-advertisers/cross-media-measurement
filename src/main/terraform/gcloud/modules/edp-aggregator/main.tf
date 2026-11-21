@@ -866,7 +866,7 @@ resource "google_monitoring_alert_policy" "data_availability_cleanup_queue" {
   conditions {
     display_name = "Oldest cleanup delivery exceeds the configured age"
     condition_threshold {
-      filter          = "resource.type = \"pubsub_subscription\" AND metric.type = \"pubsub.googleapis.com/subscription/oldest_unacked_message_age\" AND resource.label.subscription_id = \"${module.data_availability_cleanup_work_item_queue.pubsub_subscription.name}\""
+      filter          = "resource.type = \"pubsub_subscription\" AND metric.type = \"pubsub.googleapis.com/subscription/oldest_unacked_message_age\" AND resource.labels.subscription_id = \"${module.data_availability_cleanup_work_item_queue.pubsub_subscription.name}\""
       comparison      = "COMPARISON_GT"
       threshold_value = var.data_availability_cleanup_max_queue_age_seconds
       duration        = "300s"
@@ -879,7 +879,7 @@ resource "google_monitoring_alert_policy" "data_availability_cleanup_queue" {
   conditions {
     display_name = "Cleanup dead-letter queue contains failed deliveries"
     condition_threshold {
-      filter          = "resource.type = \"pubsub_subscription\" AND metric.type = \"pubsub.googleapis.com/subscription/num_undelivered_messages\" AND resource.label.subscription_id = \"${module.data_availability_cleanup_work_item_queue.dead_letter_subscription.name}\""
+      filter          = "resource.type = \"pubsub_subscription\" AND metric.type = \"pubsub.googleapis.com/subscription/num_undelivered_messages\" AND resource.labels.subscription_id = \"${module.data_availability_cleanup_work_item_queue.dead_letter_subscription.name}\""
       comparison      = "COMPARISON_GT"
       threshold_value = 0
       duration        = "300s"
@@ -895,8 +895,8 @@ resource "google_monitoring_alert_policy" "data_availability_cleanup_queue" {
       filter = join(" AND ", [
         "resource.type = \"pubsub_subscription\"",
         "metric.type = \"pubsub.googleapis.com/subscription/dead_letter_message_count\"",
-        "resource.label.subscription_id = \"${module.data_availability_cleanup_work_item_queue.pubsub_subscription.name}\"",
-        "metric.label.response_code = \"success\"",
+        "resource.labels.subscription_id = \"${module.data_availability_cleanup_work_item_queue.pubsub_subscription.name}\"",
+        "metric.labels.response_code = \"success\"",
       ])
       comparison      = "COMPARISON_GT"
       threshold_value = 0
