@@ -44,6 +44,13 @@ service ReportResults {
 
   // Gets a `ReportResult`.
   rpc GetReportResult(GetReportResultRequest) returns (ReportResult);
+
+  // Discards a `ReportResult` and its children if no `BasicReport` is
+  // associated.
+  //
+  // Does nothing if the result is associated or does not exist.
+  rpc DiscardReportResult(DiscardReportResultRequest)
+      returns (google.protobuf.Empty);
 }
 
 // Request message for the `CreateReportResult` method.
@@ -126,6 +133,14 @@ message AddProcessedResultValuesRequest {
 
   // TODO(@SanjayVas): Support including log entry for processor once the format
   // is defined.
+}
+
+// Request message for the `DiscardReportResult` method.
+message DiscardReportResultRequest {
+  // The CMMS MeasurementConsumer ID. Required.
+  string cmms_measurement_consumer_id = 1;
+  // The external ID of the ReportResult. Required.
+  fixed64 external_report_result_id = 2;
 }
 
 message GetReportResultRequest {

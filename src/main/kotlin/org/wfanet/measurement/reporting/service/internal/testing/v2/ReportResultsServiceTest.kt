@@ -76,6 +76,7 @@ import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
+import org.wfanet.measurement.internal.reporting.v2.discardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
@@ -137,6 +138,162 @@ abstract class ReportResultsServiceTest {
     idGenerator: IdGenerator,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   ): List<BindableService>
+
+  @Test
+  fun `discardReportResult reclaims committed prefix and permits a complete retry`() {
+    val basicReport = ensureMeasurementConsumer()
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        externalReportId = "report"
+      }
+    )
+    val result = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val requests =
+      (0..100).map { index ->
+        BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.requestsList.first().copy {
+          reportingSetResult =
+            reportingSetResult.copy {
+              dimension = dimension.copy { externalReportingSetId = "set$index" }
+            }
+        }
+      }
+    val firstBatch =
+      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.copy {
+          this.requests.clear()
+          this.requests += requests.take(100)
+        }
+        .withExternalReportResultId(result.externalReportResultId)
+    reportResultsStub.batchCreateReportingSetResults(firstBatch)
+    val secondBatch =
+      firstBatch
+        .copy {
+          this.requests.clear()
+          this.requests +=
+            requests.last().copy {
+              reportingSetResult =
+                reportingSetResult.copy {
+                  dimension = dimension.copy { externalReportingSetId = "" }
+                }
+            }
+        }
+        .withExternalReportResultId(result.externalReportResultId)
+    val failure =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportingSetResults(secondBatch)
+      }
+    assertThat(failure.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val request = discardReportResultRequest {
+      cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+      externalReportResultId = result.externalReportResultId
+    }
+    reportResultsStub.discardReportResult(request)
+    reportResultsStub.discardReportResult(request)
+    val error =
+      assertFailsWith<StatusException> {
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.NOT_FOUND)
+
+    val retry = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    for ((index, batch) in requests.chunked(100).withIndex()) {
+      reportResultsStub.batchCreateReportingSetResults(
+        firstBatch
+          .copy {
+            this.requests.clear()
+            this.requests += batch
+            if (index == 1) externalBasicReportId = basicReport.externalBasicReportId
+          }
+          .withExternalReportResultId(retry.externalReportResultId)
+      )
+    }
+    val results =
+      reportResultsStub.listReportingSetResults(
+        listReportingSetResultsRequest {
+          cmmsMeasurementConsumerId = retry.cmmsMeasurementConsumerId
+          externalReportResultId = retry.externalReportResultId
+        }
+      )
+    assertThat(results.reportingSetResultsList.map { it.dimension.externalReportingSetId })
+      .containsExactlyElementsIn((0..100).map { "set$it" })
+  }
+
+  @Test
+  fun `discardReportResult preserves results already associated with a BasicReport`() {
+    val basicReport = ensureMeasurementConsumer()
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        externalReportId = "report"
+      }
+    )
+    val result = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val created =
+      reportResultsStub.batchCreateReportingSetResults(
+        BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+            result.externalReportResultId
+          )
+          .copy { externalBasicReportId = basicReport.externalBasicReportId }
+      )
+    reportResultsStub.discardReportResult(
+      discardReportResultRequest {
+        cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+        externalReportResultId = result.externalReportResultId
+      }
+    )
+
+    assertThat(
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      )
+      .isEqualTo(result)
+    assertThat(
+        reportResultsStub
+          .listReportingSetResults(
+            listReportingSetResultsRequest {
+              cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+              externalReportResultId = result.externalReportResultId
+            }
+          )
+          .reportingSetResultsList
+      )
+      .containsExactlyElementsIn(created.reportingSetResultsList)
+    assertThat(
+        basicReportsStub
+          .getBasicReport(
+            getBasicReportRequest {
+              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+              externalBasicReportId = basicReport.externalBasicReportId
+            }
+          )
+          .state
+      )
+      .isEqualTo(BasicReport.State.UNPROCESSED_RESULTS_READY)
+  }
+
+  @Test
+  fun `discardReportResult requires measurement consumer and result IDs`() {
+    for (request in
+      listOf(
+        discardReportResultRequest { externalReportResultId = 1 },
+        discardReportResultRequest { cmmsMeasurementConsumerId = "mc" },
+      )) {
+      val error =
+        assertFailsWith<StatusException> { reportResultsStub.discardReportResult(request) }
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+  }
 
   @Test
   fun `createReportResult creates ReportResult`() {
