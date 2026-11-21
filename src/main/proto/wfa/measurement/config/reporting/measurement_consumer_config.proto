@@ -35,6 +35,9 @@ message MeasurementConsumerConfig {
   string offline_principal = 4 [
     (google.api.resource_reference) = { type: "access.halo-cmm.org/Principal" }
   ];
+  // Whether this `MeasurementConsumer`'s `BasicReport`s take the
+  // multimeasurement path when the deployment allows it per consumer.
+  bool multimeasurement_enabled = 5;
   // Possibly other per-MC config fields here in the future, such as folding in
   // the key pair mapping.
 }
