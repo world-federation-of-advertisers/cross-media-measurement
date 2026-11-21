@@ -74,7 +74,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsReques
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobFailedRequest
@@ -531,19 +530,12 @@ class VidLabelingMonitor(
   private suspend fun listUploadModelLines(uploadName: String): List<RawImpressionUploadModelLine> =
     rawImpressionUploadModelLineStub
       .listResources { pageToken: String ->
-        // Let StatusException propagate with its gRPC Status.Code intact (see listUploads).
-        val response =
-          rpcThrottlers.metadataRead.onReady {
-            rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
-              listRawImpressionUploadModelLinesRequest {
-                parent = uploadName
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
-                }
-              }
-            )
-          }
-        ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
+        VidLabelingMetadataReader.uploadModelLinesPage(
+          rawImpressionUploadModelLineStub,
+          rpcThrottlers.metadataRead,
+          uploadName,
+          pageToken,
+        )
       }
       .flattenConcat()
       .toList()

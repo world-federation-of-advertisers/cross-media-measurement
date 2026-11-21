@@ -38,9 +38,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
@@ -59,18 +57,17 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrec
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItemPublisher
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
+import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadRevisions
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMetadataReader
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest as InternalLabeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
@@ -1154,7 +1151,7 @@ class VidLabelingHealingController(
           it.uploadHealingOperation == operation.name &&
           (approvedUpload != null || it.replacesRawImpressionUpload == sourceName)
       }
-    val latest = exactReplacement ?: findLatestUpload(revisions) ?: return null
+    val latest = exactReplacement ?: RawImpressionUploadRevisions.latest(revisions) ?: return null
     val inPlaceRecovery =
       latest.name == sourceName &&
         steps.all {
@@ -1162,7 +1159,10 @@ class VidLabelingHealingController(
             RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY &&
             it.recoveryDoneBlobGeneration == source.doneBlobGeneration
         }
-    if (!inPlaceRecovery && !replacesUpload(latest.name, sourceName, revisions)) return null
+    if (
+      !inPlaceRecovery && !RawImpressionUploadRevisions.replaces(latest.name, sourceName, revisions)
+    )
+      return null
     val rows = listModelLines(latest.name).associateBy { it.cmmsModelLine }
     if (latest.state == RawImpressionUpload.State.FAILED) {
       val stillEvicted =
@@ -1205,94 +1205,28 @@ class VidLabelingHealingController(
     return latest
   }
 
-  private suspend fun listUploads(parent: String, doneBlobUri: String): List<RawImpressionUpload> {
-    val uploads = mutableListOf<RawImpressionUpload>()
-    var pageToken = ""
-    do {
-      val response =
-        rpcThrottlers.metadataRead.onReady {
-          uploadsStub.listRawImpressionUploads(
-            listRawImpressionUploadsRequest {
-              this.parent = parent
-              filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
-              this.pageToken = pageToken
-            }
-          )
-        }
-      uploads += response.rawImpressionUploadsList
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return uploads
-  }
+  private suspend fun listUploads(parent: String, doneBlobUri: String): List<RawImpressionUpload> =
+    VidLabelingMetadataReader.uploadRevisions(
+      uploadsStub,
+      rpcThrottlers.metadataRead,
+      parent,
+      doneBlobUri,
+    )
 
-  private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> {
-    val rows = mutableListOf<RawImpressionUploadModelLine>()
-    var pageToken = ""
-    do {
-      val response =
-        rpcThrottlers.metadataRead.onReady {
-          modelLinesStub.listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = uploadName
-              this.pageToken = pageToken
-            }
-          )
-        }
-      rows += response.rawImpressionUploadModelLinesList
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return rows
-  }
+  private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> =
+    VidLabelingMetadataReader.uploadModelLines(
+      modelLinesStub,
+      rpcThrottlers.metadataRead,
+      uploadName,
+    )
 
-  private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
-    val response =
-      rpcThrottlers.metadataRead.onReady {
-        rankIndexBlobsStub.listRankIndexBlobs(
-          listRankIndexBlobsRequest {
-            parent = uploadName
-            pageSize = 1
-            filter =
-              org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt.filter {
-                blobType = RankIndexBlob.BlobType.SNAPSHOT
-                this.cmmsModelLine = cmmsModelLine
-              }
-          }
-        )
-      }
-    return response.rankIndexBlobsCount > 0
-  }
-
-  private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload? {
-    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
-    return if (timestamped.isNotEmpty()) {
-      timestamped.maxWithOrNull { left, right ->
-        val doneTime = Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
-        if (doneTime != 0) {
-          doneTime
-        } else {
-          val createTime = Timestamps.compare(left.createTime, right.createTime)
-          if (createTime != 0) createTime else left.name.compareTo(right.name)
-        }
-      }
-    } else {
-      uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
-    }
-  }
-
-  private fun replacesUpload(
-    candidateName: String,
-    sourceName: String,
-    revisions: List<RawImpressionUpload>,
-  ): Boolean {
-    val byName = revisions.associateBy { it.name }
-    val visited = mutableSetOf<String>()
-    var current = byName[candidateName]?.replacesRawImpressionUpload.orEmpty()
-    while (current.isNotEmpty() && visited.add(current)) {
-      if (current == sourceName) return true
-      current = byName[current]?.replacesRawImpressionUpload.orEmpty()
-    }
-    return false
-  }
+  private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean =
+    VidLabelingMetadataReader.hasActiveSnapshot(
+      rankIndexBlobsStub,
+      rpcThrottlers.metadataRead,
+      uploadName,
+      cmmsModelLine,
+    )
 
   private suspend fun supersedingRevisions(
     candidateUpload: RawImpressionUpload,

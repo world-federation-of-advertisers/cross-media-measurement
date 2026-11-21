@@ -414,6 +414,44 @@ class EvictUploaderTest {
   }
 
   @Test
+  fun `planCorrection preserves eviction ordering when done creation times tie`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+              doneBlobUri = "gs://raw/d1/done"
+              doneBlobGeneration = 1L
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2-old")
+              createTime = T2.toProtoTime()
+              doneBlobUri = "gs://raw/d2/done"
+              doneBlobGeneration = 200L
+              doneBlobCreateTime = T2.toProtoTime()
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2-new")
+              createTime = T3.toProtoTime()
+              doneBlobUri = "gs://raw/d2/done"
+              doneBlobGeneration = 100L
+              doneBlobCreateTime = T2.toProtoTime()
+              replacesRawImpressionUpload = uploadName("up2-old")
+            }
+          }
+        )
+      stubModelLineRows("up1", "up2-old", "up2-new")
+      stubSnapshotRows("up1", "up2-old", "up2-new")
+
+      val plan = evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
+
+      assertThat(plan.recoveryTargets)
+        .containsExactly(EvictUploader.RecoveryTarget(uploadName("up2-old"), listOf(MODEL_LINE)))
+    }
+
+  @Test
   fun `planCorrection skips a previously removed upload when selecting the first predecessor`():
     Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))

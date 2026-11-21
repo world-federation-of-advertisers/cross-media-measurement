@@ -147,6 +147,200 @@ class RecoverUploaderTest {
   }
 
   @Test
+  fun `recover preserves legacy latest selection across page boundaries`() = runBlocking {
+    stubSourceUpload()
+    stubModelLine(RawImpressionUploadModelLine.State.FAILED, recoveryPredecessorUpload = "")
+    stubSnapshot()
+    val source = rawImpressionUpload {
+      name = UPLOAD
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_URI
+      doneBlobGeneration = GENERATION
+      createTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+    }
+    val firstPageRevision =
+      source.copy {
+        name = REPLACEMENT_UPLOAD
+        doneBlobGeneration = GENERATION + 1
+      }
+    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(source)
+    whenever(uploadsService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
+        >(
+          0
+        )
+      listRawImpressionUploadsResponse {
+        if (request.pageToken.isEmpty()) {
+          rawImpressionUploads += firstPageRevision
+          nextPageToken = "second"
+        } else {
+          rawImpressionUploads += source
+        }
+      }
+    }
+    var rewrittenSourceGeneration: Long? = null
+
+    val result =
+      recoverUploader { _, generation, _ ->
+          rewrittenSourceGeneration = generation
+          NEW_GENERATION
+        }
+        .recover(UPLOAD, listOf(MODEL_LINE))
+
+    assertThat(result.sourceUpload).isEqualTo(UPLOAD)
+    assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+    assertThat(rewrittenSourceGeneration).isEqualTo(GENERATION)
+  }
+
+  @Test
+  fun `recover rejects a live snapshot after deleted-only pages without rewriting done`() =
+    runBlocking {
+      stubSourceUpload()
+      stubModelLine(RawImpressionUploadModelLine.State.FAILED, recoveryPredecessorUpload = "")
+      val requests =
+        mutableListOf<org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest>()
+      whenever(rankIndexBlobsService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+          >(
+            0
+          )
+        requests += request
+        listRankIndexBlobsResponse {
+          rankIndexBlobs += rankIndexBlob {
+            name = "$UPLOAD/rankIndexBlobs/${request.pageToken.ifEmpty { "deleted" }}"
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            cmmsModelLine = MODEL_LINE
+            if (request.pageToken.isEmpty()) deleteTime = Timestamp.getDefaultInstance()
+          }
+          if (request.pageToken.isEmpty()) nextPageToken = "live"
+        }
+      }
+      var rewritten = false
+
+      val failure =
+        assertFailsWith<IllegalArgumentException> {
+          recoverUploader { _, _, _ ->
+              rewritten = true
+              NEW_GENERATION
+            }
+            .recover(UPLOAD, listOf(MODEL_LINE))
+        }
+
+      assertThat(failure).hasMessageThat().contains("complete set of FAILED memoized model lines")
+      assertThat(rewritten).isFalse()
+      assertThat(requests.map { it.pageToken }).containsExactly("", "live").inOrder()
+      assertThat(
+          requests.all {
+            it.parent == UPLOAD &&
+              it.showDeleted &&
+              it.filter.cmmsModelLine == MODEL_LINE &&
+              it.filter.blobType == RankIndexBlob.BlobType.SNAPSHOT
+          }
+        )
+        .isTrue()
+    }
+
+  @Test
+  fun `recover rejects cyclic predecessor lineage without rewriting done`() = runBlocking {
+    stubSourceUpload()
+    stubModelLine(RawImpressionUploadModelLine.State.FAILED)
+    stubSnapshot()
+    val source = rawImpressionUpload {
+      name = UPLOAD
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_URI
+      doneBlobGeneration = GENERATION
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+    }
+    val cycleA = rawImpressionUpload {
+      name = "$DATA_PROVIDER/rawImpressionUploads/cycle-a"
+      doneBlobUri = PREDECESSOR_DONE_BLOB_URI
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+      replacesRawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/cycle-b"
+    }
+    val cycleB =
+      cycleA.copy {
+        name = "$DATA_PROVIDER/rawImpressionUploads/cycle-b"
+        replacesRawImpressionUpload = cycleA.name
+      }
+    whenever(uploadsService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
+        >(
+          0
+        )
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads +=
+          if (request.filter.doneBlobUri == DONE_BLOB_URI) listOf(source)
+          else listOf(cycleA, cycleB)
+      }
+    }
+    var rewritten = false
+
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader { _, _, _ ->
+            rewritten = true
+            NEW_GENERATION
+          }
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+
+    assertThat(failure).hasMessageThat().contains("does not replace recovery predecessor")
+    assertThat(rewritten).isFalse()
+  }
+
+  @Test
+  fun `recover retains state failure when planned predecessor replacement is missing`() =
+    runBlocking {
+      stubSourceUpload()
+      stubModelLine(RawImpressionUploadModelLine.State.FAILED)
+      stubSnapshot()
+      val operation = uploadHealingOperation {
+        name = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
+        state = UploadHealingOperation.State.RECOVERING
+        steps += uploadHealingStep {
+          sourceRawImpressionUpload = PREDECESSOR_UPLOAD
+          cmmsModelLine = MODEL_LINE
+          recoveryTarget = true
+          state = UploadHealingStep.State.COMPLETE
+          replacementRawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/missing-replacement"
+        }
+        steps += uploadHealingStep {
+          sourceRawImpressionUpload = UPLOAD
+          rawImpressionUploadModelLine = "$UPLOAD/rawImpressionUploadModelLines/rml1"
+          cmmsModelLine = MODEL_LINE
+          recoveryTarget = true
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+      }
+      var rewritten = false
+
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          recoverUploader(
+              getHealingOperation = { operation },
+              rewriteDoneBlob = { _, _, _ ->
+                rewritten = true
+                NEW_GENERATION
+              },
+            )
+            .recover(UPLOAD, listOf(MODEL_LINE))
+        }
+
+      assertThat(failure)
+        .hasMessageThat()
+        .contains("Planned recovery predecessor replacement is missing")
+      assertThat(rewritten).isFalse()
+    }
+
+  @Test
   fun `recover rejects a rewrite that returns the source generation`() = runBlocking {
     stubSourceUpload()
     stubModelLine(RawImpressionUploadModelLine.State.FAILED)
@@ -492,6 +686,52 @@ class RecoverUploaderTest {
     }
 
   @Test
+  fun `recover rejects history without the later source pool checkpoint`() = runBlocking {
+    val fixture = historicalFixture(paginated = true, missingSourcePoolCheckpoint = true)
+    var rewritten = false
+
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader(
+            getHealingOperation = { fixture },
+            rewriteDoneBlob = { _, _, _ ->
+              rewritten = true
+              NEW_GENERATION
+            },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+
+    assertThat(failure)
+      .hasMessageThat()
+      .contains("No upload revision found for recovery predecessor")
+    assertThat(rewritten).isFalse()
+  }
+
+  @Test
+  fun `recover rejects history without the later historical owner snapshot`() = runBlocking {
+    val fixture = historicalFixture(paginated = true, missingOwnerSnapshots = true)
+    var rewritten = false
+
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader(
+            getHealingOperation = { fixture },
+            rewriteDoneBlob = { _, _, _ ->
+              rewritten = true
+              NEW_GENERATION
+            },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+
+    assertThat(failure)
+      .hasMessageThat()
+      .contains("No upload revision found for recovery predecessor")
+    assertThat(rewritten).isFalse()
+  }
+
+  @Test
   fun `recover rejects historical AS when approved target is not memoized`(): Unit = runBlocking {
     val fixture = historicalFixture(memoized = false)
     val error =
@@ -728,6 +968,8 @@ class RecoverUploaderTest {
     laterSnapshot: Boolean = false,
     foreignPredecessor: Boolean = false,
     scopeDecoys: Boolean = false,
+    missingSourcePoolCheckpoint: Boolean = false,
+    missingOwnerSnapshots: Boolean = false,
   ): UploadHealingOperation {
     val source = rawImpressionUpload {
       name = UPLOAD
@@ -815,20 +1057,38 @@ class RecoverUploaderTest {
           0
         )
       listRankIndexBlobsResponse {
-        rankIndexBlobs += rankIndexBlob {
-          name = "${request.parent}/rankIndexBlobs/${request.pageToken.ifEmpty { "first" }}"
-          cmmsModelLine = MODEL_LINE
-          blobType = RankIndexBlob.BlobType.SNAPSHOT
-          poolOffset = if (request.pageToken.isEmpty()) 0L else 1L
-          createTime =
-            DONE_BLOB_CREATE_TIME.plusSeconds(
-                if (request.parent == UPLOAD) 10 else if (laterSnapshot) 15 else -5
-              )
-              .toProtoTime()
-          if (request.parent == UPLOAD)
-            deleteTime = DONE_BLOB_CREATE_TIME.plusSeconds(20).toProtoTime()
+        val originalSource = request.parent == UPLOAD
+        val firstPage = request.pageToken.isEmpty()
+        val existenceProbe = request.pageSize == 1
+        if (
+          (!paginated || originalSource || !firstPage || existenceProbe) &&
+            (originalSource || !missingOwnerSnapshots)
+        ) {
+          rankIndexBlobs += rankIndexBlob {
+            name = "${request.parent}/rankIndexBlobs/${request.pageToken.ifEmpty { "first" }}"
+            cmmsModelLine = MODEL_LINE
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            poolOffset = if (paginated && !originalSource) 1L else if (firstPage) 0L else 1L
+            createTime =
+              DONE_BLOB_CREATE_TIME.plusSeconds(
+                  if (originalSource) {
+                    if (paginated && !firstPage) 20 else 10
+                  } else if (laterSnapshot) {
+                    if (paginated) 25 else 15
+                  } else {
+                    if (paginated) 15 else -5
+                  }
+                )
+                .toProtoTime()
+            if (originalSource) deleteTime = DONE_BLOB_CREATE_TIME.plusSeconds(20).toProtoTime()
+          }
         }
-        if (paginated && request.pageSize != 1 && request.pageToken.isEmpty())
+        if (
+          paginated &&
+            !existenceProbe &&
+            firstPage &&
+            (!originalSource || !missingSourcePoolCheckpoint)
+        )
           nextPageToken = "second"
       }
     }
