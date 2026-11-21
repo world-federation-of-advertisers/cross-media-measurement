@@ -57,3 +57,5 @@ vid_labeling_healing_labeled_output_object_prefixes = [
   "vid-labeled-impressions/edp/edp7/",
   "vid-labeled-impressions/edp/edpa_meta/",
 ]
+
+data_watcher_delete_work_item_config_file_path = "envs/qa/data-watcher-delete-work-items-config.textproto"

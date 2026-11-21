@@ -113,6 +113,26 @@ variable "retry_on_failure" {
   default     = true
 }
 
+variable "max_instances" {
+  description = "Maximum function instances. Null retains the deployment default."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.max_instances == null ? true : var.max_instances >= 1 && floor(var.max_instances) == var.max_instances
+    error_message = "Maximum instances must be a positive integer."
+  }
+}
+
+variable "concurrency" {
+  description = "Maximum requests per instance. Null retains the deployment default."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.concurrency == null ? true : var.concurrency >= 1 && var.concurrency <= 1000 && floor(var.concurrency) == var.concurrency
+    error_message = "Concurrency must be an integer from 1 to 1000."
+  }
+}
+
 variable "alert_notification_channels" {
   description = "List of Cloud Monitoring notification channel IDs for DLQ alerts. If empty, the alert fires but no notification is sent."
   type        = list(string)

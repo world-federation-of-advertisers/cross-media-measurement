@@ -73,6 +73,64 @@ internal prefix. External upload producers do not need to change their paths.
 
 ## Metadata cleanup in versioned buckets
 
+### WorkItem delivery
+
+The deletion watcher stores one cleanup WorkItem for each file generation before
+acknowledging the notification. Delete and archive notifications for the same
+generation share a job. Older notifications without a generation use their
+notification ID. The worker looks up current metadata by the file path and
+checks for a live file when it executes. Queued jobs do not store object
+metadata or a metadata etag.
+
+The deletion watcher also limits queue writes: it runs at most
+`data_watcher_delete_max_instances` instances (default 10), with one event per
+instance. `data_watcher_delete_control_plane_throttler_millis` sets the minimum
+interval between each instance's control-plane requests (default 100 milliseconds).
+
+Cleanup uses `data-availability-cleanup-queue`, independently of availability
+sync. Different files can run in parallel. Each cleanup instance handles one
+request, and `data_availability_cleanup_max_instances` limits the number of
+instances (default 5). `THROTTLER_MILLIS` sets the minimum interval between each
+instance's metadata requests (default 250 milliseconds).
+`CLEANUP_RPC_TIMEOUT_SECONDS` bounds metadata requests (default 30 seconds).
+Availability sync retains its own throttler and five-instance limit. During the
+initial rollout, its inline cleanup uses that sync throttler too.
+
+Failed attempts retry with the queue's increasing delivery delays. Exhausted
+deliveries go to `data-availability-cleanup-queue-dlq`; the control plane records
+the failed WorkItem. Use the existing WorkItem retry operation after repairing
+the cause. Check both failed WorkItems and the queue's oldest unacknowledged
+message age. Configure `data_availability_cleanup_alert_notification_channels`
+for notifications; the queue age threshold is
+`data_availability_cleanup_max_queue_age_seconds` (default 30 minutes).
+Alerts also count deliveries sent to the dead-letter queue, even after those
+deliveries have been acknowledged.
+
+#### Switch cleanup to WorkItems
+
+Uploads and file deletions can continue during these steps:
+
+1. Apply the queue infrastructure with
+   `data_availability_cleanup_work_item_dispatch_enabled = false`. This keeps
+   notifications on the existing HTTP route while creating the cleanup queue
+   and its permissions.
+2. Deploy the updated Secure Computation internal API server and its queue
+   registry, cleanup function, and deletion watcher. Wait for those deployments
+   to finish before changing the routing setting. The updated cleanup function
+   accepts both queued jobs and existing HTTP requests.
+3. Set `data_availability_cleanup_work_item_dispatch_enabled = true` in the
+   environment's Terraform configuration and run the normal deployment
+   workflow. New notifications now create WorkItems.
+4. Check failed WorkItems and both the source-event and WorkItem dead-letter
+   queues. Retry failed source events with the replay command below; retry
+   failed WorkItems with the WorkItem retry operation.
+
+Keep the updated cleanup function deployed while queued jobs remain. To return
+new notifications to the HTTP route, set the routing setting to `false`; queued
+jobs still need the updated worker to finish. Older workers receiving a queued
+job return an error, preserving it for retry. Older metadata APIs likewise
+cause retryable failures until they support conditional deletion.
+
 The metadata deletion watcher receives both object-deleted and object-archived
 events. In a versioned bucket, deleting a live object without specifying a
 generation makes that version noncurrent and emits an archive event. Overwriting

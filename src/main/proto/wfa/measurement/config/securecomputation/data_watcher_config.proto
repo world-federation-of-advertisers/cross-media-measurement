@@ -45,6 +45,9 @@ message WatchedPath {
     // Stable ordering key for tasks sharing a synchronization destination.
     // Empty preserves unordered publication.
     string serialization_key = 3;
+    // Allow old deletion events without object generation or creation time.
+    // Requires an unordered route and a source event ID for deduplication.
+    bool allow_missing_source_identity = 4;
   }
   // The config used for any Webhooks
   message HttpEndpointSink {
