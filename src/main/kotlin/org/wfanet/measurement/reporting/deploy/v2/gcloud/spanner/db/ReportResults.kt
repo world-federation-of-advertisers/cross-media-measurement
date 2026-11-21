@@ -17,13 +17,19 @@
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db
 
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.type.DateTime
+import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.singleOrNull
 import org.wfanet.measurement.common.toProtoDateTime
 import org.wfanet.measurement.common.toZonedDateTime
@@ -32,6 +38,7 @@ import org.wfanet.measurement.gcloud.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.reporting.service.internal.ReportResultNotFoundException
@@ -40,6 +47,7 @@ data class ReportResultResult(
   val measurementConsumerId: Long,
   val reportResultId: Long,
   val reportResult: ReportResult,
+  val createTime: Instant,
 )
 
 suspend fun AsyncDatabaseClient.ReadContext.reportResultExists(
@@ -103,6 +111,7 @@ suspend fun AsyncDatabaseClient.ReadContext.readReportResult(
     SELECT
       MeasurementConsumerId,
       ReportResultId,
+      ReportResults.CreateTime,
       ReportIntervalStartTime,
       ReportIntervalStartTimeZoneOffset,
       ReportIntervalStartTimeZoneId,
@@ -139,5 +148,98 @@ suspend fun AsyncDatabaseClient.ReadContext.readReportResult(
     reportStart = ZonedDateTime.ofInstant(reportStartTimestamp, zoneId).toProtoDateTime()
   }
 
-  return ReportResultResult(measurementConsumerId, reportResultId, reportResult)
+  return ReportResultResult(
+    measurementConsumerId,
+    reportResultId,
+    reportResult,
+    row.getTimestamp("CreateTime").toInstant(),
+  )
+}
+
+/** External reference and creation time of an unassociated result tree. */
+data class UnassociatedReportResult(val externalReportResultId: Long, val createTime: Instant)
+
+/** Reads old, unassociated trees in creation-time and external-ID order. */
+fun AsyncDatabaseClient.ReadContext.readUnassociatedReportResults(
+  cmmsMeasurementConsumerId: String,
+  createdBefore: Instant,
+  limit: Int,
+  after: UnassociatedReportResult?,
+): Flow<UnassociatedReportResult> {
+  require(limit > 0)
+  val query =
+    statement(
+      """
+    SELECT ReportResults.ExternalReportResultId, ReportResults.CreateTime
+    FROM MeasurementConsumers
+    JOIN ReportResults USING (MeasurementConsumerId)
+    WHERE CmmsMeasurementConsumerId = @cmmsMeasurementConsumerId
+      AND ReportResults.CreateTime < @createdBefore
+      AND NOT EXISTS (
+        SELECT 1 FROM BasicReports
+        WHERE BasicReports.MeasurementConsumerId = ReportResults.MeasurementConsumerId
+          AND BasicReports.ReportResultId = ReportResults.ReportResultId
+      )
+      ${if (after == null) "" else """
+      AND (ReportResults.CreateTime > @afterCreateTime
+        OR (ReportResults.CreateTime = @afterCreateTime
+          AND ReportResults.ExternalReportResultId > @afterExternalReportResultId))
+      """}
+    ORDER BY ReportResults.CreateTime, ReportResults.ExternalReportResultId
+    LIMIT @limit
+    """
+        .trimIndent()
+    ) {
+      bind("cmmsMeasurementConsumerId").to(cmmsMeasurementConsumerId)
+      bind("createdBefore").to(createdBefore.toGcloudTimestamp())
+      bind("limit").to(limit.toLong())
+      if (after != null) {
+        bind("afterCreateTime").to(after.createTime.toGcloudTimestamp())
+        bind("afterExternalReportResultId").to(after.externalReportResultId)
+      }
+    }
+  return executeQuery(query, Options.tag("action=readUnassociatedReportResults")).map { row ->
+    UnassociatedReportResult(
+      row.getLong("ExternalReportResultId"),
+      row.getTimestamp("CreateTime").toInstant(),
+    )
+  }
+}
+
+/**
+ * Discards a result tree only if no BasicReport is associated with it.
+ *
+ * @param createdBefore when non-null, trees created at or after this time are preserved
+ * @return whether the tree was deleted
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.discardReportResult(
+  cmmsMeasurementConsumerId: String,
+  externalReportResultId: Long,
+  createdBefore: Instant? = null,
+): Boolean {
+  val result =
+    try {
+      readReportResult(cmmsMeasurementConsumerId, externalReportResultId)
+    } catch (e: ReportResultNotFoundException) {
+      return false
+    }
+  if (createdBefore != null && result.createTime >= createdBefore) {
+    return false
+  }
+  val filter =
+    ListBasicReportsRequestKt.filter {
+      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+      this.externalReportResultId = externalReportResultId
+    }
+  // Serialize the association check and deletion with final-batch publication.
+  if (readBasicReports(filter).firstOrNull() != null) {
+    return false
+  }
+  buffer(
+    Mutation.delete(
+      "ReportResults",
+      KeySet.singleKey(Key.of(result.measurementConsumerId, result.reportResultId)),
+    )
+  )
+  return true
 }
