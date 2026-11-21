@@ -380,18 +380,41 @@ class HighOverlapDatasetCleanupTest {
     }
 
   @Test
-  fun `prepareIfNeeded cleans the configured paths when the manifest is invalid`() =
+  fun `prepareIfNeeded preserves all data when the manifest is invalid without cleanup state`() =
     runBlocking<Unit> {
       val storage = InMemoryStorageClient()
       storage.writeBlob(MANIFEST_KEY, ByteString.copyFromUtf8("invalid"))
-      writeBlobs(storage, listOf(IMPRESSION_KEY))
+      val removedKey = "edp/removed-edp/model-line/$MODEL_LINE_ID/impressions.binpb"
+      writeBlobs(storage, listOf(IMPRESSION_KEY, removedKey))
+      val originalContents = storage.contents.toMap()
 
-      val needsSeeding =
-        HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
-          .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+        }
 
-      assertThat(needsSeeding).isTrue()
-      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
+      assertThat(exception.message).contains("previous impression paths")
+      assertThat(storage.contents).isEqualTo(originalContents)
+    }
+
+  @Test
+  fun `prepareForReseeding preserves all data when the manifest is invalid without cleanup state`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      storage.writeBlob(MANIFEST_KEY, ByteString.copyFromUtf8("invalid"))
+      val renamedKey = "previous/output/model-line/$MODEL_LINE_ID/impressions.binpb"
+      writeBlobs(storage, listOf(IMPRESSION_KEY, renamedKey))
+      val originalContents = storage.contents.toMap()
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareForReseeding(setOf(IMPRESSION_PATH))
+        }
+
+      assertThat(exception.message).contains("previous impression paths")
+      assertThat(storage.contents).isEqualTo(originalContents)
     }
 
   @Test
