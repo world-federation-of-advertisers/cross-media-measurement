@@ -1,0 +1,52 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+kt_jvm_library(
+    name = "latency_stats",
+    srcs = ["LatencyStats.kt"],
+    visibility = ["//visibility:private"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+    ],
+)
+
+kt_jvm_library(
+    name = "write_event_groups",
+    srcs = ["WriteEventGroups.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "WriteEventGroups",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.tools.WriteEventGroups",
+    runtime_deps = [":write_event_groups"],
+)
+
+kt_jvm_library(
+    name = "read_event_groups",
+    srcs = ["ReadEventGroups.kt"],
+    deps = [
+        ":latency_stats",
+        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "ReadEventGroups",
+    main_class = "org.wfanet.measurement.loadtest.dataprovider.tools.ReadEventGroups",
+    runtime_deps = [":read_event_groups"],
+)
