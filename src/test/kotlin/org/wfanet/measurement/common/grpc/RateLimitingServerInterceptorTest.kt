@@ -84,7 +84,7 @@ class RateLimitingServerInterceptorTest {
         stub.cancelOperation(CancelOperationRequest.getDefaultInstance())
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
     verifyBlocking(serviceMock, never()) { cancelOperation(any()) }
   }
 
@@ -112,6 +112,6 @@ class RateLimitingServerInterceptorTest {
       assertFailsWith<StatusRuntimeException> {
         stub.deleteOperation(DeleteOperationRequest.getDefaultInstance())
       }
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
   }
 }
