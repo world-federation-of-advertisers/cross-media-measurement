@@ -1,0 +1,278 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.v2alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/reporting/v2alpha/metric_frequency_spec.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
+import "wfa/measurement/reporting/v2alpha/result_group.proto";
+
+option java_package = "org.wfanet.measurement.reporting.v2alpha";
+option java_multiple_files = true;
+option java_outer_classname = "CompactReportResultsProto";
+option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
+
+// Results for the `BasicReport.COMPACT` view.
+//
+// Dictionaries are local to this `CompactReportResults` message and contain
+// distinct entries in first-use order across groups and rows. References are
+// one-based indices, with zero denoting absence unless documented otherwise.
+// Every nonzero index must be within its dictionary. Resource-name fields
+// retain complete resource names; indices use separate fields. Expanding these
+// results preserves the corresponding FULL view's known fields, numeric types,
+// message presence, and group and row order.
+message CompactReportResults {
+  // Shared reporting-unit summaries, including complete component and
+  // ReportingSet resource names.
+  repeated ResultGroup.MetricMetadata.ReportingUnitSummary reporting_units = 1
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time and frequency metadata for a result row.
+  message Window {
+    // Start time for non-cumulative metrics.
+    google.protobuf.Timestamp non_cumulative_metric_start_time = 1
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Start time for cumulative metrics.
+    google.protobuf.Timestamp cumulative_metric_start_time = 2
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // End time for both cumulative and non-cumulative metrics.
+    google.protobuf.Timestamp metric_end_time = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Reporting frequency for the result group.
+    MetricFrequencySpec metric_frequency = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+  // Shared time and frequency metadata.
+  repeated Window windows = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Shared grouping and filtering summaries.
+  repeated ResultGroup.MetricMetadata.DimensionSpecSummary dimensions = 3
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Shared impression qualification filters.
+  repeated ReportingImpressionQualificationFilter filters = 4
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+  // Shared nonempty DataProvider or ReportingSet resource names for component
+  // metric entries and intersections.
+  repeated string component_names = 5 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = { type: "*" }
+  ];
+
+  // Results for one `ResultGroup`.
+  message Group {
+    // Original result-group title.
+    string title = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Number of result rows, including rows with absent metadata or metrics.
+    // Must be nonnegative.
+    int32 row_count = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // References to `windows`, aligned with result-row order.
+    // Zero denotes an absent `Result.metadata` message; a nonzero index can
+    // reference an empty `Window` to preserve an empty metadata message.
+    repeated int32 window_indices = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // References to `reporting_units`, or zero for an absent summary.
+    repeated int32 reporting_unit_indices = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // References to `dimensions`, or zero for an absent summary.
+    repeated int32 dimension_indices = 5
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // References to `filters`, or zero for an absent filter.
+    repeated int32 filter_indices = 6
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Metric columns aligned with result-row order.
+    MetricSetColumns metrics = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+  // Groups in their original order. Each group's index column is either empty
+  // (all zeros) or contains exactly `row_count` nonnegative indices. A row with
+  // no metadata must have zero indices in all four metadata columns.
+  repeated Group groups = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Presence of a nested message at each row of a group.
+  //
+  // Every present message column must set `presence` with exactly one `rows`
+  // variant. An absent column means absence in every row. Child presence must
+  // imply parent presence.
+  message MessagePresence {
+    oneof rows {
+      // True when the message is present in every row. False is invalid.
+      bool all_present = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+      // Least-significant-bit-first bitmap, exactly ceil(row_count / 8) bytes.
+      // Bit i indicates presence in row i. Unused trailing bits must be zero.
+      bytes present_rows = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    }
+  }
+
+  // Flattened integer vectors in row order.
+  //
+  // Exactly one length representation is used: `fixed_length`, including
+  // zero, or `row_count` entries in `lengths`. Lengths must be nonnegative.
+  // The concatenated element count must equal sum(`lengths`) or
+  // `row_count * fixed_length`. An absent column means empty vectors in every
+  // row; absent parent messages must have empty vectors.
+  message Int64VectorColumn {
+    // Concatenated vectors without changing integer values.
+    repeated int64 values = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Per-row lengths, empty when `fixed_length` is set.
+    repeated int32 lengths = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Common length when every row has the same vector length.
+    optional int32 fixed_length = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Flattened float vectors, with the same length rules as `Int64VectorColumn`.
+  message FloatVectorColumn {
+    // Concatenated vectors with the original float precision.
+    repeated float values = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Per-row lengths, empty when `fixed_length` is set.
+    repeated int32 lengths = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Common length when every row has the same vector length.
+    optional int32 fixed_length = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Flattened component-name references, with the same length rules as
+  // `Int64VectorColumn`.
+  message ComponentVectorColumn {
+    // One-based references to `component_names`; zero denotes an empty name.
+    repeated int32 indices = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Per-row lengths, empty when `fixed_length` is set.
+    repeated int32 lengths = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Common length when every row has the same vector length.
+    optional int32 fixed_length = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Columns corresponding to `ResultGroup.MetricSet.BasicMetricSet`.
+  //
+  // Scalar columns throughout this format are either empty (all protobuf
+  // default values) or contain exactly `row_count` values. Floating-point
+  // defaults are positive zero; negative zero must not be omitted. Nondefault
+  // float values retain their original precision. Values for absent messages
+  // must be default values. Repeated numeric fields use protobuf's packed
+  // encoding.
+  message BasicMetricSetColumns {
+    // Presence of the original message, including empty messages.
+    MessagePresence presence = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Reach for each row.
+    repeated int64 reach_values = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Percent reach for each row.
+    repeated float percent_reach_values = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // K+ reach vectors, ordered by frequency minus one.
+    Int64VectorColumn k_plus_reach_values = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Percent K+ reach vectors.
+    FloatVectorColumn percent_k_plus_reach_values = 5
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Average frequency for each row.
+    repeated float average_frequency_values = 6
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Impression count for each row.
+    repeated int64 impressions_values = 7
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Gross ratings points for each row.
+    repeated float grps_values = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Columns corresponding to `ResultGroup.MetricSet.UniqueMetricSet`.
+  message UniqueMetricSetColumns {
+    // Presence of the original message.
+    MessagePresence presence = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Unique reach for each row.
+    repeated int64 reach_values = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Columns corresponding to `ResultGroup.MetricSet.ReportingUnitMetricSet`.
+  message ReportingUnitMetricSetColumns {
+    // Presence of the original message.
+    MessagePresence presence = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Non-cumulative metrics.
+    BasicMetricSetColumns non_cumulative = 2
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Cumulative metrics.
+    BasicMetricSetColumns cumulative = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Stacked incremental reach vectors in original component order.
+    Int64VectorColumn stacked_incremental_reach_values = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Columns corresponding to `ResultGroup.MetricSet.ComponentMetricSet`.
+  message ComponentMetricSetColumns {
+    // Presence of the original message.
+    MessagePresence presence = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Non-cumulative metrics.
+    BasicMetricSetColumns non_cumulative = 2
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Cumulative metrics.
+    BasicMetricSetColumns cumulative = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Non-cumulative unique metrics.
+    UniqueMetricSetColumns non_cumulative_unique = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Cumulative unique metrics.
+    UniqueMetricSetColumns cumulative_unique = 5
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // One position in the original repeated component entries, across all rows.
+  // Entry positions with presence in a row must form a prefix, preserving the
+  // original entry count and ordering without sorting components.
+  message ComponentEntryColumns {
+    // Presence of the original entry message.
+    MessagePresence presence = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // One-based references to `component_names`, or zero for an empty key.
+    // Empty means all zeros; otherwise exactly `row_count` indices are used.
+    repeated int32 key_indices = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Metrics for each entry, including presence of the original value.
+    ComponentMetricSetColumns value = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // One position in the original repeated component intersections, across
+  // rows. Present positions must form a prefix in each row.
+  message ComponentIntersectionColumns {
+    // Presence of the original intersection message.
+    MessagePresence presence = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Component-name references in original order within each intersection.
+    ComponentVectorColumn components = 2
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Non-cumulative intersection metrics.
+    BasicMetricSetColumns non_cumulative = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Cumulative intersection metrics.
+    BasicMetricSetColumns cumulative = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+
+  // Columns corresponding to `ResultGroup.MetricSet`.
+  message MetricSetColumns {
+    // Presence of the original message.
+    MessagePresence presence = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Population size for each row.
+    repeated int64 population_size_values = 2
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Metrics for the whole reporting unit.
+    ReportingUnitMetricSetColumns reporting_unit = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Component entry positions in their original order.
+    repeated ComponentEntryColumns components = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+    // Intersection entry positions in their original order.
+    repeated ComponentIntersectionColumns component_intersections = 5
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+  }
+}
