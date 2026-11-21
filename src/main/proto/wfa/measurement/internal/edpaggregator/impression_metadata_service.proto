@@ -53,6 +53,11 @@ service ImpressionMetadataService {
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
       returns (ImpressionMetadata);
 
+  // Marks the specified metadata version as deleted. Older servers return
+  // UNIMPLEMENTED instead of silently ignoring the etag precondition.
+  rpc MarkImpressionMetadataDeleted(MarkImpressionMetadataDeletedRequest)
+      returns (ImpressionMetadata);
+
   // Restores a deleted `ImpressionMetadata` entry.
   rpc UndeleteImpressionMetadata(UndeleteImpressionMetadataRequest)
       returns (ImpressionMetadata);
@@ -168,6 +173,13 @@ message ListImpressionMetadataPageToken {
 message DeleteImpressionMetadataRequest {
   string data_provider_resource_id = 1;
   string impression_metadata_resource_id = 2;
+}
+
+message MarkImpressionMetadataDeletedRequest {
+  string data_provider_resource_id = 1;
+  string impression_metadata_resource_id = 2;
+  // Required. Expected metadata etag. A mismatch returns ABORTED.
+  string etag = 3;
 }
 
 message UndeleteImpressionMetadataRequest {
