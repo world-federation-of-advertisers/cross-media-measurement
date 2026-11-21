@@ -126,6 +126,20 @@ class BaseTeeApplicationTest {
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
 
+  private val diagnosticOutput = java.util.concurrent.CopyOnWriteArrayList<String>()
+  private val diagnosticLogger =
+    java.util.logging.Logger.getLogger(BaseTeeApplication.Companion::class.java.name)
+  private val diagnosticHandler =
+    object : java.util.logging.Handler() {
+      override fun publish(record: java.util.logging.LogRecord) {
+        diagnosticOutput += java.util.logging.SimpleFormatter().format(record)
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
+
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
 
@@ -137,6 +151,8 @@ class BaseTeeApplicationTest {
 
   @Before
   fun setupPubSubResources() {
+    diagnosticOutput.clear()
+    diagnosticLogger.addHandler(diagnosticHandler)
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
     spanExporter = InMemorySpanExporter.create()
@@ -161,11 +177,28 @@ class BaseTeeApplicationTest {
 
   @After
   fun cleanPubSubResources() {
-    runBlocking {
-      emulatorClient.deleteTopic(PROJECT_ID, TOPIC_ID)
-      emulatorClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
+    try {
+      assertThat(diagnosticOutput.joinToString("\n")).doesNotContain(PRIVATE_VALUE)
+      assertPrivateSpans()
+    } finally {
+      diagnosticLogger.removeHandler(diagnosticHandler)
+      runBlocking {
+        emulatorClient.deleteTopic(PROJECT_ID, TOPIC_ID)
+        emulatorClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
+      }
+      openTelemetry.close()
     }
-    openTelemetry.close()
+  }
+
+  private fun assertPrivateSpans() {
+    for (span in spanExporter.finishedSpanItems) {
+      assertThat(span.status.description).doesNotContain(PRIVATE_VALUE)
+      assertThat(span.attributes.toString()).doesNotContain(PRIVATE_VALUE)
+      for (event in span.events) {
+        assertThat(event.name).doesNotContain(PRIVATE_VALUE)
+        assertThat(event.attributes.toString()).doesNotContain(PRIVATE_VALUE)
+      }
+    }
   }
 
   private fun assertFailedProcessingSpan(
@@ -329,7 +362,8 @@ class BaseTeeApplicationTest {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
     }
     workItemsServiceMock.stub {
-      onBlocking { failWorkItem(any()) } doThrow io.grpc.Status.UNAVAILABLE.asRuntimeException()
+      onBlocking { failWorkItem(any()) } doThrow
+        io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE).asRuntimeException()
     }
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
@@ -495,7 +529,7 @@ class BaseTeeApplicationTest {
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
       onBlocking { renewWorkItemAttempt(any()) } doThrow
-        io.grpc.Status.UNIMPLEMENTED.asRuntimeException()
+        io.grpc.Status.UNIMPLEMENTED.withDescription(PRIVATE_VALUE).asRuntimeException()
       onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
     }
     val fakeSubscriber = FakeQueueSubscriber()
@@ -672,7 +706,7 @@ class BaseTeeApplicationTest {
     workItemAttemptsServiceMock.stub {
       onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
       onBlocking { renewWorkItemAttempt(any()) } doThrow
-        io.grpc.Status.FAILED_PRECONDITION.asRuntimeException()
+        io.grpc.Status.FAILED_PRECONDITION.withDescription(PRIVATE_VALUE).asRuntimeException()
       onBlocking { failWorkItemAttempt(any()) }
         .thenAnswer {
           failureReportedBeforeNack = consumer.nackCallCount == 0
@@ -789,6 +823,86 @@ class BaseTeeApplicationTest {
       failWorkItemAttempt(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.errorMessage).contains("exceeded its maximum runtime")
+    assertThat(requestCaptor.firstValue.errorMessage).contains(maxRuntime.toString())
+    assertThat(diagnosticOutput.joinToString("\n")).contains(maxRuntime.toString())
+    assertThat(failureReportedBeforeNack).isTrue()
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(terminations).isEmpty()
+  }
+
+  @Test
+  fun `watchdog failure writeback excludes processed values from logs and spans`() = runBlocking {
+    val maxRuntime = Duration.ofMinutes(30)
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val consumer = TestMessageConsumer()
+    var failureReportedBeforeNack = false
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) }
+        .thenAnswer {
+          failureReportedBeforeNack = consumer.nackCallCount == 0
+          throw io.grpc.Status.PERMISSION_DENIED.withDescription(PRIVATE_VALUE).asRuntimeException()
+        }
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val workStarted = CompletableDeferred<Unit>()
+    val workCancelled = CompletableDeferred<Unit>()
+    val gracePeriodStarted = CompletableDeferred<Unit>()
+    val terminations = mutableListOf<Int>()
+    val app =
+      object :
+        BaseTeeApplication(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = fakeSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+          workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+          attemptUpdateRetryDelay = {},
+          maxAttemptRuntime = maxRuntime,
+          // The runtime limit elapses once work has started; the grace period never elapses.
+          attemptRuntimeTimer = { duration ->
+            if (duration == maxRuntime) {
+              workStarted.await()
+            } else {
+              gracePeriodStarted.complete(Unit)
+              awaitCancellation()
+            }
+          },
+          terminateProcess = { exitCode -> terminations += exitCode },
+        ) {
+        override suspend fun runWork(message: Any) {
+          workStarted.complete(Unit)
+          try {
+            awaitCancellation()
+          } finally {
+            workCancelled.complete(Unit)
+          }
+        }
+      }
+    val job = launch { app.run() }
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "max-runtime-cooperative-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    workCancelled.await()
+    job.cancelAndJoin()
+
+    val requestCaptor = argumentCaptor<FailWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsServiceMock, times(1)) {
+      failWorkItemAttempt(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.errorMessage).contains("exceeded its maximum runtime")
+    assertThat(requestCaptor.firstValue.errorMessage).contains(maxRuntime.toString())
+    assertThat(diagnosticOutput.joinToString("\n")).contains(maxRuntime.toString())
     assertThat(failureReportedBeforeNack).isTrue()
     verifyBlocking(workItemAttemptsServiceMock, times(0)) { completeWorkItemAttempt(any()) }
     assertThat(consumer.nackCount).isEqualTo(1)
@@ -1209,7 +1323,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
+      }
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
       BaseTeeApplicationImpl(
@@ -1274,7 +1390,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
+      }
       .thenReturn(workItemAttempt)
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
@@ -1325,7 +1443,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
+      }
       .thenAnswer { throw makeAttemptAlreadySucceededException(workItemAttempt.name) }
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
@@ -1376,7 +1496,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.PERMISSION_DENIED) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.PERMISSION_DENIED.withDescription(PRIVATE_VALUE))
+      }
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
       BaseTeeApplicationImpl(
@@ -1480,7 +1602,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
+      }
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
       BaseTeeApplicationImpl(
@@ -1546,7 +1670,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
+      }
       .thenReturn(workItemAttempt)
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
@@ -1597,7 +1723,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
+      }
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
       BaseTeeApplicationImpl(
@@ -1660,7 +1788,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
+      }
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
       BaseTeeApplicationImpl(
@@ -1717,7 +1847,9 @@ class BaseTeeApplicationTest {
           any<io.grpc.Metadata>(),
         )
       )
-      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenAnswer {
+        throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
+      }
       .thenReturn(failedAttempt)
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
@@ -1930,7 +2062,7 @@ class BaseTeeApplicationTest {
           )
         )
         .thenAnswer {
-          throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription("control plane down"))
+          throw StatusException(io.grpc.Status.UNAVAILABLE.withDescription(PRIVATE_VALUE))
         }
     }
 
@@ -1966,6 +2098,98 @@ class BaseTeeApplicationTest {
       expectedErrorCode = "grpc.UNAVAILABLE",
     )
   }
+
+  @Test
+  fun `worker failure excludes processed values from formatted logs and failure reports`() =
+    runBlocking {
+      assertPrivateFailure(IllegalStateException(PRIVATE_VALUE))
+    }
+
+  @Test
+  fun `worker failure excludes wrapped and suppressed processed values`() = runBlocking {
+    assertPrivateFailure(
+      IllegalStateException("Processing failed", IllegalArgumentException(PRIVATE_VALUE)).apply {
+        addSuppressed(IllegalArgumentException(PRIVATE_VALUE))
+      }
+    )
+  }
+
+  @Test
+  fun `worker failure excludes custom exception rendering`() = runBlocking {
+    assertPrivateFailure(
+      object : IllegalStateException() {
+        override fun toString(): String = PRIVATE_VALUE
+
+        override fun getLocalizedMessage(): String = PRIVATE_VALUE
+      }
+    )
+  }
+
+  @Test
+  fun `worker protobuf failure excludes processed values before failing whole work item`() =
+    runBlocking {
+      assertPrivateFailure(
+        com.google.protobuf.InvalidProtocolBufferException(PRIVATE_VALUE),
+        parsingFailure = true,
+      )
+    }
+
+  private suspend fun assertPrivateFailure(failure: Exception, parsingFailure: Boolean = false) =
+    kotlinx.coroutines.coroutineScope {
+      val attempt = workItemAttempt { name = "workItems/workItem/workItemAttempts/workItemAttempt" }
+      workItemAttemptsServiceMock.stub {
+        onBlocking { createWorkItemAttempt(any()) } doReturn attempt
+        onBlocking { failWorkItemAttempt(any()) } doReturn attempt
+      }
+      workItemsServiceMock.stub {
+        onBlocking { failWorkItem(any()) } doReturn
+          workItem {
+            name = "workItems/workItem"
+            state = WorkItem.State.FAILED
+          }
+      }
+      val subscriber = FakeQueueSubscriber()
+      val app =
+        BaseTeeApplicationImpl(
+          SUBSCRIPTION_ID,
+          subscriber,
+          WorkItem.parser(),
+          WorkItemsCoroutineStub(grpcTestServer.channel),
+          WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+          failure = failure,
+        )
+      val job = launch { app.run() }
+      try {
+        val consumer = TestMessageConsumer()
+        subscriber.send(
+          QueueSubscriber.QueueMessage(
+            body = createWorkItem(createTestWork()),
+            consumer = consumer,
+            ackId = "private-value-test",
+          )
+        )
+        consumer.disposition.await()
+        assertThat(diagnosticOutput.joinToString("\n")).doesNotContain(PRIVATE_VALUE)
+        assertThat(diagnosticOutput.joinToString("\n"))
+          .contains(BaseTeeApplicationTest::class.java.name)
+        assertThat(spanExporter.finishedSpanItems).isNotEmpty()
+        assertPrivateSpans()
+        if (parsingFailure) {
+          verifyBlocking(workItemsServiceMock) { failWorkItem(any()) }
+          assertThat(consumer.ackCount).isEqualTo(1)
+          assertThat(consumer.nackCount).isEqualTo(0)
+        } else {
+          val request = argumentCaptor<FailWorkItemAttemptRequest>()
+          verifyBlocking(workItemAttemptsServiceMock) { failWorkItemAttempt(request.capture()) }
+          assertThat(request.firstValue.errorMessage).doesNotContain(PRIVATE_VALUE)
+          assertThat(request.firstValue.toByteString().toStringUtf8()).doesNotContain(PRIVATE_VALUE)
+          assertThat(request.firstValue.errorMessage).contains(failure.javaClass.name)
+          assertThat(consumer.nackCount).isEqualTo(1)
+        }
+      } finally {
+        job.cancelAndJoin()
+      }
+    }
 
   @Test
   fun `failure report includes exception type when exception has no message`() = runBlocking {
@@ -2004,9 +2228,66 @@ class BaseTeeApplicationTest {
     verifyBlocking(workItemAttemptsServiceMock, times(1)) {
       failWorkItemAttempt(requestCaptor.capture())
     }
-    assertThat(requestCaptor.firstValue.errorMessage).isEqualTo("java.lang.IllegalStateException")
+    assertThat(requestCaptor.firstValue.errorMessage).startsWith("java.lang.IllegalStateException")
     assertThat(consumer.nackCount).isEqualTo(1)
     job.cancelAndJoin()
+  }
+
+  @Test
+  fun `run excludes processed values from escaped fatal failures`() = runBlocking {
+    val subscriber = FakeQueueSubscriber()
+    val fatal =
+      LinkageError(PRIVATE_VALUE).apply { initCause(IllegalArgumentException(PRIVATE_VALUE)) }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn
+        workItemAttempt { name = "workItems/workItem/workItemAttempts/attempt" }
+    }
+    val app =
+      object :
+        BaseTeeApplication(
+          SUBSCRIPTION_ID,
+          subscriber,
+          WorkItem.parser(),
+          WorkItemsCoroutineStub(grpcTestServer.channel),
+          WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+        ) {
+        override suspend fun runWork(message: Any) {
+          throw fatal
+        }
+      }
+    subscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = TestMessageConsumer(),
+        ackId = "escaped-fatal-test",
+      )
+    )
+
+    val escaped = assertFailsWith<Error> { app.run() }
+    val output = java.io.StringWriter().also { escaped.printStackTrace(java.io.PrintWriter(it)) }
+    assertThat(output.toString()).doesNotContain(PRIVATE_VALUE)
+    assertThat(output.toString()).contains("java.lang.LinkageError")
+    assertThat(escaped).isNotSameInstanceAs(fatal)
+    assertThat(fatal.message).isEqualTo(PRIVATE_VALUE)
+  }
+
+  @Test
+  fun `close excludes processed values from subscriber failures`() {
+    val failure = IllegalStateException(PRIVATE_VALUE)
+    val app =
+      BaseTeeApplicationImpl(
+        SUBSCRIPTION_ID,
+        FakeQueueSubscriber(closeFailure = failure),
+        WorkItem.parser(),
+        WorkItemsCoroutineStub(grpcTestServer.channel),
+        WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+      )
+
+    val escaped = assertFailsWith<Exception> { app.close() }
+    val output = java.io.StringWriter().also { escaped.printStackTrace(java.io.PrintWriter(it)) }
+    assertThat(output.toString()).doesNotContain(PRIVATE_VALUE)
+    assertThat(output.toString()).contains("java.lang.IllegalStateException")
+    assertThat(escaped).isNotSameInstanceAs(failure)
   }
 
   @Test
@@ -2072,7 +2353,7 @@ class BaseTeeApplicationTest {
         failure =
           IllegalStateException(
             "wrapped control-plane failure",
-            StatusException(io.grpc.Status.PERMISSION_DENIED),
+            StatusException(io.grpc.Status.PERMISSION_DENIED.withDescription(PRIVATE_VALUE)),
           ),
       )
     val job = launch { app.run() }
@@ -2096,7 +2377,7 @@ class BaseTeeApplicationTest {
       .isEqualTo("grpc.PERMISSION_DENIED")
   }
 
-  private class FakeQueueSubscriber : QueueSubscriber {
+  private class FakeQueueSubscriber(private val closeFailure: Throwable? = null) : QueueSubscriber {
     private val ch = Channel<QueueSubscriber.QueueMessage<*>>(capacity = Channel.UNLIMITED)
     var subscribeCount = 0
 
@@ -2115,6 +2396,7 @@ class BaseTeeApplicationTest {
 
     override fun close() {
       ch.close()
+      closeFailure?.let { throw it }
     }
   }
 
@@ -2178,7 +2460,7 @@ class BaseTeeApplicationTest {
         .setCode(
           io.grpc.Status.Code.FAILED_PRECONDITION.value()
         ) // what you'd expect for invalid state
-        .setMessage("WorkItem $workItemName is in an invalid state for this operation")
+        .setMessage(PRIVATE_VALUE)
         .addDetails(Any.pack(errorInfo))
         .build()
 
@@ -2195,7 +2477,7 @@ class BaseTeeApplicationTest {
     val status =
       com.google.rpc.Status.newBuilder()
         .setCode(io.grpc.Status.Code.NOT_FOUND.value())
-        .setMessage("WorkItem not found")
+        .setMessage(PRIVATE_VALUE)
         .addDetails(Any.pack(errorInfo))
         .build()
     return StatusProto.toStatusException(status)
@@ -2212,7 +2494,7 @@ class BaseTeeApplicationTest {
     val status =
       com.google.rpc.Status.newBuilder()
         .setCode(io.grpc.Status.Code.FAILED_PRECONDITION.value())
-        .setMessage("WorkItem generation does not match")
+        .setMessage(PRIVATE_VALUE)
         .addDetails(Any.pack(errorInfo))
         .build()
 
@@ -2232,7 +2514,7 @@ class BaseTeeApplicationTest {
     val status =
       com.google.rpc.Status.newBuilder()
         .setCode(io.grpc.Status.Code.FAILED_PRECONDITION.value())
-        .setMessage("WorkItemAttempt is already succeeded")
+        .setMessage(PRIVATE_VALUE)
         .addDetails(Any.pack(errorInfo))
         .build()
     return StatusProto.toStatusException(status)
@@ -2258,6 +2540,7 @@ class BaseTeeApplicationTest {
 
   companion object {
 
+    private const val PRIVATE_VALUE = "SYNTHETIC_PRIVATE_VALUE"
     private const val PROJECT_ID = "test-project"
     private const val SUBSCRIPTION_ID = "test-subscription"
     private const val TOPIC_ID = "test-topic"

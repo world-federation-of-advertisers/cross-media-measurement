@@ -3,6 +3,18 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 package(default_testonly = True)
 
 kt_jvm_test(
+    name = "ExceptionDiagnosticsTest",
+    srcs = ["ExceptionDiagnosticsTest.kt"],
+    test_class = "org.wfanet.measurement.common.ExceptionDiagnosticsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:exception_diagnostics",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "sorted_lists_test",
     srcs = ["SortedListsTest.kt"],
     test_class = "org.wfanet.measurement.common.SortedListsTest",
