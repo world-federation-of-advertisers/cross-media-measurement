@@ -1,0 +1,163 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.reporting.tools;
+
+import "wfa/measurement/reporting/v2alpha/basic_report.proto";
+import "wfa/measurement/reporting/v2alpha/reporting_impression_qualification_filter.proto";
+import "wfa/measurement/reporting/v2alpha/result_group.proto";
+
+option java_package = "org.wfanet.measurement.reporting.tools";
+option java_multiple_files = true;
+
+// Draft compact file representation. This is not a Reporting API response.
+message CompactBasicReport {
+  // File-format version. The converter accepts version 1.
+  uint32 format_version = 1;
+  // Original report with result_groups cleared.
+  wfa.measurement.reporting.v2alpha.BasicReport header = 2;
+  // Shared reporting-unit summaries.
+  repeated wfa.measurement.reporting.v2alpha.ResultGroup.MetricMetadata
+      .ReportingUnitSummary reporting_units = 3;
+  // Shared metadata with reporting_unit_summary, dimension_spec_summary and
+  // filter cleared.
+  repeated wfa.measurement.reporting.v2alpha.ResultGroup.MetricMetadata
+      windows = 4;
+  // Shared dimension summaries.
+  repeated wfa.measurement.reporting.v2alpha.ResultGroup.MetricMetadata
+      .DimensionSpecSummary dimensions = 5;
+  // Shared qualification filters.
+  repeated
+      wfa.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
+          filters = 6;
+  // Shared nonempty component names.
+  repeated string component_names = 7;
+
+  message Group {
+    // Original result group with results cleared.
+    wfa.measurement.reporting.v2alpha.ResultGroup header = 1;
+    // Number of result rows, including empty results.
+    uint32 row_count = 2;
+    // One-based window indices, or zero for an absent metadata message.
+    repeated uint32 window_indices = 3;
+    // One-based reporting-unit indices, or zero for an absent summary.
+    repeated uint32 reporting_unit_indices = 4;
+    // One-based dimension indices, or zero for an absent summary.
+    repeated uint32 dimension_indices = 5;
+    // One-based qualification-filter indices, or zero for an absent filter.
+    repeated uint32 filter_indices = 6;
+    // Metric columns aligned with result-row order.
+    MetricSetColumns metrics = 7;
+    // Serialized unknown fields per original Result. Empty means no unknown
+    // fields.
+    repeated bytes result_unknown_fields = 8;
+  }
+  // Result groups in their original order.
+  repeated Group groups = 8;
+}
+
+// Presence and unknown fields of a message at each row.
+message MessagePresence {
+  oneof rows {
+    // True when the message is present in every row.
+    bool all_present = 1;
+    // Least-significant-bit-first bitmap, exactly ceil(row_count / 8) bytes.
+    bytes present_rows = 2;
+  }
+  // Serialized unknown fields per row. Empty means no unknown fields in any
+  // row.
+  repeated bytes unknown_fields = 3;
+}
+
+// Flattened variable-length integer vectors.
+message Int64VectorColumn {
+  repeated int64 values = 1;
+  // Per-row lengths. Omitted when fixed_length is set.
+  repeated uint32 lengths = 2;
+  // Common length, including zero, when all rows have the same length.
+  optional uint32 fixed_length = 3;
+}
+
+// Flattened variable-length float vectors, without rounding.
+message FloatVectorColumn {
+  repeated float values = 1;
+  repeated uint32 lengths = 2;
+  optional uint32 fixed_length = 3;
+}
+
+// Flattened vectors of one-based component-name indices; zero means empty
+// string.
+message ComponentVectorColumn {
+  repeated uint32 values = 1;
+  repeated uint32 lengths = 2;
+  optional uint32 fixed_length = 3;
+}
+
+// Scalar columns are empty for all-zero values, otherwise they contain
+// row_count values. An absent message column denotes absence in every row.
+message BasicMetricSetColumns {
+  MessagePresence presence = 1;
+  repeated int64 reach_values = 2;
+  repeated float percent_reach_values = 3;
+  Int64VectorColumn k_plus_reach_values = 4;
+  FloatVectorColumn percent_k_plus_reach_values = 5;
+  repeated float average_frequency_values = 6;
+  repeated int64 impressions_values = 7;
+  repeated float grps_values = 8;
+}
+
+message UniqueMetricSetColumns {
+  MessagePresence presence = 1;
+  repeated int64 reach_values = 2;
+}
+
+message ReportingUnitMetricSetColumns {
+  MessagePresence presence = 1;
+  BasicMetricSetColumns non_cumulative = 2;
+  BasicMetricSetColumns cumulative = 3;
+  Int64VectorColumn stacked_incremental_reach_values = 4;
+}
+
+message ComponentMetricSetColumns {
+  MessagePresence presence = 1;
+  BasicMetricSetColumns non_cumulative = 2;
+  BasicMetricSetColumns cumulative = 3;
+  UniqueMetricSetColumns non_cumulative_unique = 4;
+  UniqueMetricSetColumns cumulative_unique = 5;
+}
+
+// One component entry position across rows; presence must form a prefix in each
+// row.
+message ComponentEntryColumns {
+  MessagePresence presence = 1;
+  repeated uint32 key_indices = 2;
+  ComponentMetricSetColumns value = 3;
+}
+
+message ComponentIntersectionColumns {
+  MessagePresence presence = 1;
+  ComponentVectorColumn components_indices = 2;
+  BasicMetricSetColumns non_cumulative = 3;
+  BasicMetricSetColumns cumulative = 4;
+}
+
+message MetricSetColumns {
+  MessagePresence presence = 1;
+  repeated int64 population_size_values = 2;
+  ReportingUnitMetricSetColumns reporting_unit = 3;
+  repeated ComponentEntryColumns components = 4;
+  repeated ComponentIntersectionColumns component_intersections = 5;
+}

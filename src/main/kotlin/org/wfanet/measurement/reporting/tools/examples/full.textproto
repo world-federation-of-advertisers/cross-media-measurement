@@ -1,0 +1,381 @@
+name: "measurementConsumers/example/basicReports/example"
+title: "Synthetic California weekly report"
+campaign_group: "measurementConsumers/example/reportingSets/campaign"
+reporting_interval {
+  report_start {
+    year: 2020
+    month: 1
+    day: 1
+    time_zone {
+      id: "UTC"
+    }
+  }
+  report_end {
+    year: 2020
+    month: 1
+    day: 15
+  }
+  effective_report_start {
+    year: 2020
+    month: 1
+    day: 1
+    time_zone {
+      id: "UTC"
+    }
+  }
+}
+impression_qualification_filters {
+  impression_qualification_filter: "impressionQualificationFilters/ami"
+}
+impression_qualification_filters {
+  impression_qualification_filter: "impressionQualificationFilters/mrc"
+}
+result_groups {
+  title: "Weekly reach"
+  results {
+    metadata {
+      reporting_unit_summary {
+        reporting_unit_component_summary {
+          component: "dataProviders/publisher-a"
+          display_name: "Publisher A"
+          reporting_set: "measurementConsumers/example/reportingSets/publisher-a"
+        }
+        reporting_unit_component_summary {
+          component: "dataProviders/publisher-b"
+          display_name: "Publisher B"
+          reporting_set: "measurementConsumers/example/reportingSets/publisher-b"
+        }
+      }
+      non_cumulative_metric_start_time {
+        seconds: 1577836800
+      }
+      cumulative_metric_start_time {
+        seconds: 1577836800
+      }
+      metric_end_time {
+        seconds: 1578441600
+      }
+      metric_frequency {
+        weekly: WEDNESDAY
+      }
+      dimension_spec_summary {
+        filters {
+          terms {
+            path: "common.us_state"
+            value {
+              enum_value: "CALIFORNIA"
+            }
+          }
+        }
+      }
+      filter {
+        impression_qualification_filter: "impressionQualificationFilters/ami"
+      }
+    }
+    metric_set {
+      population_size: 1000
+      reporting_unit {
+        non_cumulative {
+          reach: 120
+        }
+        cumulative {
+          reach: 120
+        }
+      }
+      components {
+        key: "dataProviders/publisher-a"
+        value {
+          non_cumulative {
+            reach: 100
+          }
+          non_cumulative_unique {
+            reach: 40
+          }
+        }
+      }
+      components {
+        key: "dataProviders/publisher-b"
+        value {
+          non_cumulative {
+            reach: 80
+          }
+          non_cumulative_unique {
+            reach: 20
+          }
+        }
+      }
+    }
+  }
+  results {
+    metadata {
+      reporting_unit_summary {
+        reporting_unit_component_summary {
+          component: "dataProviders/publisher-a"
+          display_name: "Publisher A"
+          reporting_set: "measurementConsumers/example/reportingSets/publisher-a"
+        }
+        reporting_unit_component_summary {
+          component: "dataProviders/publisher-b"
+          display_name: "Publisher B"
+          reporting_set: "measurementConsumers/example/reportingSets/publisher-b"
+        }
+      }
+      non_cumulative_metric_start_time {
+        seconds: 1577836800
+      }
+      cumulative_metric_start_time {
+        seconds: 1577836800
+      }
+      metric_end_time {
+        seconds: 1578441600
+      }
+      metric_frequency {
+        weekly: WEDNESDAY
+      }
+      dimension_spec_summary {
+        filters {
+          terms {
+            path: "common.us_state"
+            value {
+              enum_value: "CALIFORNIA"
+            }
+          }
+        }
+      }
+      filter {
+        impression_qualification_filter: "impressionQualificationFilters/mrc"
+      }
+    }
+    metric_set {
+      population_size: 1000
+      reporting_unit {
+        non_cumulative {
+          reach: 105
+        }
+        cumulative {
+          reach: 105
+        }
+      }
+      components {
+        key: "dataProviders/publisher-a"
+        value {
+          non_cumulative {
+            reach: 90
+          }
+          non_cumulative_unique {
+            reach: 35
+          }
+        }
+      }
+      components {
+        key: "dataProviders/publisher-b"
+        value {
+          non_cumulative {
+            reach: 70
+          }
+          non_cumulative_unique {
+            reach: 15
+          }
+        }
+      }
+    }
+  }
+  results {
+    metadata {
+      reporting_unit_summary {
+        reporting_unit_component_summary {
+          component: "dataProviders/publisher-a"
+          display_name: "Publisher A"
+          reporting_set: "measurementConsumers/example/reportingSets/publisher-a"
+        }
+        reporting_unit_component_summary {
+          component: "dataProviders/publisher-b"
+          display_name: "Publisher B"
+          reporting_set: "measurementConsumers/example/reportingSets/publisher-b"
+        }
+      }
+      non_cumulative_metric_start_time {
+        seconds: 1578441600
+      }
+      cumulative_metric_start_time {
+        seconds: 1577836800
+      }
+      metric_end_time {
+        seconds: 1579046400
+      }
+      metric_frequency {
+        weekly: WEDNESDAY
+      }
+      dimension_spec_summary {
+        filters {
+          terms {
+            path: "common.us_state"
+            value {
+              enum_value: "CALIFORNIA"
+            }
+          }
+        }
+      }
+      filter {
+        impression_qualification_filter: "impressionQualificationFilters/ami"
+      }
+    }
+    metric_set {
+      population_size: 1000
+      reporting_unit {
+        non_cumulative {
+          reach: 150
+        }
+        cumulative {
+          reach: 200
+        }
+      }
+      components {
+        key: "dataProviders/publisher-a"
+        value {
+          non_cumulative {
+            reach: 120
+          }
+          non_cumulative_unique {
+            reach: 60
+          }
+        }
+      }
+      components {
+        key: "dataProviders/publisher-b"
+        value {
+          non_cumulative {
+            reach: 90
+          }
+          non_cumulative_unique {
+            reach: 30
+          }
+        }
+      }
+    }
+  }
+  results {
+    metadata {
+      reporting_unit_summary {
+        reporting_unit_component_summary {
+          component: "dataProviders/publisher-a"
+          display_name: "Publisher A"
+          reporting_set: "measurementConsumers/example/reportingSets/publisher-a"
+        }
+        reporting_unit_component_summary {
+          component: "dataProviders/publisher-b"
+          display_name: "Publisher B"
+          reporting_set: "measurementConsumers/example/reportingSets/publisher-b"
+        }
+      }
+      non_cumulative_metric_start_time {
+        seconds: 1578441600
+      }
+      cumulative_metric_start_time {
+        seconds: 1577836800
+      }
+      metric_end_time {
+        seconds: 1579046400
+      }
+      metric_frequency {
+        weekly: WEDNESDAY
+      }
+      dimension_spec_summary {
+        filters {
+          terms {
+            path: "common.us_state"
+            value {
+              enum_value: "CALIFORNIA"
+            }
+          }
+        }
+      }
+      filter {
+        impression_qualification_filter: "impressionQualificationFilters/mrc"
+      }
+    }
+    metric_set {
+      population_size: 1000
+      reporting_unit {
+        non_cumulative {
+          reach: 130
+        }
+        cumulative {
+          reach: 170
+        }
+      }
+      components {
+        key: "dataProviders/publisher-a"
+        value {
+          non_cumulative {
+            reach: 100
+          }
+          non_cumulative_unique {
+            reach: 50
+          }
+        }
+      }
+      components {
+        key: "dataProviders/publisher-b"
+        value {
+          non_cumulative {
+            reach: 80
+          }
+          non_cumulative_unique {
+            reach: 30
+          }
+        }
+      }
+    }
+  }
+}
+create_time {
+  seconds: 1579132800
+}
+result_group_specs {
+  title: "Weekly reach"
+  reporting_unit {
+    components: "dataProviders/publisher-a"
+    components: "dataProviders/publisher-b"
+  }
+  metric_frequency {
+    weekly: WEDNESDAY
+  }
+  dimension_spec {
+    filters {
+      terms {
+        path: "common.us_state"
+        value {
+          enum_value: "CALIFORNIA"
+        }
+      }
+    }
+  }
+  result_group_metric_spec {
+    population_size: true
+    reporting_unit {
+      non_cumulative {
+        reach: true
+      }
+      cumulative {
+        reach: true
+      }
+    }
+    component {
+      non_cumulative {
+        reach: true
+      }
+      non_cumulative_unique {
+        reach: true
+      }
+    }
+  }
+}
+state: SUCCEEDED
+effective_impression_qualification_filters {
+  impression_qualification_filter: "impressionQualificationFilters/ami"
+}
+effective_impression_qualification_filters {
+  impression_qualification_filter: "impressionQualificationFilters/mrc"
+}
+effective_campaign_group: "measurementConsumers/example/reportingSets/campaign"
