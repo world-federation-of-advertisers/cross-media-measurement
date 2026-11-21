@@ -345,7 +345,7 @@ class EventGroupsServiceTest {
 
   @Before
   fun initService() {
-    service = EventGroupsService(EventGroupsCoroutineStub(grpcTestServerRule.channel))
+    service = EventGroupsService(EventGroupsCoroutineStub(grpcTestServerRule.channel), null)
   }
 
   @Test

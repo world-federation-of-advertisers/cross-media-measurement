@@ -176,7 +176,7 @@ class InProcessKingdom(
           EventGroupActivitiesService(internalEventGroupActivitiesClient)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
-          EventGroupsService(internalEventGroupsClient)
+          EventGroupsService(internalEventGroupsClient, null)
             .withMetadataPrincipalIdentities()
             .withApiKeyAuthenticationServerInterceptor(internalApiKeysClient),
           EventGroupActivitiesService(internalEventGroupActivitiesClient)

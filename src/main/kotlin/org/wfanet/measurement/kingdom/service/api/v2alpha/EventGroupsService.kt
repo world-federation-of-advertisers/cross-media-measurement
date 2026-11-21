@@ -56,6 +56,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MediaType
+import org.wfanet.measurement.api.v2alpha.SyncEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.SyncEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.batchCreateEventGroupsResponse
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupsResponse
@@ -108,8 +110,22 @@ import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as intern
 
 class EventGroupsService(
   private val internalEventGroupsStub: InternalEventGroupsCoroutineStub,
+  syncOptions: EventGroupSync.Options?,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
+
+  private val sync = syncOptions?.let { EventGroupSync(internalEventGroupsStub, it) }
+
+  override suspend fun syncEventGroups(request: SyncEventGroupsRequest): SyncEventGroupsResponse {
+    // Read the principal even when disabled so anonymous requests remain unauthenticated.
+    principalFromCurrentContext
+    return (sync
+        ?: throw Status.PERMISSION_DENIED.withDescription(
+            "Operator synchronization is not configured"
+          )
+          .asRuntimeException())
+      .sync(request)
+  }
 
   private enum class Permission {
     GET,
@@ -727,7 +743,7 @@ class EventGroupsService(
 }
 
 /** Converts an internal [InternalEventGroup] to a public [EventGroup]. */
-private fun InternalEventGroup.toEventGroup(): EventGroup {
+internal fun InternalEventGroup.toEventGroup(): EventGroup {
   val eventGroupKey =
     EventGroupKey(
       externalIdToApiId(externalDataProviderId),

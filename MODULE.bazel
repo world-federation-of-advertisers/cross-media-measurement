@@ -480,3 +480,10 @@ single_version_override(
     module_name = "boringssl",
     version = BORINGSSL_VERSION,
 )
+
+# DO_NOT_SUBMIT: Await API PR https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/320.
+git_override(
+    module_name = "cross-media-measurement-api",
+    commit = "dc59227c4021d2a18b9e0f6f85ee3c2750505b9f",
+    remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",
+)
