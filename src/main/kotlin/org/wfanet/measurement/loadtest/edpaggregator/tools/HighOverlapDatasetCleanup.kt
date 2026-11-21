@@ -53,7 +53,11 @@ class HighOverlapDatasetCleanup(
     return true
   }
 
-  /** Invalidates the manifest and removes data under both previous and new impression paths. */
+  /**
+   * Invalidates the manifest and removes data under both previous and new impression paths.
+   *
+   * @throws IllegalStateException if the manifest is invalid and no cleanup state is saved.
+   */
   suspend fun prepareForReseeding(impressionPaths: Set<String>) {
     val manifestBlob = storageClient.getBlob(HighOverlapDataset.manifestBlobKey(modelLineId))
     val cleanupStateBlob = storageClient.getBlob(cleanupStateKey)
@@ -63,7 +67,12 @@ class HighOverlapDatasetCleanup(
           .impressionPathsList
       } else if (manifestBlob != null) {
         // Seeds written before cleanup state used the fixed edp/<name> layout.
-        readManifest(manifestBlob)?.seededEdpsList?.map { "edp/$it" } ?: emptyList()
+        val manifest =
+          checkNotNull(readManifest(manifestBlob)) {
+            "Cannot determine previous impression paths for model line $modelLineId: " +
+              "invalid manifest and no cleanup state"
+          }
+        manifest.seededEdpsList.map { "edp/$it" }
       } else {
         emptyList()
       }

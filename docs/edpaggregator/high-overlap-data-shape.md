@@ -380,10 +380,13 @@ Reporting does not upload EventGroups or invoke `EventGroupSync`, so it does not
 share the low-overlap test's sync operation. The suites still share processing capacity.
 
 `Update CMMS` prepares the high-overlap dataset before running its cloud tests.
-A matching manifest reuses the existing data. A missing or malformed manifest,
-changed specs, or a changed EDP set triggers seeding: previous impression paths
-and BigQuery rows for the model line are removed, then the new manifest is published after setup
-succeeds. Seeding runs in a separate job so it does not consume test time limits.
+A matching manifest reuses the existing data. A missing manifest, changed specs,
+or a changed EDP set triggers seeding: previous impression paths and BigQuery
+rows for the model line are removed, then the new manifest is published after
+setup succeeds. A malformed manifest can be reseeded when saved cleanup state
+provides the previous impression paths. Without that state, preparation stops
+before changing data; restore a valid manifest or cleanup state before retrying.
+Seeding runs in a separate job so it does not consume test time limits.
 `SeedHighOverlapDataset --only-if-needed` performs the same check; without the
 flag, the command forces a refresh.
 
