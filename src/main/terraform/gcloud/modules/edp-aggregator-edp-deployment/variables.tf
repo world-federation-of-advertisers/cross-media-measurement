@@ -13,7 +13,7 @@
 # limitations under the License.
 
 variable "location" {
-  description = "Location used for both KMS resources and workload identity pool."
+  description = "Location of KMS resources. Workload identity pools always use global."
   type        = string
   default     = "global"
 }
@@ -54,10 +54,48 @@ variable "workload_identity_pool_id" {
     condition     = length(var.workload_identity_pool_id) >= 4 && length(var.workload_identity_pool_id) <= 32
     error_message = "Workload identity pool ID must be between 4 and 32 characters."
   }
-  nullable    = false
+  nullable = false
 }
 
 variable "wip_display_name" {
   description = "EDP WIP display name."
   type        = string
+}
+
+variable "workload_identity_pool_provider_id" {
+  description = "ID of the Confidential Space OIDC provider."
+  type        = string
+  nullable    = false
+}
+
+variable "attribute_condition" {
+  description = "CEL attestation condition for the approved Halo workloads."
+  type        = string
+  nullable    = false
+}
+
+variable "allowed_audiences" {
+  description = "Accepted Confidential Space token audiences."
+  type        = set(string)
+  nullable    = false
+}
+
+variable "attested_kms_role" {
+  description = "KMS role required by the selected impression path and TrusTEE key arrangement."
+  type        = string
+  nullable    = false
+  validation {
+    condition = contains([
+      "roles/cloudkms.cryptoKeyDecrypter",
+      "roles/cloudkms.cryptoKeyEncrypter",
+      "roles/cloudkms.cryptoKeyEncrypterDecrypter",
+    ], var.attested_kms_role)
+    error_message = "Use a KMS encrypt, decrypt, or encrypt/decrypt role."
+  }
+}
+
+variable "additional_kms_iam_members" {
+  description = "Additional key grants, including the EDP export identity."
+  type        = map(object({ role = string, member = string }))
+  nullable    = false
 }

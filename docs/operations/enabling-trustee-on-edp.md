@@ -27,51 +27,19 @@ Enabling TrusTEE on an EDP involves the following steps:
 3.  **Update Code**: Update the EDP simulator or application to use the TrusTEE
     library and parameters.
 
-## 1. Update GCP Resources
+## 1. Configure EDP-owned Resources with Terraform
 
-You need to update your infrastructure to include the necessary resources for
-TrusTEE. This primarily involves setting up Cloud KMS for key management and
-Workload Identity Federation for authentication.
+Use the [EDP KMS module](../../src/main/terraform/gcloud/modules/edp-aggregator-edp-deployment)
+and its [Google Cloud example](../../src/main/terraform/gcloud/examples/edp-kms)
+to manage the key ring, key, federated service account, identity pool and provider,
+and key permissions. Grant the EDP export identity encrypt access; select the
+attested workload's permissions from the
+[TrusTEE key-arrangement table](../edpaggregator/README.md#required-key-operations).
 
-You can use the
-[Simulator Terraform Module](../../src/main/terraform/gcloud/modules/simulator/README.md)
-as a reference. If you are not using Terraform, you need to manually create the
-following resources:
-
-### 1.1 Cloud KMS Key Ring and Crypto Key
-
-Create a Key Ring and a Crypto Key in Cloud KMS. This key is owned by the EDP
-and will be used as the Key Encryption Key (KEK) for encrypting data. The
-TrusTEE mill will use this key for decryption after successfully authenticating
-via Workload Identity Federation (WIF). * **Key Ring**: Create a key ring in the
-desired location. * **Crypto Key**: Create a key with purpose `ENCRYPT_DECRYPT`.
-
-### 1.2 Service Accounts
-
-Create two service accounts: * **EDP Service Account**: The main service account
-for your EDP application. * Grant `roles/cloudkms.cryptoKeyEncrypterDecrypter`
-on the Crypto Key to this account. * **TEE Decrypter Service Account**: A
-dedicated service account for the TEE workload to decrypt data. This account
-will be impersonated by the TrusTEE workload. * Grant
-`roles/cloudkms.cryptoKeyDecrypter` on the Crypto Key to this account.
-
-### 1.3 Workload Identity Pool and Provider
-
-Set up Workload Identity Federation to allow the TEE workload (running in
-Confidential Space) to impersonate the TEE Decrypter Service Account.
-
-*   **Workload Identity Pool**: Create a pool to manage external identities.
-*   **Workload Identity Provider**: Create an OIDC provider within the pool.
-    *   **Issuer URI**: `https://confidentialcomputing.googleapis.com`
-    *   **Allowed Audiences**: `https://sts.googleapis.com`
-    *   **Attribute Mapping**: Map `google.subject` to `assertion.sub`.
-
-### 1.4 Grant Impersonation Rights
-
-Grant the `roles/iam.workloadIdentityUser` role to the principal set
-representing the Workload Identity Pool on the **TEE Decrypter Service
-Account**. * **Member**:
-`principalSet://iam.googleapis.com/projects/<PROJECT_NUMBER>/locations/global/workloadIdentityPools/<POOL_ID>/*`
+Import existing resources into the selected state before applying. The
+[onboarding guide](../edpaggregator/README.md#3-set-up-kms-and-workload-trust)
+also provides AWS and Google-to-AWS Terraform examples. Keep key management and
+federation policy in the EDP's infrastructure configuration.
 
 ## 2. Configure WIF Policy
 
@@ -79,60 +47,34 @@ The Workload Identity Provider needs an attribute condition (policy) to ensure
 that only trusted workloads can assume the identity. This policy verifies the
 image signature and other environment properties.
 
-### 2.1 Get Image Signing Public Key
+### 2.1 Get the Image Signing Fingerprint
 
-To ensure that only trusted code runs in the TEE, the Docker image for the
-TrusTEE mill is signed. You need to obtain the public key corresponding to the
-private key used for signing.
-
-The signing public key should be accessible by the EDP, or the derived
-`encoded_pub_key` should be known by the EDP.
-
-If you have access to the public key in Cloud KMS, you can retrieve it using the
-`gcloud` CLI. The following command retrieves the public key and encodes it in
-base64.
+Obtain the public key for the signer approved by the EDP. Halo publishes its
+[test and release public keys](../../README.md#container-images). Calculate the
+key ID from the SHA-256 hash of the DER-encoded public key:
 
 ```bash
-# Replace with your actual KMS key resource name
-GCP_KMS_KEY_RESOURCE_NAME="projects/YOUR_PROJECT/locations/YOUR_LOCATION/keyRings/YOUR_KEYRING/cryptoKeys/YOUR_KEY/cryptoKeyVersions/YOUR_VERSION"
-
-gcloud kms keys versions get-public-key "${GCP_KMS_KEY_RESOURCE_NAME}" --output-file pubkey.pem
-
-# Encode the public key in base64 and strip newlines
-encoded_pub_key=$(cat pubkey.pem | openssl base64 | tr -d '[:space:]' | sed 's/[=]*$//')
-
-echo "Encoded Public Key: ${encoded_pub_key}"
+KEY_ID=$(openssl pkey -pubin -in cosign-release-pub-key.pem -outform DER | openssl sha256 | cut -d' ' -f2)
+FINGERPRINT="ECDSA_P256_SHA256:${KEY_ID}"
 ```
 
-### 2.2 Define Attribute Condition
+The base64 public-key annotation on the cosign signature is not the attestation
+key ID. Use the fingerprint above in the Google policy, or its key ID in the
+AWS session-tag policy.
 
-Configure the attribute condition on the Workload Identity Provider to enforce
-the following:
+### 2.2 Configure the Attribute Condition with Terraform
 
-*   **Software Name**: Must be `CONFIDENTIAL_SPACE`.
-*   **Image Signature**: The running container's image signature must match the
-    expected public key (retrieved in step 2.1).
-*   **Image Name**: The running container's image name must match the expected
-    image name.
-*   **Project ID**: Restrict to a specific Google Cloud Project ID.
-*   **Debug Mode**: Enforce whether debug mode is allowed or not. Debug mode is
-    used for development and debugging, and it exposes the TEE application host
-    to the operator. Although the host still cannot access the memory of the TEE
-    application, debug mode should be avoided in production environments unless
-    necessary debugging is inevitable.
+Use the [EDP KMS Terraform example](../../src/main/terraform/gcloud/examples/edp-kms).
+Supply the fingerprint through `image_signature_fingerprints`, the exact project
+and service accounts, and the key permissions required by TrusTEE. Its condition
+requires Confidential Space, stable images, approved projects and identities, and
+an approved image signature. Configure the Mill's `signed_image_repo` so the
+Confidential Space launcher can read its image signatures.
 
-**Example Condition:**
-
-```cel
-assertion.swname == 'CONFIDENTIAL_SPACE' &&
-['<ALGORITHM>:<ENCODED_PUBLIC_KEY>'].exists(fingerprint, fingerprint in assertion.submods.container.image_signatures.map(sig,sig.signature_algorithm+':'+sig.key_id)) &&
-assertion.submods.container.image_reference == '<IMAGE_NAME>' &&
-assertion.submods.gce.project_id == '<YOUR_PROJECT_ID>' &&
-assertion.submods.confidential_space.support_attributes.debug_mode == 'false'
-```
-
-Replace `<ALGORITHM>` (e.g., `ECDSA_P256_SHA256`), `<ENCODED_PUBLIC_KEY>`,
-`<IMAGE_NAME>`, and `<YOUR_PROJECT_ID>` with your specific values.
+For Halo-managed test deployments, use the
+[shared roots and workflow](../edpaggregator/README.md#halo-managed-test-deployments).
+See [EDP KMS onboarding](../edpaggregator/README.md#3-set-up-kms-and-workload-trust)
+for imports, key arrangement, and workflow bootstrap instructions.
 
 ## 3. Update Code
 
