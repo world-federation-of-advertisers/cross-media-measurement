@@ -93,6 +93,11 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
 class DataAvailabilityCleanupRaceTest {
+  private val directThrottler =
+    object : Throttler {
+      override suspend fun <T> onReady(block: suspend () -> T): T = block()
+    }
+
   private val database =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
   private var legacyInternalApi = false
@@ -264,7 +269,12 @@ class DataAvailabilityCleanupRaceTest {
           }
         }
       val cleanup = async {
-        DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, pausedStorage)
+        DataAvailabilityCleanup(
+            stub,
+            DATA_PROVIDER_NAME,
+            pausedStorage,
+            throttler = directThrottler,
+          )
           .cleanup(BLOB_URI, original.name)
       }
       absenceObserved.await()
@@ -318,15 +328,15 @@ class DataAvailabilityCleanupRaceTest {
       restoreStarted.await()
       storage.getBlob(deletedBlobKey)!!.delete()
       val result =
-        DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, storage)
+        DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, storage, throttler = directThrottler)
           .cleanup("gs://bucket/$deletedBlobKey", original.name)
       assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
       finishRestore.complete(Unit)
       sync.await()
       val actual = stub.getImpressionMetadata(getImpressionMetadataRequest { name = original.name })
       assertThat(actual.interval.startTime.seconds).isEqualTo(300L)
-      assertThat(actual.state).isEqualTo(ImpressionMetadata.State.DELETED)
       assertThat(storage.stampedKeys).doesNotContain(BLOB_KEY)
+      assertThat(actual.state).isEqualTo(ImpressionMetadata.State.DELETED)
     }
   }
 
@@ -354,7 +364,8 @@ class DataAvailabilityCleanupRaceTest {
       storage.getBlob(BLOB_KEY)!!.delete()
       try {
         val result =
-          DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, storage).cleanup(BLOB_URI, null)
+          DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, storage, throttler = directThrottler)
+            .cleanup(BLOB_URI, null)
         assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SKIPPED)
       } finally {
         finishCreate.complete(Unit)
@@ -551,6 +562,7 @@ class DataAvailabilityCleanupRaceTest {
         stub,
         DATA_PROVIDER_NAME,
         FileSystemStorageClient(temporaryFolder.newFolder()),
+        throttler = directThrottler,
       )
     val resourceId = if (resourceIdProvided) metadata.name else null
     legacyInternalApi = !publicApiLegacy
@@ -619,7 +631,8 @@ class DataAvailabilityCleanupRaceTest {
     val metadata = createMetadata(generation = 0L)
     val stub = ImpressionMetadataServiceCoroutineStub(publicServer.channel)
     val storage = FileSystemStorageClient(temporaryFolder.newFolder())
-    val cleanup = DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, storage)
+    val cleanup =
+      DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, storage, throttler = directThrottler)
 
     // The queued event has only its original path and optional resource ID.
     val result = cleanup.cleanup(BLOB_URI, if (resourceIdProvided) metadata.name else null)
@@ -655,7 +668,8 @@ class DataAvailabilityCleanupRaceTest {
           return blob
         }
       }
-    val cleanup = DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, pausedStorage)
+    val cleanup =
+      DataAvailabilityCleanup(stub, DATA_PROVIDER_NAME, pausedStorage, throttler = directThrottler)
     val pendingCleanup = async {
       cleanup.cleanup(BLOB_URI, if (resourceIdProvided) original.name else null)
     }
