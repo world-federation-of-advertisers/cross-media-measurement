@@ -35,7 +35,11 @@ import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.random.Random
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
 import org.projectnessie.cel.Env
 import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
@@ -1378,6 +1382,35 @@ class BasicReportsService(
     val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
       buildMetricCalculationSpecToNameMap(campaignGroupKey).toMutableMap()
+    val requiredSpecs =
+      reportingSetMetricCalculationSpecDetailsMap.values
+        .flatten()
+        .map { details ->
+          metricCalculationSpec {
+            cmmsMeasurementConsumerId = campaignGroupKey.cmmsMeasurementConsumerId
+            externalCampaignGroupId = campaignGroupKey.reportingSetId
+            cmmsModelLine = modelLine
+            this.details = details
+          }
+        }
+        .distinct()
+    val specsToCreate = requiredSpecs.filterNot(existingMetricCalculationSpecsMap::containsKey)
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val createdSpecs =
+      specsToCreate.asFlow().flatMapMerge(METRIC_CALCULATION_SPEC_CREATION_CONCURRENCY) { spec ->
+        flow {
+          val created = createMetricCalculationSpec(spec)
+          emit(
+            spec to
+              MetricCalculationSpecKey(
+                  created.cmmsMeasurementConsumerId,
+                  created.externalMetricCalculationSpecId,
+                )
+                .toName()
+          )
+        }
+      }
+    createdSpecs.collect { (spec, name) -> existingMetricCalculationSpecsMap[spec] = name }
 
     return report {
       this.basicReport = basicReportName
@@ -1530,6 +1563,7 @@ class BasicReportsService(
   }
 
   companion object {
+    private const val METRIC_CALCULATION_SPEC_CREATION_CONCURRENCY = 16
     private val logger: Logger = Logger.getLogger(BasicReportsService::class.java.name)
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
