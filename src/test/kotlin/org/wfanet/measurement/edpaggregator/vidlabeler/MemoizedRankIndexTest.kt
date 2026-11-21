@@ -21,6 +21,7 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
@@ -43,6 +44,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
@@ -50,6 +52,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
@@ -64,10 +67,12 @@ import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
 
 private const val DP = "dataProviders/dp"
+private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
 private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
 
 @RunWith(JUnit4::class)
 class MemoizedRankIndexTest {
+  private val seededPoolOffsets = mutableSetOf<Long>()
   private val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
   private val metadataReadThrottler = recordingThrottlers.throttlers.metadataRead
   private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
@@ -78,7 +83,9 @@ class MemoizedRankIndexTest {
 
   @Before
   fun setUp() {
+    seededPoolOffsets.clear()
     AeadConfig.register()
+    StreamingAeadConfig.register()
     kmsClient =
       FakeKmsClient().apply {
         setAead(
@@ -94,13 +101,14 @@ class MemoizedRankIndexTest {
   /**
    * Writes a SNAPSHOT blob holding one `(fingerprint, rank)` and returns its `RankIndexBlob` row.
    */
-  private fun seedSnapshot(
+  private fun seedDayOnly(
     blobKey: String,
     poolOffset: Long,
     fingerprint: ByteArray,
     rank: Int,
     createTimeSeconds: Long,
   ): RankIndexBlob = runBlocking {
+    seededPoolOffsets += poolOffset
     val record: RankIndexMap = rankIndexMap {
       this.poolOffset = poolOffset
       rankedSize = 1000
@@ -109,8 +117,9 @@ class MemoizedRankIndexTest {
     }
     val checksum = rankStore.writeBlob(blobKey, dek, flowOf(record))
     rankIndexBlob {
+      name = "$UPLOAD/rankIndexBlobs/blob-$poolOffset-$createTimeSeconds"
       this.poolOffset = poolOffset
-      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      blobType = RankIndexBlob.BlobType.DAY_ONLY
       cmmsModelLine = MODEL_LINE
       blobUri = blobKey
       encryptedDek = dek
@@ -120,8 +129,19 @@ class MemoizedRankIndexTest {
   }
 
   private fun stubReturning(rows: List<RankIndexBlob>): RankIndexBlobServiceCoroutineStub = mock {
-    onBlocking { listRankIndexBlobs(any(), any()) } doReturn
-      listRankIndexBlobsResponse { rankIndexBlobs += rows }
+    onBlocking { listRankIndexBlobs(any(), any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
+        listRankIndexBlobsResponse {
+          rankIndexBlobs +=
+            rows.filter {
+              it.name.startsWith("${request.parent}/rankIndexBlobs/") &&
+                it.cmmsModelLine == request.filter.cmmsModelLine &&
+                it.blobType == request.filter.blobType &&
+                !it.hasDeleteTime()
+            }
+        }
+      }
   }
 
   @Test
@@ -130,12 +150,20 @@ class MemoizedRankIndexTest {
     val fpB = fp(0x22)
     val rows =
       listOf(
-        seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fpA, rank = 5, createTimeSeconds = 1L),
-        seedSnapshot("ranks/pool20/up1", poolOffset = 20L, fpB, rank = 7, createTimeSeconds = 1L),
+        seedDayOnly("ranks/pool10/up1", poolOffset = 10L, fpA, rank = 5, createTimeSeconds = 1L),
+        seedDayOnly("ranks/pool20/up1", poolOffset = 20L, fpB, rank = 7, createTimeSeconds = 1L),
       )
 
     val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE, metadataReadThrottler)
+      MemoizedRankIndex.load(
+        stubReturning(rows),
+        rankStore,
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+        rawImpressionUpload = UPLOAD,
+        expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
+      )
     }
 
     assertThat(index.subpoolCount).isEqualTo(2)
@@ -151,12 +179,20 @@ class MemoizedRankIndexTest {
     // The same fingerprint is ranked in two different subpools (it routed to each across uploads).
     val rows =
       listOf(
-        seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fpX, rank = 3, createTimeSeconds = 1L),
-        seedSnapshot("ranks/pool20/up1", poolOffset = 20L, fpX, rank = 8, createTimeSeconds = 1L),
+        seedDayOnly("ranks/pool10/up1", poolOffset = 10L, fpX, rank = 3, createTimeSeconds = 1L),
+        seedDayOnly("ranks/pool20/up1", poolOffset = 20L, fpX, rank = 8, createTimeSeconds = 1L),
       )
 
     val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE, metadataReadThrottler)
+      MemoizedRankIndex.load(
+        stubReturning(rows),
+        rankStore,
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+        rawImpressionUpload = UPLOAD,
+        expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
+      )
     }
 
     assertThat(index.lookup(digestOf(fpX)).map { it.poolOffset to it.localRank })
@@ -190,55 +226,74 @@ class MemoizedRankIndexTest {
   @Test
   fun `lookup returns empty for an unseen fingerprint`() {
     val rows =
-      listOf(seedSnapshot("ranks/pool10/up1", 10L, fp(0x11), rank = 5, createTimeSeconds = 1L))
+      listOf(seedDayOnly("ranks/pool10/up1", 10L, fp(0x11), rank = 5, createTimeSeconds = 1L))
     val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE, metadataReadThrottler)
+      MemoizedRankIndex.load(
+        stubReturning(rows),
+        rankStore,
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+        rawImpressionUpload = UPLOAD,
+        expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
+      )
     }
 
     assertThat(index.lookup(digestOf(fp(0x99)))).isEmpty()
   }
 
   @Test
-  fun `load picks the newest snapshot per subpool by create_time`() {
-    val fpA = fp(0x11)
-    // Two SNAPSHOTs for the same subpool from different uploads: the newer create_time wins.
-    val older = seedSnapshot("ranks/pool10/up0", 10L, fpA, rank = 99, createTimeSeconds = 1L)
-    val newer = seedSnapshot("ranks/pool10/up1", 10L, fpA, rank = 5, createTimeSeconds = 2L)
-
-    val index = runBlocking {
-      MemoizedRankIndex.load(
-        stubReturning(listOf(older, newer)),
-        rankStore,
+  fun `load uses this upload's saved ranks despite newer snapshots and uploads`() = runBlocking {
+    val saved = seedDayOnly("ranks/saved", 10L, fp(0x11), 7, 1L)
+    val snapshot =
+      seedDayOnly("ranks/current", 10L, fp(0x11), 42, 2L).copy {
+        blobType = RankIndexBlob.BlobType.SNAPSHOT
+      }
+    val anotherUpload =
+      seedDayOnly("ranks/other", 10L, fp(0x11), 99, 3L).copy {
+        name = "dataProviders/dp/rawImpressionUploads/up2/rankIndexBlobs/other"
+      }
+    val resolved =
+      MemoizedRankIndex.resolveUploadBlobs(
+        stubReturning(listOf(snapshot, anotherUpload, saved)),
         DP,
         MODEL_LINE,
         metadataReadThrottler,
+        UPLOAD,
+        setOf(10L),
       )
-    }
-
-    assertThat(index.subpoolCount).isEqualTo(1)
-    assertThat(index.lookup(digestOf(fpA)).map { it.poolOffset to it.localRank })
-      .containsExactly(10L to 5L)
+    val index = MemoizedRankIndex.buildFrom(rankStore, DP, MODEL_LINE, resolved.blobs)
+    assertThat(index.lookup(digestOf(fp(0x11))).single().localRank).isEqualTo(7L)
+    assertThat(resolved.key.rawImpressionUpload).isEqualTo(UPLOAD)
   }
 
   @Test
-  fun `load merges snapshots across pages`() {
+  fun `load merges daily indexes across pages`() {
     val fpA = fp(0x11)
     val fpB = fp(0x22)
     val page1 = listRankIndexBlobsResponse {
       rankIndexBlobs +=
-        seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fpA, rank = 5, createTimeSeconds = 1L)
+        seedDayOnly("ranks/pool10/up1", poolOffset = 10L, fpA, rank = 5, createTimeSeconds = 1L)
       nextPageToken = "page-2"
     }
     val page2 = listRankIndexBlobsResponse {
       rankIndexBlobs +=
-        seedSnapshot("ranks/pool20/up1", poolOffset = 20L, fpB, rank = 7, createTimeSeconds = 1L)
+        seedDayOnly("ranks/pool20/up1", poolOffset = 20L, fpB, rank = 7, createTimeSeconds = 1L)
     }
     val stub: RankIndexBlobServiceCoroutineStub = mock {
       onBlocking { listRankIndexBlobs(any(), any()) }.doReturn(page1, page2)
     }
 
     val index = runBlocking {
-      MemoizedRankIndex.load(stub, rankStore, DP, MODEL_LINE, metadataReadThrottler)
+      MemoizedRankIndex.load(
+        stub,
+        rankStore,
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+        rawImpressionUpload = UPLOAD,
+        expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
+      )
     }
 
     assertThat(index.subpoolCount).isEqualTo(2)
@@ -250,7 +305,7 @@ class MemoizedRankIndexTest {
   }
 
   @Test
-  fun `load throws when a memoized model line has no snapshots`() {
+  fun `load throws when a memoized model line has no saved rank indexes`() {
     val exception =
       assertFailsWith<IllegalStateException> {
         runBlocking {
@@ -260,38 +315,36 @@ class MemoizedRankIndexTest {
             DP,
             MODEL_LINE,
             metadataReadThrottler,
+            rawImpressionUpload = UPLOAD,
+            expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
           )
         }
       }
 
-    assertThat(exception).hasMessageThat().contains("No SNAPSHOT rank-index blobs")
+    assertThat(exception).hasMessageThat().contains("Missing DAY_ONLY rank-index blobs")
   }
 
   @Test
-  fun `load breaks create_time ties deterministically by blob name`() {
-    // Two SNAPSHOTs for one subpool with an identical create_time: the greater resource name wins
-    // regardless of listing order (guards against a listing-order-dependent winner).
-    val b1 =
-      seedSnapshot("ranks/pool10/b1", poolOffset = 10L, fp(0x11), rank = 5, createTimeSeconds = 1L)
-        .copy { name = "blob-1" }
-    val b2 =
-      seedSnapshot("ranks/pool10/b2", poolOffset = 10L, fp(0x22), rank = 9, createTimeSeconds = 1L)
-        .copy { name = "blob-2" }
-
-    for (ordering in listOf(listOf(b1, b2), listOf(b2, b1))) {
-      val index = runBlocking {
-        MemoizedRankIndex.load(
-          stubReturning(ordering),
-          rankStore,
+  fun `load rejects duplicate subpool assignments`() = runBlocking {
+    val first = seedDayOnly("ranks/first", 10L, fp(0x11), 7, 1L)
+    val duplicate = seedDayOnly("ranks/duplicate", 10L, fp(0x22), 42, 2L)
+    val stub =
+      mock<RankIndexBlobServiceCoroutineStub> {
+        onBlocking { listRankIndexBlobs(any(), any()) } doReturn
+          listRankIndexBlobsResponse { rankIndexBlobs += listOf(first, duplicate) }
+      }
+    val error =
+      assertFailsWith<IllegalStateException> {
+        MemoizedRankIndex.resolveUploadBlobs(
+          stub,
           DP,
           MODEL_LINE,
           metadataReadThrottler,
+          UPLOAD,
+          setOf(10L),
         )
       }
-      assertThat(index.lookup(digestOf(fp(0x22))).map { it.poolOffset to it.localRank })
-        .containsExactly(10L to 9L)
-      assertThat(index.lookup(digestOf(fp(0x11)))).isEmpty()
-    }
+    assertThat(error.message).contains("Duplicate DAY_ONLY")
   }
 
   @Test
@@ -306,8 +359,9 @@ class MemoizedRankIndexTest {
     }
     val checksum = runBlocking { rankStore.writeBlob(blobKey, dek, flowOf(record)) }
     val row = rankIndexBlob {
+      name = "$UPLOAD/rankIndexBlobs/blob-10"
       poolOffset = 10L
-      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      blobType = RankIndexBlob.BlobType.DAY_ONLY
       cmmsModelLine = MODEL_LINE
       blobUri = blobKey
       encryptedDek = dek
@@ -324,6 +378,8 @@ class MemoizedRankIndexTest {
             DP,
             MODEL_LINE,
             metadataReadThrottler,
+            rawImpressionUpload = UPLOAD,
+            expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
           )
         }
       }
@@ -333,7 +389,7 @@ class MemoizedRankIndexTest {
   @Test
   fun `load throws when a blob checksum does not match`() {
     val corrupted =
-      seedSnapshot("ranks/pool10/up1", 10L, fp(0x11), rank = 5, createTimeSeconds = 1L).copy {
+      seedDayOnly("ranks/pool10/up1", 10L, fp(0x11), rank = 5, createTimeSeconds = 1L).copy {
         blobChecksum = ByteString.copyFromUtf8("not-the-real-checksum")
       }
 
@@ -345,6 +401,8 @@ class MemoizedRankIndexTest {
           DP,
           MODEL_LINE,
           metadataReadThrottler,
+          rawImpressionUpload = UPLOAD,
+          expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
         )
       }
     }
@@ -357,14 +415,14 @@ class MemoizedRankIndexTest {
     val metrics = MemoizedRankIndexMetrics(meter)
     val rows =
       listOf(
-        seedSnapshot(
+        seedDayOnly(
           "ranks/pool10/up1",
           poolOffset = 10L,
           fp(0x11),
           rank = 5,
           createTimeSeconds = 1L,
         ),
-        seedSnapshot(
+        seedDayOnly(
           "ranks/pool20/up1",
           poolOffset = 20L,
           fp(0x22),
@@ -380,6 +438,8 @@ class MemoizedRankIndexTest {
         DP,
         MODEL_LINE,
         metadataReadThrottler,
+        rawImpressionUpload = UPLOAD,
+        expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
         metrics = metrics,
       )
     }
@@ -431,8 +491,9 @@ class MemoizedRankIndexTest {
       }
     val checksum = runBlocking { rankStore.writeBlob(blobKey, dek, flowOf(record1, record2)) }
     val row = rankIndexBlob {
+      name = "$UPLOAD/rankIndexBlobs/blob-10"
       poolOffset = 10L
-      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      blobType = RankIndexBlob.BlobType.DAY_ONLY
       cmmsModelLine = MODEL_LINE
       blobUri = blobKey
       encryptedDek = dek
@@ -448,50 +509,68 @@ class MemoizedRankIndexTest {
           DP,
           MODEL_LINE,
           metadataReadThrottler,
+          rawImpressionUpload = UPLOAD,
+          expectedPoolOffsets = seededPoolOffsets.ifEmpty { setOf(10L) },
         )
       }
     }
   }
 
   @Test
-  fun `load throws when a blob has no records`() {
-    val blobKey = "ranks/pool10/up1"
-    val checksum = runBlocking { rankStore.writeBlob(blobKey, dek, emptyFlow()) }
+  fun `load accepts a valid empty daily object but rejects an absent one`() = runBlocking {
+    val blobKey = "ranks/empty"
+    val checksum = rankStore.writeBlob(blobKey, dek, emptyFlow())
     val row = rankIndexBlob {
+      name = "$UPLOAD/rankIndexBlobs/empty"
       poolOffset = 10L
-      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      blobType = RankIndexBlob.BlobType.DAY_ONLY
       cmmsModelLine = MODEL_LINE
       blobUri = blobKey
       encryptedDek = dek
       blobChecksum = checksum
-      createTime = timestamp { seconds = 1L }
     }
+    val index =
+      MemoizedRankIndex.load(
+        stubReturning(listOf(row)),
+        rankStore,
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+        UPLOAD,
+        setOf(10L),
+      )
+    assertThat(index.lookup(digestOf(fp(0x11)))).isEmpty()
+    assertThat(index.kekUri).isEqualTo(kekUri)
+    assertThat(index.subpoolCount).isEqualTo(1)
 
-    assertFailsWith<IllegalStateException> {
-      runBlocking {
+    storageClient.getBlob(blobKey)!!.delete()
+    val missing =
+      assertFailsWith<IllegalStateException> {
         MemoizedRankIndex.load(
           stubReturning(listOf(row)),
           rankStore,
           DP,
           MODEL_LINE,
           metadataReadThrottler,
+          UPLOAD,
+          setOf(10L),
         )
       }
-    }
+    assertThat(missing.message).contains("does not exist")
   }
 
   @Test
   fun `buildFrom loads subpools concurrently off the calling thread`() {
     val rows =
       listOf(
-        seedSnapshot(
+        seedDayOnly(
           "ranks/pool10/up1",
           poolOffset = 10L,
           fp(0x11),
           rank = 5,
           createTimeSeconds = 1L,
         ),
-        seedSnapshot(
+        seedDayOnly(
           "ranks/pool20/up1",
           poolOffset = 20L,
           fp(0x22),
@@ -531,7 +610,7 @@ class MemoizedRankIndexTest {
   @Test
   fun `buildFrom rejects a load context containing a Job`() {
     val row =
-      seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fp(0x11), rank = 5, createTimeSeconds = 1L)
+      seedDayOnly("ranks/pool10/up1", poolOffset = 10L, fp(0x11), rank = 5, createTimeSeconds = 1L)
 
     val exception =
       assertFailsWith<IllegalArgumentException> {
@@ -552,9 +631,9 @@ class MemoizedRankIndexTest {
   @Test
   fun `buildFrom cancels sibling subpool loads when one load fails`() {
     val failingRow =
-      seedSnapshot("ranks/pool10/up1", poolOffset = 10L, fp(0x11), rank = 5, createTimeSeconds = 1L)
+      seedDayOnly("ranks/pool10/up1", poolOffset = 10L, fp(0x11), rank = 5, createTimeSeconds = 1L)
     val siblingRow =
-      seedSnapshot("ranks/pool20/up1", poolOffset = 20L, fp(0x22), rank = 7, createTimeSeconds = 1L)
+      seedDayOnly("ranks/pool20/up1", poolOffset = 20L, fp(0x22), rank = 7, createTimeSeconds = 1L)
     val siblingStarted = CompletableDeferred<Unit>()
     val siblingCancelled = CompletableDeferred<Unit>()
     val storage =
@@ -594,14 +673,14 @@ class MemoizedRankIndexTest {
   fun `cancelling the build cancels in-flight subpool loads`() {
     val rows =
       listOf(
-        seedSnapshot(
+        seedDayOnly(
           "ranks/pool10/up1",
           poolOffset = 10L,
           fp(0x11),
           rank = 5,
           createTimeSeconds = 1L,
         ),
-        seedSnapshot(
+        seedDayOnly(
           "ranks/pool20/up1",
           poolOffset = 20L,
           fp(0x22),
@@ -634,6 +713,163 @@ class MemoizedRankIndexTest {
 
     assertThat(loadsCancelled.count).isEqualTo(0)
   }
+
+  @Test
+  fun `load rejects a missing expected subpool`() = runBlocking {
+    val row = seedDayOnly("ranks/only-one", 0L, fp(0x11), 7, 1L)
+    val error =
+      assertFailsWith<IllegalStateException> {
+        MemoizedRankIndex.resolveUploadBlobs(
+          stubReturning(listOf(row)),
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+          UPLOAD,
+          setOf(0L, 10L),
+        )
+      }
+    assertThat(error.message).contains("Missing DAY_ONLY")
+  }
+
+  @Test
+  fun `selected key is independent of listing order`() = runBlocking {
+    val a = seedDayOnly("ranks/a", 0L, fp(0x11), 7, 1L)
+    val b = seedDayOnly("ranks/b", 10L, fp(0x22), 8, 1L)
+    val first =
+      MemoizedRankIndex.resolveUploadBlobs(
+        stubReturning(listOf(a, b)),
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+        UPLOAD,
+        setOf(0L, 10L),
+      )
+    val reordered =
+      MemoizedRankIndex.resolveUploadBlobs(
+        stubReturning(listOf(b, a)),
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+        UPLOAD,
+        setOf(10L, 0L),
+      )
+    assertThat(reordered.key).isEqualTo(first.key)
+  }
+
+  @Test
+  fun `load verifies the checksum of an empty daily object`() =
+    runBlocking<Unit> {
+      val key = "ranks/bad-empty"
+      rankStore.writeBlob(key, dek, emptyFlow())
+      val row = rankIndexBlob {
+        name = "$UPLOAD/rankIndexBlobs/bad-empty"
+        poolOffset = 0L
+        blobType = RankIndexBlob.BlobType.DAY_ONLY
+        cmmsModelLine = MODEL_LINE
+        blobUri = key
+        encryptedDek = dek
+        blobChecksum = ByteString.copyFromUtf8("invalid-checksum")
+      }
+      assertFailsWith<IllegalStateException> {
+        MemoizedRankIndex.load(
+          stubReturning(listOf(row)),
+          rankStore,
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+          UPLOAD,
+          setOf(0L),
+        )
+      }
+    }
+
+  @Test
+  fun `load rejects responses with a wrong owner model type or subpool`() = runBlocking {
+    val saved = seedDayOnly("ranks/owned", 0L, fp(0x11), 7, 1L)
+    for (wrong in
+      listOf(
+        saved.copy { name = "dataProviders/dp/rawImpressionUploads/other/rankIndexBlobs/owned" },
+        saved.copy { cmmsModelLine = "modelProviders/mp/modelSuites/ms/modelLines/other" },
+        saved.copy { blobType = RankIndexBlob.BlobType.SNAPSHOT },
+        saved.copy { poolOffset = 10L },
+      )) {
+      val stub =
+        mock<RankIndexBlobServiceCoroutineStub> {
+          onBlocking { listRankIndexBlobs(any(), any()) } doReturn
+            listRankIndexBlobsResponse { rankIndexBlobs += wrong }
+        }
+      assertFailsWith<IllegalStateException> {
+        MemoizedRankIndex.resolveUploadBlobs(
+          stub,
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+          UPLOAD,
+          setOf(0L),
+        )
+      }
+    }
+  }
+
+  @Test
+  fun `load rejects inconsistent output encryption keys`() = runBlocking {
+    val a = seedDayOnly("ranks/key-a", 10L, fp(0x11), 7, 1L)
+    val otherKek = FakeKmsClient.KEY_URI_PREFIX + "other"
+    kmsClient.setAead(otherKek, kmsClient.getAead(kekUri))
+    val otherDek = rankStore.generateDek(otherKek)
+    val checksum =
+      rankStore.writeBlob(
+        "ranks/key-b",
+        otherDek,
+        flowOf(
+          rankIndexMap {
+            poolOffset = 20L
+            rankedSize = 1000
+            fingerprints = ByteString.copyFrom(fp(0x22))
+            ranks += 8
+          }
+        ),
+      )
+    val b = rankIndexBlob {
+      name = "$UPLOAD/rankIndexBlobs/key-b"
+      poolOffset = 20L
+      blobType = RankIndexBlob.BlobType.DAY_ONLY
+      cmmsModelLine = MODEL_LINE
+      blobUri = "ranks/key-b"
+      blobChecksum = checksum
+      encryptedDek = otherDek
+    }
+    val error =
+      assertFailsWith<IllegalStateException> {
+        MemoizedRankIndex.load(
+          stubReturning(listOf(a, b)),
+          rankStore,
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+          UPLOAD,
+          setOf(10L, 20L),
+        )
+      }
+    assertThat(error.message).contains("inconsistent KEK")
+  }
+
+  @Test
+  fun `load rejects missing integrity metadata`() =
+    runBlocking<Unit> {
+      val saved = seedDayOnly("ranks/no-checksum", 0L, fp(0x11), 7, 1L).copy { clearBlobChecksum() }
+      assertFailsWith<IllegalStateException> {
+        MemoizedRankIndex.load(
+          stubReturning(listOf(saved)),
+          rankStore,
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+          UPLOAD,
+          setOf(0L),
+        )
+      }
+    }
 
   companion object {
     /** A 12-byte fingerprint whose every byte is [tag]. */

@@ -615,3 +615,6 @@ upload by itself is not sufficient.
 
 For a stuck or failed measurement after onboarding, use the
 [Report Debugging Guide](report-debugging-guide.md).
+
+For memoized rank input, retry retention, and upgrade behavior, see
+[Saved ranks for memoized VID labeling](memoized-rank-labeling.md).

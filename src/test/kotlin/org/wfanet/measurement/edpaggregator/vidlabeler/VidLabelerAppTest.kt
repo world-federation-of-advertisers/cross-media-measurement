@@ -85,6 +85,7 @@ import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTest
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -280,8 +281,9 @@ class VidLabelerAppTest {
         ),
       )
     val row = rankIndexBlob {
+      name = "$UPLOAD/rankIndexBlobs/daily-pool0"
       poolOffset = 0L
-      blobType = RankIndexBlob.BlobType.SNAPSHOT
+      blobType = RankIndexBlob.BlobType.DAY_ONLY
       cmmsModelLine = MODEL_LINE
       blobUri = RANK_BLOB_KEY
       encryptedDek = this@VidLabelerAppTest.encryptedDek
@@ -291,6 +293,18 @@ class VidLabelerAppTest {
     rankIndexBlobsService.stub {
       onBlocking { listRankIndexBlobs(any()) } doReturn
         listRankIndexBlobsResponse { rankIndexBlobs += row }
+    }
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.LABELING
+            poolOffsets += 0L
+            etag = "parent-etag"
+          }
+        }
     }
   }
 
@@ -635,7 +649,8 @@ class VidLabelerAppTest {
       markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(5)
+    // Includes the upload's model-line lookup for expected rank subpools.
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
   }
@@ -917,6 +932,7 @@ class VidLabelerAppTest {
           check(workItemEnsured.get())
           availabilitySyncing.set(true)
           rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -1057,6 +1073,7 @@ class VidLabelerAppTest {
         {
           check(workItemRequests.size == 2)
           rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -1145,6 +1162,7 @@ class VidLabelerAppTest {
     rawImpressionUploadModelLinesService.stub {
       onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
         rawImpressionUploadModelLine {
+          poolOffsets += 0L
           name = PARENT_NAME
           cmmsModelLine = MODEL_LINE
           state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -1182,6 +1200,7 @@ class VidLabelerAppTest {
     rawImpressionUploadModelLinesService.stub {
       onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
         rawImpressionUploadModelLine {
+          poolOffsets += 0L
           name = PARENT_NAME
           cmmsModelLine = MODEL_LINE
           state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -1193,6 +1212,7 @@ class VidLabelerAppTest {
       onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
         listRawImpressionUploadModelLinesResponse {
           rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.LABELING
@@ -1231,6 +1251,7 @@ class VidLabelerAppTest {
     rawImpressionUploadModelLinesService.stub {
       onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
         rawImpressionUploadModelLine {
+          poolOffsets += 0L
           name = PARENT_NAME
           cmmsModelLine = MODEL_LINE
           state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -1275,6 +1296,7 @@ class VidLabelerAppTest {
       rawImpressionUploadModelLinesService.stub {
         onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
           rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -1339,6 +1361,7 @@ class VidLabelerAppTest {
       rawImpressionUploadModelLinesService.stub {
         onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
           rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -1485,6 +1508,7 @@ class VidLabelerAppTest {
       rawImpressionUploadModelLinesService.stub {
         onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
           rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -1594,6 +1618,7 @@ class VidLabelerAppTest {
       onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doAnswer
         {
           rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.COMPLETED
@@ -1631,6 +1656,7 @@ class VidLabelerAppTest {
         onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doAnswer
           {
             rawImpressionUploadModelLine {
+              poolOffsets += 0L
               name = PARENT_NAME
               cmmsModelLine = MODEL_LINE
               state = RawImpressionUploadModelLine.State.COMPLETED
@@ -2173,6 +2199,7 @@ class VidLabelerAppTest {
         {
           listRawImpressionUploadModelLinesResponse {
             rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              poolOffsets += 0L
               name = PARENT_NAME
               cmmsModelLine = MODEL_LINE
               state = parentState.get()
@@ -2183,6 +2210,7 @@ class VidLabelerAppTest {
       onBlocking { getRawImpressionUploadModelLine(any()) } doAnswer
         {
           rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = parentState.get()
@@ -2196,6 +2224,7 @@ class VidLabelerAppTest {
           }
           parentState.set(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
           rawImpressionUploadModelLine {
+            poolOffsets += 0L
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
@@ -2286,10 +2315,17 @@ class VidLabelerAppTest {
     rawImpressionUploadModelLinesService.stub {
       onBlocking { listRawImpressionUploadModelLines(any()) } doAnswer
         {
-          val rows = if (callCount.getAndIncrement() == 0) preMark else postMark
+          val rankLookup =
+            it
+              .getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+              .filter
+              .cmmsModelLine
+              .isNotEmpty()
+          val rows = if (rankLookup || callCount.getAndIncrement() == 0) preMark else postMark
           listRawImpressionUploadModelLinesResponse {
             for ((modelLine, modelLineState) in rows) {
               rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                poolOffsets += 0L
                 name = PARENT_NAME
                 cmmsModelLine = modelLine
                 state = modelLineState
@@ -2300,6 +2336,7 @@ class VidLabelerAppTest {
         }
       onBlocking { getRawImpressionUploadModelLine(any()) } doReturn
         rawImpressionUploadModelLine {
+          poolOffsets += 0L
           name = PARENT_NAME
           cmmsModelLine = postMark.first().first
           state = postMark.first().second
@@ -2622,6 +2659,56 @@ class VidLabelerAppTest {
     assertThat(failureLog.message).contains("xmm.error.code=grpc.INTERNAL")
   }
 
+  @Test
+  fun `runWork rejects an upload that differs from its labeling job`() = runBlocking {
+    seedRankIndexBlob()
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "job-etag"
+        }
+    }
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createApp()
+          .runWork(
+            buildMessage(
+              taskParams().copy {
+                rawImpressionUpload = "dataProviders/edp123/rawImpressionUploads/other"
+              }
+            )
+          )
+      }
+    assertThat(error.message).contains("does not match")
+  }
+
+  @Test
+  fun `runWork rejects a labeling job from another data provider`() = runBlocking {
+    seedRankIndexBlob()
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "job-etag"
+        }
+    }
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createApp()
+          .runWork(
+            buildMessage(
+              taskParams().copy {
+                vidLabelingJob = "dataProviders/other/rawImpressionUploads/up1/vidLabelingJobs/job"
+              }
+            )
+          )
+      }
+    assertThat(error.message).contains("does not belong")
+  }
+
   companion object {
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
     private const val UPLOAD = "dataProviders/edp123/rawImpressionUploads/up1"
@@ -2634,7 +2721,7 @@ class VidLabelerAppTest {
     private const val HEALING_OPERATION_ID = "healing-1"
     private const val HEALING_OPERATION =
       "dataProviders/edp123/uploadHealingOperations/$HEALING_OPERATION_ID"
-    private const val RANK_BLOB_KEY = "rank-index/snapshot/pool0"
+    private const val RANK_BLOB_KEY = "rank-index/dayOnly/pool0"
     private val DONE_OBJECT_CREATE_TIME: Instant = Instant.parse("2026-06-30T00:00:00Z")
   }
 }

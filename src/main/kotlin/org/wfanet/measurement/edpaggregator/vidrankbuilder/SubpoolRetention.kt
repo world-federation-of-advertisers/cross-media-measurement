@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
 import com.google.type.Date
 import com.google.type.date
+import io.grpc.StatusException
 import java.time.LocalDate
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
@@ -26,11 +27,16 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.service.RankIndexBlobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 
 /**
  * Storage garbage-collection of aged-out `DAY_ONLY` rank-index blobs for a single subpool.
@@ -39,11 +45,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
  * [RankAllocator]), the **rank-freeing** decision is made entirely in heap by
  * [RankAllocator.freeAgedRanks] and no longer depends on these blobs. This class is therefore pure
  * storage cleanup: it soft-deletes the `RankIndexBlob` rows whose `max_event_date` is older than
- * the retention window and deletes their bytes from Cloud Storage. It reads no blob contents and
- * scans no history.
+ * the retention window and deletes their bytes from Cloud Storage. It reads no blob contents; owner
+ * lifecycle metadata protects pending labeling inputs.
  *
- * A `DAY_ONLY` blob is eligible when `today - MaxEventDate(blob) > RETENTION_DAYS`. The retention
- * window MUST exceed the deployment's maximum measurement-report window (see Data Deletion).
+ * A DAY_ONLY blob is eligible after its owner completes or is evicted nonretryably and its event
+ * date is older than the retention window. Unfinished and processing-failed owners retain their
+ * labeling inputs. The retention window MUST exceed the deployment's maximum measurement-report
+ * window (see Data Deletion).
  *
  * @param rankIndexBlobsStub metadata-storage service for listing/soft-deleting `RankIndexBlob`s.
  * @param rankIndexStore deletes the aged blobs' bytes from Cloud Storage.
@@ -61,6 +69,7 @@ class SubpoolRetention(
   private val retentionDays: Int,
   private val today: LocalDate,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
 ) {
   /** Soft-deletes and hard-deletes the aged-out `DAY_ONLY` blobs of [poolOffset]. */
   suspend fun deleteAgedBlobs(poolOffset: Long) {
@@ -71,12 +80,77 @@ class SubpoolRetention(
     logger.info(
       "Subpool $poolOffset for $modelLine: garbage-collecting ${candidates.size} aged DAY_ONLY blob(s)"
     )
+    val deletionAllowedByUpload = mutableMapOf<String, Boolean>()
     for (candidate in candidates) {
+      val key =
+        checkNotNull(RankIndexBlobKey.fromName(candidate.name)) {
+          "Malformed rank-index resource: ${candidate.name}"
+        }
+      val upload = key.parentKey.toName()
+      check(
+        upload.startsWith("$dataProvider/rawImpressionUploads/") &&
+          candidate.cmmsModelLine == modelLine &&
+          candidate.blobType == RankIndexBlob.BlobType.DAY_ONLY &&
+          candidate.poolOffset == poolOffset
+      ) {
+        "Unexpected rank-index cleanup candidate"
+      }
+      val allowed =
+        deletionAllowedByUpload[upload]
+          ?: ownerAllowsDeletion(upload).also { deletionAllowedByUpload[upload] = it }
+      if (!allowed) continue
       // Keep the row discoverable until its bytes are gone so a failed storage deletion is retried.
       rankIndexStore.delete(candidate.blobUri)
       rpcThrottlers.metadataWrite.onReady {
         rankIndexBlobsStub.deleteRankIndexBlob(deleteRankIndexBlobRequest { name = candidate.name })
       }
+    }
+  }
+
+  /** Completed executions and nonretryable evictions no longer need their labeling inputs. */
+  private suspend fun ownerAllowsDeletion(upload: String): Boolean {
+    val owners = mutableListOf<RawImpressionUploadModelLine>()
+    rawImpressionUploadModelLinesStub
+      .listResources { pageToken: String ->
+        val response =
+          try {
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadModelLinesStub.listRawImpressionUploadModelLines(
+                listRawImpressionUploadModelLinesRequest {
+                  parent = upload
+                  filter =
+                    ListRawImpressionUploadModelLinesRequestKt.filter { cmmsModelLine = modelLine }
+                  this.pageToken = pageToken
+                }
+              )
+            }
+          } catch (e: StatusException) {
+            throw IllegalStateException("Unable to read the rank-index owner $upload", e)
+          }
+        ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
+      }
+      .collect { page -> owners.addAll(page) }
+    val owner =
+      checkNotNull(owners.singleOrNull()) {
+        "Missing or ambiguous model-line owner for $upload under $modelLine"
+      }
+    check(
+      owner.cmmsModelLine == modelLine &&
+        owner.name.startsWith("$upload/rawImpressionUploadModelLines/")
+    ) {
+      "Unexpected rank-index owner"
+    }
+    return when (owner.state) {
+      RawImpressionUploadModelLine.State.COMPLETED -> true
+      RawImpressionUploadModelLine.State.FAILED ->
+        owner.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+      RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,
+      RawImpressionUploadModelLine.State.CREATED,
+      RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+      RawImpressionUploadModelLine.State.RANKING,
+      RawImpressionUploadModelLine.State.LABELING,
+      RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+      RawImpressionUploadModelLine.State.UNRECOGNIZED -> false
     }
   }
 

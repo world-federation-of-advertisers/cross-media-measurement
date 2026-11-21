@@ -1156,6 +1156,7 @@ abstract class VidLabelingPipelineTestHarness(
         pipelineConfig.retentionDays,
         runDate,
         throttlers,
+        rawImpressionUploadModelLinesStub = modelLineRowsStub,
       )
     val subpoolRanker =
       SubpoolRanker(

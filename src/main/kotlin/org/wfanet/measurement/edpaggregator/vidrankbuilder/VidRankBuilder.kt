@@ -591,12 +591,16 @@ class VidRankBuilder(
 
   /**
    * Publishes one Phase-2 WorkItem for [job], copying [vidLabelerParamsTemplate] with the job's
-   * name. The TEE resolves the job's `raw_impression_upload_files` by getting the `VidLabelingJob`,
-   * so they are not duplicated onto the WorkItem params. Tolerates `ALREADY_EXISTS` so a
-   * redelivered last-job-out is a no-op.
+   * name and canonical upload. The TEE resolves the job's `raw_impression_upload_files` by getting
+   * the `VidLabelingJob`, so they are not duplicated onto the WorkItem params. Tolerates
+   * `ALREADY_EXISTS` so a redelivered last-job-out is a no-op.
    */
   private suspend fun publishVidLabelerWorkItem(job: VidLabelingJob) {
-    val params = vidLabelerParamsTemplate.copy { vidLabelingJob = job.name }
+    val params =
+      vidLabelerParamsTemplate.copy {
+        rawImpressionUpload = this@VidRankBuilder.rawImpressionUpload
+        vidLabelingJob = job.name
+      }
     val workItemId = WorkItemIds.forVidLabeler(job.name)
     var outcome = "created"
     try {
