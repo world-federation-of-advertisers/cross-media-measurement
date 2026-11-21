@@ -1046,6 +1046,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -1205,6 +1206,7 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -1336,6 +1338,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -1476,6 +1479,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -1627,6 +1631,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -1766,6 +1771,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -1903,6 +1909,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val resultsFulfiller =
@@ -2026,6 +2033,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -2141,6 +2149,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2278,6 +2287,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -2395,6 +2405,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -2510,6 +2521,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -2633,6 +2645,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2772,6 +2785,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2895,6 +2909,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3009,6 +3024,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3121,6 +3137,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -3255,6 +3272,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -3387,6 +3405,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3590,6 +3609,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -3720,6 +3740,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -3868,6 +3889,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = trusTeeV2ImpressionCountMode,
         trusTeeV2MaxFrequencyPerUser = trusTeeV2MaxFrequencyPerUser,
+        logMeasurementValues = false,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -4130,6 +4152,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -4243,6 +4266,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val groupedReqs = groupedRequisitions {
@@ -4356,6 +4380,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val groupedReqs = groupedRequisitions {
@@ -4654,6 +4679,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
     val resultsFulfiller =
       ResultsFulfiller(
@@ -5025,6 +5051,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = mapOf("uri" to "invalid/key/name"),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
     }
   }
@@ -5050,6 +5077,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = mapOf("uri" to longKeyName),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
     }
   }
@@ -5077,6 +5105,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -5113,6 +5142,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -5149,6 +5179,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -5190,6 +5221,7 @@ class ResultsFulfillerTest {
             ),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -5228,6 +5260,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -5265,6 +5298,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -5298,6 +5332,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)

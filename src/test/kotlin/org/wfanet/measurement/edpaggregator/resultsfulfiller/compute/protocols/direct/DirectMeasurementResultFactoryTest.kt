@@ -68,6 +68,7 @@ class DirectMeasurementResultFactoryTest {
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 0L,
           impressionCapMode = ImpressionCapMode.UNSPECIFIED,
+          logMeasurementValues = false,
         )
 
       // Verify
@@ -112,6 +113,7 @@ class DirectMeasurementResultFactoryTest {
         impressionMaxFrequencyPerUser = null,
         totalUncappedImpressions = 0L,
         impressionCapMode = ImpressionCapMode.UNSPECIFIED,
+        logMeasurementValues = false,
       )
 
     // Verify
@@ -152,6 +154,7 @@ class DirectMeasurementResultFactoryTest {
           impressionMaxFrequencyPerUser = null,
           totalUncappedImpressions = 110L,
           impressionCapMode = ImpressionCapMode.UNSPECIFIED,
+          logMeasurementValues = false,
         )
 
       // Verify
@@ -264,6 +267,7 @@ class DirectMeasurementResultFactoryTest {
         impressionMaxFrequencyPerUser = null,
         totalUncappedImpressions = TOTAL_UNCAPPED_IMPRESSIONS,
         impressionCapMode = ImpressionCapMode.DYNAMIC,
+        logMeasurementValues = false,
       )
 
     assertThat(buildDynamic(2)).isEqualTo(buildDynamic(MAX_FREQUENCY))
@@ -297,6 +301,7 @@ class DirectMeasurementResultFactoryTest {
       impressionMaxFrequencyPerUser = impressionMaxFrequencyPerUser,
       totalUncappedImpressions = TOTAL_UNCAPPED_IMPRESSIONS,
       impressionCapMode = impressionCapMode,
+      logMeasurementValues = false,
     )
   }
 
@@ -347,6 +352,7 @@ class DirectMeasurementResultFactoryTest {
                 100,
                 711L,
                 mode,
+                logMeasurementValues = false,
               )
             val actual =
               DirectMeasurementResultFactory.buildMeasurementResult(
@@ -359,6 +365,7 @@ class DirectMeasurementResultFactoryTest {
                 100,
                 711L,
                 mode,
+                logMeasurementValues = false,
               )
             assertThat(actual).isEqualTo(expected)
           }
@@ -387,6 +394,7 @@ class DirectMeasurementResultFactoryTest {
         null,
         1256L,
         ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP,
+        logMeasurementValues = false,
       )
     assertThat(result.impression.value).isEqualTo(1256L)
   }

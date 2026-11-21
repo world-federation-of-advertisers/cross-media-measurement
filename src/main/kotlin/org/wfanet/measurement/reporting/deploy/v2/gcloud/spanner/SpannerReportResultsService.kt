@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsResponse
 import org.wfanet.measurement.internal.reporting.v2.CreateReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.DiscardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.GetReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ListReportingSetResultsRequest
@@ -50,6 +51,7 @@ import org.wfanet.measurement.internal.reporting.v2.nonCumulativeStartOrNull
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportResultResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSetResultResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.discardReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertNoisyReportResultValues
@@ -95,6 +97,21 @@ class SpannerReportResultsService(
       .currentVersion
   private val groupingDimensions =
     GroupingDimensions(impressionQualificationFilterMapping.eventMessageDescriptor)
+
+  override suspend fun discardReportResult(request: DiscardReportResultRequest): Empty {
+    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+      throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.externalReportResultId == 0L) {
+      throw RequiredFieldNotSetException("external_report_result_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    spannerClient.readWriteTransaction(Options.tag("action=discardReportResult")).run { txn ->
+      txn.discardReportResult(request.cmmsMeasurementConsumerId, request.externalReportResultId)
+    }
+    return Empty.getDefaultInstance()
+  }
 
   override suspend fun createReportResult(request: CreateReportResultRequest): ReportResult {
     try {

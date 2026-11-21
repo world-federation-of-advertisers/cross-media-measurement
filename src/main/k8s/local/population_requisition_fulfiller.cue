@@ -29,5 +29,6 @@ objectSets: [
 ]
 
 populationRequisitionFulfiller: #PopulationRequisitionFulfiller & {
-	_config: _populationRequisitionFulfillerConfig
+	_logMeasurementValues: true
+	_config:               _populationRequisitionFulfillerConfig
 }
