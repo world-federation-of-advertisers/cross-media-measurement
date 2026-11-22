@@ -1138,7 +1138,8 @@ private fun validateSamplingInterval(
   val interval = measurementSpec.vidSamplingInterval
   when (internalProtocolConfig.protocolCase) {
     ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-    ProtocolConfig.ProtocolCase.TRUS_TEE -> {
+    ProtocolConfig.ProtocolCase.TRUS_TEE,
+    ProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> {
       grpcRequire(interval.start in 0.0..1.0) {
         "VidSamplingInterval start should be within [0, 1]"
       }

@@ -505,6 +505,9 @@ private fun buildMpcProtocolConfig(
         }
       }
     }
+    InternalProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> {
+      protocol { trusTeeV2 = ProtocolConfig.TrusTeeV2.getDefaultInstance() }
+    }
     InternalProtocolConfig.ProtocolCase.DIRECT -> {
       error("Direct protocol cannot be used for MPC-based Measurements")
     }
@@ -1143,6 +1146,7 @@ fun Measurement.toInternal(
         }
         InternalProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
         InternalProtocolConfig.ProtocolCase.TRUS_TEE,
+        InternalProtocolConfig.ProtocolCase.TRUS_TEE_V2,
         InternalProtocolConfig.ProtocolCase.DIRECT -> {}
         InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("protocol not set")
       }

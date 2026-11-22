@@ -38,4 +38,8 @@ message MeasurementDetails {
 
   // Set when the state is set to FAILED.
   MeasurementFailure failure = 8;
+
+  // Serialized `Query` messages from the public API
+  // `Measurement.Multimeasurement.queries`. Set only for a multimeasurement.
+  repeated bytes queries = 10;
 }

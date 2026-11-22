@@ -364,6 +364,9 @@ private fun buildMpcProtocolConfig(
         }
       }
     }
+    InternalProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> {
+      mpcProtocolConfig { trusTeeV2 = Computation.MpcProtocolConfig.TrusTeeV2.getDefaultInstance() }
+    }
     InternalProtocolConfig.ProtocolCase.DIRECT,
     InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid Protocol.")
   }

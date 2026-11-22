@@ -222,7 +222,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
       """
       (
         SELECT
-          COUNT(DataProviderId),
+          COUNT(DISTINCT DataProviderId),
         FROM
           Requisitions
         WHERE

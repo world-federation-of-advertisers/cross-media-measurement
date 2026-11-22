@@ -100,6 +100,13 @@ class SpannerMeasurementsService(
     grpcRequire(!request.measurement.details.measurementSpec.isEmpty) {
       "measurement_spec unspecified"
     }
+    if (request.measurement.details.protocolConfig.hasTrusTeeV2()) {
+      validateMultimeasurement(request.measurement)
+      return
+    }
+    grpcRequire(request.measurement.multimeasurementVectorsList.isEmpty()) {
+      "multimeasurement_vectors set for a measurement that is not a multimeasurement"
+    }
     grpcRequire(!request.measurement.details.measurementSpecSignature.isEmpty) {
       "measurement_spec_signature unspecified"
     }
@@ -112,6 +119,28 @@ class SpannerMeasurementsService(
       }
       grpcRequire(!dataProvider.nonceHash.isEmpty) {
         "nonce_hash unspecified for ${ExternalId(externalDataProviderId)}"
+      }
+    }
+  }
+
+  private fun validateMultimeasurement(measurement: Measurement) {
+    grpcRequire(measurement.dataProvidersMap.isEmpty()) {
+      "data_providers set for a multimeasurement"
+    }
+    grpcRequire(measurement.details.queriesList.isNotEmpty()) { "queries unspecified" }
+    grpcRequire(measurement.multimeasurementVectorsList.isNotEmpty()) {
+      "multimeasurement_vectors unspecified"
+    }
+    val indexes: List<Int> = measurement.multimeasurementVectorsList.map { it.index }.sorted()
+    grpcRequire(indexes == indexes.indices.toList()) {
+      "multimeasurement_vectors indexes must cover 0 to ${indexes.size - 1} exactly once"
+    }
+    for (vector in measurement.multimeasurementVectorsList) {
+      grpcRequire(vector.externalDataProviderId != 0L) {
+        "external_data_provider_id unspecified for vector ${vector.index}"
+      }
+      grpcRequire(!vector.requisitionSpec.isEmpty) {
+        "requisition_spec unspecified for vector ${vector.index}"
       }
     }
   }

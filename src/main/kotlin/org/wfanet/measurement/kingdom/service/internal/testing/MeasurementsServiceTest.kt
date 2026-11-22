@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.multimeasurementVector
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
@@ -157,6 +158,16 @@ private val TRUS_TEE_MEASUREMENT = measurement {
     measurementSpecSignature = ByteString.copyFromUtf8("MeasurementSpec signature")
     measurementSpecSignatureAlgorithmOid = "2.9999"
     protocolConfig = protocolConfig { trusTee = ProtocolConfig.TrusTee.getDefaultInstance() }
+  }
+}
+
+private val TRUS_TEE_V2_MEASUREMENT = measurement {
+  providedMeasurementId = PROVIDED_MEASUREMENT_ID
+  details = measurementDetails {
+    apiVersion = API_VERSION
+    measurementSpec = ByteString.copyFromUtf8("MeasurementSpec")
+    protocolConfig = protocolConfig { trusTeeV2 = ProtocolConfig.TrusTeeV2.getDefaultInstance() }
+    queries += ByteString.copyFromUtf8("Query")
   }
 }
 
@@ -635,6 +646,123 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     assertThat(requisitions[0].externalFulfillingDuchyId)
       .isEqualTo(Population.AGGREGATOR_DUCHY.externalDuchyId)
   }
+
+  @Test
+  fun `createMeasurement for TrusTEE v2 multimeasurement creates a Requisition per vector`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider1 = population.createDataProvider(dataProvidersService)
+      val dataProvider2 = population.createDataProvider(dataProvidersService)
+      val measurement =
+        TRUS_TEE_V2_MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          multimeasurementVectors += testVector(dataProvider1.externalDataProviderId, index = 0)
+          multimeasurementVectors += testVector(dataProvider1.externalDataProviderId, index = 1)
+          multimeasurementVectors += testVector(dataProvider2.externalDataProviderId, index = 2)
+        }
+
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest { this.measurement = measurement }
+        )
+
+      assertThat(createdMeasurement)
+        .ignoringFields(
+          Measurement.EXTERNAL_MEASUREMENT_ID_FIELD_NUMBER,
+          Measurement.EXTERNAL_COMPUTATION_ID_FIELD_NUMBER,
+          Measurement.CREATE_TIME_FIELD_NUMBER,
+          Measurement.UPDATE_TIME_FIELD_NUMBER,
+          Measurement.ETAG_FIELD_NUMBER,
+        )
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
+      val requisitions: List<Requisition> =
+        requisitionsService
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter =
+                StreamRequisitionsRequestKt.filter {
+                  externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+                  externalMeasurementId = createdMeasurement.externalMeasurementId
+                }
+            }
+          )
+          .toList()
+      assertThat(
+          requisitions.map {
+            multimeasurementVector {
+              externalDataProviderId = it.externalDataProviderId
+              index = it.details.vectorIndex
+              requisitionSpec = it.details.requisitionSpec
+            }
+          }
+        )
+        .containsExactlyElementsIn(measurement.multimeasurementVectorsList)
+      for (requisition in requisitions) {
+        assertThat(requisition.state).isEqualTo(Requisition.State.PENDING_PARAMS)
+        assertThat(requisition.externalFulfillingDuchyId)
+          .isEqualTo(Population.AGGREGATOR_DUCHY.externalDuchyId)
+        assertThat(requisition.parentMeasurement.dataProvidersCount).isEqualTo(2)
+      }
+    }
+
+  @Test
+  fun `getMeasurement returns the vectors of a TrusTEE v2 multimeasurement`(): Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val createdMeasurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            TRUS_TEE_V2_MEASUREMENT.copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+              multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 0)
+              multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 1)
+            }
+        }
+      )
+
+    val measurement =
+      measurementsService.getMeasurement(
+        getMeasurementRequest {
+          externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+          externalMeasurementId = createdMeasurement.externalMeasurementId
+        }
+      )
+
+    assertThat(measurement).ignoringRepeatedFieldOrder().isEqualTo(createdMeasurement)
+  }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when multimeasurement vector indexes repeat`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val measurement =
+        TRUS_TEE_V2_MEASUREMENT.copy {
+          externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+          externalMeasurementConsumerCertificateId =
+            measurementConsumer.certificate.externalCertificateId
+          multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 0)
+          multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 0)
+        }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementsService.createMeasurement(
+            createMeasurementRequest { this.measurement = measurement }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
 
   @Test
   fun `createMeasurement for duchy measurement contains required duchies and the aggregator`() =
@@ -3202,6 +3330,15 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   companion object {
+    private fun testVector(
+      externalDataProviderId: Long,
+      index: Int,
+    ): Measurement.MultimeasurementVector = multimeasurementVector {
+      this.externalDataProviderId = externalDataProviderId
+      this.index = index
+      requisitionSpec = ByteString.copyFromUtf8("RequisitionSpec $index")
+    }
+
     @BeforeClass
     @JvmStatic
     fun initConfig() {

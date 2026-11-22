@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementDetails
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.multimeasurementVector
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
@@ -526,17 +527,25 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
     val externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
     val externalDataProviderCertificateId =
       requisitionStruct.getLong("ExternalDataProviderCertificateId")
-    dataProviders[externalDataProviderId] = dataProviderValue {
-      this.externalDataProviderCertificateId = externalDataProviderCertificateId
-      dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
-      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
-      nonceHash = requisitionDetails.nonceHash
+    if (details.protocolConfig.hasTrusTeeV2()) {
+      multimeasurementVectors += multimeasurementVector {
+        this.externalDataProviderId = externalDataProviderId
+        index = requisitionDetails.vectorIndex
+        requisitionSpec = requisitionDetails.requisitionSpec
+      }
+    } else {
+      dataProviders[externalDataProviderId] = dataProviderValue {
+        this.externalDataProviderCertificateId = externalDataProviderCertificateId
+        dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
+        encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+        nonceHash = requisitionDetails.nonceHash
 
-      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
-      // fields.
-      dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
-      dataProviderPublicKeySignatureAlgorithmOid =
-        requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+        // fields.
+        dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
+        dataProviderPublicKeySignatureAlgorithmOid =
+          requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
+      }
     }
 
     if (measurementSucceeded && !requisitionDetails.encryptedData.isEmpty) {
@@ -558,7 +567,8 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   fillMeasurementCommon(struct)
   val requisitionsStructs = struct.getStructList("Requisitions")
-  val dataProvidersCount = requisitionsStructs.size
+  val dataProvidersCount =
+    requisitionsStructs.map { it.getLong("ExternalDataProviderId") }.distinct().size
 
   val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
   val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))

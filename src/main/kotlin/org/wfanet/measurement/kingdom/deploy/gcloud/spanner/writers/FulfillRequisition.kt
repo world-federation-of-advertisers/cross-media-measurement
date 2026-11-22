@@ -113,7 +113,8 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
               ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
                 Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
               ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-              ProtocolConfig.ProtocolCase.TRUS_TEE -> Measurement.State.PENDING_COMPUTATION
+              ProtocolConfig.ProtocolCase.TRUS_TEE,
+              ProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> Measurement.State.PENDING_COMPUTATION
               ProtocolConfig.ProtocolCase.DIRECT,
               ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid multi-party protocol.")
             }
