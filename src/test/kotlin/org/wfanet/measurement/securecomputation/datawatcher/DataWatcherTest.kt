@@ -333,12 +333,6 @@ class DataWatcherTest() {
                   dataPath = path
                   generation = 43L
                   createTime = Instant.parse(SOURCE_CREATE_TIME).toProtoTime()
-                  eventType =
-                    org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-                      .WorkItemParams
-                      .DataPathParams
-                      .StorageEventType
-                      .FINALIZED
                 }
               }
               .pack()
