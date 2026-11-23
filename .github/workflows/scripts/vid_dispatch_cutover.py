@@ -55,6 +55,23 @@ class Cloud:
         require(result.returncode == 0, "Command failed: " + " ".join(command[:5]) + "\n" + result.stderr)
         return result.stdout
 
+
+    def run_operator(self, command, timeout):
+        """Retain only validated application IDs, including on failure or timeout."""
+        def emit_ids(output):
+            if isinstance(output, bytes):
+                output = output.decode("utf-8", errors="replace")
+            for name in re.findall(r"(?m)^SMOKE_WORK_ITEM=(workItems/[A-Za-z0-9_-]+)$", output or ""):
+                print("SMOKE_WORK_ITEM=" + name, flush=True)
+        try:
+            result = subprocess.run(command, text=True, capture_output=True, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            emit_ids(error.stdout)
+            raise GateError("Operator command timed out; inspect the emitted WorkItem IDs before retrying") from error
+        emit_ids(result.stdout)
+        require(result.returncode == 0, "Operator command failed; inspect the emitted WorkItem IDs. " + result.stderr)
+        return result.stdout
+
     def gcloud(self, *command):
         return json.loads(self.run(["gcloud", *command, "--project=" + self.project, "--format=json"]))
 
@@ -344,7 +361,7 @@ def smoke(cloud, args, profile, tls_flags, directory):
         "--isolated-data-provider=" + isolated, "--live-data-provider=" + ",".join(sorted(live)),
         "--ordinary-work-item-file=" + str(files[0]), "--recovery-work-item-file=" + str(files[1]),
         "--approval-file=" + str(files[2])]
-    result = cloud.run(command)
+    result = cloud.run_operator(command + ["--timeout=20m"], timeout=2400)
     names = re.findall(r"^SMOKE_WORK_ITEM=(workItems/[^\s]+)$", result, flags=re.M)
     require(len(names) == 2, "Smoke did not report both queued executions")
     deadline = time.monotonic() + 300
@@ -411,8 +428,8 @@ def main(argv=None):
         if args.mode == "preflight":
             legacy_preflight(cloud, args.markers_paused_at)
             edpa_flags = [flag for flag in tls_flags if not flag.startswith("--control-plane")]
-            cloud.run(args.operator_command + ["preflight-dispatch-cutover",
-                "--data-provider=" + ",".join(sorted(configured))] + edpa_flags)
+            cloud.run_operator(args.operator_command + ["preflight-dispatch-cutover",
+                "--data-provider=" + ",".join(sorted(configured))] + edpa_flags, timeout=1800)
             print("PASS: outstanding HTTP notifications, incomplete registrations and active healing are drained")
         else:
             smoke(cloud, args, profile, tls_flags, directory)

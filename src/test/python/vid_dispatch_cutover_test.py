@@ -5,6 +5,7 @@ import datetime as dt
 import importlib.util
 import io
 import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -228,6 +229,33 @@ class CutoverTest(unittest.TestCase):
             with self.assertRaises(cutover.GateError):
                 cutover.smoke(cloud, args, profile, [], directory)
         self.assertEqual(called_operator, [])
+
+    def test_operator_runner_preserves_partial_ids_on_failure_and_timeout(self):
+        cloud = cutover.Cloud("test-project", "us-central1")
+        output = "unrelated output\nSMOKE_WORK_ITEM=workItems/dispatch-smoke-one\n"
+        for outcome in (
+            subprocess.CompletedProcess(["operator"], 1, output, "failed"),
+            subprocess.TimeoutExpired(["operator"], 2400, output=output.encode()),
+        ):
+            capture = io.StringIO()
+            with mock.patch.object(cutover.subprocess, "run", side_effect=outcome if isinstance(outcome, Exception) else None,
+                                   return_value=outcome), mock.patch("sys.stdout", capture):
+                with self.assertRaises(cutover.GateError):
+                    cloud.run_operator(["operator"], timeout=2400)
+            self.assertIn("SMOKE_WORK_ITEM=workItems/dispatch-smoke-one", capture.getvalue())
+            self.assertNotIn("unrelated output", capture.getvalue())
+
+    def test_operator_runner_uses_separate_smoke_deadline_and_retains_success_ids(self):
+        cloud = cutover.Cloud("test-project", "us-central1")
+        capture = io.StringIO()
+        output = "SMOKE_WORK_ITEM=workItems/dispatch-smoke-two\n"
+        with mock.patch.object(cutover.subprocess, "run",
+                               return_value=subprocess.CompletedProcess(["operator"], 0, output, "")) as process, \
+             mock.patch("sys.stdout", capture):
+            self.assertEqual(cloud.run_operator(["operator"], timeout=2400), output)
+        self.assertEqual(process.call_args.kwargs["timeout"], 2400)
+        self.assertGreater(process.call_args.kwargs["timeout"], 20 * 60)
+        self.assertIn("SMOKE_WORK_ITEM=workItems/dispatch-smoke-two", capture.getvalue())
 
     def test_naive_pause_timestamp_is_rejected(self):
         with self.assertRaises(cutover.GateError):
