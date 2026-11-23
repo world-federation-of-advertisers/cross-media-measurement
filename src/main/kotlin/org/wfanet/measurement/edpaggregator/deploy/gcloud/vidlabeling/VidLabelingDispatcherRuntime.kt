@@ -215,7 +215,9 @@ internal class VidLabelingDispatcherRuntime {
         rpcThrottlers = rpcThrottlers,
         validateEventTemplateVersion = { modelLineConfig, version ->
           VidLabelingFunctionHelpers.validateEventTemplateVersion(
-            modelLineConfig, version, config.rawImpressionsStorageParams.gcs.projectId,
+            modelLineConfig,
+            version,
+            config.rawImpressionsStorageParams.gcs.projectId,
           )
         },
       )
