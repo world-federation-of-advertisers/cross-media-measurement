@@ -71,4 +71,6 @@ message HighOverlapImpressionRow {
   string media_type = 17;
   // Device used for the impression. Unset when the Common template is absent.
   optional string device_type = 18;
+  // Whether the person has children under 18. Unset when Common is absent.
+  optional string parental_status = 19;
 }

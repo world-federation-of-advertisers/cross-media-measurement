@@ -111,6 +111,11 @@ resource "google_bigquery_table" "impressions" {
     "mode": "NULLABLE"
   },
   {
+    "name": "parental_status",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "signed_in",
     "type": "BOOLEAN",
     "mode": "NULLABLE"

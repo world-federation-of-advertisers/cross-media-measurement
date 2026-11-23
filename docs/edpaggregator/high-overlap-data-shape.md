@@ -90,10 +90,12 @@ override.
 **10,610,000** are reachable.
 
 The full 360M is not reached. The remaining VIDs generate no impressions and are
-split evenly across **300 `(gender × age_group × us_state)` cohorts**, covering
-both genders, all three age groups and all 50 states (excluding DC). Every cohort
-therefore has a positive population and reached impressions. Zero-impression
-filters still have a positive population denominator.
+split across **612 `(gender × age_group × us_state × parental_status)` cohorts**,
+covering both genders, all three age groups, all 50 states plus DC, and both
+parental statuses. The 600 state cohorts have reached impressions; the 12 DC
+cohorts have a positive population and zero impressions. This lets reports group
+by every state enum value without confusing zero impressions with a missing
+population denominator.
 
 The frequency vector is a dense `ByteArray` sized to the whole population — one
 slot per population VID, per filter sink — so a 360M population stresses
@@ -101,20 +103,21 @@ frequency-vector allocation regardless of how few VIDs are actually reached.
 
 ### Demographic Striping
 
-The reached range is divided into **1,000-VID stripes** cycling round-robin
-through the 300 `(gender × age_group × us_state)` tuples of
+The reached range is divided into **500-VID stripes** cycling round-robin
+through the 600 `(gender × age_group × us_state × parental_status)` tuples of
 `event_templates.testing.v1.Common`:
 
 *   gender — `MALE`, `FEMALE`
 *   age_group — `YEARS_18_TO_34`, `YEARS_35_TO_54`, `YEARS_55_PLUS`
 *   us_state — all 50 states, excluding DC
+*   parental_status — `NOT_PARENT`, `PARENT`
 
 Striping exists so demographics stay **orthogonal to the Venn structure**.
 Demographics partition reach — a VID has exactly one gender, one age band, one
-state — whereas Venn membership comes only from which EDPs carry a segment. One
-full cycle is `300 × 1,000 = 300,000` VIDs, which fits inside the *smallest*
+state and one parental status — whereas Venn membership comes only from which EDPs carry a segment. One
+full cycle is `600 × 500 = 300,000` VIDs, which fits inside the *smallest*
 Venn region, so every region carries the full demographic mix and any region can
-be broken down by gender, age or state.
+be broken down by gender, age, state or parental status.
 
 A coarse spec would defeat this. The pre-existing `360m_population_spec` has 12
 subpopulations of 30M each, so all of VIDs 1–10.6M fall inside a single
@@ -220,10 +223,10 @@ Media type is carried by the event template itself — populating `video.*` path
 generates `VIDEO` events, `display.*` paths generate `DISPLAY`. Each tranche is
 split so that **every segment, and therefore every EDP, emits both**.
 
-This is deliberate: media type is *not* aligned with EDP or Venn structure, so a
-VID shared across EDPs can be reached by a video impression on one publisher and
-a display impression on another. Their union is then genuine cross-media reach,
-which is the deduplication the system exists to perform. Siloed VIDEO-only and
+Each normal entity key contains both media types, including both types on every
+device. Shared segment specs use the same media assignment across their EDPs;
+this fixture exercises mixed-media reporting and EDP deduplication, but does not
+model one person switching media types between publishers. Siloed VIDEO-only and
 DISPLAY-only reports would not exercise it.
 
 Engagement values are cycled per block so threshold impression-qualification
@@ -251,7 +254,7 @@ Slices are proportional and tile the segment exactly. They need not land on
 stripe boundaries: each `vid_range_spec` is clamped to its enclosing stripe, so a
 slice boundary falling mid-stripe still yields ranges that sit wholly within one
 subpopulation. Note a consequence — a single sliced event group carries a subset
-of the 300 demographic tuples, so the full-mix guarantee below holds per Venn
+of the 600 demographic tuples, so the full-mix guarantee below holds per Venn
 region, not per event group.
 
 **Every event group must carry an entity key.** `EventGroupSync` filters its
@@ -473,11 +476,12 @@ Terraform resource tracks it — recreating the config bucket drops it silently.
 
 ## Device fields and metadata scale coverage
 
-Every reached age/gender/state stripe is split into desktop, mobile, and tablet
-subranges. Each impression carries its home state, device, media type, signed-in
-status, and engagement values. Device and signed-in status are event fields, not
-population attributes. The committed population still includes all 50 states;
-reached impressions cover all 50 states. A complete 300-cohort cycle fits inside
+Every reached age/gender/state/parental-status stripe is split across desktop,
+mobile, tablet, TV, and other devices, with both video and display on each device.
+Each impression carries its home state, parental status, device, media type,
+signed-in status, and engagement values. Parental status is fixed per person;
+device and signed-in status are event fields, not population attributes. The
+reached impressions cover all 50 states. A complete 600-cohort cycle fits inside
 each main Venn region. The sub-sigma noise probe is smaller than one cycle.
 Total population, segment VID ranges, frequency mix, media split, and overlap
 region sizes are preserved; reached demographics change, so stored impressions
@@ -500,8 +504,24 @@ rows are added or duplicated.
 
 The generated config records the counts and dates, so its fingerprint changes
 and `--only-if-needed` cannot reuse a dataset without the stress keys. Deploy the
-additive BigQuery `device_type` column and updated event descriptor with the
-normal CMMS workflow before running the updated seeder.
+additive BigQuery `device_type` and `parental_status` columns and updated event
+descriptor with the normal CMMS workflow before running the updated seeder.
+
+These fields mirror Aquila's version-4 additions, including all five device
+values.
+
+| Aquila field | Testing field | Coverage |
+| --- | --- | --- |
+| `common.sex` | `common.gender` | Male and female |
+| `common.age_group` | Same path | All three age groups |
+| `common.us_state` (v4) | Same path | All 50 reached states; positive-population DC control |
+| `common.device_type` (v4) | Same path | Desktop, mobile, tablet, TV, other |
+| `common.parental_status` (v4) | Same path | Parent and not parent, fixed per VID |
+| `common.media_type` | Same path | Video/display mix per normal entity key and device |
+
+The testing template retains its own version-1 annotations. The state
+enum also defines DC: its population is positive, but the fixture intentionally
+reaches the 50 states only.
 
 `EdpAggregatorMetadataScaleTest` checks the deployed metadata service using its
 normal 4 MiB response limit. It filters by all 10,000 extra keys for each EDP,
@@ -513,3 +533,38 @@ matches the sidecars, including all 5,000 additional keys and version-pinning
 fields. The reporting cloud tests then verify fulfillment over these same blobs.
 Run `Seed High Overlap Dataset` with force refresh before
 `Run EDPA Reporting Integration Test`; do not reseed during another cloud test.
+
+### Full report scale test
+
+The reporting workflow accepts `stress-report=true` to include a single large
+BasicReport. It reports over every seeded entity and all four aggregator EDPs
+from 2026-04-01 to 2026-07-01: exactly 13 weeks (91 days).
+
+| Result group | Dimensions | Periods | Filters |
+| --- | --- | --- | --- |
+| Geography and demographics, weekly | 51 state/DC values × 2 genders × 3 ages × 2 parental statuses | 13 | AMI, MRC |
+| Geography and demographics, total | Same 612 cells | 1 | AMI, MRC |
+| Device and media, weekly | All 5 devices × all supported media enum values | 13 | AMI, MRC |
+| Device and media, total | Same device/media cells | 1 | AMI, MRC |
+| Signed-in device and media | Same cells, signed-in filter | 1 | AMI, MRC |
+| Signed-out device and media | Same cells, signed-out filter | 1 | AMI, MRC |
+
+Weekly groups request cumulative reach and non-cumulative reach, K+ reach,
+impressions, average frequency, and per-EDP reach. The total demographic group
+also requests ordered incremental contributions. The API permits those
+contributions only for total-period groups. Only person-attribute groups request
+population denominators.
+
+The test checks every cell, period, filter, and component, and every demographic
+population denominator. Seven reference cells are replayed independently against
+the source specs, including DC's zero-impression control. Device/media reach for
+the full interval and each signed-in filter is checked by merging source VID
+intervals, avoiding an impression-by-impression replay of the entire dataset.
+This also checks the last cumulative week. The test records the report resource,
+result count, and serialized response size for later tracing.
+
+The test is opt-in because creation, response size, and fulfillment at this scale
+remain benchmark targets. Ordinary cloud runs keep the two existing smaller
+reports. The test does not raise service deadlines or message limits. The device
+and media panels are separate from the full demographic Cartesian product;
+combining every event dimension with every demographic and week is a larger test.

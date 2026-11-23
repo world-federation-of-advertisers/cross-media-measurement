@@ -258,10 +258,21 @@ class ReportingUserSimulator(
       resultGroupSpecs += buildResultGroupSpecs(eventGroups)
     }
 
+    val createStartedAt = System.nanoTime()
     createBasicReport(basicReportKey, basicReport)
-    logger.info { "Created BasicReport ${basicReportKey.toName()}. Polling for completion." }
+    logger.info {
+      "Created BasicReport ${basicReportKey.toName()} " +
+        "creation_ms=${(System.nanoTime() - createStartedAt) / 1_000_000}. Polling for completion."
+    }
 
-    return pollForCompletedBasicReport(buildGetBasicReportRequest(basicReportKey))
+    val pollStartedAt = System.nanoTime()
+    val completed = pollForCompletedBasicReport(buildGetBasicReportRequest(basicReportKey))
+    logger.info {
+      "Finished BasicReport ${basicReportKey.toName()} state=${completed.state} " +
+        "completion_wait_ms=${(System.nanoTime() - pollStartedAt) / 1_000_000} " +
+        "response_proto_bytes=${completed.serializedSize}"
+    }
+    return completed
   }
 
   /** Creates a [BasicReport] resource via the HTTP gateway. */
@@ -520,8 +531,7 @@ class ReportingUserSimulator(
 
     /** Returns the impression qualification filters that break results down by media type. */
     fun mediaTypeQualificationFilters(): List<ReportingImpressionQualificationFilter> =
-      // Media type is neither groupable nor filterable, and at most one custom filter is permitted
-      // per report, so this is the only split available.
+      // Include AMI, MRC, and one custom video filter to exercise standard and custom filters.
       listOf(
         reportingImpressionQualificationFilter {
           impressionQualificationFilter = ImpressionQualificationFilterKey(AMI_FILTER_ID).toName()

@@ -46,14 +46,14 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
  * aggregator EDPs, plus a deliberately sub-sigma noise probe. A segment is seeded on exactly the
  * EDPs named in its region, so selecting the whole menu lights up all 15 regions at once.
  *
- * The committed population spec interleaves 300 demographic tuples in [STRIPE_SIZE]-VID stripes
+ * The committed population spec interleaves 600 demographic tuples in [STRIPE_SIZE]-VID stripes
  * across the reached range, so every Venn region carries the full reached demographic mix.
  *
  * Usage: `GenerateHighOverlapSpecs <output-directory>`
  */
 object GenerateHighOverlapSpecs {
 
-  private const val STRIPE_SIZE = 1_000
+  private const val STRIPE_SIZE = 500
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4563): Move the EDP
   // names and the segment table below into a HighOverlapDatasetSpec config, so
@@ -77,7 +77,13 @@ object GenerateHighOverlapSpecs {
   private const val ADDITIONAL_ENTITY_KEY_COUNT = 5_000
   private val MEDIA_TYPES = listOf(MediaType.VIDEO, MediaType.DISPLAY)
   private val DEVICE_TYPES =
-    listOf(Common.DeviceType.DESKTOP, Common.DeviceType.MOBILE, Common.DeviceType.TABLET)
+    listOf(
+      Common.DeviceType.DESKTOP,
+      Common.DeviceType.MOBILE,
+      Common.DeviceType.TABLET,
+      Common.DeviceType.TV,
+      Common.DeviceType.OTHER,
+    )
 
   /** Mean frequency 2.1, monotonic K+ curve. */
   private val FREQUENCY_MIX =
@@ -321,7 +327,7 @@ object GenerateHighOverlapSpecs {
    *
    * Stripes are assigned round-robin to (tranche, frequency): tranches stagger first exposure
    * across the flight so cumulative reach grows week over week, the frequency mix gives a non-flat
-   * monotonic K+ curve. Each stripe is partitioned across three devices and both VIDEO and DISPLAY,
+   * monotonic K+ curve. Each stripe is partitioned across five devices and both VIDEO and DISPLAY,
    * so those dimensions do not collapse into particular demographics.
    */
   private fun buildSegmentSpec(segment: Segment, entityIndex: Int): SyntheticEventGroupSpec {

@@ -27,8 +27,7 @@ message Common {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "common"
     display_name: "Common"
-    description: "Common population attributes about the person reached by "
-                 "an event."
+    description: "Common attributes about the person reached and the event."
   };
 
   enum Gender {
@@ -166,6 +165,8 @@ message Common {
     DESKTOP = 1;
     MOBILE = 2;
     TABLET = 3;
+    TV = 4;
+    OTHER = 5;
   }
   DeviceType device_type = 6 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Device Type"
@@ -174,4 +175,19 @@ message Common {
     reporting_features: GROUPABLE
     version_added: 1
   }];
+
+  // Whether the person has children under 18 in their household.
+  enum ParentalStatus {
+    PARENTAL_STATUS_UNSPECIFIED = 0;
+    NOT_PARENT = 1;
+    PARENT = 2;
+  }
+  ParentalStatus parental_status = 7
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Parental Status"
+        population_attribute: true
+        reporting_features: FILTERABLE
+        reporting_features: GROUPABLE
+        version_added: 1
+      }];
 }
