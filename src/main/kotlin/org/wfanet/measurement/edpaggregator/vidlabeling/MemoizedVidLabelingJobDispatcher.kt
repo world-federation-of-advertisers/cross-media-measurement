@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
-import com.google.protobuf.CodedOutputStream
 import io.grpc.Status
 import io.grpc.StatusException
 import java.nio.ByteBuffer
@@ -61,11 +60,13 @@ class MemoizedVidLabelingJobDispatcher(
   private val maxFileBatchSizeBytes: Long,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val traceContextProvider: () -> Map<String, String>,
-  private val maxJobsPerBatchCreate: Int = 50,
+  private val maxJobsPerBatchCreate: Int = MAX_JOBS_PER_REQUEST,
   private val onJobResolved: (VidLabelingJob) -> Unit = {},
   private val onWorkItemPublished: (VidLabelingJob, String) -> Unit = { _, _ -> },
 ) {
   init {
+    requireBoundedResourceName(rawImpressionUpload, "upload resource name")
+    requireBoundedResourceName(modelLine, "model-line resource name")
     require(maxFileBatchSizeBytes > 0) { "maxFileBatchSizeBytes must be > 0" }
     require(maxJobsPerBatchCreate > 0) { "maxJobsPerBatchCreate must be > 0" }
     require(vidLabelerQueue.isNotEmpty()) { "vidLabelerQueue must be configured" }
@@ -84,24 +85,23 @@ class MemoizedVidLabelingJobDispatcher(
     }
     val files = listUploadFiles()
     if (files.isEmpty()) return 0
-    // Reserve the returned name and original creation metadata before packing file names.
-    val fixedJobBytes =
-      vidLabelingJob { cmmsModelLines += modelLine }.serializedSize +
-        CodedOutputStream.computeStringSize(
-          VidLabelingJob.NAME_FIELD_NUMBER,
-          "$rawImpressionUpload/vidLabelingJobs/vidLabelingJob-${"0".repeat(36)}",
-        ) +
-        JOB_RESPONSE_METADATA_MARGIN_BYTES
+    files.forEach { requireBoundedResourceName(it.name, "file resource name") }
     val batches =
       RawImpressionFileBinPacker.pack(
         files,
         maxFileBatchSizeBytes,
         maxFilesPerBatch = MAX_FILES_PER_JOB,
-        maxFileNamesSizeBytes = MAX_JOB_SIZE_BYTES - fixedJobBytes,
       )
     val jobs = createVidLabelingJobs(batches)
     jobs.forEach { publishVidLabelerWorkItem(it) }
     return jobs.size
+  }
+
+  private fun requireBoundedResourceName(name: String, field: String) {
+    require(name.isNotEmpty() && name.length <= MAX_RESOURCE_NAME_LENGTH) {
+      "$field must contain between 1 and $MAX_RESOURCE_NAME_LENGTH ASCII characters"
+    }
+    require(name.all { it.code <= 0x7F }) { "$field must contain only ASCII characters" }
   }
 
   /** Lists every (non-deleted) `RawImpressionUploadFile` under this upload. */
@@ -127,8 +127,8 @@ class MemoizedVidLabelingJobDispatcher(
   /**
    * Creates deterministic batch-slot jobs against the sealed upload manifest. Equal membership
    * replays existing jobs; the metadata service rejects changed file/model-line membership. Packing
-   * limits must remain identical across retries. Chunks obey both job count and encoded request
-   * bytes, with margin below the 4 MiB receiver limit for returned resource metadata.
+   * limits must remain identical across retries. Bounded resource names and conservative file/job
+   * counts keep requests and original Create responses below the metadata receiver limit.
    */
   private suspend fun createVidLabelingJobs(batches: List<List<String>>): List<VidLabelingJob> {
     val created = mutableListOf<VidLabelingJob>()
@@ -159,18 +159,10 @@ class MemoizedVidLabelingJobDispatcher(
         }
         requestId = labelingJobRequestId(batchIndex)
       }
-      var candidate = pending.copy { requests += create }
-      if (
-        candidate.requestsCount > minOf(maxJobsPerBatchCreate, MAX_JOBS_PER_REQUEST) ||
-          candidate.serializedSize > MAX_BATCH_REQUEST_SIZE_BYTES
-      ) {
+      if (pending.requestsCount == minOf(maxJobsPerBatchCreate, MAX_JOBS_PER_REQUEST)) {
         flush()
-        candidate = pending.copy { requests += create }
       }
-      check(candidate.serializedSize <= MAX_BATCH_REQUEST_SIZE_BYTES) {
-        "A labeling-job create request exceeds the metadata RPC byte limit"
-      }
-      pending = candidate
+      pending = pending.copy { requests += create }
     }
     flush()
     return created
@@ -227,11 +219,14 @@ class MemoizedVidLabelingJobDispatcher(
   }
 
   companion object {
+    private const val MAX_RESOURCE_NAME_LENGTH = 512
+    // Each bounded ASCII file name costs at most 515 wire bytes (tag + length + name).
+    // 1,000 names plus 4 KiB for the model line, returned UUID name, timestamps and etag fit
+    // within 512 KiB. Five jobs plus 1 KiB of request/response framing per job fit within 3 MiB,
+    // leaving at least 1 MiB below the 4 MiB receiver limit. Serialization tests verify these
+    // conservative estimates; payload sizing never runs during dispatch.
     private const val MAX_FILES_PER_JOB = 1_000
-    private const val MAX_JOB_SIZE_BYTES = 512 * 1024
-    private const val MAX_BATCH_REQUEST_SIZE_BYTES = 3 * 1024 * 1024
-    private const val MAX_JOBS_PER_REQUEST = 50
-    private const val JOB_RESPONSE_METADATA_MARGIN_BYTES = 1024
+    private const val MAX_JOBS_PER_REQUEST = 5
 
     fun buildParamsTemplate(params: VidRankBuilderParams): VidLabelerParams {
       require(params.modelBlobPath.isNotEmpty()) { "model_blob_path must be set" }
