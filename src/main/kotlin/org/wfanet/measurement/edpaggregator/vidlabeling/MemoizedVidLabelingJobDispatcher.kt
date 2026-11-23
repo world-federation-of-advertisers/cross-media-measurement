@@ -84,7 +84,7 @@ class MemoizedVidLabelingJobDispatcher(
     }
     val files = listUploadFiles()
     if (files.isEmpty()) return 0
-    // Reserve the returned name, lifecycle metadata and the service's bounded error preview.
+    // Reserve the returned name and original creation metadata before packing file names.
     val fixedJobBytes =
       vidLabelingJob { cmmsModelLines += modelLine }.serializedSize +
         CodedOutputStream.computeStringSize(
