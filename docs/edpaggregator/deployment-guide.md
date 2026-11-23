@@ -222,6 +222,8 @@ Use **Update CMMS** with the default online VID dispatch cutover. It verifies co
 code and queue delivery, then uses a versioned configuration to queue only the isolated
 test provider. Fresh storage-object finalizations must produce their deterministic
 DataWatcher WorkItems and successful ordinary/recovery outcomes before live routes switch.
+The recovery fixture uses the controller-recorded operator-recovery generation; queue-write
+evidence from the DataWatcher function is required for both storage events.
 EDPs can continue publishing raw done markers. For a shorter maintenance cutover, pause
 new raw done markers and select maintenance mode; one fail-closed preflight and one
 final-stack apply precede readiness and the same storage-event smoke.
