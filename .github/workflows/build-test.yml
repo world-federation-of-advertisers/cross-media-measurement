@@ -25,13 +25,6 @@ on:
       - 'releases/**'
   workflow_dispatch:
     inputs:
-      test_layout:
-        description: Test layout (serial provides the comparison baseline)
-        type: choice
-        options:
-          - parallel
-          - serial
-        default: parallel
       force_test_execution:
         description: Execute every test instead of accepting cached test results
         type: boolean
@@ -41,17 +34,16 @@ permissions:
   contents: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.test_layout || 'parallel' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
-  FORCE_TEST_EXECUTION: ${{ inputs.force_test_execution && 'true' || 'false' }}
+  CACHE_TEST_RESULTS: ${{ inputs.force_test_execution && 'no' || 'auto' }}
   CLUSTER_LOGS_PATH: cluster-logs
 
 jobs:
   build:
     name: Build and plan tests
-    if: ${{ inputs.test_layout != 'serial' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Check out revision
@@ -76,7 +68,7 @@ jobs:
       - name: Plan test groups
         run: |
           bazel query 'tests(//... except attr("tags", "(^|, |\[)manual(,|\])", //...))' --output=xml > ci-test-query.xml
-          python3 .github/workflows/scripts/ci_test_groups.py plan \
+          python3 .github/workflows/scripts/ci_test_groups.py \
             --query=ci-test-query.xml --output=ci-test-groups
 
       - name: Upload test groups
@@ -111,12 +103,14 @@ jobs:
       - name: Run assigned tests
         env:
           TEST_GROUP: ${{ matrix.group }}
-        run: >
-          python3 .github/workflows/scripts/ci_test_groups.py run
-          --targets-file="ci-test-groups/$TEST_GROUP.txt"
-          --log-file="ci-results/$TEST_GROUP.log"
-          --force-test-execution="$FORCE_TEST_EXECUTION"
-          --test-output=errors
+        run: |
+          targets="ci-test-groups/$TEST_GROUP.txt"
+          test -f "$targets"
+          if [[ -s "$targets" ]]; then
+            tools/bazel-with-results bazel test --target_pattern_file="$targets" \
+              --cache_test_results="$CACHE_TEST_RESULTS" \
+              --test_output=errors --test_summary=short
+          fi
 
       - name: Upload test results
         if: ${{ !cancelled() }}
@@ -124,10 +118,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results-${{ matrix.group }}
-          path: |
-            ci-results
-            ci-test-groups
-            bazel-testlogs
+          path: bazel-testlogs
 
   correctness:
     name: Kubernetes correctness tests
@@ -141,19 +132,70 @@ jobs:
         with:
           buildbuddy-api-key: ${{ secrets.BUILDBUDDY_API_KEY }}
 
-      - name: Download test groups
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
-        with:
-          name: ci-test-groups
-          path: ci-test-groups
-
       - name: Materialize local Kubernetes configurations
         run: >
           tools/bazel-with-results bazel build
           //src/main/k8s/local:cmms
           //src/main/k8s/dev:edp_simulators
 
-      - uses: ./.github/actions/run-correctness-tests
+      - name: Export bazel output path
+        run: echo "BAZEL_OUTPUT_PATH=$(bazel info output_path)" >> $GITHUB_ENV
+
+      - name: Create cluster
+        id: create-cluster
+        run: |
+          echo "KUBECONFIG=$HOME/.kube/config" >> "$GITHUB_ENV"
+          curl -LOJ https://kind.sigs.k8s.io/examples/kind-with-registry.sh
+          chmod +x kind-with-registry.sh
+          sed -i 's|kind create cluster|kind create cluster --image=kindest/node:v1.35.1|g' kind-with-registry.sh
+          ./kind-with-registry.sh
+
+      - name: Run correctness test
+        id: run-correctness-test
+        run: >
+          tools/bazel-with-results bazel test
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
+          --cache_test_results="$CACHE_TEST_RESULTS"
+          --test_output=streamed --test_summary=short
+
+      - name: Delete Kubernetes Resources
+        continue-on-error: true
+        run: |
+          kubectl delete all --namespace=default --all --cascade=foreground --wait
+          kubectl delete networkpolicies --namespace=default --all
+
+      - name: Run panelmatch correctness test
+        id: run-panelmatch-correctness-test
+        run: >
+          tools/bazel-with-results bazel test
+          //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:EmptyClusterPanelMatchCorrectnessTest
+          --cache_test_results="$CACHE_TEST_RESULTS"
+          --test_output=streamed --test_summary=short
+
+      - name: Collect rollout diagnostics
+        if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+        continue-on-error: true
+        timeout-minutes: 5
+        run: >
+          python3 .github/workflows/scripts/k8s_rollout_diagnostics.py
+          --selector=app
+          --output-dir="${{ env.CLUSTER_LOGS_PATH }}/rollout"
+
+      - name: Export cluster logs
+        id: export-cluster-logs
+        if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+        continue-on-error: true
+        run: |
+          mkdir -p "$CLUSTER_LOGS_PATH"
+          kind export logs "$CLUSTER_LOGS_PATH"
+
+      - name: Upload cluster logs artifact
+        if: failure() && steps.export-cluster-logs.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        continue-on-error: true
+        with:
+          name: cluster-logs
+          path: ${{ env.CLUSTER_LOGS_PATH }}
 
       - name: Upload test results
         if: ${{ !cancelled() }}
@@ -161,82 +203,16 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-results-correctness
-          path: |
-            ci-results
-            ci-test-groups
-            bazel-testlogs
-
-  serial:
-    name: Serial comparison baseline
-    if: ${{ inputs.test_layout == 'serial' }}
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Check out revision
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-
-      - uses: ./.github/actions/setup-ci
-        with:
-          buildbuddy-api-key: ${{ secrets.BUILDBUDDY_API_KEY }}
-
-      - name: Build
-        run: >
-          tools/bazel-with-results bazel build --worker_quit_after_build
-          //...
-          //src/main/k8s/local:cmms
-          //src/main/k8s/dev:edp_simulators
-
-      - name: Run workflow and deployment helper tests
-        run: |
-          python3 -m unittest discover -s src/test/github/workflows/scripts -p '*_test.py'
-          python3 -m unittest discover -s src/test/terraform/gcloud/modules/http-cloud-function -p '*_test.py'
-
-      - name: Plan test groups
-        run: |
-          bazel query 'tests(//... except attr("tags", "(^|, |\[)manual(,|\])", //...))' --output=xml > ci-test-query.xml
-          python3 .github/workflows/scripts/ci_test_groups.py plan \
-            --query=ci-test-query.xml --output=ci-test-groups
-
-      - name: Run all tests
-        run: >
-          python3 .github/workflows/scripts/ci_test_groups.py run
-          --targets-file=ci-test-groups/all.txt
-          --target-pattern=//...
-          --log-file=ci-results/all.log
-          --force-test-execution="$FORCE_TEST_EXECUTION"
-          --test-output=errors
-
-      - uses: ./.github/actions/run-correctness-tests
-
-      - name: Upload test results
-        if: ${{ !cancelled() }}
-        continue-on-error: true
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: test-results-serial
-          path: |
-            ci-results
-            ci-test-groups
-            bazel-testlogs
+          path: bazel-testlogs
 
   build-test:
-    name: ${{ inputs.test_layout == 'serial' && 'Serial baseline result' || 'Build and test' }}
+    name: Build and test
     if: ${{ always() }}
-    needs: [build, tests, correctness, serial]
+    needs: [build, tests, correctness]
     runs-on: ubuntu-24.04
     steps:
-      - name: Require every selected job to succeed
-        env:
-          JOB_RESULTS: ${{ toJSON(needs) }}
-          TEST_LAYOUT: ${{ inputs.test_layout || 'parallel' }}
+      - name: Require every job to succeed
         run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import sys
-
-          results = json.loads(os.environ["JOB_RESULTS"])
-          expected = ["serial"] if os.environ["TEST_LAYOUT"] == "serial" else ["build", "tests", "correctness"]
-          failed = [job for job in expected if results[job]["result"] != "success"]
-          if failed:
-              sys.exit("Required CI jobs did not succeed: " + ", ".join(failed))
-          PY
+          test "${{ needs.build.result }}" = success
+          test "${{ needs.tests.result }}" = success
+          test "${{ needs.correctness.result }}" = success

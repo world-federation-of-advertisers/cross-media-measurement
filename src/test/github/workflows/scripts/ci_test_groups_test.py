@@ -34,12 +34,6 @@ def query_xml(rules: list[tuple[str, list[str], bool]]) -> str:
     return ET.tostring(query, encoding="unicode")
 
 
-KUBERNETES_RULES = [
-    (ci_test_groups.CORRECTNESS_TARGET, ["manual", "no-remote-exec"], False),
-    (ci_test_groups.PANELMATCH_TARGET, ["manual", "no-remote-exec"], False),
-]
-
-
 class CiTestGroupsTest(unittest.TestCase):
     def test_workflow_selection_only_excludes_manual_root_tags(self):
         workflow = Path(__file__).resolve().parents[5] / ".github/workflows/build-test.yml"
@@ -88,33 +82,6 @@ class CiTestGroupsTest(unittest.TestCase):
     def test_empty_test_selection_is_rejected(self):
         with self.assertRaises(ValueError):
             ci_test_groups.partition_tests(query_xml([]), {})
-
-    def test_forced_execution_accepts_every_executed_test(self):
-        log = "//example:first PASSED in 1.0s\n//example:second FLAKY, failed in 1 out of 2 attempts\nExecuted 2 out of 2 tests: 2 tests pass.\n"
-        result = ci_test_groups.verify_results({"//example:first", "//example:second"}, log, True)
-        self.assertEqual(result, {"assigned": 2, "executed": 2, "cached": 0})
-
-    def test_forced_execution_rejects_cached_results(self):
-        log = "//example:test (cached) PASSED in 1.0s\nExecuted 0 out of 1 test: 1 test passes.\n"
-        with self.assertRaises(ValueError):
-            ci_test_groups.verify_results({"//example:test"}, log, True)
-
-    def test_normal_execution_allows_cached_results(self):
-        log = "//example:test (cached) PASSED in 1.0s\nExecuted 0 out of 1 test: 1 test passes.\n"
-        result = ci_test_groups.verify_results({"//example:test"}, log, False)
-        self.assertEqual(result, {"assigned": 1, "executed": 0, "cached": 1})
-
-    def test_forced_execution_rejects_incomplete_execution_count(self):
-        log = "//example:test PASSED in 1.0s\nExecuted 0 out of 1 test: 1 test passes.\n"
-        with self.assertRaises(ValueError):
-            ci_test_groups.verify_results({"//example:test"}, log, True)
-
-    def test_missing_extra_or_duplicate_test_results_are_rejected(self):
-        for lines in ["", "//example:extra PASSED in 1.0s\n", "//example:test PASSED in 1.0s\n//example:test PASSED in 1.0s\n"]:
-            with self.subTest(lines=lines):
-                log = lines + "Executed 1 out of 1 test: 1 test passes.\n"
-                with self.assertRaises(ValueError):
-                    ci_test_groups.verify_results({"//example:test"}, log, False)
 
 
 if __name__ == "__main__":
