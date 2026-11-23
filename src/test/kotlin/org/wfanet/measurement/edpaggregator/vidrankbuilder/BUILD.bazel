@@ -69,6 +69,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
     ],
 )
 
@@ -77,6 +78,7 @@ kt_jvm_test(
     srcs = ["VidRankBuilderAppTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidrankbuilder.VidRankBuilderAppTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:subpool_fingerprints_store",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:vid_rank_builder_app",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
@@ -104,8 +106,10 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/queue:queue_subscriber",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/testing",
     ],
 )
 

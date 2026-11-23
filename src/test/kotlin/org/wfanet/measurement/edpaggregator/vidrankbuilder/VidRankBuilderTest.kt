@@ -77,6 +77,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.BlobChangedException
 
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
 private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
@@ -318,6 +319,59 @@ class VidRankBuilderTest {
       rpcThrottlers = rpcThrottlers,
       traceContextProvider = traceContextProvider,
     )
+
+  @Test
+  fun `rank storage conflict exits cleanly after the winning job completed`() =
+    runBlocking<Unit> {
+      val failure = BlobChangedException("another rank writer")
+      val ranker =
+        mock<SubpoolRanker> { onBlocking { rank(any(), any(), any()) } doAnswer { throw failure } }
+      var reads = 0
+      val jobs =
+        mock<RankerJobServiceCoroutineStub> {
+          onBlocking { getRankerJob(any(), any()) } doAnswer
+            {
+              rankerJob {
+                name = RANKER_JOB
+                etag = "etag"
+                state = if (reads++ == 0) RankerJob.State.CREATED else RankerJob.State.SUCCEEDED
+              }
+            }
+        }
+      var parentReads = 0
+      val lines =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+            {
+              listRawImpressionUploadModelLinesResponse {
+                rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                  name = PARENT_NAME
+                  cmmsModelLine = MODEL_LINE
+                  state =
+                    if (parentReads++ == 0) RawImpressionUploadModelLine.State.RANKING
+                    else RawImpressionUploadModelLine.State.LABELING
+                }
+              }
+            }
+        }
+      val result = builder(ranker, jobs, lines).run()
+      assertThat(result.outcome).isEqualTo("already_completed")
+      verifyBlocking(jobs, never()) { markRankerJobSucceeded(any(), any()) }
+      verifyBlocking(lines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+    }
+
+  @Test
+  fun `rank storage conflict remains retryable when the job is unfinished`() =
+    runBlocking<Unit> {
+      val failure = BlobChangedException("unfinished rank output")
+      val ranker =
+        mock<SubpoolRanker> { onBlocking { rank(any(), any(), any()) } doAnswer { throw failure } }
+      val jobs = rankerJobsMock()
+      assertThat(assertFailsWith<BlobChangedException> { builder(ranker, jobs).run() })
+        .hasMessageThat()
+        .contains("unfinished")
+      verifyBlocking(jobs, never()) { markRankerJobSucceeded(any(), any()) }
+    }
 
   @Test
   fun `non-last job ranks its subpools and marks succeeded without fan-out`() = runBlocking {
