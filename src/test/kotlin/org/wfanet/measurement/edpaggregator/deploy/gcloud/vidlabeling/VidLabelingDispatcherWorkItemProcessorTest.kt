@@ -77,8 +77,6 @@ class VidLabelingDispatcherWorkItemProcessorTest {
   }
 
   private fun task(
-    event: WorkItem.WorkItemParams.DataPathParams.StorageEventType =
-      WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED,
     appRecovery: VidLabelingDispatchWorkItemParams.RecoveryParams? = null,
     outerSource: WorkItem.WorkItemParams.DataPathParams? = null,
   ) = workItem {
@@ -93,8 +91,7 @@ class VidLabelingDispatcherWorkItemProcessorTest {
                 if (appRecovery != null) recovery = appRecovery
               }
               .pack()
-          if (appRecovery == null)
-            dataPathParams = outerSource ?: ordinarySource().copy { eventType = event }
+          if (appRecovery == null) dataPathParams = outerSource ?: ordinarySource()
           else if (outerSource != null) dataPathParams = outerSource
           traceContext["traceparent"] = "00-11111111111111111111111111111111-1111111111111111-01"
         }
@@ -179,7 +176,6 @@ class VidLabelingDispatcherWorkItemProcessorTest {
     dataPath = "gs://raw/day/done"
     generation = 11L
     createTime = Instant.parse("2026-01-01T00:00:00Z").toProtoTime()
-    eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
   }
 
   @Test
@@ -257,7 +253,7 @@ class VidLabelingDispatcherWorkItemProcessorTest {
   fun `malformed source is terminal before dispatch`() =
     runBlocking<Unit> {
       processor { _, _ -> error("Must not dispatch") }
-        .process(task(WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED))
+        .process(task(outerSource = ordinarySource().copy { clearGeneration() }))
       verifyBlocking(attempts, times(1)) { failWorkItemAttempt(any()) }
       verifyBlocking(items, times(1)) { failWorkItem(any()) }
       verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }

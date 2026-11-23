@@ -68,7 +68,6 @@ class VidLabelingDispatchTraceTest {
             dataPath = path
             this.generation = generation
             createTime = time.toProtoTime()
-            eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
           }
           appParams =
             vidLabelingDispatchWorkItemParams {
