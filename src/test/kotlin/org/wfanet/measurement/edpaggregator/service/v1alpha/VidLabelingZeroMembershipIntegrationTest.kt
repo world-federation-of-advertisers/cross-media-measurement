@@ -470,8 +470,8 @@ internal class VidLabelingZeroMembershipIntegrationTest :
       }
       finalizeRawUpload("partial-creation")
       awaitPipelineIdle()
-      // The shared dispatcher creates at most 50 jobs per request and publishes after all jobs
-      // exist. Commit the first batch, then fail before creating the final file's job.
+      // The shared dispatcher creates at most five jobs per request and publishes after all jobs
+      // exist. Commit the first batch, then fail before creating the remaining jobs.
       edpaBeforeCallFaults.arm(
         "wfa.measurement.edpaggregator.v1alpha.VidLabelingJobService/BatchCreateVidLabelingJobs",
         skip = 1,
@@ -492,7 +492,7 @@ internal class VidLabelingZeroMembershipIntegrationTest :
             }
           )
           .vidLabelingJobsList
-      assertThat(firstBatch).hasSize(50)
+      assertThat(firstBatch).hasSize(5)
       assertThat(vidLabelerWorkItems()).isEmpty()
       releaseHeldPoolAssignmentRedelivery()
       awaitPipelineIdle()
