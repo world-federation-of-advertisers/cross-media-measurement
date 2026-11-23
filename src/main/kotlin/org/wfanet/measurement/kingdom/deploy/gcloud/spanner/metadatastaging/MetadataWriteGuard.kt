@@ -115,76 +115,78 @@ class MetadataWriteGuard(private val databaseClient: AsyncDatabaseClient) {
     }
   }
 
-  internal suspend fun checkAvailable(
-    transaction: AsyncDatabaseClient.TransactionContext,
-    dataProviderId: Long,
-    measurementConsumerId: Long,
-    paths: Set<String>,
-  ) {
-    require(paths.all { it.isNotBlank() && it.endsWith("/") })
-    touch(transaction, dataProviderId)
-    checkNoHierarchyChange(transaction, dataProviderId)
-    val locks =
-      transaction
-        .executeQuery(
-          statement(
-            "SELECT EntityPath FROM EventGroupMetadataSubtreeLocks WHERE DataProviderId = @dataProviderId AND MeasurementConsumerId = @measurementConsumerId"
-          ) {
-            bind("dataProviderId").to(dataProviderId)
-            bind("measurementConsumerId").to(measurementConsumerId)
+  companion object {
+    suspend fun checkAvailable(
+      transaction: AsyncDatabaseClient.TransactionContext,
+      dataProviderId: Long,
+      measurementConsumerId: Long,
+      paths: Set<String>,
+    ) {
+      require(paths.all { it.isNotBlank() && it.endsWith("/") })
+      touch(transaction, dataProviderId)
+      checkNoHierarchyChange(transaction, dataProviderId)
+      val locks =
+        transaction
+          .executeQuery(
+            statement(
+              "SELECT EntityPath FROM EventGroupMetadataSubtreeLocks WHERE DataProviderId = @dataProviderId AND MeasurementConsumerId = @measurementConsumerId"
+            ) {
+              bind("dataProviderId").to(dataProviderId)
+              bind("measurementConsumerId").to(measurementConsumerId)
+            }
+          )
+          .toList()
+      if (
+        locks.any { row ->
+          paths.any { path ->
+            val lockedPath = row.getString("EntityPath")
+            path.startsWith(lockedPath) || lockedPath.startsWith(path)
           }
-        )
-        .toList()
-    if (
-      locks.any { row ->
-        paths.any { path ->
-          val lockedPath = row.getString("EntityPath")
-          path.startsWith(lockedPath) || lockedPath.startsWith(path)
         }
-      }
-    )
-      throw Status.ABORTED.withDescription("An overlapping metadata operation is running")
-        .asRuntimeException()
-  }
-
-  internal suspend fun touch(
-    transaction: AsyncDatabaseClient.TransactionContext,
-    dataProviderId: Long,
-  ) {
-    // All participating transactions serialize their guard checks with lock acquisition/release.
-    val row =
-      transaction.readRow(
-        "EventGroupMetadataProviderGuards",
-        Key.of(dataProviderId),
-        listOf("Revision"),
       )
-    val next = Math.addExact(row?.getLong("Revision") ?: 0L, 1L)
-    transaction.buffer(
-      Mutation.newInsertOrUpdateBuilder("EventGroupMetadataProviderGuards")
-        .apply {
-          set("DataProviderId").to(dataProviderId)
-          set("Revision").to(next)
-        }
-        .build()
-    )
-  }
+        throw Status.ABORTED.withDescription("An overlapping metadata operation is running")
+          .asRuntimeException()
+    }
 
-  private suspend fun checkNoHierarchyChange(
-    transaction: AsyncDatabaseClient.TransactionContext,
-    dataProviderId: Long,
-  ) {
-    val changes =
-      transaction
-        .executeQuery(
-          statement(
-            "SELECT ChangeId FROM EventGroupMetadataHierarchyChanges WHERE DataProviderId = @dataProviderId AND Active"
-          ) {
-            bind("dataProviderId").to(dataProviderId)
-          }
+    internal suspend fun touch(
+      transaction: AsyncDatabaseClient.TransactionContext,
+      dataProviderId: Long,
+    ) {
+      // All participating transactions serialize their guard checks with lock acquisition/release.
+      val row =
+        transaction.readRow(
+          "EventGroupMetadataProviderGuards",
+          Key.of(dataProviderId),
+          listOf("Revision"),
         )
-        .toList()
-    if (changes.isNotEmpty())
-      throw Status.ABORTED.withDescription("Hierarchy configuration or activation is running")
-        .asRuntimeException()
+      val next = Math.addExact(row?.getLong("Revision") ?: 0L, 1L)
+      transaction.buffer(
+        Mutation.newInsertOrUpdateBuilder("EventGroupMetadataProviderGuards")
+          .apply {
+            set("DataProviderId").to(dataProviderId)
+            set("Revision").to(next)
+          }
+          .build()
+      )
+    }
+
+    private suspend fun checkNoHierarchyChange(
+      transaction: AsyncDatabaseClient.TransactionContext,
+      dataProviderId: Long,
+    ) {
+      val changes =
+        transaction
+          .executeQuery(
+            statement(
+              "SELECT ChangeId FROM EventGroupMetadataHierarchyChanges WHERE DataProviderId = @dataProviderId AND Active"
+            ) {
+              bind("dataProviderId").to(dataProviderId)
+            }
+          )
+          .toList()
+      if (changes.isNotEmpty())
+        throw Status.ABORTED.withDescription("Hierarchy configuration or activation is running")
+          .asRuntimeException()
+    }
   }
 }

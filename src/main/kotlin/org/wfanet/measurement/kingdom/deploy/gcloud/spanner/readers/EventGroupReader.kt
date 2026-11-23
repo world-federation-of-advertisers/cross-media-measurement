@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupKt.entityKey
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.dateInterval
 import org.wfanet.measurement.internal.kingdom.eventGroup
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.PublishedMetadataSql
 
 class EventGroupReader
 private constructor(private val view: EventGroup.View, private val index: Index) :
@@ -59,6 +60,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
     val createRequestId: String?,
     val entityPath: String?,
     val isLeaf: Boolean,
+    val internalMeasurementConsumerId: InternalId,
   )
 
   data class HierarchyKey(
@@ -249,6 +251,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
       if (struct.isNull("CreateRequestId")) null else struct.getString("CreateRequestId"),
       if (struct.isNull("EntityPath")) null else struct.getString("EntityPath"),
       struct.getBoolean("IsLeaf"),
+      InternalId(struct.getLong("MeasurementConsumerId")),
     )
 
   private fun buildEventGroup(struct: Struct): EventGroup {
@@ -353,6 +356,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
 
     private fun baseSql(index: Index) =
       """
+      ${PublishedMetadataSql.visibleVersions}
       SELECT
         EventGroups.EventGroupId,
         EventGroups.ExternalEventGroupId,
@@ -367,7 +371,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
         EventGroups.EventGroupDetails,
         EventGroups.EntityType,
         EventGroups.EntityId,
-        EventGroups.EntityMetadata,
+        IF(V.OperationId IS NULL, EventGroups.EntityMetadata, V.Metadata) AS EntityMetadata,
         EventGroups.EntityPath,
         EventGroups.IsLeaf,
         MeasurementConsumers.ExternalMeasurementConsumerId,
@@ -384,11 +388,13 @@ private constructor(private val view: EventGroup.View, private val index: Index)
         EventGroups${index.sql}
         JOIN DataProviders USING (DataProviderId)
         JOIN MeasurementConsumers USING (MeasurementConsumerId)
+        LEFT JOIN VisibleVersions AS V USING (DataProviderId, MeasurementConsumerId, EventGroupId)
       """
         .trimIndent()
 
     private fun withActivitySummaryViewSql(index: Index) =
       """
+      ${PublishedMetadataSql.visibleVersions}
       SELECT
         EventGroups.EventGroupId,
         EventGroups.ExternalEventGroupId,
@@ -403,7 +409,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
         EventGroups.EventGroupDetails,
         EventGroups.EntityType,
         EventGroups.EntityId,
-        EventGroups.EntityMetadata,
+        IF(V.OperationId IS NULL, EventGroups.EntityMetadata, V.Metadata) AS EntityMetadata,
         EventGroups.EntityPath,
         EventGroups.IsLeaf,
         MeasurementConsumers.ExternalMeasurementConsumerId,
@@ -427,6 +433,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
         EventGroups${index.sql}
         JOIN DataProviders USING (DataProviderId)
         JOIN MeasurementConsumers USING (MeasurementConsumerId)
+        LEFT JOIN VisibleVersions AS V USING (DataProviderId, MeasurementConsumerId, EventGroupId)
       """
         .trimIndent()
 

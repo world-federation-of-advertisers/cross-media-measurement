@@ -31,6 +31,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.EntityMetadataValues
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
@@ -128,6 +129,8 @@ internal fun SpannerWriter.TransactionScope.createEventGroup(
     }
     if (request.eventGroup.hasEntityMetadata()) {
       set("EntityMetadata").to(request.eventGroup.entityMetadata)
+      set("EntityMetadataValues")
+        .toStringArray(EntityMetadataValues.flatten(request.eventGroup.entityMetadata))
     }
     if (entityPath != null) {
       set("EntityPath").to(entityPath)

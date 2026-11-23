@@ -26,6 +26,7 @@ import org.wfanet.measurement.gcloud.spanner.toInt64Array
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupKey
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.PublishedMetadataSql
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
 class StreamEventGroups(
@@ -35,6 +36,7 @@ class StreamEventGroups(
   private val internalDataProviderId: InternalId?,
   private val internalMeasurementConsumerId: InternalId?,
   limit: Int = 0,
+  private val enableEntityMetadataSearch: Boolean = false,
 ) : SimpleSpannerQuery<EventGroupReader.Result>() {
   override val reader =
     (if (internalDataProviderId == null) {
@@ -141,7 +143,13 @@ class StreamEventGroups(
           .to(filter.dataAvailabilityEndTimeOnOrAfter.toGcloudTimestamp())
       }
       if (filter.metadataSearchQuery.isNotEmpty()) {
-        add("SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)")
+        add(
+          if (enableEntityMetadataSearch) {
+            PublishedMetadataSql.searchPredicate(METADATA_SEARCH_QUERY)
+          } else {
+            "SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)"
+          }
+        )
         bind(METADATA_SEARCH_QUERY).to(filter.metadataSearchQuery)
       }
 

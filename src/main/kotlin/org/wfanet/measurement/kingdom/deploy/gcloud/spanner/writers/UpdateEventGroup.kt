@@ -36,10 +36,12 @@ import org.wfanet.measurement.internal.kingdom.EventGroupDetails
 import org.wfanet.measurement.internal.kingdom.EventGroupKt
 import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyConflictException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.EntityMetadataValues
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
 /**
@@ -60,7 +62,8 @@ class UpdateEventGroup(private val request: EventGroup) : SpannerWriter<EventGro
         .readByDataProvider(transactionContext, externalDataProviderId, externalEventGroupId)
         ?: throw EventGroupNotFoundException(externalDataProviderId, externalEventGroupId)
 
-    updateEventGroup(request, result)
+    EventGroupHierarchyWriter(this, result.internalDataProviderId)
+      .update(listOf(EventGroupHierarchyWriter.Update(request, result)))
 
     return request
   }
@@ -82,24 +85,10 @@ class UpdateEventGroup(private val request: EventGroup) : SpannerWriter<EventGro
 internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
   request: EventGroup,
   result: EventGroupReader.Result,
+  entityPath: String?,
+  publicationSequence: Long,
 ) {
-  val externalEventGroupId = ExternalId(request.externalEventGroupId)
-  val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
-
-  if (result.eventGroup.state == EventGroup.State.DELETED) {
-    throw EventGroupStateIllegalException(
-      externalEventGroupId,
-      externalEventGroupId,
-      result.eventGroup.state,
-    )
-  }
-
-  if (result.eventGroup.externalMeasurementConsumerId != externalMeasurementConsumerId.value) {
-    throw EventGroupInvalidArgsException(
-      ExternalId(result.eventGroup.externalMeasurementConsumerId),
-      externalMeasurementConsumerId,
-    )
-  }
+  result.validateUpdate(request)
   val providedEventGroupId: String? = request.providedEventGroupId.ifBlank { null }
 
   transactionContext.bufferUpdateMutation(Table.EVENT_GROUPS) {
@@ -135,6 +124,9 @@ internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
         Value.protoMessage(null, Struct.getDescriptor())
       }
     set("EntityMetadata").to(entityMetadataValue)
+    set("EntityMetadataValues").toStringArray(EntityMetadataValues.flatten(request.entityMetadata))
+    set("EntityMetadataPublicationSequence").to(publicationSequence)
+    set("EntityPath").to(entityPath)
   }
 
   transactionContext.syncMediaTypes(
@@ -144,7 +136,28 @@ internal suspend fun SpannerWriter.TransactionScope.updateEventGroup(
   )
 }
 
-private suspend fun AsyncDatabaseClient.TransactionContext.syncMediaTypes(
+internal fun EventGroupReader.Result.validateUpdate(request: EventGroup) {
+  val externalEventGroupId = ExternalId(request.externalEventGroupId)
+  val externalMeasurementConsumerId = ExternalId(request.externalMeasurementConsumerId)
+
+  if (this.eventGroup.state == EventGroup.State.DELETED) {
+    throw EventGroupStateIllegalException(
+      ExternalId(this.eventGroup.externalDataProviderId),
+      externalEventGroupId,
+      this.eventGroup.state,
+    )
+  }
+
+  if (this.eventGroup.externalMeasurementConsumerId != externalMeasurementConsumerId.value) {
+    throw EventGroupInvalidArgsException(
+      ExternalId(this.eventGroup.externalMeasurementConsumerId),
+      externalMeasurementConsumerId,
+    )
+  }
+  if (!isLeaf) throw EventGroupHierarchyConflictException("A derived ancestor cannot be updated.")
+}
+
+internal suspend fun AsyncDatabaseClient.TransactionContext.syncMediaTypes(
   dataProviderId: InternalId,
   eventGroupId: InternalId,
   replacementMediaTypes: Set<MediaType>,

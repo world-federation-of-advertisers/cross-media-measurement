@@ -23,9 +23,11 @@ import com.google.type.Interval
 import com.google.type.endTimeOrNull
 import com.google.type.interval
 import com.google.type.startTimeOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
+import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -39,16 +41,19 @@ import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyDetails.Level
 import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyState
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.entityKey
 import org.wfanet.measurement.internal.kingdom.MediaType
+import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.createEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.eventGroup
 import org.wfanet.measurement.internal.kingdom.eventGroupDetails
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyConflictException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyPath
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.MetadataPublicationSequences
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.MetadataWriteGuard
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader.HierarchyKey
 
-/** Plans and buffers EventGroup creations and ancestor rollups in a single transaction. */
+/** Maintains hierarchy paths and ancestor rollups in a single transaction. */
 internal class EventGroupHierarchyWriter(
   private val transaction: SpannerWriter.TransactionScope,
   private val dataProviderId: InternalId,
@@ -69,6 +74,7 @@ internal class EventGroupHierarchyWriter(
     val path: String,
     val depth: Int,
     val metadata: Struct,
+    val comparisonKeys: Set<String>,
   )
 
   private class Ancestor(val entry: PathEntry, val externalMeasurementConsumerId: Long) {
@@ -84,6 +90,14 @@ internal class EventGroupHierarchyWriter(
         emptyMap()
       }
     val paths = creations.map { creation -> derivePath(creation, activeHierarchies) }
+    for ((consumer, entries) in creations.withIndex().groupBy { it.value.measurementConsumerId }) {
+      MetadataWriteGuard.checkAvailable(
+        transaction.transactionContext,
+        dataProviderId.value,
+        consumer.value,
+        entries.mapNotNull { paths[it.index].lastOrNull()?.path }.toSet(),
+      )
+    }
     val requestedLeaves = paths.mapNotNull { it.lastOrNull()?.key }.toSet()
     val ancestors = collectAncestors(creations, paths, requestedLeaves)
     val existing =
@@ -110,7 +124,9 @@ internal class EventGroupHierarchyWriter(
       }
       if (
         stored.entityPath != ancestor.entry.path ||
-          stored.eventGroup.entityMetadata != ancestor.entry.metadata
+          ancestor.entry.comparisonKeys.any {
+            stored.eventGroup.entityMetadata.fieldsMap[it] != ancestor.entry.metadata.fieldsMap[it]
+          }
       ) {
         throw EventGroupHierarchyConflictException(
           "A requested ancestor's path or metadata conflicts with the stored ancestor."
@@ -135,6 +151,226 @@ internal class EventGroupHierarchyWriter(
       )
     }
   }
+
+  data class Update(val request: EventGroup, val stored: EventGroupReader.Result)
+
+  private data class ScopedPath(val consumer: InternalId, val path: String)
+
+  suspend fun update(updates: List<Update>) {
+    if (updates.isEmpty()) return
+    for (update in updates) update.stored.validateUpdate(update.request)
+    val activeHierarchies = readActiveHierarchyLevelsByType()
+    val creations =
+      updates.map { update ->
+        Creation(
+          createEventGroupRequest { eventGroup = update.request },
+          update.stored.internalMeasurementConsumerId,
+        )
+      }
+    val paths = creations.map { derivePath(it, activeHierarchies) }
+    for ((index, update) in updates.withIndex()) {
+      val stored = update.stored
+      val oldMetadata = stored.eventGroup.entityMetadata.fieldsMap
+      val metadata = update.request.entityMetadata.fieldsMap
+      for (level in activeHierarchies[stored.eventGroup.entityKey.entityType].orEmpty()) {
+        if (level.entityType == stored.eventGroup.entityKey.entityType) continue
+        if (
+          oldMetadata[level.idEntityMetadataKey] == metadata[level.idEntityMetadataKey] &&
+            level.entityMetadataKeysList.any { oldMetadata[it] != metadata[it] }
+        ) {
+          throw EventGroupHierarchyConflictException(
+            "Metadata owned by another hierarchy level cannot be changed."
+          )
+        }
+      }
+      MetadataWriteGuard.checkAvailable(
+        transaction.transactionContext,
+        dataProviderId.value,
+        stored.internalMeasurementConsumerId.value,
+        setOfNotNull(stored.entityPath, paths[index].lastOrNull()?.path),
+      )
+    }
+    val ancestors =
+      collectAncestors(creations, paths, paths.mapNotNull { it.lastOrNull()?.key }.toSet())
+    val existing =
+      EventGroupReader()
+        .readHierarchyMembers(transaction.transactionContext, dataProviderId, ancestors.keys)
+    for ((key, ancestor) in ancestors) {
+      val stored = existing[key] ?: continue
+      if (
+        stored.isLeaf ||
+          stored.entityPath != ancestor.entry.path ||
+          ancestor.entry.comparisonKeys.any {
+            stored.eventGroup.entityMetadata.fieldsMap[it] != ancestor.entry.metadata.fieldsMap[it]
+          }
+      ) {
+        throw EventGroupHierarchyConflictException(
+          "Destination ancestor metadata conflicts with the requested path."
+        )
+      }
+    }
+    val versions =
+      updates
+        .map { it.stored.internalMeasurementConsumerId }
+        .toSet()
+        .associateWith {
+          MetadataPublicationSequences.next(
+            transaction.transactionContext,
+            dataProviderId.value,
+            it.value,
+          )
+        }
+    val replacements = mutableMapOf<ScopedPath, EventGroup?>()
+    for (update in updates) {
+      val oldPath = update.stored.entityPath
+      if (oldPath != null) {
+        replacements[ScopedPath(update.stored.internalMeasurementConsumerId, oldPath)] = null
+      }
+    }
+    for ((index, update) in updates.withIndex()) {
+      val consumer = update.stored.internalMeasurementConsumerId
+      val newPath = paths[index].lastOrNull()?.path
+      if (newPath != null) replacements[ScopedPath(consumer, newPath)] = update.request
+      transaction.updateEventGroup(
+        update.request,
+        update.stored,
+        newPath,
+        versions.getValue(consumer),
+      )
+    }
+    reconcileAncestors(replacements, ancestors)
+  }
+
+  suspend fun delete(stored: EventGroupReader.Result) {
+    if (!stored.isLeaf)
+      throw EventGroupHierarchyConflictException("A derived ancestor cannot be deleted.")
+    MetadataWriteGuard.checkAvailable(
+      transaction.transactionContext,
+      dataProviderId.value,
+      stored.internalMeasurementConsumerId.value,
+      setOfNotNull(stored.entityPath),
+    )
+    val path = stored.entityPath
+    if (path != null) {
+      reconcileAncestors(
+        mapOf(ScopedPath(stored.internalMeasurementConsumerId, path) to null),
+        emptyMap(),
+      )
+    }
+  }
+
+  private suspend fun reconcileAncestors(
+    replacements: Map<ScopedPath, EventGroup?>,
+    newAncestors: Map<HierarchyKey, Ancestor>,
+  ) {
+    val pending = replacements.toMutableMap()
+    val ancestorPaths =
+      replacements.keys
+        .flatMap { scoped ->
+          val segments = scoped.path.trimEnd('/').split('/')
+          (2 until segments.size step 2).map {
+            ScopedPath(scoped.consumer, segments.take(it).joinToString("/", postfix = "/"))
+          }
+        }
+        .toSet()
+    val keysByPath =
+      ancestorPaths.associateWith { scoped ->
+        val segments = scoped.path.trimEnd('/').split('/')
+        HierarchyKey(
+          scoped.consumer,
+          entityKey {
+            entityType = segments[segments.size - 2]
+            entityId = segments.last()
+          },
+        )
+      }
+    val existing =
+      EventGroupReader()
+        .readHierarchyMembers(
+          transaction.transactionContext,
+          dataProviderId,
+          keysByPath.values.toSet(),
+        )
+    for (scoped in ancestorPaths.sortedByDescending { it.path.count { c -> c == '/' } }) {
+      val key = keysByPath.getValue(scoped)
+      val stored = existing[key]
+      val created = newAncestors[key]
+      check(stored != null || created != null) { "Ancestor missing from the stored hierarchy" }
+      val children =
+        EventGroupReader()
+          .fillStatementBuilder {
+            appendClause(
+              """
+              WHERE EventGroups.DataProviderId = @provider
+                AND EventGroups.MeasurementConsumerId = @consumer
+                AND EventGroups.State != @deleted
+                AND STARTS_WITH(EventGroups.EntityPath, @path)
+                AND ARRAY_LENGTH(SPLIT(EventGroups.EntityPath, '/')) = @segments
+              """
+                .trimIndent()
+            )
+            bind("provider").to(dataProviderId.value)
+            bind("consumer").to(scoped.consumer.value)
+            bind("deleted").to(EventGroup.State.DELETED.number.toLong())
+            bind("path").to(scoped.path)
+            bind("segments").to(scoped.path.count { it == '/' }.toLong() + 3L)
+          }
+          .execute(transaction.transactionContext)
+          .toList()
+          .associate { ScopedPath(scoped.consumer, checkNotNull(it.entityPath)) to it.eventGroup }
+          .toMutableMap()
+      for ((path, replacement) in pending) {
+        if (path.consumer != scoped.consumer || parentPath(path.path) != scoped.path) continue
+        children.remove(path)
+        if (replacement != null) children[path] = replacement
+      }
+      if (stored == null) {
+        checkNotNull(created)
+        created.mediaTypes.clear()
+        created.mediaTypes.addAll(children.values.flatMap { it.mediaTypesList })
+        created.availability =
+          children.values.fold(Interval.getDefaultInstance()) { span, child ->
+            span.span(child.dataAvailabilityInterval)
+          }
+        insertAncestor(created)
+        pending[scoped] = eventGroup {
+          mediaTypes += created.mediaTypes
+          dataAvailabilityInterval = created.availability
+        }
+        continue
+      }
+      val updated =
+        stored.eventGroup.copy {
+          if (children.isNotEmpty()) {
+            mediaTypes.clear()
+            mediaTypes += children.values.flatMap { it.mediaTypesList }.toSet()
+            dataAvailabilityInterval =
+              children.values.fold(Interval.getDefaultInstance()) { span, child ->
+                span.span(child.dataAvailabilityInterval)
+              }
+          }
+        }
+      transaction.transactionContext.bufferUpdateMutation(Table.EVENT_GROUPS) {
+        set("DataProviderId").to(dataProviderId)
+        set("EventGroupId").to(stored.internalEventGroupId)
+        set("IsLeaf").to(children.isEmpty())
+        set("UpdateTime").to(SpannerValue.COMMIT_TIMESTAMP)
+        set("DataAvailabilityStartTime")
+          .to(updated.dataAvailabilityInterval.startTimeOrNull?.toGcloudTimestamp())
+        set("DataAvailabilityEndTime")
+          .to(updated.dataAvailabilityInterval.endTimeOrNull?.toGcloudTimestamp())
+      }
+      transaction.transactionContext.syncMediaTypes(
+        dataProviderId,
+        stored.internalEventGroupId,
+        updated.mediaTypesList.toSet(),
+      )
+      pending[scoped] = updated
+    }
+  }
+
+  private fun parentPath(path: String): String =
+    path.trimEnd('/').split('/').dropLast(2).joinToString("/", postfix = "/")
 
   private suspend fun readActiveHierarchyLevelsByType(): Map<String, List<Level>> {
     val query =
@@ -188,6 +424,7 @@ internal class EventGroupHierarchyWriter(
     val levelIndex = levels.indexOfFirst { it.entityType == requestKey.entityType }
     val path = StringBuilder()
     val idsByMetadataKey = mutableMapOf<String, Value>()
+    val inheritedMetadata = mutableMapOf<String, Value>()
     return levels.take(levelIndex + 1).mapIndexed { index, level ->
       val metadataKey = level.idEntityMetadataKey
       val id = metadata[metadataKey]
@@ -217,16 +454,17 @@ internal class EventGroupHierarchyWriter(
         }
       }
       idsByMetadataKey[metadataKey] = id
+      inheritedMetadata[metadataKey] = id
+      for (key in level.entityMetadataKeysList) {
+        val value = metadata[key]
+        if (value != null) inheritedMetadata[key] = value
+      }
       PathEntry(
         HierarchyKey(creation.measurementConsumerId, memberKey),
         entityPath,
         index,
-        struct {
-          fields.putAll(idsByMetadataKey)
-          for (key in level.entityMetadataKeysList) {
-            metadata[key]?.let { fields[key] = it }
-          }
-        },
+        struct { fields.putAll(inheritedMetadata) },
+        idsByMetadataKey.keys + level.entityMetadataKeysList,
       )
     }
   }

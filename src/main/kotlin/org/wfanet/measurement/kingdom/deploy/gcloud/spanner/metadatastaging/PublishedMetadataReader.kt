@@ -43,11 +43,12 @@ class PublishedMetadataReader(
       .executeQuery(
         scopedStatement(
           """
-        $VISIBLE_VERSIONS
+        ${PublishedMetadataSql.visibleVersions}
         SELECT E.EventGroupId, S.Metadata AS EntityMetadata
         FROM EventGroupMetadataVersions@{FORCE_INDEX=EventGroupMetadataVersionsByValues} AS S
         JOIN VisibleVersions AS V USING (OperationId, EventGroupId)
         JOIN EventGroups AS E ON E.EventGroupId = S.EventGroupId
+          AND E.DataProviderId = V.DataProviderId AND E.MeasurementConsumerId = V.MeasurementConsumerId
         WHERE E.DataProviderId = @dataProviderId
           AND E.MeasurementConsumerId = @measurementConsumerId
           AND E.State != @deletedState
@@ -58,7 +59,7 @@ class PublishedMetadataReader(
         WHERE E.DataProviderId = @dataProviderId
           AND E.MeasurementConsumerId = @measurementConsumerId
           AND E.State != @deletedState
-          AND NOT EXISTS (SELECT 1 FROM VisibleVersions AS V WHERE V.EventGroupId = E.EventGroupId)
+          AND NOT EXISTS (SELECT 1 FROM VisibleVersions AS V WHERE V.EventGroupId = E.EventGroupId AND V.DataProviderId = E.DataProviderId AND V.MeasurementConsumerId = E.MeasurementConsumerId)
           AND SEARCH(E.EntityMetadata_Tokens, @query)
         """
             .trimIndent()
@@ -98,11 +99,11 @@ class PublishedMetadataReader(
       .executeQuery(
         scopedStatement(
           """
-        $VISIBLE_VERSIONS
+        ${PublishedMetadataSql.visibleVersions}
         SELECT E.EventGroupId,
           IF(V.OperationId IS NULL, E.EntityMetadata, S.Metadata) AS EntityMetadata
         FROM EventGroups AS E
-        LEFT JOIN VisibleVersions AS V ON V.EventGroupId = E.EventGroupId
+        LEFT JOIN VisibleVersions AS V USING (DataProviderId, MeasurementConsumerId, EventGroupId)
         LEFT JOIN EventGroupMetadataVersions AS S
           ON S.OperationId = V.OperationId AND S.EventGroupId = V.EventGroupId
         WHERE E.DataProviderId = @dataProviderId
@@ -128,30 +129,4 @@ class PublishedMetadataReader(
   private fun metadata(row: SpannerStruct): Struct =
     if (row.isNull("EntityMetadata")) Struct.getDefaultInstance()
     else row.getProtoMessage("EntityMetadata", Struct.getDefaultInstance())
-
-  companion object {
-    // Select the version before filtering by search terms, so older matches cannot reappear.
-    private val VISIBLE_VERSIONS =
-      """
-      WITH PublishedVersions AS (
-        SELECT S.EventGroupId, S.OperationId, O.PublicationSequence
-        FROM EventGroupMetadataVersions AS S
-        JOIN EventGroupMetadataOperations AS O USING (OperationId)
-        JOIN EventGroups AS E ON E.DataProviderId = O.DataProviderId
-          AND E.MeasurementConsumerId = O.MeasurementConsumerId
-          AND E.EventGroupId = S.EventGroupId
-        WHERE O.DataProviderId = @dataProviderId
-          AND O.MeasurementConsumerId = @measurementConsumerId
-          AND O.PublicationSequence > E.EntityMetadataPublicationSequence
-      ), LatestVersions AS (
-        SELECT EventGroupId, MAX(PublicationSequence) AS PublicationSequence
-        FROM PublishedVersions GROUP BY EventGroupId
-      ), VisibleVersions AS (
-        SELECT P.EventGroupId, P.OperationId
-        FROM PublishedVersions AS P
-        JOIN LatestVersions USING (EventGroupId, PublicationSequence)
-      )
-      """
-        .trimIndent()
-  }
 }

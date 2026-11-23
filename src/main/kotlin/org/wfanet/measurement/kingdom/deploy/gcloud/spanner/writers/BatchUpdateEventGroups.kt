@@ -35,15 +35,20 @@ class BatchUpdateEventGroups(private val request: BatchUpdateEventGroupsRequest)
           request.requestsList.map { ExternalId(it.eventGroup.externalEventGroupId) },
         )
 
-    for (subRequest in request.requestsList) {
-      val result: EventGroupReader.Result =
-        eventGroups[ExternalId(subRequest.eventGroup.externalEventGroupId)]
-          ?: throw EventGroupNotFoundException(
-            externalDataProviderId,
-            ExternalId(subRequest.eventGroup.externalEventGroupId),
-          )
+    val updates =
+      request.requestsList.map { subRequest ->
+        val result: EventGroupReader.Result =
+          eventGroups[ExternalId(subRequest.eventGroup.externalEventGroupId)]
+            ?: throw EventGroupNotFoundException(
+              externalDataProviderId,
+              ExternalId(subRequest.eventGroup.externalEventGroupId),
+            )
 
-      updateEventGroup(subRequest.eventGroup, result)
+        EventGroupHierarchyWriter.Update(subRequest.eventGroup, result)
+      }
+
+    if (updates.isNotEmpty()) {
+      EventGroupHierarchyWriter(this, updates.first().stored.internalDataProviderId).update(updates)
     }
 
     return batchUpdateEventGroupsResponse {

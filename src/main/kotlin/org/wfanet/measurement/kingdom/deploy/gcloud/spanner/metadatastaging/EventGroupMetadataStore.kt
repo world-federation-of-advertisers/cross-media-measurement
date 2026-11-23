@@ -28,8 +28,8 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 /**
  * Durable staging, worker fencing, and atomic metadata publication.
  *
- * DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4542): Wire
- * mutation/activation services and Operations before enabling ancestor updates.
+ * DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4542): Wire the activation
+ * job and Operations before enabling ancestor updates.
  */
 class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
   data class Request(
@@ -54,8 +54,6 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
 
   data class Operation(val state: State, val progress: Progress, val publicationSequence: Long?)
 
-  private val guard = MetadataWriteGuard(databaseClient)
-
   /** Persists the immutable staging request under a new operation ID. */
   suspend fun start(request: Request): WorkToken =
     databaseClient.readWriteTransaction().run { transaction -> start(transaction, request) }
@@ -68,7 +66,7 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
     require(request.operationId.isNotBlank() && request.operationId.length <= 64)
     require(request.entityPath.isNotBlank() && request.entityPath.endsWith("/"))
     require(request.ownedKeys.containsAll(request.metadata.fieldsMap.keys))
-    guard.checkAvailable(
+    MetadataWriteGuard.checkAvailable(
       transaction,
       request.dataProviderId,
       request.measurementConsumerId,
@@ -154,7 +152,7 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
       check(operation.getBoolean("Complete")) { "Staging is not complete" }
       val dataProviderId = operation.getLong("DataProviderId")
       val measurementConsumerId = operation.getLong("MeasurementConsumerId")
-      guard.touch(transaction, dataProviderId)
+      MetadataWriteGuard.touch(transaction, dataProviderId)
       val next =
         MetadataPublicationSequences.next(transaction, dataProviderId, measurementConsumerId)
       transaction.bufferUpdateMutation("EventGroupMetadataOperations") {
@@ -202,7 +200,7 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
       val current = STATES.getValue(operation.getLong("State"))
       if (current != State.RUNNING) return@run current
       if (work != null) checkWorker(operation, work)
-      guard.touch(transaction, operation.getLong("DataProviderId"))
+      MetadataWriteGuard.touch(transaction, operation.getLong("DataProviderId"))
       transaction.bufferUpdateMutation("EventGroupMetadataOperations") {
         set("OperationId").to(operationId)
         set("State").to(state.number)

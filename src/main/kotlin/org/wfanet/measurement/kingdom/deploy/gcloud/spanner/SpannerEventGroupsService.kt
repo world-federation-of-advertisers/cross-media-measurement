@@ -68,6 +68,7 @@ class SpannerEventGroupsService(
   private val client: AsyncDatabaseClient,
   maxReadStaleness: Duration,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val enableEntityMetadataSearch: Boolean = false,
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
   private val staleReadTimestampBound =
     TimestampBound.ofMaxStaleness(maxReadStaleness.toMillis(), TimeUnit.MILLISECONDS)
@@ -165,6 +166,10 @@ class SpannerEventGroupsService(
     grpcRequire(request.eventGroup.externalEventGroupId > 0L) { "ExternalEventGroupId unspecified" }
     try {
       return UpdateEventGroup(request.eventGroup).execute(client, idGenerator)
+    } catch (e: EventGroupHierarchyConflictException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: EventGroupInvalidArgsException) {
       throw e.asStatusRuntimeException(
         Status.Code.INVALID_ARGUMENT,
@@ -230,6 +235,10 @@ class SpannerEventGroupsService(
 
     try {
       return BatchUpdateEventGroups(request).execute(client, idGenerator)
+    } catch (e: EventGroupHierarchyConflictException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: EventGroupInvalidArgsException) {
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: CertificateIsInvalidException) {
@@ -292,6 +301,10 @@ class SpannerEventGroupsService(
 
     try {
       return DeleteEventGroup(request).execute(client, idGenerator)
+    } catch (e: EventGroupHierarchyConflictException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: EventGroupNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     } catch (e: EventGroupNotFoundByMeasurementConsumerException) {
@@ -400,6 +413,7 @@ class SpannerEventGroupsService(
             view = request.view,
             internalDataProviderId = internalDataProviderId,
             internalMeasurementConsumerId = internalMeasurementConsumerId,
+            enableEntityMetadataSearch = enableEntityMetadataSearch,
           )
           .execute(client.singleUse(timestampBound))
           .map { it.eventGroup }

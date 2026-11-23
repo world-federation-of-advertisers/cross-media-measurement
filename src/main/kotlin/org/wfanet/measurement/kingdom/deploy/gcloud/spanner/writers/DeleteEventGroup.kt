@@ -17,6 +17,7 @@
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 
 import com.google.cloud.spanner.Value
+import com.google.protobuf.Struct
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
@@ -28,6 +29,7 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.MetadataPublicationSequences
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 
 /**
@@ -54,6 +56,13 @@ class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
         result.eventGroup.state,
       )
     }
+    EventGroupHierarchyWriter(this, result.internalDataProviderId).delete(result)
+    val sequence =
+      MetadataPublicationSequences.next(
+        transactionContext,
+        result.internalDataProviderId.value,
+        result.internalMeasurementConsumerId.value,
+      )
     transactionContext.bufferUpdateMutation("EventGroups") {
       set("DataProviderId" to result.internalDataProviderId.value)
       set("EventGroupId" to result.internalEventGroupId.value)
@@ -64,11 +73,17 @@ class DeleteEventGroup(private val request: DeleteEventGroupRequest) :
       // Drop the row from EventGroupsByEntityKey (UNIQUE NULL_FILTERED): nulling EntityId frees
       // the entity_key slot for reuse since DELETED is terminal.
       set("EntityId" to null as String?)
+      set("EntityPath" to null as String?)
+      set("EntityMetadata").to(Value.protoMessage(null, Struct.getDescriptor()))
+      set("EntityMetadataValues").toStringArray(emptyList<String>())
+      set("EntityMetadataPublicationSequence").to(sequence)
     }
 
     return result.eventGroup.copy {
       this.state = EventGroup.State.DELETED
       clearDetails()
+      clearEntityMetadata()
+      entityKey = entityKey.copy { clearEntityId() }
     }
   }
 
