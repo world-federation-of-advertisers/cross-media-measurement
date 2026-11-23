@@ -44,6 +44,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
   triggers_replace = [
     var.deployment_enabled,
     var.uber_jar_path,
+    filesha256(var.uber_jar_path),
     var.extra_env_vars,
     var.secret_mappings,
     var.config_path != null ? filesha256(var.config_path) : "",
@@ -61,7 +62,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
       ENTRY_POINT         = var.entry_point
       CLOUD_REGION        = data.google_client_config.default.region
       RUN_SERVICE_ACCOUNT = google_service_account.http_cloud_function_service_account.email
-      EXTRA_ENV_VARS      = var.extra_env_vars
+      EXTRA_ENV_VARS      = join(",", compact([var.extra_env_vars, "CMMS_ARTIFACT_SHA256=${filesha256(var.uber_jar_path)}"]))
       SECRET_MAPPINGS     = var.secret_mappings
       UBER_JAR_DIRECTORY  = dirname(var.uber_jar_path)
       FUNCTION_MEMORY     = var.memory
