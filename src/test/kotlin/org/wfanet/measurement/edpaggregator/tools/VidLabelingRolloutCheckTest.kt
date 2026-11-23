@@ -193,7 +193,7 @@ class VidLabelingRolloutCheckTest {
     )
   }
 
-  private fun checker() =
+  private fun checker(leaseProbe: (suspend (Set<String>) -> Unit)? = null) =
     VidLabelingRolloutChecker(
       RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(server.channel),
       RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
@@ -209,12 +209,55 @@ class VidLabelingRolloutCheckTest {
         server.channel
       ),
       WorkItemsGrpcKt.WorkItemsCoroutineStub(server.channel),
+      requireNoSyncLeases = leaseProbe,
     )
 
   private suspend fun drained() = checker().requireDrained(setOf("dataProviders/dp"), setOf(QUEUE))
 
   private suspend fun smoke() =
     checker().requireZeroMembership("dataProviders/dp", DONE, 12, MODEL, 2)
+
+  @Test
+  fun `maintenance requires authoritative lease evidence`() =
+    runBlocking<Unit> {
+      assertFailsWith<IllegalStateException> {
+        checker().requireMaintenanceDrained(setOf("dataProviders/dp"), setOf(QUEUE))
+      }
+    }
+
+  @Test
+  fun `maintenance verifies leases and stable state twice`() =
+    runBlocking<Unit> {
+      var probes = 0
+      checker { providers ->
+          assertThat(providers).containsExactly("dataProviders/dp")
+          probes++
+        }
+        .requireMaintenanceDrained(setOf("dataProviders/dp"), setOf(QUEUE))
+      assertThat(probes).isEqualTo(2)
+      assertThat(uploadReads).isEqualTo(2)
+    }
+
+  @Test
+  fun `active lease and state changing during collection fail closed`() =
+    runBlocking<Unit> {
+      assertFailsWith<IllegalStateException> {
+        checker { throw IllegalStateException("active lease") }
+          .requireMaintenanceDrained(setOf("dataProviders/dp"), setOf(QUEUE))
+      }
+      assertFailsWith<IllegalStateException> {
+        checker {
+            items =
+              listOf(
+                workItem {
+                  queue = QUEUE
+                  state = WorkItem.State.QUEUED
+                }
+              )
+          }
+          .requireMaintenanceDrained(setOf("dataProviders/dp"), setOf(QUEUE))
+      }
+    }
 
   @Test
   fun `drained evidence is read completely without mutation`() =
