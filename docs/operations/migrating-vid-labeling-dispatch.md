@@ -47,10 +47,12 @@ A normal Terraform apply then selects a versioned canary configuration: the comm
 isolated EDP7 test provider uses the queue, while live providers retain HTTP delivery.
 Both cached consumers roll onto that configuration only after compatible code is
 verified. The workflow finalizes a fresh ordinary test `done` object, discovers its
-deterministic DataWatcher WorkItem, and waits for the worker outcome. It approves the
-supplied isolated recovery plan, waits for its authorized checkpoint, then finalizes
-a fresh recovery marker with its source-upload/operation metadata and discovers that
-DataWatcher WorkItem too. No smoke WorkItem is created directly.
+deterministic DataWatcher WorkItem, and waits for the worker outcome. It approves the supplied isolated operator-recovery plan and waits for the healing
+controller to record the fresh marker generation. RecoverUploader owns that rewrite;
+the smoke reads the recorded version and discovers its DataWatcher WorkItem.
+Both markers must have a queue-write log from the actual DataWatcher Cloud Function,
+as well as successful worker outcomes. The controller's direct replay cannot substitute
+for storage-event intake. No smoke WorkItem is created directly.
 
 Only after both actual storage-event journeys and application outcomes pass does the
 final apply switch live providers to queued delivery. Terraform retains
@@ -85,19 +87,20 @@ run only:
 | Field | Required content |
 | --- | --- |
 | `ordinarySourceUri` | A new isolated raw `done` path that does not yet exist; upload its raw fixture files first. |
-| `recoverySourceUri` | The existing isolated raw marker to rewrite after the approved recovery checkpoint. |
+| `recoverySourceUri` | The current isolated historical marker that the controller will rewrite for an operator-recovery target. |
 | `recoverySourceGeneration` | The inspected historical generation belonging to that source upload; a changed current marker fails closed. |
 | `recoverySourceUpload` | The isolated RawImpressionUpload authorizing that recovery. |
-| `approval` | The freshly inspected ApproveUploadHealingOperationRequest, including name, etag and candidate decisions. |
+| `approval` | The freshly inspected ApproveUploadHealingOperationRequest for a candidate-backed plan containing the selected operator-recovery target, including name, etag and candidate decisions. |
 
 Both URIs must remain under the committed isolated raw prefix and must be different.
 The workflow creates the ordinary marker with a does-not-exist precondition, reads
-its new generation/creation time, and binds discovery to that identity. Recovery
-uses a generation-matched rewrite with the complete authorization metadata.
+its new generation/creation time, and binds discovery to that identity. Recovery uses the controller-recorded generation and verifies the complete source-upload/operation metadata.
 Do not reuse prior WorkItem JSON, generations or approval etags as permanent configuration.
 
-Prepare the isolated raw baseline and approval-required correction plan using the
-existing upload/healing tools. The smoke rejects other providers. Reused sources,
+Prepare the isolated raw baseline and approval-required plan containing a dependent operator-recovery target using the
+existing upload/healing tools. Select a current source whose operator recovery creates
+a new marker generation; candidate-correction replay and deferred-source reuse do not
+exercise a fresh recovery storage event and are rejected by this smoke. The smoke rejects other providers. Reused sources,
 changed approvals, failed executions, missing intake and missing qualified application
 outcomes fail the gate. After a partial run, retain and inspect the printed source URIs
 and deterministic WorkItem names; another trial needs a fresh isolated ordinary source

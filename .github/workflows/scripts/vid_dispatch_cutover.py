@@ -436,36 +436,31 @@ def source_from_object(uri, observed):
     return {"dataPath": uri, "generation": str(generation), "createTime": creation}
 
 
-def finalize_marker(cloud, uri, directory, recovery=None):
-    path = Path(directory) / ("recovery.done" if recovery else "ordinary.done")
-    if recovery:
-        observed = cloud.gcloud("storage", "objects", "describe", uri)
-        previous = source_from_object(uri, observed)
-        require(previous["generation"] == str(recovery["recoverySourceGeneration"]),
-                "Recovery source changed after inspection; do not rewrite another revision")
-        cloud.run(["gcloud", "storage", "cp", uri + "#" + previous["generation"], str(path)])
-        generation = previous["generation"]
-        metadata = dict(observed.get("metadata") or {})
-        metadata.update({"recovery-source-upload": recovery["recoverySourceUpload"],
-                         "upload-healing-operation": recovery["approval"]["name"],
-                         "eviction-operation-id": recovery["approval"]["name"].rsplit("/", 1)[-1]})
-    else:
-        path.write_bytes(b"")
-        generation, metadata = "0", {}
+def finalize_marker(cloud, uri, directory):
+    path = Path(directory) / "ordinary.done"
+    path.write_bytes(b"")
     nonce = uuid.uuid4().hex
-    metadata["vid-dispatch-smoke-run"] = nonce
     print("SMOKE_SOURCE_URI=" + uri, flush=True)
-    command = ["gcloud", "storage", "cp", str(path), uri, "--if-generation-match=" + generation]
-    if metadata:
-        require(all("|" not in k and "|" not in v and "\n" not in v for k, v in metadata.items()),
-                "Unsupported marker metadata")
-        command.append("--custom-metadata=^|^" + "|".join(k + "=" + v for k, v in sorted(metadata.items())))
-    cloud.run(command)
+    cloud.run(["gcloud", "storage", "cp", str(path), uri, "--if-generation-match=0",
+               "--custom-metadata=vid-dispatch-smoke-run=" + nonce])
     current = cloud.gcloud("storage", "objects", "describe", uri)
     source = source_from_object(uri, current)
     require(current.get("metadata", {}).get("vid-dispatch-smoke-run") == nonce,
             "Finalized marker was replaced by another source")
-    require(source["generation"] != generation, "Finalization did not create a new generation")
+    return source
+
+
+def controller_recovery_source(cloud, run, generation):
+    require(str(generation).isdecimal() and int(generation) > 0 and
+            str(generation) != str(run["recoverySourceGeneration"]),
+            "Operator recovery did not record a fresh marker generation")
+    observed = cloud.gcloud("storage", "objects", "describe", run["recoverySourceUri"] + "#" + str(generation))
+    source = source_from_object(run["recoverySourceUri"], observed)
+    metadata = observed.get("metadata", {})
+    require(source["generation"] == str(generation) and
+            metadata.get("recovery-source-upload") == run["recoverySourceUpload"] and
+            metadata.get("upload-healing-operation") == run["approval"]["name"],
+            "Controller recovery marker does not match the approved source and operation")
     return source
 
 
@@ -488,6 +483,9 @@ def smoke(cloud, args, profile, tls_flags, directory):
     # Read and validate the historical recovery identity before finalizing the ordinary marker.
     historical = source_from_object(run["recoverySourceUri"],
         cloud.gcloud("storage", "objects", "describe", run["recoverySourceUri"] + "#" + str(run["recoverySourceGeneration"])))
+    current = cloud.gcloud("storage", "objects", "describe", run["recoverySourceUri"])
+    require(str(current.get("generation")) == historical["generation"],
+            "Choose a current operator-recovery source, not a superseded correction candidate")
     ordinary = finalize_marker(cloud, run["ordinarySourceUri"], directory)
     files = [Path(directory) / (name + ".json") for name in ("ordinary", "recovery", "approval")]
     files[0].write_text(json.dumps(expected_item(profile, ordinary)))
@@ -501,27 +499,44 @@ def smoke(cloud, args, profile, tls_flags, directory):
     first = cloud.run_operator(command + ["--phase=ordinary"], timeout=2400)
     require("RECOVERY_READY=" + run["approval"]["name"] in first,
             "Isolated recovery did not reach an authorized checkpoint")
-    recovery = finalize_marker(cloud, run["recoverySourceUri"], directory, run)
+    generations = re.findall(r"^RECOVERY_SOURCE_GENERATION=(\d+)$", first, flags=re.M)
+    require(len(generations) == 1, "Missing controller-recorded recovery generation")
+    recovery = controller_recovery_source(cloud, run, generations[0])
     files[1].write_text(json.dumps(expected_item(profile, recovery, run)))
     second = cloud.run_operator(command + ["--phase=recovery"], timeout=2400)
     names = re.findall(r"^SMOKE_WORK_ITEM=(workItems/[^\s]+)$", first + "\n" + second, flags=re.M)
     require(len(names) == 2 and len(set(names)) == 2, "Smoke did not discover both distinct intake executions")
+    verify_smoke_outcomes(cloud, profile, names)
+
+
+def verify_smoke_outcomes(cloud, profile, names):
+    require(len(names) == 2 and len(set(names)) == 2, "Need distinct ordinary and recovery intake identities")
     deadline = time.monotonic() + 300
     while True:
         entries = cloud.gcloud("logging", "read",
-            'resource.type="cloud_run_revision" AND resource.labels.service_name="vid-labeling-dispatcher" AND '
-            '(textPayload:"event=edpa.vid_labeling.dispatch.work_item" OR jsonPayload.message:"event=edpa.vid_labeling.dispatch.work_item")',
+            'resource.type="cloud_run_revision" AND ('
+            '(resource.labels.service_name="vid-labeling-dispatcher" AND '
+            '(textPayload:"event=edpa.vid_labeling.dispatch.work_item" OR jsonPayload.message:"event=edpa.vid_labeling.dispatch.work_item")) OR '
+            '(resource.labels.service_name="data-watcher" AND '
+            '(textPayload:"Submitted work item to control plane queue:" OR jsonPayload.message:"Submitted work item to control plane queue:")))',
             "--freshness=60m", "--limit=1000")
-        successful = set()
+        successful, admitted = set(), set()
         for entry in entries:
+            service = entry.get("resource", {}).get("labels", {}).get("service_name")
             message = entry.get("textPayload") or entry.get("jsonPayload", {}).get("message", "")
-            fields = dict(re.findall(r"([A-Za-z0-9_.]+)=([^\s]+)", message))
-            if fields.get("xmm.outcome") in ("succeeded", "no_work"):
-                successful.add(fields.get("xmm.work_item.name"))
-        if all(name in successful for name in names):
-            print("PASS: fresh storage-event intake and queued ordinary/recovery outcomes completed")
+            if service == "vid-labeling-dispatcher":
+                fields = dict(re.findall(r"([A-Za-z0-9_.]+)=([^\s]+)", message))
+                if fields.get("xmm.outcome") in ("succeeded", "no_work"):
+                    successful.add(fields.get("xmm.work_item.name"))
+            elif service == "data-watcher" and "Submitted work item to control plane queue:" in message:
+                fields = dict(re.findall(r"(config|queue|workItemId)=([^,\s]+)", message))
+                if fields.get("config") == profile["watcherIdentifier"] and fields.get("queue") == QUEUE:
+                    admitted.add("workItems/" + fields.get("workItemId", ""))
+        if all(name in successful and name in admitted for name in names):
+            print("PASS: both actual DataWatcher storage-event admissions and queued outcomes completed")
             return
-        require(time.monotonic() < deadline, "Missing qualified application outcome")
+        require(time.monotonic() < deadline,
+                "Missing actual DataWatcher function admission or qualified application outcome")
         time.sleep(10)
 
 
@@ -564,11 +579,11 @@ def main(argv=None):
         infrastructure_readiness(cloud)
         print("PASS: prepared code, function/MIG/control-plane readiness, authenticated queue and alert routes")
         return
-    require(args.profile_file and args.vid_labeling_config and args.edpa_target and args.control_plane_target,
-            "Provide the operator profile, full provider config and existing API targets")
     if args.mode == "snapshot-config":
         print(active_config(cloud), end="")
         return
+    require(args.profile_file and args.vid_labeling_config,
+            "Provide the committed operator profile and full provider config")
     profile = json.loads(Path(args.profile_file).read_text())
     _, _, configured = profile_providers(profile, args.vid_labeling_config)
     if args.mode == "canary-config":
@@ -579,6 +594,7 @@ def main(argv=None):
             "--data-watcher-config=" + args.data_watcher_config, "--output=" + args.output,
             "--dispatcher-endpoint=" + endpoint], timeout=1800)
         return
+    require(args.edpa_target and args.control_plane_target, "Provide the existing API targets")
     with tempfile.TemporaryDirectory(prefix="vid-dispatch-operator-") as directory:
         tls_flags = operator_flags(cloud, profile, directory, args.edpa_target, args.control_plane_target)
         if args.mode == "preflight":
