@@ -41,6 +41,8 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.common.testing.CommandLineTesting
+import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
 import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
@@ -296,6 +298,20 @@ class VidLabelingHealTest {
     assertThat(retryFailed.hasMatchedOption("--control-plane-tls-cert-file")).isTrue()
   }
 
+  private fun runProductionMain(vararg args: String): Int {
+    val captured = CommandLineTesting.capturingOutput(arrayOf(*args), ::main)
+    print(captured.out)
+    System.err.print(captured.err)
+    return captured.status
+  }
+
+  @Suppress("DEPRECATION")
+  companion object {
+    init {
+      System.setSecurityManager(ExitInterceptingSecurityManager)
+    }
+  }
+
   private class DispatchService(var current: WorkItem) : WorkItemsCoroutineImplBase() {
     var getCalls = 0
     val retries = mutableListOf<RetryWorkItemRequest>()
@@ -397,15 +413,14 @@ class VidLabelingHealTest {
       System.setOut(PrintStream(bytes))
       withOperatorServer(listOf(service)) { flags, _ ->
         val code =
-          CommandLine(VidLabelingHeal())
-            .execute(
-              *(listOf(
-                  "retry-dispatch-work-item",
-                  original.name,
-                  "--expected-work-item-generation=7",
-                ) + flags)
-                .toTypedArray()
-            )
+          runProductionMain(
+            *(listOf(
+                "retry-dispatch-work-item",
+                original.name,
+                "--expected-work-item-generation=7",
+              ) + flags)
+              .toTypedArray()
+          )
         assertThat(code).isEqualTo(0)
       }
     } finally {
@@ -433,15 +448,14 @@ class VidLabelingHealTest {
       val service = DispatchService(dispatchItem(state))
       withOperatorServer(listOf(service)) { flags, _ ->
         assertThat(
-            CommandLine(VidLabelingHeal())
-              .execute(
-                *(listOf(
-                    "retry-dispatch-work-item",
-                    service.current.name,
-                    "--expected-work-item-generation=7",
-                  ) + flags)
-                  .toTypedArray()
-              )
+            runProductionMain(
+              *(listOf(
+                  "retry-dispatch-work-item",
+                  service.current.name,
+                  "--expected-work-item-generation=7",
+                ) + flags)
+                .toTypedArray()
+            )
           )
           .isNotEqualTo(0)
       }
@@ -454,15 +468,14 @@ class VidLabelingHealTest {
     val service = DispatchService(dispatchItem(executionGeneration = 8L))
     withOperatorServer(listOf(service)) { flags, _ ->
       assertThat(
-          CommandLine(VidLabelingHeal())
-            .execute(
-              *(listOf(
-                  "retry-dispatch-work-item",
-                  service.current.name,
-                  "--expected-work-item-generation=7",
-                ) + flags)
-                .toTypedArray()
-            )
+          runProductionMain(
+            *(listOf(
+                "retry-dispatch-work-item",
+                service.current.name,
+                "--expected-work-item-generation=7",
+              ) + flags)
+              .toTypedArray()
+          )
         )
         .isNotEqualTo(0)
     }
@@ -480,11 +493,10 @@ class VidLabelingHealTest {
           listOf("--expected-work-item-generation=-1"),
         )) {
         assertThat(
-            CommandLine(VidLabelingHeal())
-              .execute(
-                *(listOf("retry-dispatch-work-item", service.current.name) + generationFlag + flags)
-                  .toTypedArray()
-              )
+            runProductionMain(
+              *(listOf("retry-dispatch-work-item", service.current.name) + generationFlag + flags)
+                .toTypedArray()
+            )
           )
           .isNotEqualTo(0)
       }
@@ -498,15 +510,14 @@ class VidLabelingHealTest {
     val service = DispatchService(dispatchItem()).apply { rejectRetry = true }
     withOperatorServer(listOf(service)) { flags, _ ->
       assertThat(
-          CommandLine(VidLabelingHeal())
-            .execute(
-              *(listOf(
-                  "retry-dispatch-work-item",
-                  service.current.name,
-                  "--expected-work-item-generation=7",
-                ) + flags)
-                .toTypedArray()
-            )
+          runProductionMain(
+            *(listOf(
+                "retry-dispatch-work-item",
+                service.current.name,
+                "--expected-work-item-generation=7",
+              ) + flags)
+              .toTypedArray()
+          )
         )
         .isNotEqualTo(0)
     }
@@ -523,10 +534,9 @@ class VidLabelingHealTest {
       System.setOut(PrintStream(bytes))
       withOperatorServer(listOf(service)) { flags, _ ->
         assertThat(
-            CommandLine(VidLabelingHeal())
-              .execute(
-                *(listOf("get-dispatch-work-item", service.current.name) + flags).toTypedArray()
-              )
+            runProductionMain(
+              *(listOf("get-dispatch-work-item", service.current.name) + flags).toTypedArray()
+            )
           )
           .isEqualTo(0)
       }
@@ -561,11 +571,10 @@ class VidLabelingHealTest {
       }
     withOperatorServer(listOf(uploads, operations)) { _, flags ->
       assertThat(
-          CommandLine(VidLabelingHeal())
-            .execute(
-              *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
-                .toTypedArray()
-            )
+          runProductionMain(
+            *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
+              .toTypedArray()
+          )
         )
         .isNotEqualTo(0)
     }
@@ -590,11 +599,10 @@ class VidLabelingHealTest {
       }
     withOperatorServer(listOf(uploads, operations)) { _, flags ->
       assertThat(
-          CommandLine(VidLabelingHeal())
-            .execute(
-              *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
-                .toTypedArray()
-            )
+          runProductionMain(
+            *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
+              .toTypedArray()
+          )
         )
         .isNotEqualTo(0)
     }
@@ -701,18 +709,17 @@ class VidLabelingHealTest {
     try {
       withOperatorServer(listOf(items, operations)) { controlFlags, edpaFlags ->
         val code =
-          CommandLine(VidLabelingHeal())
-            .execute(
-              *(listOf(
-                  "smoke-dispatch-cutover",
-                  "--isolated-data-provider=$provider",
-                  "--live-data-provider=dataProviders/live",
-                  "--ordinary-work-item-file=$ordinaryPath",
-                  "--recovery-work-item-file=$recoveryPath",
-                  "--approval-file=$approvalPath",
-                ) + controlFlags + edpaFlags)
-                .toTypedArray()
-            )
+          runProductionMain(
+            *(listOf(
+                "smoke-dispatch-cutover",
+                "--isolated-data-provider=$provider",
+                "--live-data-provider=dataProviders/live",
+                "--ordinary-work-item-file=$ordinaryPath",
+                "--recovery-work-item-file=$recoveryPath",
+                "--approval-file=$approvalPath",
+              ) + controlFlags + edpaFlags)
+              .toTypedArray()
+          )
         assertThat(code).isEqualTo(0)
       }
       assertThat(order).containsExactly("create", "approve", "create").inOrder()
@@ -747,11 +754,10 @@ class VidLabelingHealTest {
       }
     withOperatorServer(listOf(uploads, operations)) { _, flags ->
       assertThat(
-          CommandLine(VidLabelingHeal())
-            .execute(
-              *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
-                .toTypedArray()
-            )
+          runProductionMain(
+            *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
+              .toTypedArray()
+          )
         )
         .isEqualTo(0)
     }
