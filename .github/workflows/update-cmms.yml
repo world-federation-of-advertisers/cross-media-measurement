@@ -38,6 +38,22 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      vid-labeling-cutover-mode:
+        description: Checked online or maintenance VID cutover
+        type: string
+        default: "off"
+      vid-labeling-receipt-uri:
+        description: Dedicated GCS rollout receipt URI
+        type: string
+        default: ""
+      vid-labeling-intake-control-url:
+        description: Publisher-owned authenticated intake/backfill control for maintenance
+        type: string
+        default: ""
+      vid-labeling-new-receipt:
+        description: First maintenance cutover only
+        type: boolean
+        default: false
       vid-labeling-readiness:
         description: "Verify VID schema/services and consumer templates after deployment"
         type: boolean
@@ -58,6 +74,22 @@ on:
         default: true
       apply:
         description: "Apply the new configuration"
+        type: boolean
+        default: false
+      vid-labeling-cutover-mode:
+        description: Checked online or maintenance VID cutover
+        type: string
+        default: "off"
+      vid-labeling-receipt-uri:
+        description: Dedicated GCS rollout receipt URI
+        type: string
+        default: ""
+      vid-labeling-intake-control-url:
+        description: Publisher-owned authenticated intake/backfill control for maintenance
+        type: string
+        default: ""
+      vid-labeling-new-receipt:
+        description: First maintenance cutover only
         type: boolean
         default: false
       vid-labeling-readiness:
@@ -160,9 +192,82 @@ jobs:
           --data-availability-monitor-config="$CONFIG_DIR/data-availability-monitor-config.textproto" \
           --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
 
+  plan-vid-labeling-cutover:
+    if: inputs.apply && inputs.vid-labeling-cutover-mode != 'off'
+    uses: ./.github/workflows/terraform-cmms-v2.yml
+    needs: [publish-images, validate-direct-dispatch-config]
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+      apply: false
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      export-vid-rollout-manifest: true
+
+  prepare-vid-labeling-cutover:
+    if: >-
+      always() && needs.publish-images.result == 'success' &&
+      needs.validate-direct-dispatch-config.result == 'success' &&
+      (inputs.vid-labeling-cutover-mode == 'off' || !inputs.apply ||
+       needs.plan-vid-labeling-cutover.result == 'success')
+    needs: [publish-images, validate-direct-dispatch-config, plan-vid-labeling-cutover]
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    outputs:
+      cutover-id: ${{ steps.begin.outputs.cutover-id }}
+      manifest: ${{ steps.begin.outputs.manifest }}
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      with:
+        fetch-depth: 0
+    - uses: ./.github/actions/load-cmms-environment
+      id: cmms-config
+      with:
+        environment: ${{ inputs.environment }}
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+      if: inputs.apply && inputs.vid-labeling-cutover-mode != 'off'
+      with:
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+    - uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395
+      if: inputs.apply && inputs.vid-labeling-cutover-mode != 'off'
+      with:
+        cluster_name: kingdom
+        location: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
+    - uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23
+      if: inputs.apply && inputs.vid-labeling-cutover-mode != 'off'
+    - name: Check online compatibility or paused maintenance boundary
+      id: begin
+      if: inputs.apply && inputs.vid-labeling-cutover-mode != 'off'
+      env:
+        MODE: ${{ inputs.vid-labeling-cutover-mode }}
+        RECEIPT: ${{ inputs.vid-labeling-receipt-uri }}
+        CONTROL: ${{ inputs.vid-labeling-intake-control-url }}
+        NEW_RECEIPT: ${{ inputs.vid-labeling-new-receipt }}
+        MANIFEST: ${{ needs.plan-vid-labeling-cutover.outputs.vid_labeling_rollout_manifest }}
+        IMAGE_TAG: ${{ needs.publish-images.outputs.image-tag }}
+        CONFIG: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/vid-labeling-dispatcher-config.textproto
+      run: |
+        set -euo pipefail
+        case "$MODE" in online|maintenance) ;; *) exit 1 ;; esac
+        printf '%s' "$MANIFEST" > "$RUNNER_TEMP/vid-manifest.json"
+        args=(--phase=begin --mode="$MODE" --manifest="$RUNNER_TEMP/vid-manifest.json"
+              --receipt-uri="$RECEIPT" --image-tag="$IMAGE_TAG" --intake-control-url="$CONTROL"
+              --vid-labeling-config="$CONFIG")
+        if [[ "$NEW_RECEIPT" == true ]]; then args+=(--new-receipt); fi
+        python3 .github/workflows/scripts/run_vid_labeling_cutover.py "${args[@]}" > "$RUNNER_TEMP/vid-boundary.json"
+        printf 'cutover-id=%s\n' "$(jq -er '.request_id' "$RUNNER_TEMP/vid-boundary.json")" >> "$GITHUB_OUTPUT"
+        printf 'manifest=%s\n' "$(jq -ec '.manifest' "$RUNNER_TEMP/vid-boundary.json")" >> "$GITHUB_OUTPUT"
+
   pause-requisition-fetcher:
     runs-on: ubuntu-24.04
-    needs: [publish-images, validate-direct-dispatch-config]
+    needs: [publish-images, validate-direct-dispatch-config, prepare-vid-labeling-cutover]
+    if: inputs.vid-labeling-cutover-mode != 'online'
     permissions:
       contents: read
       id-token: write
@@ -332,7 +437,12 @@ jobs:
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
-    needs: [publish-images, wait-for-tee-consumers-to-stop]
+    needs: [publish-images, wait-for-tee-consumers-to-stop, prepare-vid-labeling-cutover]
+    if: >-
+      always() && needs.publish-images.result == 'success' &&
+      needs.prepare-vid-labeling-cutover.result == 'success' &&
+      (needs.wait-for-tee-consumers-to-stop.result == 'success' ||
+       inputs.vid-labeling-cutover-mode == 'online')
     secrets: inherit
     permissions:
       contents: read
@@ -356,7 +466,13 @@ jobs:
 
   update-secure-computation:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom]
+    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom, prepare-vid-labeling-cutover]
+    if: >-
+      always() && needs.publish-images.result == 'success' &&
+      needs.prepare-vid-labeling-cutover.result == 'success' &&
+      (needs.wait-for-tee-consumers-to-stop.result == 'success' ||
+       inputs.vid-labeling-cutover-mode == 'online')
+      && needs.update-kingdom.result == 'success'
     secrets: inherit
     permissions:
       contents: read
@@ -370,7 +486,14 @@ jobs:
 
   update-edp-aggregator-service:
     uses: ./.github/workflows/configure-edp-aggregator.yml
-    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation]
+    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation, prepare-vid-labeling-cutover]
+    if: >-
+      always() && needs.publish-images.result == 'success' &&
+      needs.prepare-vid-labeling-cutover.result == 'success' &&
+      (needs.wait-for-tee-consumers-to-stop.result == 'success' ||
+       inputs.vid-labeling-cutover-mode == 'online')
+      && needs.update-kingdom.result == 'success'
+      && needs.update-secure-computation.result == 'success'
     secrets: inherit
     permissions:
       contents: read
@@ -394,8 +517,55 @@ jobs:
       tee-consumers-enabled: true
       requisition-fetcher-enabled: true
 
+  complete-vid-labeling-cutover:
+    if: inputs.apply && inputs.vid-labeling-cutover-mode != 'off'
+    needs: [publish-images, terraform, prepare-vid-labeling-cutover]
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+    - uses: ./.github/actions/load-cmms-environment
+      id: cmms-config
+      with:
+        environment: ${{ inputs.environment }}
+    - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+      with:
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+    - uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395
+      with:
+        cluster_name: kingdom
+        location: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
+    - uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23
+    - name: Verify final revisions, run concurrent sidecar smoke and resume checked intake
+      env:
+        MODE: ${{ inputs.vid-labeling-cutover-mode }}
+        RECEIPT: ${{ inputs.vid-labeling-receipt-uri }}
+        CONTROL: ${{ inputs.vid-labeling-intake-control-url }}
+        MANIFEST: ${{ needs.prepare-vid-labeling-cutover.outputs.manifest }}
+        CUTOVER_ID: ${{ needs.prepare-vid-labeling-cutover.outputs.cutover-id }}
+        IMAGE_TAG: ${{ needs.publish-images.outputs.image-tag }}
+      run: |
+        set -euo pipefail
+        printf '%s' "$MANIFEST" > "$RUNNER_TEMP/vid-manifest.json"
+        export VID_MANIFEST="$RUNNER_TEMP/vid-manifest.json"
+        python3 - <<'PYCODE'
+        import json, os, pathlib
+        manifest = json.loads(pathlib.Path(os.environ["VID_MANIFEST"]).read_text())
+        prefix = os.environ["RECEIPT"].rsplit("/", 1)[0] + "/smoke"
+        pathlib.Path(os.environ["RUNNER_TEMP"] + "/vid-smoke.json").write_text(
+            json.dumps(["--project=" + manifest["project"], "--blob-prefix=" + prefix]))
+        PYCODE
+        python3 .github/workflows/scripts/run_vid_labeling_cutover.py \
+          --phase=complete --mode="$MODE" --manifest="$VID_MANIFEST" --receipt-uri="$RECEIPT" \
+          --cutover-id="$CUTOVER_ID" --image-tag="$IMAGE_TAG" --intake-control-url="$CONTROL" \
+          --smoke-arguments="$RUNNER_TEMP/vid-smoke.json"
+
   verify-vid-labeling-readiness:
-    if: inputs.apply && inputs.vid-labeling-readiness
+    if: inputs.apply && inputs.vid-labeling-readiness && inputs.vid-labeling-cutover-mode == 'off'
     needs: [publish-images, terraform]
     runs-on: ubuntu-24.04
     environment: ${{ inputs.environment }}
@@ -683,12 +853,12 @@ jobs:
 
   send-slack-notification:
     uses: ./.github/workflows/slack-nightly-build-notification.yml
-    needs: [ publish-images, run-tests, run-edpa-cloud-test, run-event-group-sync-scale-test, run-edpa-reporting-integration-test, run-dashboard-isolation-test, run-dashboard-compliance-check, update-secure-computation, scan-images, verify-vid-labeling-readiness ]
+    needs: [ publish-images, run-tests, run-edpa-cloud-test, run-event-group-sync-scale-test, run-edpa-reporting-integration-test, run-dashboard-isolation-test, run-dashboard-compliance-check, update-secure-computation, scan-images, verify-vid-labeling-readiness, complete-vid-labeling-cutover ]
     secrets: inherit
     if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/nightly/') && github.actor == 'github-actions[bot]' }}
     with:
       nightly-build-tag: ${{ github.ref_name }}
-      successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.run-edpa-cloud-test.result == 'success' && (inputs.environment == 'dev' || needs.run-event-group-sync-scale-test.result == 'success') && needs.run-edpa-reporting-integration-test.result == 'success' && needs.run-dashboard-isolation-test.result == 'success' && needs.run-dashboard-compliance-check.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' && (!inputs.vid-labeling-readiness || needs.verify-vid-labeling-readiness.result == 'success') }}
+      successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.run-edpa-cloud-test.result == 'success' && (inputs.environment == 'dev' || needs.run-event-group-sync-scale-test.result == 'success') && needs.run-edpa-reporting-integration-test.result == 'success' && needs.run-dashboard-isolation-test.result == 'success' && needs.run-dashboard-compliance-check.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' && (!inputs.vid-labeling-readiness || inputs.vid-labeling-cutover-mode != 'off' || needs.verify-vid-labeling-readiness.result == 'success') && (inputs.vid-labeling-cutover-mode == 'off' || !inputs.apply || needs.complete-vid-labeling-cutover.result == 'success') }}
 
   report-incomplete-rollout:
     if: ${{ always() && inputs.apply && needs.pause-requisition-fetcher.result != 'skipped' && needs.terraform.result != 'success' }}

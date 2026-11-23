@@ -37,6 +37,10 @@ on:
         description: Tag of container images
         type: string
         required: true
+      export-vid-rollout-manifest:
+        description: Export exact non-secret VID cutover identity from the plan
+        type: boolean
+        default: false
       tee-consumers-enabled:
         description: Whether Secure Computation WorkItem TEE consumers may run
         type: boolean
@@ -46,6 +50,9 @@ on:
         type: boolean
         default: true
     outputs:
+      vid_labeling_rollout_manifest:
+        description: Exact desired function/worker/config identity as JSON
+        value: ${{ jobs.terraform.outputs.vid_labeling_rollout_manifest }}
       work_item_tee_mig_names:
         description: WorkItem-consuming Managed Instance Group names as JSON
         value: ${{ jobs.terraform.outputs.work_item_tee_mig_names }}
@@ -61,6 +68,7 @@ jobs:
       id-token: write
     environment: ${{ inputs.environment }}
     outputs:
+      vid_labeling_rollout_manifest: ${{ steps.vid_manifest.outputs.manifest }}
       work_item_tee_mig_names: ${{ steps.terraform_outputs.outputs.work_item_tee_mig_names }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
@@ -349,6 +357,20 @@ jobs:
         -var="cmms_operator_members=$CMMS_OPERATOR_MEMBERS_JSON"
         -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
         -out=tfplan
+
+    - name: Export checked VID rollout manifest
+      id: vid_manifest
+      if: ${{ inputs.export-vid-rollout-manifest }}
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+      run: |
+        set -euo pipefail
+        # Select only this non-secret output; never log/upload the full plan containing secrets.
+        manifest=$(terraform show -json tfplan | jq -ec '
+          .planned_values.outputs.vid_labeling_rollout_manifest.value
+          | select(.schema_version == 1 and (.contract_id | length > 0))
+          | select((.functions | length > 0) and (.migs | length == 3))
+        ')
+        printf 'manifest=%s\\n' "$manifest" >> "$GITHUB_OUTPUT"
 
     - name: terraform apply
       if: ${{ inputs.apply }}
