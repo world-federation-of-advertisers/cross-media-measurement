@@ -115,7 +115,13 @@ class VidLabelingPublicationSmokeRunner(
           labelerInput = LabelerInput.newBuilder().setTimestampUsec(1500L).build(),
           buildEvent = { TestEvent.getDefaultInstance() },
           populationAttributeWriter = populationWriter,
-          entityKeys = emptyList(),
+          entityKeys =
+            listOf(
+              LabeledImpression.EntityKey.newBuilder()
+                .setEntityType("rollout")
+                .setEntityId("synthetic")
+                .build()
+            ),
         )
       }
       val publications = CopyOnWriteArrayList<LabeledOutputPublication>()
