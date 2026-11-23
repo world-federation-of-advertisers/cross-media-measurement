@@ -15,12 +15,20 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.BindableService
 import io.grpc.Status
 import io.grpc.StatusException
+import io.netty.handler.ssl.ClientAuth
+import java.nio.file.Paths
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
@@ -76,6 +84,9 @@ class VidLabelingRolloutCheckTest {
   private var items = emptyList<WorkItem>()
   private var operations = emptyList<UploadHealingOperation>()
   private var queryFails = false
+  private var stallQuery = false
+  private val queryCancelled = AtomicBoolean()
+  private val registeredServices = mutableListOf<BindableService>()
   private var repeatedToken = false
   private var uploadReads = 0
   private var shardRows =
@@ -90,11 +101,22 @@ class VidLabelingRolloutCheckTest {
   private var modelState = RawImpressionUploadModelLine.State.COMPLETED
   @get:Rule
   val server = GrpcTestServerRule {
-    addService(
+    fun register(service: BindableService) {
+      registeredServices += service
+      addService(service)
+    }
+    register(
       object : RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase() {
         override suspend fun listRawImpressionUploads(request: ListRawImpressionUploadsRequest) =
           listRawImpressionUploadsResponse {
             uploadReads++
+            if (stallQuery) {
+              try {
+                delay(30_000)
+              } finally {
+                queryCancelled.set(true)
+              }
+            }
             if (queryFails) throw Status.UNAVAILABLE.asException()
             val offset = request.pageToken.toIntOrNull() ?: 0
             rawImpressionUploads += uploadRows.drop(offset).take(1)
@@ -102,14 +124,14 @@ class VidLabelingRolloutCheckTest {
           }
       }
     )
-    addService(
+    register(
       object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
         override suspend fun listWorkItems(request: ListWorkItemsRequest) = listWorkItemsResponse {
           workItems += items
         }
       }
     )
-    addService(
+    register(
       object :
         UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
         override suspend fun listUploadHealingOperations(
@@ -117,7 +139,7 @@ class VidLabelingRolloutCheckTest {
         ) = listUploadHealingOperationsResponse { uploadHealingOperations += operations }
       }
     )
-    addService(
+    register(
       object :
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase() {
         override suspend fun listRawImpressionUploadModelLines(
@@ -131,7 +153,7 @@ class VidLabelingRolloutCheckTest {
         }
       }
     )
-    addService(
+    register(
       object : PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase() {
         override suspend fun listPoolAssignmentJobs(request: ListPoolAssignmentJobsRequest) =
           listPoolAssignmentJobsResponse {
@@ -139,7 +161,7 @@ class VidLabelingRolloutCheckTest {
           }
       }
     )
-    addService(
+    register(
       object : RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase() {
         override suspend fun listRankerJobs(request: ListRankerJobsRequest) =
           listRankerJobsResponse {
@@ -147,7 +169,7 @@ class VidLabelingRolloutCheckTest {
           }
       }
     )
-    addService(
+    register(
       object : VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase() {
         override suspend fun listVidLabelingJobs(request: ListVidLabelingJobsRequest) =
           listVidLabelingJobsResponse {
@@ -158,7 +180,7 @@ class VidLabelingRolloutCheckTest {
           }
       }
     )
-    addService(
+    register(
       object :
         RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase() {
         override suspend fun listRawImpressionUploadFiles(
@@ -309,6 +331,142 @@ class VidLabelingRolloutCheckTest {
       labelFiles = labelFiles + labelFiles.first()
       assertFailsWith<IllegalStateException> { smoke() }
     }
+
+  private fun fixture(name: String) =
+    Paths.get(
+        System.getenv("TEST_SRCDIR"),
+        System.getenv("TEST_WORKSPACE"),
+        "src/main/k8s/testing/secretfiles",
+        name,
+      )
+      .toFile()
+
+  private fun invokeMain(extra: List<String>, timeoutSeconds: Int = 20): Pair<Int, String> {
+    val process =
+      ProcessBuilder(
+          listOf(
+            Paths.get(System.getProperty("java.home"), "bin", "java").toString(),
+            "-Xmx256m",
+            "-cp",
+            System.getProperty("java.class.path"),
+            "org.wfanet.measurement.edpaggregator.tools.VidLabelingRolloutCheckKt",
+          ) + extra
+        )
+        .redirectErrorStream(true)
+        .start()
+    try {
+      check(process.waitFor(timeoutSeconds.toLong(), TimeUnit.SECONDS)) { "CLI did not terminate" }
+      return process.exitValue() to process.inputStream.bufferedReader().readText()
+    } finally {
+      if (process.isAlive) process.destroyForcibly()
+    }
+  }
+
+  private fun withTlsCli(block: (List<String>) -> Unit) {
+    val tlsServer =
+      CommonServer.fromParameters(
+          nameForLogging = "VidLabelingRolloutCliTest",
+          verboseGrpcLogging = false,
+          certs =
+            SigningCerts.fromPemFiles(
+              fixture("edp_aggregator_tls.pem"),
+              fixture("edp_aggregator_tls.key"),
+              fixture("edp_aggregator_trusted_certs.pem"),
+            ),
+          clientAuth = ClientAuth.REQUIRE,
+          services = registeredServices.map { it.bindService() },
+        )
+        .start()
+    val target = "localhost:${tlsServer.port}"
+    val args =
+      listOf(
+        "--edpa-public-api-target=$target",
+        "--edpa-public-api-cert-host=localhost",
+        "--control-plane-target=$target",
+        "--control-plane-cert-host=localhost",
+        "--tls-cert-file=${fixture("edpa_tee_app_tls.pem")}",
+        "--tls-key-file=${fixture("edpa_tee_app_tls.key")}",
+        "--cert-collection-file=${fixture("edp_aggregator_root.pem")}",
+        "--control-plane-tls-cert-file=${fixture("edpa_tee_app_tls.pem")}",
+        "--control-plane-tls-key-file=${fixture("edpa_tee_app_tls.key")}",
+        "--control-plane-cert-collection-file=${fixture("edp_aggregator_root.pem")}",
+        "--data-provider=dataProviders/dp",
+        "--timeout-seconds=5",
+      )
+    try {
+      block(args)
+    } finally {
+      tlsServer.close()
+    }
+  }
+
+  @Test
+  fun `main rejects missing arguments without success`() {
+    val (code, output) = invokeMain(listOf("--mode=DRAINED"))
+    assertThat(code).isNotEqualTo(0)
+    assertThat(output).doesNotContain("PASS:")
+  }
+
+  @Test
+  fun `main dispatches both modes and prints success`() {
+    withTlsCli { args ->
+      val drained = invokeMain(args + listOf("--mode=DRAINED", "--queue=$QUEUE"))
+      assertThat(drained.first).isEqualTo(0)
+      assertThat(drained.second).contains("PASS: DRAINED")
+      val zero =
+        invokeMain(
+          args +
+            listOf(
+              "--mode=ZERO_MEMBERSHIP",
+              "--done-blob-uri=$DONE",
+              "--done-blob-generation=12",
+              "--model-line=$MODEL",
+              "--expected-shards=2",
+            )
+        )
+      assertThat(zero.first).isEqualTo(0)
+      assertThat(zero.second).contains("PASS: ZERO_MEMBERSHIP")
+    }
+  }
+
+  @Test
+  fun `main query failure returns nonzero and never success`() {
+    queryFails = true
+    withTlsCli { args ->
+      val (code, output) = invokeMain(args + listOf("--mode=DRAINED", "--queue=$QUEUE"))
+      assertThat(code).isNotEqualTo(0)
+      assertThat(output).doesNotContain("PASS:")
+    }
+  }
+
+  @Test
+  fun `main configured deadline cancels a stalled RPC`() {
+    stallQuery = true
+    withTlsCli { args ->
+      val (code, output) =
+        invokeMain(
+          args.filterNot { it.startsWith("--timeout-seconds=") } +
+            listOf("--timeout-seconds=1", "--mode=DRAINED", "--queue=$QUEUE"),
+          15,
+        )
+      assertThat(code).isNotEqualTo(0)
+      assertThat(output).doesNotContain("PASS:")
+      assertThat(queryCancelled.get()).isTrue()
+    }
+  }
+
+  @Test
+  fun `main rejects invalid deadline without success`() {
+    withTlsCli { args ->
+      val result =
+        invokeMain(
+          args.filterNot { it.startsWith("--timeout-seconds=") } +
+            listOf("--timeout-seconds=0", "--mode=DRAINED", "--queue=$QUEUE")
+        )
+      assertThat(result.first).isNotEqualTo(0)
+      assertThat(result.second).doesNotContain("PASS:")
+    }
+  }
 
   companion object {
     private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/upload"

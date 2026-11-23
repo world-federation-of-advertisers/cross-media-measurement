@@ -12,15 +12,35 @@ import json
 import subprocess
 import time
 
+PREFIX = "ghcr.io/world-federation-of-advertisers"
 MIGS = {
-    "subpool-assigner-mig": "--vid-labeler-queue",
-    "vid-rank-builder-mig": "--vid-labeler-queue",
-    "vid-labeler-mig": None,
+    "subpool-assigner-mig": ("edp-aggregator/subpool_assigner", {
+        "--subscription-id": "subpool-assigner-subscription",
+        "--vid-rank-builder-queue": "vid-rank-builder-queue",
+        "--vid-labeler-queue": "vid-labeler-queue"}),
+    "vid-rank-builder-mig": ("edp-aggregator/vid_rank_builder", {
+        "--subscription-id": "vid-rank-builder-subscription",
+        "--vid-labeler-queue": "vid-labeler-queue"}),
+    "vid-labeler-mig": ("edp-aggregator/vid_labeler", {
+        "--subscription-id": "vid-labeler-subscription"}),
 }
 DEPLOYMENTS = {
-    "edp-aggregator-internal-api-server",
-    "edp-aggregator-system-api-server",
+    "edp-aggregator-internal-api-server": "edp-aggregator/internal-api",
+    "edp-aggregator-system-api-server": "edp-aggregator/system-api",
 }
+
+def option(command, flag):
+    values = []
+    for index, value in enumerate(command):
+        if value == flag:
+            require(index + 1 < len(command) and not command[index + 1].startswith("--"),
+                    f"Missing value for {flag}")
+            values.append(command[index + 1])
+        elif value.startswith(flag + "="):
+            values.append(value.split("=", 1)[1])
+    require(len(values) == 1 and bool(values[0]), f"Missing/duplicate value for {flag}")
+    return values[0]
+
 
 
 def read_json(command):
@@ -38,7 +58,7 @@ def check(project, region, image_tag, read=read_json):
     deployments = read(["kubectl", "get", "deployments", "-l",
                         "app.kubernetes.io/component=edp-aggregator", "-o", "json"])
     found = {item["metadata"]["name"]: item for item in deployments["items"]}
-    require(DEPLOYMENTS <= found.keys(), "Metadata deployment missing")
+    require(set(DEPLOYMENTS) <= found.keys(), "Metadata deployment missing")
     for name in DEPLOYMENTS:
         item = found[name]
         replicas = item["spec"].get("replicas", 1)
@@ -53,10 +73,10 @@ def check(project, region, image_tag, read=read_json):
         if name == "edp-aggregator-internal-api-server":
             updater = [c for c in template_spec.get("initContainers", [])
                        if c["name"] == "update-edp-aggregator-schema"]
-            require(len(updater) == 1 and updater[0]["image"].endswith(":" + image_tag),
+            require(len(updater) == 1 and updater[0]["image"] == PREFIX + "/edp-aggregator/update-schema:" + image_tag,
                     "Unexpected schema-updater image")
         containers = template_spec["containers"]
-        require(containers and all(c["image"].endswith(":" + image_tag) for c in containers),
+        require(containers and all(c["image"] == PREFIX + "/" + DEPLOYMENTS[name] + ":" + image_tag for c in containers),
                 f"{name}: unexpected image")
     pods = read(["kubectl", "get", "pods", "-l",
                  "app.kubernetes.io/component=edp-aggregator", "-o", "json"])
@@ -69,14 +89,14 @@ def check(project, region, image_tag, read=read_json):
             statuses = pod.get("status", {}).get("containerStatuses", [])
             require(statuses and all(c.get("ready") is True for c in statuses),
                     f"{name}: container not ready")
-            require(all(c["image"].endswith(":" + image_tag)
+            require(all(c["image"] == PREFIX + "/" + DEPLOYMENTS[name] + ":" + image_tag
                         for c in pod["spec"]["containers"]), f"{name}: old pod image")
             if name == "edp-aggregator-internal-api-server":
                 init = {c["name"]: c for c in pod["status"].get("initContainerStatuses", [])}
                 completed = init.get("update-edp-aggregator-schema", {}).get("state", {}).get("terminated", {})
                 require(completed.get("exitCode") == 0, "Schema updater has not succeeded")
 
-    for mig, required_flag in MIGS.items():
+    for mig, (repository, required_options) in MIGS.items():
         manager = read(["gcloud", "compute", "instance-groups", "managed", "describe", mig,
                         "--project", project, "--region", region, "--format=json"])
         state = manager.get("status", {})
@@ -89,15 +109,15 @@ def check(project, region, image_tag, read=read_json):
                               template.rsplit("/", 1)[-1], "--project", project, "--format=json"])
         metadata = {i["key"]: i.get("value", "") for i in
                     template_data.get("properties", {}).get("metadata", {}).get("items", [])}
-        require(metadata.get("tee-image-reference", "").endswith(":" + image_tag),
+        require(metadata.get("tee-image-reference", "") == PREFIX + "/" + repository + ":" + image_tag,
                 f"{mig}: wrong image")
         require(metadata.get("tee-env-WORK_ITEM_CONSUMPTION_ENABLED") == "true",
                 f"{mig}: consumption disabled")
         command = json.loads(metadata.get("tee-cmd", "null"))
         require(isinstance(command, list) and all(isinstance(v, str) for v in command),
                 f"{mig}: worker arguments unavailable")
-        if required_flag:
-            require(required_flag in command, f"{mig}: missing {required_flag}")
+        for flag, value in required_options.items():
+            require(option(command, flag) == value, f"{mig}: incorrect {flag}")
         instances = read(["gcloud", "compute", "instance-groups", "managed", "list-instances",
                           mig, "--project", project, "--region", region, "--format=json"])
         for instance in instances:
