@@ -53,10 +53,10 @@ object HighOverlapExpectedReach {
      * component adds to the union of the components before it.
      */
     val stackedIncrementalReach: List<ClosedFloatingPointRange<Double>> = emptyList(),
-    val impressions: ClosedFloatingPointRange<Double>? = null,
-    val averageFrequency: ClosedFloatingPointRange<Double>? = null,
-    val percentReach: ClosedFloatingPointRange<Double>? = null,
-    val componentReach: Map<String, ClosedFloatingPointRange<Double>> = emptyMap(),
+    val impressions: ClosedFloatingPointRange<Double>?,
+    val averageFrequency: ClosedFloatingPointRange<Double>?,
+    val percentReach: ClosedFloatingPointRange<Double>?,
+    val componentReach: Map<String, ClosedFloatingPointRange<Double>>,
   )
 
   /** Expected metrics for one week of a weekly series. */
@@ -80,10 +80,7 @@ object HighOverlapExpectedReach {
    * index rather than a search. The spec is the same file the EDP Aggregator labels against, so
    * this and the measured results agree by construction.
    */
-  class DemographicIndex(
-    populationSpec: PopulationSpec,
-    cellKey: (Common) -> String = ::demographicKey,
-  ) {
+  class DemographicIndex(populationSpec: PopulationSpec, cellKey: (Common) -> String) {
     private class Stripe(val startVid: Long, val endVidInclusive: Long, val key: String)
 
     private val stripes: List<Stripe> =
@@ -172,6 +169,8 @@ object HighOverlapExpectedReach {
         populationSpec,
         reportStart,
         reportEnd,
+        keepVidRange = null,
+        keepEventRange = null,
       )
 
     val singleEdpFrequencies: Map<String, Map<Long, Int>> =
@@ -228,8 +227,8 @@ object HighOverlapExpectedReach {
     reportEnd: LocalDate,
     metricSpecConfig: MetricSpecConfig,
     maxFrequency: Int,
-    populationKey: (Common) -> String = ::demographicKey,
-    selectedCells: Set<String>? = null,
+    populationKey: (Common) -> String,
+    selectedCells: Set<String>?,
   ): Map<String, Map<String, ExpectedMetrics>> {
     val demographics = DemographicIndex(populationSpec, populationKey)
     require(selectedCells == null || demographics.keys.containsAll(selectedCells)) {
@@ -243,6 +242,7 @@ object HighOverlapExpectedReach {
         reportStart,
         reportEnd,
         selectedCells?.let { cells -> { vid: Long -> demographics.keyOf(vid) in cells } },
+        keepEventRange = null,
       )
     return wholeIntervalRangesByCell(
       frequenciesByEdpAndFilter,
@@ -371,8 +371,8 @@ object HighOverlapExpectedReach {
     weekCount: Int,
     metricSpecConfig: MetricSpecConfig,
     maxFrequency: Int,
-    populationKey: (Common) -> String = ::demographicKey,
-    selectedCells: Set<String>? = null,
+    populationKey: (Common) -> String,
+    selectedCells: Set<String>?,
   ): Map<String, Map<String, List<ExpectedWeeklyMetrics>>> {
     val demographics = DemographicIndex(populationSpec, populationKey)
     require(selectedCells == null || demographics.keys.containsAll(selectedCells)) {
@@ -386,6 +386,7 @@ object HighOverlapExpectedReach {
         reportStart,
         weekCount,
         selectedCells?.let { cells -> { vid: Long -> demographics.keyOf(vid) in cells } },
+        keepEventRange = null,
       )
     return weeklyRangesByCell(
       weeklyFrequencies,
@@ -556,8 +557,8 @@ object HighOverlapExpectedReach {
     populationSpec: PopulationSpec,
     reportStart: LocalDate,
     weekCount: Int,
-    keepVidRange: ((Long) -> Boolean)? = null,
-    keepEventRange: ((SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean)? = null,
+    keepVidRange: ((Long) -> Boolean)?,
+    keepEventRange: ((SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean)?,
   ): Map<String, Map<String, MutableMap<Long, IntArray>>> {
     val reportEnd = reportStart.plusWeeks(weekCount.toLong())
     val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
@@ -670,6 +671,10 @@ object HighOverlapExpectedReach {
             relativeTolerance,
           )
         },
+      impressions = null,
+      averageFrequency = null,
+      percentReach = null,
+      componentReach = emptyMap(),
     )
   }
 
@@ -693,6 +698,7 @@ object HighOverlapExpectedReach {
           reportStart,
           weekCount,
           keepEventRange = { matchesDeviceAndMedia(it, cell, null) },
+          keepVidRange = null,
         )
       weeklyRangesByCell(
           frequencies,
@@ -729,6 +735,7 @@ object HighOverlapExpectedReach {
           reportStart,
           reportEnd,
           keepEventRange = { matchesDeviceAndMedia(it, cell, signedIn) },
+          keepVidRange = null,
         )
       wholeIntervalRangesByCell(
           frequencies,
@@ -803,7 +810,7 @@ object HighOverlapExpectedReach {
     reportStart: LocalDate,
     reportEnd: LocalDate,
     metricSpecConfig: MetricSpecConfig,
-    signedIn: Boolean? = null,
+    signedIn: Boolean?,
   ): Map<String, Map<String, ClosedFloatingPointRange<Double>>> {
     val intervals = mutableMapOf<String, MutableMap<String, MutableList<Pair<Long, Long>>>>()
     val specs = mutableMapOf<String, SyntheticEventGroupSpec>()
@@ -936,8 +943,8 @@ object HighOverlapExpectedReach {
     populationSpec: PopulationSpec,
     reportStart: LocalDate,
     reportEnd: LocalDate,
-    keepVidRange: ((Long) -> Boolean)? = null,
-    keepEventRange: ((SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean)? = null,
+    keepVidRange: ((Long) -> Boolean)?,
+    keepEventRange: ((SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean)?,
   ): Map<String, Map<String, Map<Long, Int>>> {
     val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
     val endExclusive = reportEnd.atStartOfDay().toInstant(ZoneOffset.UTC)

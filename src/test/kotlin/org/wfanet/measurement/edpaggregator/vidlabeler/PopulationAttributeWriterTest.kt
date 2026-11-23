@@ -56,7 +56,7 @@ class PopulationAttributeWriterTest {
     usState: Common.UsState,
     startVid: Long,
     endVid: Long,
-    parentalStatus: Common.ParentalStatus = Common.ParentalStatus.NOT_PARENT,
+    parentalStatus: Common.ParentalStatus,
   ): PopulationSpec.SubPopulation =
     PopulationSpecKt.subPopulation {
       attributes +=
@@ -83,6 +83,7 @@ class PopulationAttributeWriterTest {
         Common.UsState.CALIFORNIA,
         1L,
         100L,
+        parentalStatus = Common.ParentalStatus.NOT_PARENT,
       )
     subpopulations +=
       subPopulation(
@@ -100,6 +101,7 @@ class PopulationAttributeWriterTest {
         Common.UsState.TEXAS,
         201L,
         300L,
+        parentalStatus = Common.ParentalStatus.NOT_PARENT,
       )
   }
 
@@ -246,6 +248,7 @@ class PopulationAttributeWriterTest {
           Common.UsState.CALIFORNIA,
           1L,
           100L,
+          parentalStatus = Common.ParentalStatus.NOT_PARENT,
         )
       subpopulations +=
         subPopulation(
@@ -254,6 +257,7 @@ class PopulationAttributeWriterTest {
           Common.UsState.NEW_YORK,
           50L,
           200L,
+          parentalStatus = Common.ParentalStatus.NOT_PARENT,
         )
     }
 

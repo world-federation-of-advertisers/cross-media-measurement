@@ -23,19 +23,19 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpec
 /** Verifies requested BasicReport metric structure and optional source-derived value ranges. */
 object BasicReportMetricAssertions {
   data class MetricRanges(
-    val reach: ClosedFloatingPointRange<Double>? = null,
-    val kPlusReach: List<ClosedFloatingPointRange<Double>>? = null,
-    val impressions: ClosedFloatingPointRange<Double>? = null,
-    val percentReach: ClosedFloatingPointRange<Double>? = null,
-    val averageFrequency: ClosedFloatingPointRange<Double>? = null,
+    val reach: ClosedFloatingPointRange<Double>?,
+    val kPlusReach: List<ClosedFloatingPointRange<Double>>?,
+    val impressions: ClosedFloatingPointRange<Double>?,
+    val percentReach: ClosedFloatingPointRange<Double>?,
+    val averageFrequency: ClosedFloatingPointRange<Double>?,
   )
 
   data class ResultRanges(
-    val cumulative: MetricRanges? = null,
-    val nonCumulative: MetricRanges? = null,
-    val componentCumulativeReach: Map<String, ClosedFloatingPointRange<Double>> = emptyMap(),
-    val componentNonCumulativeReach: Map<String, ClosedFloatingPointRange<Double>> = emptyMap(),
-    val stackedIncrementalReach: List<ClosedFloatingPointRange<Double>>? = null,
+    val cumulative: MetricRanges?,
+    val nonCumulative: MetricRanges?,
+    val componentCumulativeReach: Map<String, ClosedFloatingPointRange<Double>>,
+    val componentNonCumulativeReach: Map<String, ClosedFloatingPointRange<Double>>,
+    val stackedIncrementalReach: List<ClosedFloatingPointRange<Double>>?,
   )
 
   private data class Comparison(
@@ -53,8 +53,9 @@ object BasicReportMetricAssertions {
     requested: ResultGroupMetricSpec,
     components: Collection<String>,
     label: String,
-    expected: ResultRanges = ResultRanges(),
+    expected: ResultRanges?,
   ): Int {
+    val ranges = expected ?: ResultRanges(null, null, emptyMap(), emptyMap(), null)
     val comparisons = mutableListOf<Comparison>()
     assertWithMessage("$label reporting unit").that(metrics.hasReportingUnit()).isTrue()
     val unit = metrics.reportingUnit
@@ -66,7 +67,7 @@ object BasicReportMetricAssertions {
           requested.reportingUnit.cumulative,
           metrics.populationSize,
           "$label cumulative",
-          expected.cumulative,
+          ranges.cumulative,
         )
     }
     if (requested.reportingUnit.hasNonCumulative()) {
@@ -77,14 +78,14 @@ object BasicReportMetricAssertions {
           requested.reportingUnit.nonCumulative,
           metrics.populationSize,
           "$label non-cumulative",
-          expected.nonCumulative,
+          ranges.nonCumulative,
         )
     }
     if (requested.reportingUnit.stackedIncrementalReach) {
       assertWithMessage("$label incremental contributions")
         .that(unit.stackedIncrementalReachList)
         .hasSize(components.size)
-      expected.stackedIncrementalReach?.forEachIndexed { index, range ->
+      ranges.stackedIncrementalReach?.forEachIndexed { index, range ->
         comparisons +=
           Comparison(
             "$label incremental $index",
@@ -108,7 +109,15 @@ object BasicReportMetricAssertions {
             requested.component.cumulative,
             metrics.populationSize,
             "$label ${component.key} cumulative",
-            expected.componentCumulativeReach[component.key]?.let { MetricRanges(reach = it) },
+            ranges.componentCumulativeReach[component.key]?.let {
+              MetricRanges(
+                reach = it,
+                kPlusReach = null,
+                impressions = null,
+                percentReach = null,
+                averageFrequency = null,
+              )
+            },
           )
       }
       if (requested.component.hasNonCumulative()) {
@@ -121,7 +130,15 @@ object BasicReportMetricAssertions {
             requested.component.nonCumulative,
             metrics.populationSize,
             "$label ${component.key} non-cumulative",
-            expected.componentNonCumulativeReach[component.key]?.let { MetricRanges(reach = it) },
+            ranges.componentNonCumulativeReach[component.key]?.let {
+              MetricRanges(
+                reach = it,
+                kPlusReach = null,
+                impressions = null,
+                percentReach = null,
+                averageFrequency = null,
+              )
+            },
           )
       }
     }

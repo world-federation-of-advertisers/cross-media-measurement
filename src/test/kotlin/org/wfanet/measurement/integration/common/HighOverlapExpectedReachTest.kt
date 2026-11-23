@@ -46,7 +46,11 @@ class HighOverlapExpectedReachTest {
 
   @Test
   fun `index resolves every VID in a stripe to that stripe's cell`() {
-    val index = HighOverlapExpectedReach.DemographicIndex(stripedSpec(stripes = 4))
+    val index =
+      HighOverlapExpectedReach.DemographicIndex(
+        stripedSpec(stripes = 4),
+        cellKey = HighOverlapExpectedReach::demographicKey,
+      )
 
     // First, interior and last VID of stripe 0 all resolve to the same cell.
     assertThat(index.keyOf(1)).isEqualTo(keyOf(0))
@@ -56,7 +60,11 @@ class HighOverlapExpectedReachTest {
 
   @Test
   fun `index resolves stripe boundaries to adjacent cells`() {
-    val index = HighOverlapExpectedReach.DemographicIndex(stripedSpec(stripes = 4))
+    val index =
+      HighOverlapExpectedReach.DemographicIndex(
+        stripedSpec(stripes = 4),
+        cellKey = HighOverlapExpectedReach::demographicKey,
+      )
 
     // The VID either side of a stripe edge belongs to a different tuple.
     assertThat(index.keyOf(STRIPE_SIZE)).isEqualTo(keyOf(0))
@@ -67,7 +75,11 @@ class HighOverlapExpectedReachTest {
 
   @Test
   fun `index returns null outside every declared range`() {
-    val index = HighOverlapExpectedReach.DemographicIndex(stripedSpec(stripes = 2))
+    val index =
+      HighOverlapExpectedReach.DemographicIndex(
+        stripedSpec(stripes = 2),
+        cellKey = HighOverlapExpectedReach::demographicKey,
+      )
 
     assertThat(index.keyOf(0)).isNull()
     assertThat(index.keyOf(2 * STRIPE_SIZE + 1)).isNull()
@@ -81,7 +93,11 @@ class HighOverlapExpectedReachTest {
       subpopulations += subPopulationOf(1, STRIPE_SIZE, Common.UsState.CALIFORNIA)
       subpopulations += subPopulationOf(STRIPE_SIZE + 1, 2 * STRIPE_SIZE, Common.UsState.NEW_YORK)
     }
-    val index = HighOverlapExpectedReach.DemographicIndex(spec)
+    val index =
+      HighOverlapExpectedReach.DemographicIndex(
+        spec,
+        cellKey = HighOverlapExpectedReach::demographicKey,
+      )
 
     assertThat(index.keys).hasSize(1)
     assertThat(index.keyOf(1)).isEqualTo(index.keyOf(STRIPE_SIZE + 1))
@@ -90,7 +106,11 @@ class HighOverlapExpectedReachTest {
   @Test
   fun `population size per cell sums to the declared population`() {
     val stripes = 6
-    val index = HighOverlapExpectedReach.DemographicIndex(stripedSpec(stripes))
+    val index =
+      HighOverlapExpectedReach.DemographicIndex(
+        stripedSpec(stripes),
+        cellKey = HighOverlapExpectedReach::demographicKey,
+      )
 
     assertThat(index.populationSizeByKey.values.sum()).isEqualTo(stripes * STRIPE_SIZE)
   }
@@ -105,7 +125,11 @@ class HighOverlapExpectedReachTest {
       subpopulations +=
         subPopulationOf(STRIPE_SIZE + 1, STRIPE_SIZE + filler, Common.UsState.CALIFORNIA)
     }
-    val index = HighOverlapExpectedReach.DemographicIndex(spec)
+    val index =
+      HighOverlapExpectedReach.DemographicIndex(
+        spec,
+        cellKey = HighOverlapExpectedReach::demographicKey,
+      )
 
     assertWithMessage("filler is folded into its cell")
       .that(index.populationSizeByKey.getValue(keyOf(0)))
@@ -119,7 +143,12 @@ class HighOverlapExpectedReachTest {
     }
 
     val exception =
-      assertFailsWith<IllegalArgumentException> { HighOverlapExpectedReach.DemographicIndex(spec) }
+      assertFailsWith<IllegalArgumentException> {
+        HighOverlapExpectedReach.DemographicIndex(
+          spec,
+          cellKey = HighOverlapExpectedReach::demographicKey,
+        )
+      }
     assertThat(exception).hasMessageThat().contains("expected to start at 1")
   }
 
@@ -132,7 +161,11 @@ class HighOverlapExpectedReachTest {
       subpopulations +=
         subPopulationOf(2 * STRIPE_SIZE + 1, 3 * STRIPE_SIZE, Common.UsState.NEW_YORK)
     }
-    val index = HighOverlapExpectedReach.DemographicIndex(spec)
+    val index =
+      HighOverlapExpectedReach.DemographicIndex(
+        spec,
+        cellKey = HighOverlapExpectedReach::demographicKey,
+      )
 
     // The run stops at the gap, so VIDs past it fall back to a range scan rather than the index.
     assertThat(index.keyOf(STRIPE_SIZE)).isEqualTo(keyOf(0))
@@ -186,6 +219,7 @@ class HighOverlapExpectedReachTest {
         START,
         START.plusDays(13),
         metricConfig(),
+        signedIn = null,
       )
     }
   }
@@ -323,6 +357,7 @@ class HighOverlapExpectedReachTest {
       sourceConfig(
         listOf(sourceRange(1, 6, Common.DeviceType.DESKTOP, MediaType.VIDEO, true, 1.0F)),
         days = 7,
+        frequency = 1,
       )
     val series =
       HighOverlapExpectedReach.computeWeeklyRangesByDeviceAndMedia(
@@ -511,7 +546,9 @@ class HighOverlapExpectedReachTest {
         sourceRange(6, 16, Common.DeviceType.DESKTOP, MediaType.DISPLAY, true, 1.0F),
         sourceRange(8, 12, Common.DeviceType.DESKTOP, MediaType.DISPLAY, true, 1.0F),
         sourceRange(16, 21, Common.DeviceType.MOBILE, MediaType.DISPLAY, false, 0.0F),
-      )
+      ),
+      frequency = 1,
+      days = 14,
     )
 
   private fun samplingConfig() =
@@ -521,7 +558,9 @@ class HighOverlapExpectedReachTest {
         sourceRange(6, 11, Common.DeviceType.DESKTOP, MediaType.DISPLAY, true, 1.0F),
         sourceRange(11, 16, Common.DeviceType.MOBILE, MediaType.VIDEO, false, 1.0F),
         sourceRange(16, 21, Common.DeviceType.MOBILE, MediaType.DISPLAY, false, 1.0F),
-      )
+      ),
+      frequency = 1,
+      days = 14,
     )
 
   private fun sourceRange(
@@ -545,8 +584,8 @@ class HighOverlapExpectedReachTest {
 
   private fun sourceConfig(
     ranges: List<String>,
-    frequency: Int = 1,
-    days: Int = 14,
+    frequency: Int,
+    days: Int,
   ): ImpressionTestDataConfig {
     val source = temp.newFile()
     source.writeText(

@@ -39,26 +39,26 @@ class BasicReportMetricAssertionsTest {
   @Test
   fun `assertMatches rejects a missing reporting unit`() {
     val actual = metrics(false).copy { clearReportingUnit() }
-    assertFailsWith<AssertionError> { check(actual, false) }
+    assertFailsWith<AssertionError> { check(actual, false, expected = null) }
   }
 
   @Test
   fun `assertMatches rejects a component with no value`() {
     val actual = metrics(true).copy { components[0] = components[0].copy { clearValue() } }
-    assertFailsWith<AssertionError> { check(actual, true) }
+    assertFailsWith<AssertionError> { check(actual, true, expected = null) }
   }
 
   @Test
   fun `assertMatches rejects a non-reference cell missing cumulative metrics`() {
     val actual = metrics(false).toBuilder().apply { reportingUnitBuilder.clearCumulative() }.build()
-    assertFailsWith<AssertionError> { check(actual, false) }
+    assertFailsWith<AssertionError> { check(actual, false, expected = null) }
   }
 
   @Test
   fun `assertMatches rejects a non-reference cell missing weekly metrics`() {
     val actual =
       metrics(false).toBuilder().apply { reportingUnitBuilder.clearNonCumulative() }.build()
-    assertFailsWith<AssertionError> { check(actual, false) }
+    assertFailsWith<AssertionError> { check(actual, false, expected = null) }
   }
 
   @Test
@@ -68,7 +68,7 @@ class BasicReportMetricAssertionsTest {
         .toBuilder()
         .apply { reportingUnitBuilder.nonCumulativeBuilder.clearKPlusReach().addKPlusReach(20) }
         .build()
-    assertFailsWith<AssertionError> { check(actual, false) }
+    assertFailsWith<AssertionError> { check(actual, false, expected = null) }
   }
 
   @Test
@@ -78,7 +78,7 @@ class BasicReportMetricAssertionsTest {
         .toBuilder()
         .apply { reportingUnitBuilder.cumulativeBuilder.clearKPlusReach() }
         .build()
-    assertFailsWith<AssertionError> { check(actual, true) }
+    assertFailsWith<AssertionError> { check(actual, true, expected = null) }
   }
 
   @Test
@@ -92,7 +92,7 @@ class BasicReportMetricAssertionsTest {
             .addAllStackedIncrementalReach(listOf(5L, 5L, 5L))
         }
         .build()
-    assertFailsWith<AssertionError> { check(actual, true) }
+    assertFailsWith<AssertionError> { check(actual, true, expected = null) }
   }
 
   @Test
@@ -102,7 +102,7 @@ class BasicReportMetricAssertionsTest {
         .toBuilder()
         .apply { getComponentsBuilder(0).valueBuilder.clearNonCumulative() }
         .build()
-    assertFailsWith<AssertionError> { check(actual, false) }
+    assertFailsWith<AssertionError> { check(actual, false, expected = null) }
   }
 
   @Test
@@ -112,14 +112,14 @@ class BasicReportMetricAssertionsTest {
         .toBuilder()
         .apply { getComponentsBuilder(0).valueBuilder.clearCumulative() }
         .build()
-    assertFailsWith<AssertionError> { check(actual, true) }
+    assertFailsWith<AssertionError> { check(actual, true, expected = null) }
   }
 
   @Test
   fun `assertMatches rejects duplicate component keys`() {
     val actual =
       metrics(true).toBuilder().apply { getComponentsBuilder(3).key = COMPONENTS.first() }.build()
-    assertFailsWith<AssertionError> { check(actual, true) }
+    assertFailsWith<AssertionError> { check(actual, true, expected = null) }
   }
 
   @Test
@@ -164,7 +164,7 @@ class BasicReportMetricAssertionsTest {
         .toBuilder()
         .apply { reportingUnitBuilder.cumulativeBuilder.averageFrequency = 3F }
         .build()
-    assertFailsWith<AssertionError> { check(actual, true) }
+    assertFailsWith<AssertionError> { check(actual, true, expected = null) }
   }
 
   @Test
@@ -174,7 +174,7 @@ class BasicReportMetricAssertionsTest {
         .toBuilder()
         .apply { reportingUnitBuilder.cumulativeBuilder.percentReach = 25F }
         .build()
-    assertFailsWith<AssertionError> { check(actual, true) }
+    assertFailsWith<AssertionError> { check(actual, true, expected = null) }
   }
 
   @Test
@@ -195,7 +195,17 @@ class BasicReportMetricAssertionsTest {
       true,
       ResultRanges(
         cumulative =
-          MetricRanges(reach = -5.0..5.0, impressions = -5.0..5.0, averageFrequency = 0.0..0.0)
+          MetricRanges(
+            reach = -5.0..5.0,
+            impressions = -5.0..5.0,
+            averageFrequency = 0.0..0.0,
+            kPlusReach = null,
+            percentReach = null,
+          ),
+        nonCumulative = null,
+        componentCumulativeReach = emptyMap(),
+        componentNonCumulativeReach = emptyMap(),
+        stackedIncrementalReach = null,
       ),
     )
   }
@@ -218,7 +228,17 @@ class BasicReportMetricAssertionsTest {
       true,
       ResultRanges(
         cumulative =
-          MetricRanges(reach = -5.0..5.0, impressions = -5.0..5.0, averageFrequency = 0.0..0.0)
+          MetricRanges(
+            reach = -5.0..5.0,
+            impressions = -5.0..5.0,
+            averageFrequency = 0.0..0.0,
+            kPlusReach = null,
+            percentReach = null,
+          ),
+        nonCumulative = null,
+        componentCumulativeReach = emptyMap(),
+        componentNonCumulativeReach = emptyMap(),
+        stackedIncrementalReach = null,
       ),
     )
   }
@@ -236,7 +256,7 @@ class BasicReportMetricAssertionsTest {
             .setPercentReach(-2F)
         }
         .build()
-    check(actual, true)
+    check(actual, true, expected = null)
   }
 
   @Test
@@ -246,14 +266,10 @@ class BasicReportMetricAssertionsTest {
         .toBuilder()
         .apply { reportingUnitBuilder.cumulativeBuilder.averageFrequency = Float.NaN }
         .build()
-    assertFailsWith<AssertionError> { check(actual, true) }
+    assertFailsWith<AssertionError> { check(actual, true, expected = null) }
   }
 
-  private fun check(
-    actual: ResultGroup.MetricSet,
-    total: Boolean,
-    expected: ResultRanges = ResultRanges(),
-  ) =
+  private fun check(actual: ResultGroup.MetricSet, total: Boolean, expected: ResultRanges?) =
     BasicReportMetricAssertions.assertMatches(
       actual,
       requested(total),
@@ -337,12 +353,23 @@ class BasicReportMetricAssertionsTest {
         cumulative = basic,
         componentCumulativeReach = COMPONENTS.associateWith { 4.0..6.0 },
         stackedIncrementalReach = List(4) { 4.0..6.0 },
+        nonCumulative = null,
+        componentNonCumulativeReach = emptyMap(),
       )
     else
       ResultRanges(
-        cumulative = MetricRanges(reach = basic.reach, percentReach = basic.percentReach),
+        cumulative =
+          MetricRanges(
+            reach = basic.reach,
+            percentReach = basic.percentReach,
+            kPlusReach = null,
+            impressions = null,
+            averageFrequency = null,
+          ),
         nonCumulative = basic.copy(percentReach = null),
         componentNonCumulativeReach = COMPONENTS.associateWith { 4.0..6.0 },
+        componentCumulativeReach = emptyMap(),
+        stackedIncrementalReach = null,
       )
   }
 

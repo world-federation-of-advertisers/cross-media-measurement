@@ -636,12 +636,12 @@ class EdpAggregatorReportingIntegrationTest {
     cell: String,
     filter: String,
     week: Int,
-  ): ResultRanges {
+  ): ResultRanges? {
     if (
       populationFields && cell !in SCALE_REFERENCE_CELLS ||
         !populationFields && cell !in SCALE_DEVICE_REFERENCE_CELLS
     )
-      return ResultRanges()
+      return null
     if (total) {
       val expected =
         when {
@@ -661,6 +661,8 @@ class EdpAggregatorReportingIntegrationTest {
           ),
         componentCumulativeReach = componentRangesByProvider(expected.componentReach),
         stackedIncrementalReach = if (populationFields) expected.stackedIncrementalReach else null,
+        nonCumulative = null,
+        componentNonCumulativeReach = emptyMap(),
       )
     }
     val expected =
@@ -672,6 +674,9 @@ class EdpAggregatorReportingIntegrationTest {
         MetricRanges(
           reach = expected.cumulative.reach,
           percentReach = if (populationFields) expected.cumulativePercentReach else null,
+          kPlusReach = null,
+          impressions = null,
+          averageFrequency = null,
         ),
       nonCumulative =
         MetricRanges(
@@ -679,8 +684,11 @@ class EdpAggregatorReportingIntegrationTest {
           kPlusReach = expected.nonCumulative.kPlusReach,
           impressions = expected.nonCumulativeImpressions,
           averageFrequency = expected.nonCumulativeAverageFrequency,
+          percentReach = null,
         ),
       componentNonCumulativeReach = componentRangesByProvider(expected.componentNonCumulativeReach),
+      componentCumulativeReach = emptyMap(),
+      stackedIncrementalReach = null,
     )
   }
 
@@ -704,6 +712,8 @@ class EdpAggregatorReportingIntegrationTest {
       WEEKLY_PERIOD_COUNT,
       BASIC_REPORT_METRIC_SPEC_CONFIG,
       K_PLUS_REACH,
+      populationKey = HighOverlapExpectedReach::demographicKey,
+      selectedCells = null,
     )
   }
 
@@ -719,6 +729,8 @@ class EdpAggregatorReportingIntegrationTest {
       WEEKLY_REPORT_END,
       BASIC_REPORT_METRIC_SPEC_CONFIG,
       K_PLUS_REACH,
+      populationKey = HighOverlapExpectedReach::demographicKey,
+      selectedCells = null,
     )
   }
 
@@ -1467,17 +1479,27 @@ class EdpAggregatorReportingIntegrationTest {
       val title: String,
       val fields: List<String>,
       val total: Boolean,
-      val signedIn: Boolean? = null,
+      val signedIn: Boolean?,
     )
 
     private val SCALE_GROUPS =
       listOf(
-        ScaleGroup("Scale weekly geography and demographics", SCALE_POPULATION_FIELDS, false),
-        ScaleGroup("Scale total geography and demographics", SCALE_POPULATION_FIELDS, true),
-        ScaleGroup("Scale weekly device and media", SCALE_EVENT_FIELDS, false),
-        ScaleGroup("Scale total device and media", SCALE_EVENT_FIELDS, true),
-        ScaleGroup("Scale signed-in device and media", SCALE_EVENT_FIELDS, true, true),
-        ScaleGroup("Scale signed-out device and media", SCALE_EVENT_FIELDS, true, false),
+        ScaleGroup(
+          "Scale weekly geography and demographics",
+          SCALE_POPULATION_FIELDS,
+          false,
+          signedIn = null,
+        ),
+        ScaleGroup(
+          "Scale total geography and demographics",
+          SCALE_POPULATION_FIELDS,
+          true,
+          signedIn = null,
+        ),
+        ScaleGroup("Scale weekly device and media", SCALE_EVENT_FIELDS, false, signedIn = null),
+        ScaleGroup("Scale total device and media", SCALE_EVENT_FIELDS, true, signedIn = null),
+        ScaleGroup("Scale signed-in device and media", SCALE_EVENT_FIELDS, true, signedIn = true),
+        ScaleGroup("Scale signed-out device and media", SCALE_EVENT_FIELDS, true, signedIn = false),
       )
     // Populated AMI display/video cells and an MRC video zero control.
     private val SCALE_DEVICE_REFERENCE_CELLS = setOf("DESKTOP/VIDEO", "TV/DISPLAY", "OTHER/DISPLAY")
