@@ -70,10 +70,9 @@ object VidLabelingDispatchWorkItems {
       source.dataPath.isNotEmpty() &&
         source.hasGeneration() &&
         source.generation > 0 &&
-        source.hasCreateTime() &&
-        source.eventType == WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+        source.hasCreateTime()
     ) {
-      "Dispatch source must identify a finalized object version"
+      "Dispatch source must identify an exact object version"
     }
   }
 
