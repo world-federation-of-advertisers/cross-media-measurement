@@ -190,10 +190,13 @@ locals {
   # Changed protocol/packing settings cannot be applied online to active work.
   # A successful-cutover receipt binds this identity to verified serving revisions.
   vid_labeling_contract_id = sha256(jsonencode({
-    protocol     = "wfa-edpa-vid-immutable-v1"
-    dispatcher   = filesha256(var.vid_labeling_dispatcher_config.local_path)
-    data_watcher = filesha256(var.data_watcher_config.local_path)
-    availability = filesha256(var.data_availability_sync_config.local_path)
+    protocol             = "wfa-edpa-vid-immutable-v1"
+    dispatcher           = filesha256(var.vid_labeling_dispatcher_config.local_path)
+    monitor              = filesha256(var.vid_labeling_monitor_config.local_path)
+    availability_monitor = filesha256(var.data_availability_monitor_config.local_path)
+    data_watcher         = filesha256(var.data_watcher_config.local_path)
+    data_watcher_delete  = filesha256(var.data_watcher_delete_config.local_path)
+    availability         = filesha256(var.data_availability_sync_config.local_path)
   }))
   vid_labeling_rollout_functions = [
     for role in sort(keys(var.cloud_function_configs)) : {

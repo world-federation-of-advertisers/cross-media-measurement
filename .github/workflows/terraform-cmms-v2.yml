@@ -370,7 +370,7 @@ jobs:
           | select(.schema_version == 1 and (.contract_id | length > 0))
           | select((.functions | length > 0) and (.migs | length == 3))
         ')
-        printf 'manifest=%s\\n' "$manifest" >> "$GITHUB_OUTPUT"
+        printf 'manifest=%s\n' "$manifest" >> "$GITHUB_OUTPUT"
 
     - name: terraform apply
       if: ${{ inputs.apply }}
