@@ -213,6 +213,7 @@ class EventGroupSyncWorkItemProcessorTest {
               dataPathParams = dataPathParams {
                 dataPath = sourcePath
                 generation = 7L
+                eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
               }
             }
           )
