@@ -371,7 +371,6 @@ class VidLabelingDispatcherFunctionTest {
                         .toProtoTime()
                     else Timestamps.fromMillis(1L)
                   }
-              eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
             }
             appParams =
               vidLabelingDispatchWorkItemParams {
