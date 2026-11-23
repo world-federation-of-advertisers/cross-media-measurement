@@ -151,7 +151,7 @@ message RequisitionDetails {
   // before any fulfillment arrives. It is not part of [protocol][], which is
   // written from the fulfillment. Set only for a TrusTEE multimeasurement
   // computation.
-  int32 vector_index = 6;
+  optional int32 vector_index = 6;
 }
 
 // Lookup key for Requisition by external ID.

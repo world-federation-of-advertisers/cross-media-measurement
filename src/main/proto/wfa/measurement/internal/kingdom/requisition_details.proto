@@ -70,7 +70,7 @@ message RequisitionDetails {
   // Index of the base vector this `Requisition` fulfills, from the public API
   // `Measurement.Multimeasurement.Vector.index`. Set only for a
   // multimeasurement.
-  int32 vector_index = 12;
+  optional int32 vector_index = 12;
 
   // Serialized plaintext `RequisitionSpec` from the public API, from
   // `Measurement.Multimeasurement.Vector.requisition_spec`. Set only for a
