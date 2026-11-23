@@ -11,7 +11,7 @@ deadline, up to 100 approximate delivery attempts, and 10–600-second backoff.
 
 `WorkItem.WorkItemParams.app_params` contains `VidLabelingDispatchWorkItemParams`.
 It carries the provider and optional recovery references. Ordinary dispatch carries
-its exact source URI/generation/creation time/event type only in outer
+its exact source URI/generation/creation time only in outer
 `data_path_params`, enabling standard source admission and indexed lookup.
 Recovery instead carries that complete source in `app_params.recovery.source`,
 with the source upload and authorizing UploadHealingOperation resource names.
