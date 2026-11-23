@@ -321,6 +321,8 @@ locals {
     destination = "data-watcher-config.textproto"
   }
 
+  data_watcher_active_config_key = var.activate_vid_labeling_dispatch_config ? "data-watcher-config.dispatch-v2.textproto" : local.data_watcher_config.destination
+
   data_watcher_delete_config = {
     local_path  = var.data_availability_cleanup_work_item_dispatch_enabled ? var.data_watcher_delete_work_item_config_file_path : var.data_watcher_delete_config_file_path
     destination = "data-watcher-delete-config.textproto"
@@ -370,7 +372,7 @@ locals {
     data_watcher = {
       function_name   = "data-watcher"
       entry_point     = "org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction"
-      extra_env_vars  = "${var.data_watcher_env_var},CONFIG_BLOB_KEY=${local.data_watcher_config.destination}"
+      extra_env_vars  = "${var.data_watcher_env_var},CONFIG_BLOB_KEY=${local.data_watcher_active_config_key}"
       secret_mappings = var.data_watcher_secret_mapping
       uber_jar_path   = var.data_watcher_uber_jar_path
     },
@@ -470,7 +472,7 @@ locals {
       extra_env_vars = join(",", compact([
         var.vid_labeling_healing_controller_env_var,
         "CONFIG_BLOB_KEY=${local.vid_labeling_dispatcher_config.destination}",
-        "DATA_WATCHER_CONFIG_BLOB_KEY=${local.data_watcher_config.destination}",
+        "DATA_WATCHER_CONFIG_BLOB_KEY=${local.data_watcher_active_config_key}",
         "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
       ]))
       secret_mappings = var.vid_labeling_healing_controller_secret_mapping
@@ -675,6 +677,7 @@ locals {
 }
 
 module "edp_aggregator" {
+  activate_vid_labeling_dispatch_config = var.activate_vid_labeling_dispatch_config
   vid_labeling_dispatch_work_item_queue = local.vid_labeling_dispatch_work_item_queue
   event_group_sync_memory               = var.event_group_sync_memory
   source                                = "../modules/edp-aggregator"

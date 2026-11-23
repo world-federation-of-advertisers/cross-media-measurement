@@ -37,6 +37,14 @@ on:
         description: Tag of container images
         type: string
         required: true
+      require-vid-dispatch-cutover-checks:
+        description: Preserve the initial cutover gates across a failed-job rerun
+        type: boolean
+        default: false
+      vid-dispatch-config-mode:
+        description: Preserve current intake, activate online, or apply the maintenance cutover
+        type: string
+        default: activate
       tee-consumers-enabled:
         description: Whether Secure Computation WorkItem TEE consumers may run
         type: boolean
@@ -120,6 +128,42 @@ jobs:
       with:
         workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
         service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+
+    - name: Select VID dispatch configuration phase
+      id: dispatch-config
+      env:
+        DISPATCH_MODE: ${{ inputs.vid-dispatch-config-mode }}
+        APPLY: ${{ inputs.apply }}
+        REQUIRE_CUTOVER_CHECKS: ${{ inputs.require-vid-dispatch-cutover-checks }}
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        case "$DISPATCH_MODE" in preserve|activate|maintenance) ;; *) exit 1 ;; esac
+        current=false
+        if [[ "$APPLY" == true ]]; then
+          current=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py select-config \
+            --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION")
+        fi
+        activate=true
+        if [[ "$DISPATCH_MODE" == preserve ]]; then activate="$current"; fi
+        queued=false
+        if [[ "$APPLY" == true ]]; then
+          queued=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py is-queued \
+            --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION")
+        fi
+        needed=false
+        if [[ "$queued" == false && "$APPLY" == true ]] && \
+          grep -q 'vid-labeling-dispatch-queue' "$CONFIG_DIR/data-watcher-config.textproto"; then
+          needed=true
+        fi
+        if ! grep -q 'vid-labeling-dispatch-queue' "$CONFIG_DIR/data-watcher-config.textproto"; then
+          activate="$current"
+        fi
+        if [[ "$APPLY" == true && "$REQUIRE_CUTOVER_CHECKS" == true && "$DISPATCH_MODE" != preserve ]]; then
+          needed=true
+        fi
+        echo "activate=$activate" >> "$GITHUB_OUTPUT"
+        echo "needed=$needed" >> "$GITHUB_OUTPUT"
 
     - name: Set up Java & Maven
       uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
@@ -301,6 +345,46 @@ jobs:
         reporting_spanner_instance      = "${SPANNER_INSTANCE}"
         EOF
 
+    - name: Get GKE credentials for dispatch readiness
+      if: ${{ inputs.apply && inputs.vid-dispatch-config-mode != 'preserve' && steps.dispatch-config.outputs.needed == 'true' }}
+      uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
+      with:
+        cluster_name: kingdom
+        location: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
+
+    - name: Write isolated dispatch cutover profile
+      if: ${{ inputs.apply && inputs.vid-dispatch-config-mode != 'preserve' && steps.dispatch-config.outputs.needed == 'true' }}
+      env:
+        CUTOVER_PROFILE: ${{ secrets.VID_DISPATCH_CUTOVER_PROFILE }}
+      run: |
+        set -euo pipefail
+        umask 077
+        test -n "$CUTOVER_PROFILE"
+        printf '%s\n' "$CUTOVER_PROFILE" > "$RUNNER_TEMP/vid-dispatch-cutover.json"
+
+    - name: Verify prepared dispatch code and queue before online activation
+      if: ${{ inputs.apply && inputs.vid-dispatch-config-mode == 'activate' && steps.dispatch-config.outputs.needed == 'true' }}
+      env:
+        WATCHER_JAR: ${{ steps.download-uber-jars.outputs.data_watcher_source_path }}
+        DISPATCHER_JAR: ${{ steps.download-uber-jars.outputs.vid_labeling_dispatcher_source_path }}
+        HEALING_JAR: ${{ steps.download-uber-jars.outputs.vid_labeling_healing_controller_source_path }}
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        python3 .github/workflows/scripts/vid_dispatch_cutover.py ready \
+          --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+          --expected-artifact="data-watcher=$WATCHER_JAR" \
+          --expected-artifact="vid-labeling-dispatcher=$DISPATCHER_JAR" \
+          --expected-artifact="vid-labeling-healing-controller=$HEALING_JAR"
+        python3 .github/workflows/scripts/vid_dispatch_cutover.py smoke \
+          --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+          --profile-file="$RUNNER_TEMP/vid-dispatch-cutover.json" \
+          --vid-labeling-config="$CONFIG_DIR/vid-labeling-dispatcher-config.textproto" \
+          --edpa-target="$METADATA_STORAGE_PUBLIC_API_TARGET" \
+          --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+        python3 .github/workflows/scripts/vid_dispatch_cutover.py capture-legacy \
+          --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" > "$RUNNER_TEMP/vid-dispatch-legacy-revisions.json"
+
     - name: terraform plan
       env:
         TERRAFORM_SERVICE_ACCOUNT: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
@@ -335,6 +419,7 @@ jobs:
         -var="vid_labeling_healing_controller_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_healing_controller_source_path }}"
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
+        -var="activate_vid_labeling_dispatch_config=${{ steps.dispatch-config.outputs.activate }}"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
         -var="requisition_fetcher_enabled=${{ inputs.requisition-fetcher-enabled }}"
         -var="requisition_fetcher_scheduler_job_name=$REQUISITION_FETCHER_SCHEDULER_JOB_NAME"
@@ -354,6 +439,39 @@ jobs:
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: terraform apply -input=false tfplan
+
+    - name: Verify activation and run maintenance smoke
+      if: ${{ inputs.apply && inputs.vid-dispatch-config-mode != 'preserve' && steps.dispatch-config.outputs.needed == 'true' }}
+      env:
+        WATCHER_JAR: ${{ steps.download-uber-jars.outputs.data_watcher_source_path }}
+        DISPATCHER_JAR: ${{ steps.download-uber-jars.outputs.vid_labeling_dispatcher_source_path }}
+        HEALING_JAR: ${{ steps.download-uber-jars.outputs.vid_labeling_healing_controller_source_path }}
+        DISPATCH_MODE: ${{ inputs.vid-dispatch-config-mode }}
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        activated_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        python3 .github/workflows/scripts/vid_dispatch_cutover.py ready \
+          --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+          --expected-artifact="data-watcher=$WATCHER_JAR" \
+          --expected-artifact="vid-labeling-dispatcher=$DISPATCHER_JAR" \
+          --expected-artifact="vid-labeling-healing-controller=$HEALING_JAR"
+        active=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py is-queued \
+          --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION")
+        test "$active" == true
+        if [[ "$DISPATCH_MODE" == maintenance ]]; then
+          python3 .github/workflows/scripts/vid_dispatch_cutover.py smoke \
+            --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+            --profile-file="$RUNNER_TEMP/vid-dispatch-cutover.json" \
+            --vid-labeling-config="$CONFIG_DIR/vid-labeling-dispatcher-config.textproto" \
+            --edpa-target="$METADATA_STORAGE_PUBLIC_API_TARGET" \
+            --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+        else
+          python3 .github/workflows/scripts/vid_dispatch_cutover.py observe-legacy \
+            --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+            --legacy-revisions-file="$RUNNER_TEMP/vid-dispatch-legacy-revisions.json" \
+            --activated-at="$activated_at"
+        fi
 
     - name: Show recent GKE operations after Terraform failure
       if: ${{ failure() }}

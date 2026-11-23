@@ -312,3 +312,14 @@ Configure `vid_labeling_dispatch_work_item_queue` before switching raw-upload
 watcher routes. The dispatcher accepts both queued jobs and legacy HTTP deliveries.
 See the [migration and retry guide](../../../../../../docs/operations/migrating-vid-labeling-dispatch.md)
 for deployment order, historical recovery, and rollback constraints.
+
+### VID dispatch cutover
+
+`activate_vid_labeling_dispatch_config` selects the prepared v2 watcher configuration.
+Preparation preserves the active legacy key. Activation changes both DataWatcher and
+healing to v2 and rolls their cached configuration. The legacy object stays unchanged
+for older parsers and rollback. Queue/IAM/push resources remain Terraform-owned;
+readiness commands only read them.
+
+Use the automated online or maintenance workflow in
+[the dispatch migration guide](../../../../../../docs/operations/migrating-vid-labeling-dispatch.md).
