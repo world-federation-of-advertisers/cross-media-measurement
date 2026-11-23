@@ -76,7 +76,7 @@ class ReadinessTest(unittest.TestCase):
 
 class FunctionReadinessTest(unittest.TestCase):
     def setUp(self):
-        self.manifest = {"schema_version": 1, "contract_id": "immutable-config-v2",
+        self.manifest = {"schema_version": 1, "contract_id": "immutable-config-v2", "shared_code_id": "platform-v1",
                          "functions": [{"role": role, "name": role.replace("_", "-"), "artifact_sha256": "a" * 64}
                                        for role in sorted(REQUIRED_FUNCTIONS)]}
         self.function = {
@@ -95,6 +95,8 @@ class FunctionReadinessTest(unittest.TestCase):
                 {"name": "CMMS_ARTIFACT_SHA256", "value": "a" * 64},
                 {"name": "VID_LABELING_CONTRACT_ID", "value": "immutable-config-v2"}]}]}}
         self.commands = []
+        self.workloads = ReadinessTest()
+        self.workloads.setUp()
 
     def read(self, command):
         self.commands.append(command)
@@ -117,7 +119,7 @@ class FunctionReadinessTest(unittest.TestCase):
             return value
         if command[1:3] == ["run", "revisions"]:
             return self.revision
-        raise AssertionError(command)
+        return self.workloads.read(command)
 
     def test_serving_artifact_and_contract_are_verified(self):
         check_functions("p", "r", self.manifest, self.read)
@@ -150,7 +152,7 @@ class FunctionReadinessTest(unittest.TestCase):
                 require_manifest(manifest)
 
     def test_unknown_legacy_or_drifted_contract_cannot_roll_online(self):
-        good = dict(copy.deepcopy(self.manifest), status="READY", project="p", region="r")
+        good = dict(copy.deepcopy(self.manifest), status="READY", project="p", region="r", image_tag="tag")
         check_compatibility("p", "r", self.manifest, good, self.read)
         for update in [{"contract_id": "legacy"}, {"project": "other"},
                        {"status": "IN_PROGRESS"}, {"functions": []}]:
