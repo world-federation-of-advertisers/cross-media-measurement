@@ -27,6 +27,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import java.io.IOException
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicBoolean
@@ -1702,6 +1703,66 @@ class BaseTeeApplicationTest {
     assertThat(consumer.ackCount).isEqualTo(0)
     assertThat(consumer.nackCount).isEqualTo(1)
     job.cancelAndJoin()
+  }
+
+  @Test
+  fun `stored worker failure retains cause types without private messages`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    val attempt = workItemAttempt { name = "workItems/workItem/workItemAttempts/diagnosticAttempt" }
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(attempt)
+    whenever(
+        workItemAttemptsStub.failWorkItemAttempt(
+          any<FailWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(attempt)
+    val failure =
+      IllegalStateException(PRIVATE_VALUE, IOException(PRIVATE_VALUE)).apply {
+        stackTrace = arrayOf(StackTraceElement("application.Worker", "process", "Worker.kt", 14))
+        addSuppressed(IllegalArgumentException(PRIVATE_VALUE))
+      }
+    val subscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        SUBSCRIPTION_ID,
+        subscriber,
+        WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        failure = failure,
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+    subscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "safe-diagnostic-ack",
+      )
+    )
+    consumer.disposition.await()
+    job.cancelAndJoin()
+    val request = argumentCaptor<FailWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsStub) {
+      failWorkItemAttempt(request.capture(), any<io.grpc.Metadata>())
+    }
+    assertThat(request.firstValue.errorMessage).contains("java.lang.IllegalStateException")
+    assertThat(request.firstValue.errorMessage).contains("java.io.IOException")
+    assertThat(request.firstValue.errorMessage).contains("java.lang.IllegalArgumentException")
+    assertThat(request.firstValue.errorMessage).contains("; at ")
+    assertThat(request.firstValue.errorMessage).doesNotContain(PRIVATE_VALUE)
+    assertThat(request.firstValue.errorMessage.length).isAtMost(1024)
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(diagnosticOutput.joinToString()).doesNotContain(PRIVATE_VALUE)
   }
 
   @Test

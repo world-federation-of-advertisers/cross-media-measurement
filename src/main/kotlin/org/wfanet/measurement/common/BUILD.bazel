@@ -5,7 +5,10 @@ package(default_visibility = ["//visibility:public"])
 kt_jvm_library(
     name = "exception_diagnostics",
     srcs = ["ExceptionDiagnostics.kt"],
-    deps = ["@wfa_common_jvm//imports/java/io/grpc:api"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
 )
 
 kt_jvm_library(
