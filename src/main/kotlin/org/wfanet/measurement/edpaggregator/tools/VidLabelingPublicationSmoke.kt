@@ -112,10 +112,10 @@ class VidLabelingPublicationSmokeRunner(
         )
       val converter = ImpressionConverter { _, _ ->
         ConvertedImpression(
-          LabelerInput.newBuilder().setTimestampUsec(1500L).build(),
-          { TestEvent.getDefaultInstance() },
-          populationWriter,
-          emptyList(),
+          labelerInput = LabelerInput.newBuilder().setTimestampUsec(1500L).build(),
+          buildEvent = { TestEvent.getDefaultInstance() },
+          populationAttributeWriter = populationWriter,
+          entityKeys = emptyList(),
         )
       }
       val publications = CopyOnWriteArrayList<LabeledOutputPublication>()
