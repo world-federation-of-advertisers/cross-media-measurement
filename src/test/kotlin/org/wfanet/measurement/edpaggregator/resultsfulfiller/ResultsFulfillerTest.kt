@@ -3093,6 +3093,9 @@ class ResultsFulfillerTest {
     assertThat(exceptionEvidence).contains(failure.javaClass.name)
     assertThat(exceptionEvidence).contains("IOException")
     assertThat(exceptionEvidence).contains("CauseFixture.kt:41")
+    assertThat(exceptionEvidence).contains("RefusalFixture.kt:27")
+    assertThat(exceptionEvidence).contains("java.lang.IllegalArgumentException")
+    assertThat(exceptionEvidence).contains("SuppressedFixture.kt:63")
     val internalSpans =
       spans.joinToString { span ->
         span.toString() + span.events.joinToString { it.attributes.asMap().toString() }
