@@ -86,19 +86,181 @@ class CutoverTest(unittest.TestCase):
                          lambda: self.fail("unchecked readiness"), lambda: self.good_smoke,
                          lambda: self.fail("unsafe resume"))
 
-    def test_receipt_writes_are_generation_guarded(self):
+    def test_receipt_generation_comes_from_the_conditional_write(self):
+        import io
         calls = []
         class Result:
-            stdout = "11"
+            stdout = "access-token"
         def execute(command, **kwargs):
             calls.append(command)
             return Result()
-        put_object("gs://b/rollout/environment.json", {"status": "IN_PROGRESS"}, 10, execute)
-        self.assertIn("--if-generation-match=10", calls[0])
-        self.assertTrue(all("delete" not in command for command in calls))
+        def opener(request, **kwargs):
+            self.assertIn("ifGenerationMatch=10", request.full_url)
+            return io.StringIO(json.dumps({"bucket": "b", "name": "rollout/environment.json", "generation": "11"}))
+        generation = put_object("gs://b/rollout/environment.json", {"status": "RESERVED"}, 10, execute, opener)
+        self.assertEqual(generation, 11)
+        self.assertFalse(any("describe" in command for command in calls))
         with self.assertRaises(RuntimeError):
-            put_object("gs://b/production/environment.json", {}, 10, execute)
+            put_object("gs://b/production/environment.json", {}, 10, execute, opener)
 
+    def test_conditional_write_does_not_adopt_a_competing_latest_generation(self):
+        import io
+        class Result:
+            stdout = "token"
+        calls = []
+        def execute(argv, **kwargs):
+            calls.append(argv)
+            return Result()
+        def opener(request, **kwargs):
+            # A subsequent owner may already be writing generation12; this response is still11.
+            return io.StringIO(json.dumps({"bucket": "b", "name": "rollout/r.json", "generation": "11"}))
+        self.assertEqual(put_object("gs://b/rollout/r.json", {}, 10, execute, opener), 11)
+        self.assertEqual(len(calls), 1)
+
+    def test_control_is_idempotent_and_owner_bound(self):
+        import io
+        requests = []
+        class Result:
+            stdout = "identity"
+        def execute(*args, **kwargs): return Result()
+        def opener(request, **kwargs):
+            value = json.loads(request.data)
+            requests.append(value)
+            return io.StringIO(json.dumps({"scope_id": scope_id(self.manifest),
+                "owner_id": value["owner_id"], "paused": value["action"] == "pause"}))
+        control("https://publisher.example/control", "pause", self.manifest, "owner1", execute, opener)
+        control("https://publisher.example/control", "pause", self.manifest, "owner1", execute, opener)
+        control("https://publisher.example/control", "resume", self.manifest, "owner1", execute, opener)
+        self.assertEqual(requests[0]["request_id"], requests[1]["request_id"])
+        self.assertNotEqual(requests[0]["request_id"], requests[2]["request_id"])
+        def foreign(request, **kwargs):
+            return io.StringIO(json.dumps({"scope_id": scope_id(self.manifest),
+                "owner_id": "owner2", "paused": False}))
+        with self.assertRaises(RuntimeError):
+            control("https://publisher.example/control", "resume", self.manifest, "owner1", execute, foreign)
+
+
+    def test_competing_begin_cannot_pause_or_replace_reserved_owner(self):
+        from run_vid_labeling_cutover import claim_receipt
+        previous = dict(self.manifest, status="READY", scope_id=scope_id(self.manifest))
+        state = {"generation": 10, "value": previous}
+        def write(value, expected):
+            if expected != state["generation"]:
+                raise RuntimeError("generation precondition failed")
+            state.update(generation=expected + 1, value=value)
+            return state["generation"]
+        owner, generation = claim_receipt("maintenance", self.manifest, previous, 10, write)
+        self.assertEqual(state["value"]["request_id"], owner)
+        self.assertEqual(generation, 11)
+        # The second begin read before reservation; its CAS fails before it can pause.
+        with self.assertRaises(RuntimeError):
+            claim_receipt("maintenance", self.manifest, previous, 10, write)
+            self.fail("competing begin was allowed to pause")
+        for status in ("RESERVED", "IN_PROGRESS", "VERIFIED"):
+            with self.subTest(status=status), self.assertRaises(RuntimeError):
+                claim_receipt("maintenance", self.manifest,
+                    dict(state["value"], status=status), 11, write)
+        self.assertEqual(state["value"]["request_id"], owner)
+        self.assertEqual(state["generation"], 11)
+
+    def test_losing_reservation_and_incompatible_online_do_not_pause(self):
+        from run_vid_labeling_cutover import claim_receipt
+        previous = dict(self.manifest, status="READY", scope_id=scope_id(self.manifest))
+        events = []
+        def fail_write(value, expected):
+            events.append("claim")
+            raise RuntimeError("412")
+        with self.assertRaises(RuntimeError):
+            claim_receipt("maintenance", self.manifest, previous, 10, fail_write)
+            events.append("pause")
+        self.assertEqual(events, ["claim"])
+        def incompatible(*args):
+            raise RuntimeError("incompatible")
+        with self.assertRaises(RuntimeError):
+            claim_receipt("online", self.manifest, previous, 10,
+                          lambda *_: self.fail("incompatible reservation"), incompatible)
+
+    def test_resume_rejects_changed_generation_or_owner(self):
+        from run_vid_labeling_cutover import resume_owned
+        journal = self.maintenance()
+        for generation, owner, status in [(12, journal["request_id"], "VERIFIED"),
+                                         (11, "other", "VERIFIED"),
+                                         (11, journal["request_id"], "IN_PROGRESS")]:
+            with self.subTest(generation=generation, owner=owner, status=status), self.assertRaises(RuntimeError):
+                resume_owned(self.manifest, journal, 11, lambda: generation,
+                    lambda _: dict(journal, request_id=owner, status=status),
+                    lambda _: self.fail("foreign resume"))
+        owners = []
+        resume_owned(self.manifest, journal, 11, lambda: 11,
+                     lambda _: dict(journal, status="VERIFIED"), owners.append)
+        self.assertEqual(owners, [journal["request_id"]])
+
+    def test_ambiguous_or_conflicting_write_is_not_retried_or_adopted(self):
+        from urllib.error import HTTPError
+        calls = []
+        class Result:
+            stdout = "token"
+        def execute(argv, **kwargs):
+            calls.append(argv)
+            return Result()
+        for failure in [TimeoutError("response lost"),
+                        HTTPError("https://storage.googleapis.com", 412, "conflict", {}, None)]:
+            def opener(*args, **kwargs):
+                raise failure
+            with self.subTest(failure=type(failure)), self.assertRaises(type(failure)):
+                put_object("gs://b/rollout/r.json", {}, 10, execute, opener)
+        self.assertEqual(len(calls), 2)
+        self.assertTrue(all(argv == ["gcloud", "auth", "print-access-token"] for argv in calls))
+
+    def test_failed_resume_can_retry_the_same_verified_owner(self):
+        journal = self.maintenance()
+        saved = []
+        def fail():
+            raise RuntimeError("resume failed")
+        with self.assertRaises(RuntimeError):
+            complete(self.manifest, journal, "tag", lambda: None, lambda: self.good_smoke,
+                     fail, lambda value: saved.append(value))
+        self.assertEqual(saved[0]["status"], "VERIFIED")
+        self.assertEqual(saved[0]["request_id"], journal["request_id"])
+        result = complete(self.manifest, saved[0], "tag", lambda: None, lambda: self.good_smoke,
+                          lambda: None)
+        self.assertEqual(result["status"], "READY")
+        self.assertEqual(result["request_id"], journal["request_id"])
+
+    def test_missing_shared_schema_api_or_deployment_input_changes_identity(self):
+        from run_vid_labeling_cutover import shared_platform_inputs
+        paths = ["src/main/proto/wfa/measurement/internal/securecomputation/controlplane/work_item.proto",
+                 "src/main/proto/wfa/measurement/internal/kingdom/job.proto",
+                 "src/main/resources/securecomputation/spanner/schema.sql",
+                 "src/main/k8s/dev/kingdom.cue", "src/main/terraform/gcloud/cmms/envs/dev.tfvars",
+                 "src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/Services.kt",
+                 "MODULE.bazel", ".github/workflows/configure-secure-computation-control-plane.yml"]
+        for path in paths:
+            with self.subTest(path=path):
+                first = "100644 blob " + "a"*40 + "\t" + path
+                second = "100644 blob " + "b"*40 + "\t" + path
+                self.assertNotEqual(shared_platform_inputs(first), shared_platform_inputs(second))
+
+    def test_manifest_output_round_trips_through_github_output(self):
+        from pathlib import Path
+        import subprocess
+        root = Path(__file__).resolve().parents[3]
+        text = (root/".github/workflows/terraform-cmms-v2.yml").read_text()
+        line = next(line.strip() for line in text.splitlines() if "printf 'manifest=" in line)
+        with __import__("tempfile").TemporaryDirectory() as folder:
+            output = Path(folder)/"output"
+            subprocess.run(["bash","-c",line],env={"manifest":json.dumps({"contract_id":"test"}),
+                                                "GITHUB_OUTPUT":str(output)},check=True)
+            self.assertEqual(output.read_text().splitlines(), ['manifest={"contract_id": "test"}'])
+            self.assertEqual(json.loads(output.read_text().split("=",1)[1]),{"contract_id":"test"})
+
+    def test_monitor_only_packing_change_is_in_contract_identity(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[3]
+        text = (root/"src/main/terraform/gcloud/modules/edp-aggregator/main.tf").read_text()
+        identity = text[text.index("vid_labeling_contract_id"):text.index("vid_labeling_rollout_functions")]
+        self.assertIn("filesha256(var.vid_labeling_monitor_config.local_path)",identity)
+        self.assertIn("filesha256(var.data_availability_monitor_config.local_path)",identity)
 
 
 class WorkflowWiringTest(unittest.TestCase):
