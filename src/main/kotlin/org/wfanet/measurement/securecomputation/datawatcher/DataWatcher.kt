@@ -162,7 +162,9 @@ class DataWatcher(
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
           WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata ||
           WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY in objectMetadata
-      if (isRetryable || isRecoveryOperation || isVidDispatchQueue(config)) {
+      val isCleanupDispatch =
+        config.hasControlPlaneQueueSink() && config.controlPlaneQueueSink.allowMissingSourceIdentity
+      if (isRetryable || isRecoveryOperation || isVidDispatchQueue(config) || isCleanupDispatch) {
         // Retryable failures and recovery operations must be at-least-once. Surfacing the failure
         // keeps the Eventarc delivery unacknowledged so it is retried and, after exhaustion,
         // retained in the configured DLQ.
@@ -185,21 +187,40 @@ class DataWatcher(
     val queueConfig = config.controlPlaneQueueSink
     val objectGeneration =
       objectMetadata[GENERATION_METADATA_KEY]?.toLongOrNull()?.takeIf { it > 0L }
-        ?: throw IllegalArgumentException("Missing or invalid source object generation")
-    val objectCreateTime =
-      objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
-        ?: throw IllegalArgumentException("Missing source object creation time")
-    val storageEventType =
-      when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
-        FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-        DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-        else -> throw IllegalArgumentException("Missing or invalid storage event type")
-      }
+    require(GENERATION_METADATA_KEY !in objectMetadata || objectGeneration != null) {
+      "Missing or invalid source object generation"
+    }
+    val objectCreateTime = objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
+    val sourceEventId =
+      if (objectGeneration == null) {
+        require(
+          queueConfig.allowMissingSourceIdentity &&
+            queueConfig.serializationKey.isEmpty() &&
+            objectMetadata[EVENT_TYPE_METADATA_KEY] in
+              setOf(DELETED_EVENT_TYPE, ARCHIVED_EVENT_TYPE)
+        ) {
+          "Missing or invalid source object generation"
+        }
+        requireNotNull(objectMetadata[EVENT_ID_METADATA_KEY]?.takeIf { it.isNotBlank() }) {
+          "Missing source event ID"
+        }
+      } else ""
+    require(objectCreateTime != null || queueConfig.allowMissingSourceIdentity) {
+      "Missing source object creation time"
+    }
     val sourceIdentity = dataPathParams {
       dataPath = path
-      generation = objectGeneration
-      createTime = objectCreateTime.toProtoTime()
-      eventType = storageEventType
+      if (objectGeneration != null && objectCreateTime != null) {
+        generation = objectGeneration
+        createTime = objectCreateTime.toProtoTime()
+      }
+      if (!queueConfig.allowMissingSourceIdentity) {
+        eventType = when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
+          FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+          DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
+          else -> throw IllegalArgumentException("Missing or invalid storage event type")
+        }
+      }
     }
     val dispatchParams =
       if (isVidDispatchQueue(config)) {
@@ -270,7 +291,10 @@ class DataWatcher(
         params
       } else null
     val idempotencyKey =
-      DataWatcherWorkItemIds.idempotencyKey(config.identifier, sourceIdentity, dispatchParams)
+      if (dispatchParams == null) {
+        val identity = objectGeneration?.toString() ?: "event:$sourceEventId"
+        "${config.identifier}\u0000$path\u0000$identity"
+      } else DataWatcherWorkItemIds.idempotencyKey(config.identifier, sourceIdentity, dispatchParams)
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
