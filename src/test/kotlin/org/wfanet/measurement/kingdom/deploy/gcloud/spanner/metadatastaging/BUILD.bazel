@@ -1,0 +1,50 @@
+load("@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl", "spanner_emulator_test")
+
+spanner_emulator_test(
+    name = "EventGroupMetadataStoreTest",
+    srcs = [
+        "EventGroupMetadataStoreTest.kt",
+        "OrdinaryMetadataWriter.kt",
+    ],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.EventGroupMetadataStoreTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/metadatastaging",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumer_details_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud:core",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "EventGroupMetadataMigrationTest",
+    srcs = ["EventGroupMetadataMigrationTest.kt"],
+    test_class = "org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.EventGroupMetadataMigrationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/metadatastaging",
+        "//src/main/kotlin/org/wfanet/measurement/kingdom/deploy/gcloud/spanner/testing",
+        "//src/main/proto/wfa/measurement/internal/kingdom:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/kingdom:measurement_consumer_details_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud:core",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
