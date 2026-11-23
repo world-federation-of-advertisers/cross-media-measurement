@@ -678,10 +678,10 @@ class ResultsFulfiller(
         )
         logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
           "Refused requisition ${requisition.name} for report=$reportId " +
-            "groupId=${groupedRequisitions.groupId}"
+            "groupId=${groupedRequisitions.groupId}; ${publicRefusalDescription(e)}"
         }
         val metadataForRefusal = processingMetadata ?: requisitionMetadata
-        signalRequisitionRefused(metadataForRefusal, refusalDiagnostic(e))
+        signalRequisitionRefused(metadataForRefusal, publicRefusalDescription(e))
         refuseRequisitionInCmms(requisition, e)
         false
       } catch (e: CancellationException) {
@@ -830,7 +830,7 @@ class ResultsFulfiller(
               refusal =
                 RequisitionKt.refusal {
                   justification = e.justification
-                  message = refusalDiagnostic(e)
+                  message = publicRefusalDescription(e)
                 }
             }
           )
@@ -954,6 +954,13 @@ class ResultsFulfiller(
             ReportTraceAttributes.REFUSAL_ORIGIN,
             ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
           )
+          if (throwable is RequisitionRefusalException) {
+            it
+              .setAttribute(ATTR_REFUSAL_JUSTIFICATION_KEY, throwable.justification.name)
+              .setAttribute(ATTR_REFUSAL_CATEGORY_KEY, REFUSAL_CATEGORY)
+              .setAttribute(ATTR_REFUSAL_CODE_KEY, refusalCode(throwable.justification))
+              .recordException(ExceptionDiagnostics.forLogging(throwable))
+          }
         }
       }
     val errorCode = ReportTraceAttributes.errorCode(throwable)
@@ -985,14 +992,30 @@ class ResultsFulfiller(
     metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
   }
 
-  private fun refusalDiagnostic(error: RequisitionRefusalException): String =
-    "Requisition refused; justification=${error.justification.name}; ${ExceptionDiagnostics.summary(error)}"
+  private fun publicRefusalDescription(error: RequisitionRefusalException): String =
+    "Requisition refused; justification=${error.justification.name}; " +
+      "category=$REFUSAL_CATEGORY; code=${refusalCode(error.justification)}"
+
+  private fun refusalCode(justification: Requisition.Refusal.Justification): String =
+    when (justification) {
+      Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID -> "INVALID_CONSENT_SIGNAL"
+      Requisition.Refusal.Justification.SPEC_INVALID -> "INVALID_REQUISITION_SPECIFICATION"
+      Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET -> "PRIVACY_BUDGET_EXHAUSTED"
+      Requisition.Refusal.Justification.UNFULFILLABLE -> "FULFILLMENT_FAILED"
+      Requisition.Refusal.Justification.DECLINED -> "POLICY_DECLINED"
+      Requisition.Refusal.Justification.JUSTIFICATION_UNSPECIFIED,
+      Requisition.Refusal.Justification.UNRECOGNIZED -> "UNKNOWN_REFUSAL"
+    }
 
   private class RequisitionProcessingException(val failure: Exception) :
     Exception("Requisition processing failed", failure)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val REFUSAL_CATEGORY = "REQUISITION_REFUSAL"
+    private val ATTR_REFUSAL_JUSTIFICATION_KEY = AttributeKey.stringKey("xmm.refusal.justification")
+    private val ATTR_REFUSAL_CATEGORY_KEY = AttributeKey.stringKey("xmm.refusal.category")
+    private val ATTR_REFUSAL_CODE_KEY = AttributeKey.stringKey("xmm.refusal.code")
     private const val SPAN_REQUISITION_PROCESSING = "requisition_processing"
 
     /**
