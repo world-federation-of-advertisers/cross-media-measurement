@@ -174,7 +174,7 @@ class LabelerInputMapperTest {
         mapper.project(mapOf("g" to parquetValue { stringValue = "SYNTHETIC_PRIVATE_VALUE" }))
       }
     assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
-    assertThat(failure).hasMessageThat().contains("column=g")
+    assertThat(failure).hasMessageThat().contains("field=")
     assertThat(failure).hasMessageThat().contains("UNKNOWN_LOOKUP_VALUE")
   }
 
@@ -216,7 +216,7 @@ class LabelerInputMapperTest {
       }
     assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
     assertThat(failure).hasMessageThat().contains("INVALID_CONFIGURATION")
-    assertThat(failure).hasMessageThat().contains("column=g")
+    assertThat(failure).hasMessageThat().contains("field=")
   }
 
   @Test
@@ -300,7 +300,7 @@ class LabelerInputMapperTest {
         mapper.project(mapOf("bucket" to parquetValue { stringValue = "SYNTHETIC_PRIVATE_VALUE" }))
       }
     assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
-    assertThat(failure).hasMessageThat().contains("column=bucket")
+    assertThat(failure).hasMessageThat().contains("field=")
     assertThat(failure).hasMessageThat().contains("UNKNOWN_LOOKUP_VALUE")
   }
 
@@ -319,7 +319,7 @@ class LabelerInputMapperTest {
           mapper.project(mapOf("age" to parquetValue { int64Value = age }))
         }
       assertThat(failure).hasMessageThat().doesNotContain(age.toString())
-      assertThat(failure).hasMessageThat().contains("column=age")
+      assertThat(failure).hasMessageThat().contains("field=")
       assertThat(failure).hasMessageThat().contains("OUT_OF_RANGE")
     }
   }
@@ -420,6 +420,37 @@ class LabelerInputMapperTest {
         )
       }
     assertPrivateConfiguration(failure)
+  }
+
+  @Test
+  fun `rejected row values and raw column names never become diagnostic metadata`() {
+    val marker = "SYNTHETIC_PRIVATE_VALUE"
+    val mapper =
+      mapperOf(
+        labelerInputFieldMapping {
+          fieldPath = GENDER_PATH
+          enumLookup = enumLookup {
+            column = marker
+            lookupTable["M"] = "GENDER_MALE"
+          }
+        }
+      )
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapper.project(mapOf(marker to parquetValue { stringValue = marker }))
+      }
+    assertThat(failure.message).contains("UNKNOWN_LOOKUP_VALUE")
+    assertThat(failure.message).contains("field=")
+    assertThat(failure.message).doesNotContain(marker)
+    assertThat(ExceptionDiagnostics.summary(failure)).doesNotContain(marker)
+    val output =
+      SimpleFormatter()
+        .format(
+          LogRecord(Level.SEVERE, "Invalid row").apply {
+            thrown = ExceptionDiagnostics.forLogging(failure)
+          }
+        )
+    assertThat(output).doesNotContain(marker)
   }
 
   private fun assertPrivateConfiguration(failure: IllegalArgumentException) {
