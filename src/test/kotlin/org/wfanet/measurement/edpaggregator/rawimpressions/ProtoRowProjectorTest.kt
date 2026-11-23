@@ -130,13 +130,38 @@ class ProtoRowProjectorTest {
       .isEqualTo(ENUM.enumType.findValueByNumber(0))
   }
 
+  @Test
+  fun `raw source column and rejected input cannot become field metadata`() {
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        ProtoRowProjector.convert(
+          parquetValue { bytesValue = ByteString.copyFromUtf8(PRIVATE_VALUE) },
+          BOOLEAN,
+          PRIVATE_VALUE,
+        )
+      }
+    assertThat(failure.message).contains("field=google.protobuf.BoolValue.value")
+    assertThat(failure.message).contains("expected=BOOL_VALUE")
+    assertThat(failure.message).contains("actual=BYTES_VALUE")
+    assertThat(ExceptionDiagnostics.summary(failure)).doesNotContain(PRIVATE_VALUE)
+    assertThat(
+        SimpleFormatter()
+          .format(
+            LogRecord(Level.SEVERE, "Invalid row").apply {
+              thrown = ExceptionDiagnostics.forLogging(failure)
+            }
+          )
+      )
+      .doesNotContain(PRIVATE_VALUE)
+  }
+
   private fun assertPrivateRejection(value: ParquetValue, field: FieldDescriptor, marker: String) {
     val failure =
       assertFailsWith<IllegalArgumentException> {
         ProtoRowProjector.convert(value, field, "source")
       }
     assertThat(failure.message).doesNotContain(marker)
-    assertThat(failure.message).contains("column=source")
+    assertThat(failure.message).contains("field=")
     assertThat(ExceptionDiagnostics.summary(failure)).doesNotContain(marker)
     val output =
       SimpleFormatter()

@@ -779,7 +779,7 @@ class VidLabelerAppTest {
     assertThat(request.firstValue.errorMessage).isNotEmpty()
     if (converterOverride == null) {
       assertThat(request.firstValue.errorMessage).contains("ValidationFailure")
-      assertThat(request.firstValue.errorMessage).contains("column=input")
+      assertThat(request.firstValue.errorMessage).contains("field=")
     } else {
       assertThat(request.firstValue.errorMessage).contains("IllegalStateException")
     }
