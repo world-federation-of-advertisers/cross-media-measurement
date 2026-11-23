@@ -241,6 +241,37 @@ class CutoverTest(unittest.TestCase):
                 second = "100644 blob " + "b"*40 + "\t" + path
                 self.assertNotEqual(shared_platform_inputs(first), shared_platform_inputs(second))
 
+
+    def test_shared_build_modification_addition_and_deletion_change_identity(self):
+        import hashlib
+        from run_vid_labeling_cutover import shared_platform_inputs
+        def identity(tree):
+            return hashlib.sha256("\n".join(shared_platform_inputs(tree)).encode()).hexdigest()
+        baseline = "100644 blob " + "a"*40 + "\tsrc/main/kotlin/org/wfanet/measurement/kingdom/App.kt"
+        paths = ["build/defs.bzl", "imports/java/com/google/BUILD.bazel",
+                 "third_party/rbe_configs/cc/cc_toolchain_config.bzl", "BUILD.bazel",
+                 ".bazelversion", "maven_install.json", "container.bazelrc",
+                 "maven.bazelrc", "remote.bazelrc", "results.bazelrc",
+                 "future/shared-build-input.toml"]
+        for path in paths:
+            with self.subTest(path=path):
+                original = baseline + "\n100644 blob " + "b"*40 + "\t" + path
+                changed = baseline + "\n100644 blob " + "c"*40 + "\t" + path
+                self.assertNotEqual(identity(original), identity(changed))
+                self.assertNotEqual(identity(baseline), identity(original))  # Addition.
+                self.assertNotEqual(identity(original), identity(baseline))  # Deletion.
+
+    def test_only_explicit_edpa_directories_are_excluded_from_shared_inputs(self):
+        from run_vid_labeling_cutover import shared_platform_inputs
+        for path in ["src/main/kotlin/org/wfanet/measurement/edpaggregator/App.kt",
+                     "src/main/proto/wfa/measurement/edpaggregator/job.proto",
+                     "src/main/proto/wfa/measurement/internal/edpaggregator/job.proto",
+                     "src/main/resources/edpaggregator/spanner/schema.sql"]:
+            with self.subTest(path=path):
+                self.assertEqual(shared_platform_inputs("100644 blob "+"a"*40+"\t"+path), [])
+        path = "src/main/kotlin/org/wfanet/measurement/edpaggregator_shared/App.kt"
+        self.assertTrue(shared_platform_inputs("100644 blob "+"a"*40+"\t"+path))
+
     def test_manifest_output_round_trips_through_github_output(self):
         from pathlib import Path
         import subprocess

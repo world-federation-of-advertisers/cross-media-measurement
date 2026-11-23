@@ -194,10 +194,9 @@ def shared_platform_inputs(tree):
     output = []
     for line in tree.splitlines():
         path = line.split("\t", 1)[1]
-        if path.startswith(("src/main/", ".github/", "tools/")) or path in (
-            "MODULE.bazel", "MODULE.bazel.lock", ".bazelrc", "WORKSPACE", "WORKSPACE.bazel"):
-            if not path.startswith(isolated):
-                output.append(line)
+        # Include every tracked input by default: new build/config inputs fail closed.
+        if not path.startswith(isolated):
+            output.append(line)
     return output
 
 def prepare_manifest(manifest, config_file, execute=subprocess.run):
