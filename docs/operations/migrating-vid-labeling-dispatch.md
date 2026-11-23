@@ -159,11 +159,11 @@ tool and the same control-plane connection/TLS flags as `retry-failed`. A Picocl
 argument file can hold those flags once:
 
 ```shell
-bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal -- \\
+bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal -- \
   get-dispatch-work-item workItems/WORK_ITEM_ID @control-plane.flags
 
-bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal -- \\
-  retry-dispatch-work-item workItems/WORK_ITEM_ID \\
+bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal -- \
+  retry-dispatch-work-item workItems/WORK_ITEM_ID \
   --expected-work-item-generation=INSPECTED_GENERATION @control-plane.flags
 ```
 
@@ -178,15 +178,15 @@ automatically resubmits an uncertain retry.
 Low-level fallback:
 
 ```shell
-grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \\
-  -authority CONTROL_PLANE_CERT_HOST \\
-  -d '{"name":"workItems/WORK_ITEM_ID"}' CONTROL_PLANE_TARGET \\
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority CONTROL_PLANE_CERT_HOST \
+  -d '{"name":"workItems/WORK_ITEM_ID"}' CONTROL_PLANE_TARGET \
   wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/GetWorkItem
 
-grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \\
-  -authority CONTROL_PLANE_CERT_HOST \\
-  -d '{"name":"workItems/WORK_ITEM_ID","expectedWorkItemGeneration":"GENERATION"}' \\
-  CONTROL_PLANE_TARGET \\
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority CONTROL_PLANE_CERT_HOST \
+  -d '{"name":"workItems/WORK_ITEM_ID","expectedWorkItemGeneration":"GENERATION"}' \
+  CONTROL_PLANE_TARGET \
   wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
 ```
 
