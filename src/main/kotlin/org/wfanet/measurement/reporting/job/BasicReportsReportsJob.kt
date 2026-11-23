@@ -1100,7 +1100,7 @@ class BasicReportsReportsJob(
   }
 
   companion object {
-    private const val REPORTING_SET_RESULT_BATCH_SIZE = 1000
+    private const val REPORTING_SET_RESULT_BATCH_SIZE = 100
     // Conservative cell counts include secondary indexes and the noisy-value row for each window.
     private const val REPORTING_SET_RESULT_MUTATIONS = 32L
     private const val REPORTING_WINDOW_RESULT_MUTATIONS = 24L

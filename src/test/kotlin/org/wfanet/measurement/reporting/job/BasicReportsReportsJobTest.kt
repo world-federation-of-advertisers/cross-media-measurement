@@ -318,7 +318,7 @@ class BasicReportsReportsJobTest {
   }
 
   private fun manyReportingSetResultsReport(
-    windowCounts: List<Int> = List(1001) { 1 },
+    windowCounts: List<Int> = List(101) { 1 },
     histogramBinCount: Int = 0,
   ): Report =
     REPORT.copy {
@@ -406,17 +406,17 @@ class BasicReportsReportsJobTest {
   @Test
   fun `execute bounds write batches by varying window counts`(): Unit = runBlocking {
     val basicReport = stubBasicReportForAssembly()
-    val windowCounts = List(501) { if (it % 2 == 0) 1 else 9 }
+    val windowCounts = List(101) { if (it % 2 == 0) 1 else 99 }
     whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport(windowCounts))
 
     job.execute()
 
     val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
-    verify(reportResultsMock, times(2)).batchCreateReportResultAssembly(captor.capture())
-    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(395, 106).inOrder()
+    verify(reportResultsMock, times(3)).batchCreateReportResultAssembly(captor.capture())
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(49, 48, 4).inOrder()
     val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
     assertThat(results.map { it.dimension.externalReportingSetId })
-      .containsExactlyElementsIn((0..500).map { "set$it" })
+      .containsExactlyElementsIn((0..100).map { "set$it" })
       .inOrder()
     assertThat(results.map { it.reportingWindowResultsCount })
       .containsExactlyElementsIn(windowCounts)
@@ -427,10 +427,9 @@ class BasicReportsReportsJobTest {
           .map { it.value.unprocessedReportResultValues.nonCumulativeResults.reach.value }
       )
       .containsExactlyElementsIn(List(windowCounts.sum()) { 1L })
-    assertThat(captor.firstValue.finalBatch).isFalse()
-    assertThat(captor.secondValue.finalBatch).isTrue()
-    assertThat(captor.secondValue.externalBasicReportId)
-      .isEqualTo(basicReport.externalBasicReportId)
+    assertThat(captor.allValues.map { it.finalBatch }).containsExactly(false, false, true).inOrder()
+    assertThat(captor.allValues.map { it.externalBasicReportId }.toSet())
+      .containsExactly(basicReport.externalBasicReportId)
   }
 
   @Test
@@ -439,13 +438,13 @@ class BasicReportsReportsJobTest {
       stubBasicReportForAssembly()
       val windowCounts = List(251) { 9 }
       whenever(reportsMock.getReport(any()))
-        .thenReturn(manyReportingSetResultsReport(windowCounts, histogramBinCount = 50))
+        .thenReturn(manyReportingSetResultsReport(windowCounts, histogramBinCount = 100))
 
       job.execute()
 
       val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
-      verify(reportResultsMock, times(2)).batchCreateReportResultAssembly(captor.capture())
-      assertThat(captor.allValues.map { it.requestsCount }).containsExactly(241, 10).inOrder()
+      verify(reportResultsMock, times(3)).batchCreateReportResultAssembly(captor.capture())
+      assertThat(captor.allValues.map { it.requestsCount }).containsExactly(100, 100, 51).inOrder()
       // Large and negative noisy counts need more bytes than small positive counts. This
       // representative batch leaves at least 1 MiB below the default gRPC receive limit;
       // production batching uses result and estimated mutation counts.
@@ -462,15 +461,46 @@ class BasicReportsReportsJobTest {
       for (window in results.flatMap { it.reportingWindowResultsList }) {
         val histogram =
           window.value.unprocessedReportResultValues.nonCumulativeResults.frequencyHistogram
-        assertThat(histogram.binResultsMap.keys).containsExactlyElementsIn(1..50)
+        assertThat(histogram.binResultsMap.keys).containsExactlyElementsIn(1..100)
         assertThat(histogram.binResultsMap.values.map { it.value })
-          .containsExactlyElementsIn(List(50) { if ((it + 1) % 2 == 0) 10_000_000 else -50_000 })
+          .containsExactlyElementsIn(List(100) { if ((it + 1) % 2 == 0) 10_000_000 else -50_000 })
         assertThat(histogram.binResultsMap.values.map { it.univariateStatistics.standardDeviation })
-          .containsExactlyElementsIn(List(50) { 100_000.0 })
+          .containsExactlyElementsIn(List(100) { 100_000.0 })
       }
-      assertThat(captor.firstValue.finalBatch).isFalse()
-      assertThat(captor.secondValue.finalBatch).isTrue()
+      assertThat(captor.allValues.map { it.finalBatch })
+        .containsExactly(false, false, true)
+        .inOrder()
     }
+
+  @Test
+  fun `execute bounds requests with 255 bin frequency histograms`(): Unit = runBlocking {
+    stubBasicReportForAssembly()
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(List(101) { 2 }, histogramBinCount = 255))
+
+    job.execute()
+
+    val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
+    verify(reportResultsMock, times(2)).batchCreateReportResultAssembly(captor.capture())
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(100, 1).inOrder()
+    for (batch in captor.allValues) {
+      assertThat(batch.serializedSize).isLessThan(3 * 1024 * 1024)
+    }
+    val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
+    assertThat(results.map { it.dimension.externalReportingSetId })
+      .containsExactlyElementsIn((0..100).map { "set$it" })
+      .inOrder()
+    val windows = results.flatMap { it.reportingWindowResultsList }
+    assertThat(windows).hasSize(202)
+    for (window in windows) {
+      val histogram =
+        window.value.unprocessedReportResultValues.nonCumulativeResults.frequencyHistogram
+      assertThat(histogram.binResultsMap.keys).containsExactlyElementsIn(1..255)
+      assertThat(histogram.binResultsMap.values.map { it.value })
+        .containsExactlyElementsIn(List(255) { if ((it + 1) % 2 == 0) 10_000_000 else -50_000 })
+    }
+    assertThat(captor.allValues.map { it.finalBatch }).containsExactly(false, true).inOrder()
+  }
 
   @Test
   fun `execute permits one result above the target mutation budget within the hard limit`(): Unit =
@@ -518,7 +548,7 @@ class BasicReportsReportsJobTest {
     job.execute()
     val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
     verify(reportResultsMock, times(2)).batchCreateReportResultAssembly(captor.capture())
-    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(1000, 1).inOrder()
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(100, 1).inOrder()
     assertThat(captor.firstValue.finalBatch).isFalse()
     assertThat(captor.firstValue.externalBasicReportId).isEqualTo(basicReport.externalBasicReportId)
     assertThat(captor.secondValue.finalBatch).isTrue()
@@ -526,9 +556,9 @@ class BasicReportsReportsJobTest {
       .isEqualTo(basicReport.externalBasicReportId)
     val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
     assertThat(results.map { it.dimension.externalReportingSetId }.toSet())
-      .containsExactlyElementsIn((0..1000).map { "set$it" })
+      .containsExactlyElementsIn((0..100).map { "set$it" })
     assertThat(results.map { it.reportingWindowResultsCount })
-      .containsExactlyElementsIn(List(1001) { 1 })
+      .containsExactlyElementsIn(List(101) { 1 })
     assertThat(
         results.map {
           it.reportingWindowResultsList
@@ -540,7 +570,7 @@ class BasicReportsReportsJobTest {
             .value
         }
       )
-      .containsExactlyElementsIn(List(1001) { 1L })
+      .containsExactlyElementsIn(List(101) { 1L })
   }
 
   @Test
@@ -577,7 +607,7 @@ class BasicReportsReportsJobTest {
     whenever(reportResultsMock.batchCreateReportResultAssembly(any())).thenAnswer { invocation ->
       val request: BatchCreateReportResultAssemblyRequest = invocation.getArgument(0)
       if (request.finalBatch && !failed) {
-        assertThat(trees.getValue(request.externalReportResultId)).hasSize(1000)
+        assertThat(trees.getValue(request.externalReportResultId)).hasSize(100)
         failed = true
         throw Status.UNAVAILABLE.asException()
       }
@@ -600,7 +630,7 @@ class BasicReportsReportsJobTest {
     assertThat(trees.keys).containsExactly(2L)
     assertThat(associatedId).isEqualTo(2L)
     assertThat(trees.getValue(2L).map { it.reportingSetResult.dimension.externalReportingSetId })
-      .containsExactlyElementsIn((0..1000).map { "set$it" })
+      .containsExactlyElementsIn((0..100).map { "set$it" })
     verify(reportResultsMock)
       .discardReportResult(
         discardReportResultRequest {
@@ -636,7 +666,7 @@ class BasicReportsReportsJobTest {
       verify(reportResultsMock).discardReportResult(any())
       assertThat(associated).isTrue()
       assertThat(committed.map { it.reportingSetResult.dimension.externalReportingSetId })
-        .containsExactlyElementsIn((0..1000).map { "set$it" })
+        .containsExactlyElementsIn((0..100).map { "set$it" })
       verify(basicReportsMock, times(0)).failBasicReport(any())
     }
 
