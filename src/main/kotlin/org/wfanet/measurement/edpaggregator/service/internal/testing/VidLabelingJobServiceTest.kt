@@ -176,6 +176,16 @@ abstract class VidLabelingJobServiceTest {
         )
         .vidLabelingJob
     assertThat(createJob(rawImpressionUploadFiles = listOf(FILE_2, FILE_1), requestId = id))
+      .isEqualTo(original)
+    assertThat(
+        service.getVidLabelingJob(
+          getVidLabelingJobRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            vidLabelingJobResourceId = original.vidLabelingJobResourceId
+          }
+        )
+      )
       .isEqualTo(succeeded)
     val error =
       assertFailsWith<StatusRuntimeException> {
@@ -185,14 +195,14 @@ abstract class VidLabelingJobServiceTest {
   }
 
   @Test
-  fun `failed create replays serialize within bounds while Get retains full diagnostics`() =
+  fun `create replays return original responses after failures with full diagnostics in Get`() =
     runBlocking {
       val ids = List(3) { UUID.randomUUID().toString() }
       val files = (0 until 64).map { "file-$it-" + "x".repeat(8_000) }
-      val errorText = "é".repeat(1_048_576) // Exactly 2 MiB of UTF-8, valid in each individual RPC.
-      val current =
-        ids.map { id ->
-          val created = createJob(rawImpressionUploadFiles = files, requestId = id)
+      val errorText = "é".repeat(1_048_576)
+      val original = ids.map { createJob(rawImpressionUploadFiles = files, requestId = it) }
+      val failed =
+        original.map { created ->
           service.markVidLabelingJobFailed(
             markVidLabelingJobFailedRequest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
@@ -217,53 +227,25 @@ abstract class VidLabelingJobServiceTest {
           }
         }
       }
-      assertThat(request.toByteArray().size).isLessThan(3 * 1024 * 1024)
-      val replay = service.batchCreateVidLabelingJobs(request)
-      assertThat(replay.toByteArray().size).isLessThan(4 * 1024 * 1024)
-      for ((index, preview) in replay.vidLabelingJobsList.withIndex()) {
-        assertThat(preview.toByteArray().size).isAtMost(512 * 1024)
-        assertThat(preview.errorMessage.toByteArray(Charsets.UTF_8).size).isAtMost(512)
-        assertThat(preview.errorMessage).isEqualTo(errorText.take(256))
-        assertThat(preview.toBuilder().setErrorMessage(errorText).build()).isEqualTo(current[index])
+      val batch = service.batchCreateVidLabelingJobs(request)
+      assertThat(batch.vidLabelingJobsList).containsExactlyElementsIn(original).inOrder()
+      assertThat(batch.toByteArray().size).isLessThan(4 * 1024 * 1024)
+      for ((index, created) in original.withIndex()) {
         assertThat(createJob(rawImpressionUploadFiles = files, requestId = ids[index]))
-          .isEqualTo(preview)
-        val full =
-          service.getVidLabelingJob(
-            getVidLabelingJobRequest {
-              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
-              vidLabelingJobResourceId = preview.vidLabelingJobResourceId
-            }
+          .isEqualTo(created)
+        assertThat(created.state).isEqualTo(VidLabelingState.VID_LABELING_STATE_CREATED)
+        assertThat(created.errorMessage).isEmpty()
+        assertThat(created.updateTime).isEqualTo(created.createTime)
+        assertThat(
+            service.getVidLabelingJob(
+              getVidLabelingJobRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+                vidLabelingJobResourceId = created.vidLabelingJobResourceId
+              }
+            )
           )
-        assertThat(full).isEqualTo(current[index])
-        assertThat(full.errorMessage).isEqualTo(errorText)
-      }
-    }
-
-  @Test
-  fun `create error previews preserve complete Unicode code points at the byte boundary`() =
-    runBlocking {
-      for ((errorText, expected) in
-        listOf(
-          "a".repeat(508) + "😀" + "tail" to ("a".repeat(508) + "😀"),
-          "a".repeat(509) + "😀" + "tail" to "a".repeat(509),
-          "short diagnostic" to "short diagnostic",
-        )) {
-        val id = UUID.randomUUID().toString()
-        val created = createJob(requestId = id)
-        service.markVidLabelingJobFailed(
-          markVidLabelingJobFailedRequest {
-            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
-            vidLabelingJobResourceId = created.vidLabelingJobResourceId
-            etag = created.etag
-            requestId = UUID.randomUUID().toString()
-            errorMessage = errorText
-          }
-        )
-        val replay = createJob(requestId = id)
-        assertThat(replay.errorMessage).isEqualTo(expected)
-        assertThat(replay.errorMessage.toByteArray(Charsets.UTF_8).size).isAtMost(512)
+          .isEqualTo(failed[index])
       }
     }
 
