@@ -101,7 +101,7 @@ class VidLabelingRolloutChecker(
       check(item.queue.isNotEmpty()) { "WorkItem queue missing" }
       if (item.queue !in queues) continue
       check(item.state == WorkItem.State.SUCCEEDED || item.state == WorkItem.State.FAILED) {
-        "VID queue is not drained: \${item.name} (\${item.state})"
+        "VID queue is not drained: ${item.name} (${item.state})"
       }
     }
     for (provider in providers) {
@@ -112,9 +112,9 @@ class VidLabelingRolloutChecker(
             upload.state == RawImpressionUpload.State.FAILED ||
             upload.state == RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
         ) {
-          "Nonterminal upload: \${upload.name} (\${upload.state})"
+          "Nonterminal upload: ${upload.name} (${upload.state})"
         }
-        check(!upload.processingDeferred) { "Deferred processing: \${upload.name}" }
+        check(!upload.processingDeferred) { "Deferred processing: ${upload.name}" }
         check(upload.registrationComplete) { "Incomplete registration: ${upload.name}" }
         val rows = pages { token ->
           val response =
@@ -149,7 +149,7 @@ class VidLabelingRolloutChecker(
       }
       for (operation in operations) {
         check(operation.state == UploadHealingOperation.State.COMPLETE) {
-          "Unfinished healing: \${operation.name} (\${operation.state})"
+          "Unfinished healing: ${operation.name} (${operation.state})"
         }
       }
     }
@@ -327,7 +327,7 @@ class VidLabelingRolloutCheck : Runnable {
           }
         }
       }
-      println("PASS: \${mode.name}")
+      println("PASS: ${mode.name}")
     } finally {
       edpa.shutdownNow()
       control.shutdownNow()
