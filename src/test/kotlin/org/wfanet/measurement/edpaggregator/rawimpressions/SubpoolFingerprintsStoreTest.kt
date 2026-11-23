@@ -217,9 +217,9 @@ class SubpoolFingerprintsStoreTest {
       assertThat(readAll(writer, "merged", mergedDek)).isEqualTo(prefix)
       expectedToken = storageClient.getFreshnessToken("merged")
       store.mergeSubpool(inputs, "merged", mergedDek, Semaphore(1))
+      assertThat(readAll(writer, "merged", mergedDek)).isEqualTo(prefix.concat(suffix))
       assertThat(replacements).isEqualTo(1)
       assertThat(storageClient.getFreshnessToken("merged")).isNotEqualTo(expectedToken)
-      assertThat(readAll(writer, "merged", mergedDek)).isEqualTo(prefix.concat(suffix))
     }
 
   @Test
