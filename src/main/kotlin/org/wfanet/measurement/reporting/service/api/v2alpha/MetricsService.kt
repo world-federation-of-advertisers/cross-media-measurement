@@ -2491,6 +2491,12 @@ class MetricsService(
     }
   }
 
+  private data class MetricSyncScope(
+    val basicReport: String,
+    val report: String,
+    val state: Metric.State,
+  )
+
   private fun Metric.State.toSyncOutcome(): String =
     when (this) {
       Metric.State.SUCCEEDED -> "succeeded"
@@ -2657,22 +2663,23 @@ class MetricsService(
             )
           }
         }
-        val metricCounts =
-          publicMetrics
-            .groupingBy { Triple(it.basicReport, it.containingReport, it.state) }
-            .eachCount()
-        for ((scope, count) in metricCounts) {
-          val (basicReport, report, state) = scope
-          ReportTraceLogging.log(
-            logger,
-            "reporting.metrics.results_synchronized",
-            ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
-            ReportTraceAttributes.BASIC_REPORT_NAME_STRING to basicReport,
-            ReportTraceAttributes.REPORT_NAME_STRING to report,
-            ReportTraceAttributes.METRIC_STATE_STRING to state.name,
-            ReportTraceAttributes.METRIC_COUNT_STRING to count.toString(),
-            ReportTraceAttributes.OUTCOME_STRING to state.toSyncOutcome(),
-          )
+        if (logger.isLoggable(Level.INFO)) {
+          val metricCounts =
+            publicMetrics
+              .groupingBy { MetricSyncScope(it.basicReport, it.containingReport, it.state) }
+              .eachCount()
+          for ((scope, count) in metricCounts) {
+            ReportTraceLogging.log(
+              logger,
+              "reporting.metrics.results_synchronized",
+              ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+              ReportTraceAttributes.BASIC_REPORT_NAME_STRING to scope.basicReport,
+              ReportTraceAttributes.REPORT_NAME_STRING to scope.report,
+              ReportTraceAttributes.METRIC_STATE_STRING to scope.state.name,
+              ReportTraceAttributes.METRIC_COUNT_STRING to count.toString(),
+              ReportTraceAttributes.OUTCOME_STRING to scope.state.toSyncOutcome(),
+            )
+          }
         }
         Span.current()
           .setAttribute(

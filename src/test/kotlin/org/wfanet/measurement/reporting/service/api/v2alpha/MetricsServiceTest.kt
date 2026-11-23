@@ -12824,6 +12824,44 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `batchGetMetrics suppresses synchronization logs above INFO`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC }
+      )
+    val logger = Logger.getLogger(MetricsService::class.java.name)
+    val previousLevel = logger.level
+    try {
+      logger.level = Level.WARNING
+      val result =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking {
+            service.batchGetMetrics(
+              batchGetMetricsRequest {
+                parent = MEASUREMENT_CONSUMERS.values.first().name
+                names += SUCCEEDED_INCREMENTAL_REACH_METRIC.name
+              }
+            )
+          }
+        }
+      assertThat(result.metricsList).containsExactly(SUCCEEDED_INCREMENTAL_REACH_METRIC)
+      assertThat(reportTraceLogMessages("reporting.metrics.results_synchronized")).isEmpty()
+      assertThat(reportTraceLogMessages("reporting.metric.result_synchronized")).isEmpty()
+      assertThat(
+          spanExporter.finishedSpanItems.filter {
+            it.name == "reporting.metric.result_synchronized"
+          }
+        )
+        .hasSize(1)
+    } finally {
+      logger.level = previousLevel
+    }
+  }
+
+  @Test
   fun `batchGetMetrics retains metric details at FINE and summarizes each report separately`() =
     runBlocking {
       wheneverBlocking {

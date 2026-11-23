@@ -317,7 +317,10 @@ class BasicReportsReportsJobTest {
     return basicReport
   }
 
-  private fun manyReportingSetResultsReport(windowCounts: List<Int> = List(1001) { 1 }): Report =
+  private fun manyReportingSetResultsReport(
+    windowCounts: List<Int> = List(1001) { 1 },
+    histogramBinCount: Int = 0,
+  ): Report =
     REPORT.copy {
       metricCalculationResults.clear()
       for ((index, windowCount) in windowCounts.withIndex()) {
@@ -334,12 +337,47 @@ class BasicReportsReportsJobTest {
               resultAttributes +=
                 ReportKt.MetricCalculationResultKt.resultAttribute {
                   filter = "banner_ad != null && banner_ad.viewable == true"
-                  metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                  metricSpec = metricSpec {
+                    if (histogramBinCount == 0) {
+                      reach = MetricSpecKt.reachParams {}
+                    } else {
+                      reachAndFrequency =
+                        MetricSpecKt.reachAndFrequencyParams {
+                          maximumFrequency = histogramBinCount
+                        }
+                    }
+                  }
                   timeInterval = interval {
                     startTime = timestamp { seconds = 1736150400L + 604800L * windowIndex }
                     endTime = timestamp { seconds = 1736755200L + 604800L * windowIndex }
                   }
-                  metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
+                  metricResult = metricResult {
+                    if (histogramBinCount == 0) {
+                      reach = MetricResultKt.reachResult { value = 1L }
+                    } else {
+                      reachAndFrequency =
+                        MetricResultKt.reachAndFrequencyResult {
+                          reach =
+                            MetricResultKt.reachResult { value = 10_000_000L * histogramBinCount }
+                          frequencyHistogram =
+                            MetricResultKt.histogramResult {
+                              for (frequency in 1..histogramBinCount) {
+                                bins +=
+                                  MetricResultKt.HistogramResultKt.bin {
+                                    label = frequency.toString()
+                                    binResult =
+                                      MetricResultKt.HistogramResultKt.binResult {
+                                        value = if (frequency % 2 == 0) 10_000_000.0 else -50_000.0
+                                      }
+                                    resultUnivariateStatistics = univariateStatistics {
+                                      standardDeviation = 100_000.0
+                                    }
+                                  }
+                              }
+                            }
+                        }
+                    }
+                  }
                 }
             }
           }
@@ -396,15 +434,80 @@ class BasicReportsReportsJobTest {
   }
 
   @Test
+  fun `execute preserves wide frequency histograms in estimated mutation batches`(): Unit =
+    runBlocking {
+      stubBasicReportForAssembly()
+      val windowCounts = List(251) { 9 }
+      whenever(reportsMock.getReport(any()))
+        .thenReturn(manyReportingSetResultsReport(windowCounts, histogramBinCount = 50))
+
+      job.execute()
+
+      val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
+      verify(reportResultsMock, times(2)).batchCreateReportResultAssembly(captor.capture())
+      assertThat(captor.allValues.map { it.requestsCount }).containsExactly(241, 10).inOrder()
+      // Large and negative noisy counts need more bytes than small positive counts. This
+      // representative batch leaves at least 1 MiB below the default gRPC receive limit;
+      // production batching uses result and estimated mutation counts.
+      for (batch in captor.allValues) {
+        assertThat(batch.serializedSize).isLessThan(3 * 1024 * 1024)
+      }
+      val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
+      assertThat(results.map { it.dimension.externalReportingSetId })
+        .containsExactlyElementsIn((0..250).map { "set$it" })
+        .inOrder()
+      assertThat(results.map { it.reportingWindowResultsCount })
+        .containsExactlyElementsIn(windowCounts)
+        .inOrder()
+      for (window in results.flatMap { it.reportingWindowResultsList }) {
+        val histogram =
+          window.value.unprocessedReportResultValues.nonCumulativeResults.frequencyHistogram
+        assertThat(histogram.binResultsMap.keys).containsExactlyElementsIn(1..50)
+        assertThat(histogram.binResultsMap.values.map { it.value })
+          .containsExactlyElementsIn(List(50) { if ((it + 1) % 2 == 0) 10_000_000 else -50_000 })
+        assertThat(histogram.binResultsMap.values.map { it.univariateStatistics.standardDeviation })
+          .containsExactlyElementsIn(List(50) { 100_000.0 })
+      }
+      assertThat(captor.firstValue.finalBatch).isFalse()
+      assertThat(captor.secondValue.finalBatch).isTrue()
+    }
+
+  @Test
+  fun `execute permits one result above the target mutation budget within the hard limit`(): Unit =
+    runBlocking {
+      stubBasicReportForAssembly()
+      whenever(reportsMock.getReport(any()))
+        .thenReturn(manyReportingSetResultsReport(listOf(1, 3290, 1)))
+
+      job.execute()
+
+      val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
+      verify(reportResultsMock, times(3)).batchCreateReportResultAssembly(captor.capture())
+      assertThat(captor.allValues.map { it.requestsCount }).containsExactly(1, 1, 1).inOrder()
+      assertThat(
+          captor.allValues.map {
+            it.requestsList.single().reportingSetResult.reportingWindowResultsCount
+          }
+        )
+        .containsExactly(1, 3290, 1)
+        .inOrder()
+      assertThat(captor.allValues.map { it.finalBatch })
+        .containsExactly(false, false, true)
+        .inOrder()
+      verify(reportResultsMock, never()).discardReportResult(any())
+    }
+
+  @Test
   fun `execute rejects a result exceeding the transaction window budget before writing batches`():
     Unit = runBlocking {
     stubBasicReportForAssembly()
     whenever(reportsMock.getReport(any()))
-      .thenReturn(manyReportingSetResultsReport(listOf(1, 4000)))
+      .thenReturn(manyReportingSetResultsReport(listOf(1, 3291)))
 
     job.execute()
 
     verify(reportResultsMock, never()).batchCreateReportResultAssembly(any())
+    verify(reportResultsMock).discardReportResult(any())
     assertThat(reportAssemblyLog()).contains("xmm.outcome=failed")
   }
 

@@ -990,6 +990,51 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
+  fun `batchCreateReportingSetResults retains the noncolliding ID when one ID collides`() {
+    ensureMeasurementConsumer()
+    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val request =
+      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+        reportResult.externalReportResultId
+      )
+    fun createResult(index: Int): ReportingSetResult =
+      reportResultsStub
+        .batchCreateReportingSetResults(
+          request.copy {
+            requests.clear()
+            requests += request.requestsList[index]
+          }
+        )
+        .reportingSetResultsList
+        .single()
+
+    forcedIds.addAll(listOf(900_001L, 900_002L))
+    val existing = createResult(0)
+    forcedIds.addAll(listOf(900_001L, 900_003L, 900_004L))
+    val internalCollision = createResult(1)
+    forcedIds.addAll(listOf(900_005L, 900_002L, 900_006L))
+    val externalCollision = createResult(2)
+
+    assertThat(existing.externalReportingSetResultId).isEqualTo(900_002L)
+    assertThat(internalCollision.externalReportingSetResultId).isEqualTo(900_003L)
+    assertThat(externalCollision.externalReportingSetResultId).isEqualTo(900_006L)
+    assertWithMessage("ID retries preserve all existing and newly created results")
+      .about(ProtoTruth.protos())
+      .that(
+        reportResultsStub
+          .listReportingSetResults(
+            listReportingSetResultsRequest {
+              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+              externalReportResultId = request.externalReportResultId
+            }
+          )
+          .reportingSetResultsList
+      )
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
+      .containsExactly(existing, internalCollision, externalCollision)
+  }
+
+  @Test
   fun `batchCreateReportingSetResults retries duplicate IDs within the batch`() {
     ensureMeasurementConsumer()
     val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
