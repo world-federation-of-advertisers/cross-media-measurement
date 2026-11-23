@@ -216,6 +216,8 @@ class SubpoolAssignerAppTest {
             workItemsClient = mock<WorkItemsCoroutineStub>(),
             workItemAttemptsClient = mock<WorkItemAttemptsCoroutineStub>(),
             vidRankBuilderQueue = "queues/ranker",
+            vidLabelerQueue = "queues/vid-labeler",
+            vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
             kmsClients = mapOf(DATA_PROVIDER to kms),
             getSubpoolMapStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
             getRawImpressionsStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
