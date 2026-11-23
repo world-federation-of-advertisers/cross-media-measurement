@@ -80,15 +80,80 @@ object ExceptionDiagnostics {
     }
   }
 
-  /** Validation metadata derived from a resolved schema field and closed type identifiers. */
+  /** Approved schema, type, or explicitly configured mapping-failure metadata. */
   class ValidationFailure
   private constructor(
     val category: Category,
     val field: FieldDescriptor?,
     val expectedType: Type?,
     val actualType: Type?,
-  ) : IllegalArgumentException(validationMetadata(category, field, expectedType, actualType)) {
+    private val configurationDetails: String = "",
+  ) :
+    IllegalArgumentException(
+      validationMetadata(category, field, expectedType, actualType, configurationDetails)
+    ) {
+    internal fun diagnosticMetadata(): String =
+      validationMetadata(category, field, expectedType, actualType, configurationDetails)
+
     companion object {
+      /** Rejects duplicate paths from the configured mappings, in deterministic order. */
+      fun duplicateFieldPaths(configuredPaths: Collection<String>): ValidationFailure {
+        val duplicates =
+          configuredPaths.groupingBy { it }.eachCount().filterValues { it > 1 }.keys.sorted()
+        require(duplicates.isNotEmpty()) { "No duplicate configured field paths" }
+        val retained = duplicates.take(MAX_CONFIGURED_PATHS)
+        val details =
+          "duplicate_paths=" +
+            retained.joinToString(",", "[", "]", transform = ::quoteConfiguration) +
+            if (duplicates.size > retained.size)
+              "; additional_duplicate_paths=" + (duplicates.size - retained.size)
+            else ""
+        return ValidationFailure(
+          Category.INVALID_CONFIGURATION,
+          null,
+          Type.UNIQUE_FIELD_PATH,
+          null,
+          details,
+        )
+      }
+
+      /** Rejects a target symbol from enum lookup configuration, never its lookup key. */
+      fun invalidEnumTarget(field: FieldDescriptor, configuredTarget: String): ValidationFailure {
+        require(field.javaType == FieldDescriptor.JavaType.ENUM) { "Target field must be an enum" }
+        val validIdentifier = PROTO_IDENTIFIER.matches(configuredTarget)
+        val target =
+          if (validIdentifier) quoteConfiguration(configuredTarget)
+          else "<invalid proto identifier>"
+        return ValidationFailure(
+          Category.INVALID_CONFIGURATION,
+          field,
+          Type.ENUM,
+          null,
+          "enum=" +
+            quoteConfiguration(field.enumType.fullName) +
+            "; configured_enum_target=" +
+            target +
+            "; identifier_valid=" +
+            validIdentifier,
+        )
+      }
+
+      /** Rejects an unresolved path from mapping configuration, retaining the missing segment. */
+      fun missingConfiguredField(
+        configuredPath: String,
+        missingSegment: String,
+      ): ValidationFailure =
+        ValidationFailure(
+          Category.INVALID_CONFIGURATION,
+          null,
+          Type.SCHEMA_FIELD,
+          null,
+          "configured_path=" +
+            quoteConfiguration(configuredPath) +
+            "; missing_segment=" +
+            quoteConfiguration(missingSegment),
+        )
+
       fun unknownLookup(field: FieldDescriptor? = null): ValidationFailure =
         ValidationFailure(Category.UNKNOWN_LOOKUP_VALUE, field, null, null)
 
@@ -227,8 +292,7 @@ object ExceptionDiagnostics {
     when (error) {
       is DiagnosticException -> error.fields
       is DiagnosticError -> error.fields
-      is ValidationFailure ->
-        validationMetadata(error.category, error.field, error.expectedType, error.actualType)
+      is ValidationFailure -> error.diagnosticMetadata()
       is StatusException -> "grpc.${error.status.code.name}"
       is StatusRuntimeException -> "grpc.${error.status.code.name}"
       else -> ""
@@ -239,37 +303,47 @@ object ExceptionDiagnostics {
     field: FieldDescriptor?,
     expectedType: Type?,
     actualType: Type?,
+    configurationDetails: String,
   ): String =
     buildList {
         add(category.name)
         field?.let { add("field=" + escapeText(it.fullName, MAX_FIELD_LENGTH)) }
         expectedType?.let { add("expected=" + it.name) }
         actualType?.let { add("actual=" + it.name) }
+        if (configurationDetails.isNotEmpty()) add(configurationDetails)
       }
       .joinToString("; ")
 
-  private fun escapeText(text: String, limit: Int): String = buildString {
-    for (character in text) {
-      val escaped =
-        when (character) {
-          '\n' -> "\\n"
-          '\r' -> "\\r"
-          '\t' -> "\\t"
-          else ->
-            if (
-              character.code < 32 ||
-                character.code in 127..159 ||
-                character == '\u2028' ||
-                character == '\u2029'
-            ) {
-              "\\u" + character.code.toString(16).padStart(4, '0')
-            } else character.toString()
-        }
-      if (length + escaped.length > limit) break
-      append(escaped)
-    }
-  }
+  private fun quoteConfiguration(text: String): String =
+    "\"" + escapeText(text, MAX_FIELD_LENGTH - 2, escapeQuotes = true) + "\""
 
+  private fun escapeText(text: String, limit: Int, escapeQuotes: Boolean = false): String =
+    buildString {
+      for (character in text) {
+        val escaped =
+          when (character) {
+            '\\' -> if (escapeQuotes) "\\\\" else "\\"
+            '"' -> if (escapeQuotes) "\\\"" else "\""
+            '\n' -> "\\n"
+            '\r' -> "\\r"
+            '\t' -> "\\t"
+            else ->
+              if (
+                character.code < 32 ||
+                  character.code in 127..159 ||
+                  character == '\u2028' ||
+                  character == '\u2029'
+              ) {
+                "\\u" + character.code.toString(16).padStart(4, '0')
+              } else character.toString()
+          }
+        if (length + escaped.length > limit) break
+        append(escaped)
+      }
+    }
+
+  private val PROTO_IDENTIFIER = Regex("[A-Za-z_][A-Za-z0-9_]*")
+  private const val MAX_CONFIGURED_PATHS = 5
   private const val MAX_SUMMARY_LENGTH = 1024
   private const val MAX_FIELD_LENGTH = 200
   private const val MAX_DEPTH = 20

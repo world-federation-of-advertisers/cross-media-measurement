@@ -18,6 +18,7 @@ package org.wfanet.measurement.common
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.BoolValue
+import com.google.protobuf.Value
 import io.grpc.Status
 import java.io.IOException
 import java.util.logging.Level
@@ -290,6 +291,72 @@ class ExceptionDiagnosticsTest {
     assertThat(Regex("IOException").findAll(output).count()).isEqualTo(20)
     assertThat(output.length).isAtMost(1024)
     assertThat(output).doesNotContain(PRIVATE_VALUE)
+  }
+
+  @Test
+  fun `configuration factories retain approved details while excluding wrapped row values`() {
+    val field = Value.getDescriptor().findFieldByName("null_value")
+    val failures =
+      listOf(
+        ValidationFailure.duplicateFieldPaths(
+          listOf("person.gender", "event_id.id", "person.gender", "event_id.id")
+        ),
+        ValidationFailure.invalidEnumTarget(field, "NOT_A_CONFIGURED_ENUM"),
+        ValidationFailure.missingConfiguredField("person.gendre", "gendre"),
+      )
+    val expected =
+      listOf(
+        "duplicate_paths=[\"event_id.id\",\"person.gender\"]",
+        "NOT_A_CONFIGURED_ENUM",
+        "person.gendre",
+      )
+    for ((index, failure) in failures.withIndex()) {
+      val wrapped =
+        IllegalStateException(PRIVATE_VALUE, failure).apply {
+          addSuppressed(IllegalArgumentException(PRIVATE_VALUE))
+        }
+      assertThat(failure.message).contains(expected[index])
+      assertThat(ExceptionDiagnostics.summary(wrapped)).contains(expected[index])
+      assertThat(ExceptionDiagnostics.summary(wrapped)).doesNotContain(PRIVATE_VALUE)
+      val output = format(ExceptionDiagnostics.forLogging(wrapped))
+      assertThat(output).contains(expected[index])
+      assertThat(output).doesNotContain(PRIVATE_VALUE)
+    }
+  }
+
+  @Test
+  fun `duplicate configured paths are bounded sorted and independent of input order`() {
+    val paths = (1..10).flatMap { listOf("configured.field$it", "configured.field$it") }
+    val forward = ValidationFailure.duplicateFieldPaths(paths)
+    val reverse = ValidationFailure.duplicateFieldPaths(paths.reversed())
+    assertThat(forward.message).isEqualTo(reverse.message)
+    assertThat(forward.message).contains("additional_duplicate_paths=5")
+    assertThat(forward.message).contains("configured.field1")
+    assertThat(forward.message).doesNotContain("configured.field9")
+    assertThat(ExceptionDiagnostics.summary(forward).length).isAtMost(1024)
+  }
+
+  @Test
+  fun `configuration text escapes control characters and bounds long fields`() {
+    val missing = ValidationFailure.missingConfiguredField("person.\nfield", "\nfield")
+    assertThat(missing.message).contains("\\nfield")
+    assertThat(missing.message).doesNotContain("person.\nfield")
+    val huge = ValidationFailure.missingConfiguredField("x".repeat(10000), "y".repeat(10000))
+    assertThat(huge.message!!.length).isLessThan(500)
+    assertThat(ExceptionDiagnostics.summary(huge).length).isAtMost(1024)
+  }
+
+  @Test
+  fun `configured enum metadata validates identifiers before emitting symbols`() {
+    val field = Value.getDescriptor().findFieldByName("null_value")
+    val valid = ValidationFailure.invalidEnumTarget(field, "NOT_AN_ENUM_SYMBOL")
+    assertThat(valid.message).contains("NOT_AN_ENUM_SYMBOL")
+    assertThat(valid.message).contains("identifier_valid=true")
+    val invalid = ValidationFailure.invalidEnumTarget(field, "bad\n" + PRIVATE_VALUE)
+    assertThat(invalid.message).contains("identifier_valid=false")
+    assertThat(invalid.message).contains("<invalid proto identifier>")
+    assertThat(invalid.message).doesNotContain(PRIVATE_VALUE)
+    assertThat(format(ExceptionDiagnostics.forLogging(invalid))).doesNotContain(PRIVATE_VALUE)
   }
 
   private fun format(error: Throwable): String =
