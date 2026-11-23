@@ -14,6 +14,10 @@
 
 package k8s
 
+// Halo examples enable value diagnostics; markets can override these tags.
+_measurementValueLoggingEnabled:     bool | *true @tag("log_measurement_values", type=bool)
+_noiseCorrectionValueLoggingEnabled: bool | *true @tag("log_noise_correction_values", type=bool)
+
 #ContainerRegistryConfig: {
 	registry:   string @tag("container_registry")
 	repoPrefix: string @tag("image_repo_prefix")

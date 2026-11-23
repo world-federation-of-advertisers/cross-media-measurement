@@ -75,6 +75,9 @@ class CreateModelLine(private val modelLine: ModelLine) : SpannerWriter<ModelLin
         set("ActiveEndTime" to modelLine.activeEndTime.toGcloudTimestamp())
       }
       set("Type").toInt64(modelLine.type)
+      if (modelLine.hasEventTemplateVersion()) {
+        set("EventTemplateVersion").to(modelLine.eventTemplateVersion.toLong())
+      }
       if (modelLine.externalHoldbackModelLineId != 0L) {
         val holdbackModelLineResult =
           ModelLineReader()

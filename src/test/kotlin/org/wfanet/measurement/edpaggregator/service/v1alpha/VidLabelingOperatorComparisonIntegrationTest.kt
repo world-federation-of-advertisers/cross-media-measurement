@@ -202,6 +202,7 @@ class VidLabelingOperatorComparisonIntegrationTest :
             parent = modelSuite
             modelLine = modelLine {
               this.type = type
+              eventTemplateVersion = 1
               activeStartTime =
                 FIRST_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
             }
@@ -701,6 +702,7 @@ class VidLabelingOperatorComparisonIntegrationTest :
           trusTeeV2ImpressionCountMode =
             ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
       for (uri in groupedBlobs) {
         val group =

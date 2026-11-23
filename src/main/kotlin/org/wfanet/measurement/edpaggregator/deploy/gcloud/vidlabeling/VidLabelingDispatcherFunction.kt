@@ -282,6 +282,13 @@ class VidLabelingDispatcherFunction : HttpFunction {
           vidLabelingJobStub = vidLabelingJobStub,
           maxFileBatchSizeBytes = config.maxFileBatchSizeBytes,
           rpcThrottlers = rpcThrottlers,
+          validateEventTemplateVersion = { modelLineConfig, version ->
+            VidLabelingFunctionHelpers.validateEventTemplateVersion(
+              modelLineConfig,
+              version,
+              config.rawImpressionsStorageParams.gcs.projectId,
+            )
+          },
         )
 
       val dispatcher =

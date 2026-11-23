@@ -44,6 +44,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -3193,49 +3194,59 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `saveImpressionMetadata batches according to batch size and throttles each batch`() =
-    runBlocking {
-      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+  fun `sync throttles metadata batches and model line bounds computation`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-      seedBlobDetails(
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(100L to 200L, 200L to 300L, 300L to 400L),
+      BlobEncoding.JSON,
+    )
+
+    val recordingThrottler = RecordingThrottler()
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenAnswer {
+        assertThat(recordingThrottler.isReady.get()).isTrue()
+        computeModelLineBoundsResponse {
+          modelLineBounds += modelLineBoundMapEntry {
+            key = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
+            value = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+          }
+        }
+      }
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
         storageClient,
-        folderPrefix,
-        listOf(100L to 200L, 200L to 300L, 300L to 400L),
-        BlobEncoding.JSON,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        recordingThrottler,
+        impressionMetadataBatchSize = 2,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        managedDoneObjectResolver = {
+          ManagedDoneObjectResolver { _, _, _ -> ManagedDoneObjectDisposition.CURRENT }
+        },
+        publishEventGroupActivities = null,
+        availabilityImpressionPaths = listOf("edp/edpa_edp"),
       )
 
-      val recordingThrottler = RecordingThrottler()
-      val dataAvailabilitySync =
-        DataAvailabilitySync(
-          "edp/edpa_edp",
-          storageClient,
-          dataProvidersStub,
-          impressionMetadataStub,
-          "dataProviders/dataProvider123",
-          recordingThrottler,
-          impressionMetadataBatchSize = 2,
-          modelLineMap = emptyMap(),
-          errorIfGapsExist = true,
-          managedDoneObjectResolver = {
-            ManagedDoneObjectResolver { _, _, _ -> ManagedDoneObjectDisposition.CURRENT }
-          },
-          publishEventGroupActivities = null,
-          availabilityImpressionPaths = listOf("edp/edpa_edp"),
-        )
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
 
-      dataAvailabilitySync.sync("$bucket/${folderPrefix}done", DONE_BLOB_GENERATION)
-
-      val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
-      verifyBlocking(impressionMetadataServiceMock, times(2)) {
-        batchCreateImpressionMetadata(captor.capture())
-      }
-      assertThat(captor.allValues.map { it.requestsCount }).containsExactly(2, 1).inOrder()
-      // Two list chunks (3 blob_uris chunked by batch size 2), two create batches, one
-      // availability
-      // interval update.
-      assertThat(recordingThrottler.onReadyCalls).isEqualTo(5)
+    val captor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(2)) {
+      batchCreateImpressionMetadata(captor.capture())
     }
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(2, 1).inOrder()
+    // Two list chunks, two create batches, bounds computation, and availability publication.
+    assertThat(recordingThrottler.onReadyCalls).isEqualTo(6)
+  }
 
   @Test
   fun `saveImpressionMetadata batches by flattened entity-key count`() = runBlocking {
@@ -7704,11 +7715,17 @@ class DataAvailabilitySyncTest {
   }
 
   private class RecordingThrottler : Throttler {
+    val isReady = AtomicBoolean()
     var onReadyCalls: Int = 0
 
     override suspend fun <T> onReady(block: suspend () -> T): T {
       onReadyCalls++
-      return block()
+      isReady.set(true)
+      try {
+        return block()
+      } finally {
+        isReady.set(false)
+      }
     }
   }
 

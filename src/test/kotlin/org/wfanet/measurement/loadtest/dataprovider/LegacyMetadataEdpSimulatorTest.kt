@@ -109,6 +109,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -176,6 +177,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -235,6 +237,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -287,6 +290,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     runBlocking { edpSimulator.ensureEventGroups() }
@@ -358,6 +362,7 @@ class LegacyMetadataEdpSimulatorTest : AbstractEdpSimulatorTest() {
         vidIndexMap = VID_INDEX_MAP,
         trusTeeSupported = false,
         kingdomRpcThrottler = dummyKingdomRpcThrottler,
+        logMeasurementValues = false,
       )
 
     val exception =

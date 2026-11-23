@@ -188,6 +188,15 @@ jobs:
           //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:EmptyClusterPanelMatchCorrectnessTest
           --test_output=streamed
 
+      - name: Collect rollout diagnostics
+        if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+        continue-on-error: true
+        timeout-minutes: 5
+        run: >
+          python3 .github/workflows/scripts/k8s_rollout_diagnostics.py
+          --selector=app
+          --output-dir="${{ env.CLUSTER_LOGS_PATH }}/rollout"
+
       - name: Export cluster logs
         id: export-cluster-logs
         if: failure() && (steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')

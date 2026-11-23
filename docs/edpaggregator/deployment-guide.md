@@ -57,6 +57,30 @@ None of the names below are prescriptive — they are only examples.
 
 ---
 
+## Measurement value logging
+
+Halo's Terraform and Kubernetes examples and cloud-test fixtures enable
+measurement-value logging by default. The application flags themselves default
+to disabled. Markets may want to disable the example settings according to their
+data-access and log-retention policies.
+
+| Configuration | Halo example default | How to disable |
+| --- | --- | --- |
+| ResultsFulfiller in the CMMS Terraform example | `log_measurement_values = true` | Set `log_measurement_values = false` in your Terraform variables. |
+| Reporting, EDP simulators, and population fulfillment in the Halo GKE examples | CUE tag `log_measurement_values=true` | Pass `-t log_measurement_values=false` to the CUE renderer, or set the component's `_logMeasurementValues` to `false`. |
+| Python report post-processing in the Halo GKE examples | CUE tag `log_noise_correction_values=true` | Pass `-t log_noise_correction_values=false` to the CUE renderer, or set `_logNoiseCorrectionValues` to `false`. |
+
+For workloads deployed from custom configurations, set
+`--log-measurement-values=false` and `--log-noise-correction-values=false` on the
+applicable processes. Identifiers, stages, verdicts, and failure types remain
+available. The impression verifier omits raw impression fields from both sample
+and failure logs regardless of the count-logging setting.
+
+See [Measurement value diagnostics](/docs/edpaggregator/report-debugging-guide.md#measurement-value-diagnostics)
+for the values controlled by each flag. Full gRPC request/response debug logging
+has its own setting; markets that disable value logging should review that
+setting as well.
+
 ## Architecture
 
 The EDP Aggregator is a distributed system spanning the following Google Cloud
@@ -661,7 +685,7 @@ requisition_fulfiller_config = {
     java_tool_options             = "-Xmx..."   # optional
     docker_image                  = "ghcr.io/.../results_fulfiller:<tag>"
     mig_distribution_policy_zones = ["REGION-a", "REGION-b"]
-    app_flags                     = ["--flag=value", ...]
+    app_flags                     = ["--log-measurement-values=true", "--flag=value", ...]
   }
 }
 ```
