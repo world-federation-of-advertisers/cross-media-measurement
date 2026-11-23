@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 import urllib.parse
 import urllib.request
 import zipfile
@@ -225,50 +226,78 @@ def legacy_preflight(cloud, paused_at):
 
 
 
+def source_subscription(cloud, watcher):
+    trigger_path = watcher["eventTrigger"]["trigger"]
+    trigger = cloud.gcloud("eventarc", "triggers", "describe", trigger_path.rsplit("/", 1)[-1],
+                           "--location=" + watcher["eventTrigger"]["triggerRegion"])
+    return trigger["transport"]["pubsub"]["subscription"].rsplit("/", 1)[-1]
+
+
 def capture_legacy(cloud):
     revisions = []
     for service_name in ("data-watcher", "vid-labeling-healing-controller"):
+        try:
+            function = cloud.function(service_name)
+        except GateError as error:
+            if "NOT_FOUND" in str(error):
+                continue
+            raise
         service = cloud.gcloud("run", "services", "describe", service_name, "--region=" + cloud.region)
         revision = service["status"]["latestReadyRevisionName"]
-        revisions.append({"service": service_name, "revision": revision})
+        lifetime = function["serviceConfig"].get("timeoutSeconds")
+        require(type(lifetime) is int and 0 < lifetime <= 3600,
+                "Missing declared request lifetime for " + service_name)
+        declared_revision = function["serviceConfig"].get("revision")
+        require(declared_revision and declared_revision.rsplit("/", 1)[-1] == revision,
+                "Function revision changed while capturing its request lifetime")
+        revisions.append({"service": service_name, "revision": revision, "timeoutSeconds": lifetime,
+                          "sourceSubscription": source_subscription(cloud, function)
+                          if service_name == "data-watcher" else None})
     return revisions
+
+
+def zero_revision_traffic(cloud, revision):
+    service = cloud.gcloud("run", "services", "describe", revision["service"], "--region=" + cloud.region)
+    status = service["status"]
+    traffic = status.get("traffic", [])
+    require(traffic, "Missing revision traffic inventory")
+    for route in traffic:
+        name = route.get("revisionName")
+        if not name and (route.get("latestRevision") or route.get("type") == "TRAFFIC_TARGET_ALLOCATION_TYPE_LATEST"):
+            name = status.get("latestReadyRevisionName")
+        require(name and isinstance(route.get("percent", 0), int), "Ambiguous revision traffic")
+        if name == revision["revision"]:
+            require(route.get("percent", 0) == 0 and not route.get("tag"),
+                    "Legacy caller still receives traffic")
 
 
 def observe_legacy(cloud, revisions, after):
     require(after is not None, "Provide the activation timestamp")
-    deadline = time.monotonic() + 1200
-    while True:
-        try:
-            now = dt.datetime.now(dt.timezone.utc)
-            for revision in revisions:
-                service = cloud.gcloud("run", "services", "describe", revision["service"], "--region=" + cloud.region)
-                require(all(t.get("percent", 0) == 0 for t in service["status"].get("traffic", [])
-                            if t.get("revisionName") == revision["revision"]), "Legacy caller still receives new traffic")
-                series = cloud.monitoring("timeSeries", {
-                    "filter": 'metric.type="run.googleapis.com/container/max_request_concurrencies" AND resource.labels.revision_name="' + revision["revision"] + '"',
-                    "interval.startTime": after.isoformat(), "interval.endTime": now.isoformat(), "view": "FULL",
-                })
-                require(series, "No fresh completion evidence for the legacy caller")
-                for entry in series:
-                    points = sorted(entry.get("points", []), key=lambda p: timestamp(p["interval"]["endTime"]), reverse=True)
-                    require(len(points) >= 2, "Need two observed idle samples for the legacy caller")
-                    for point in points[:2]:
-                        end = timestamp(point["interval"]["endTime"])
-                        require(end > after and now - end < dt.timedelta(minutes=5), "Stale legacy completion evidence")
-                        value = point["value"]
-                        if "int64Value" in value:
-                            idle = int(value["int64Value"]) == 0
-                        elif "distributionValue" in value:
-                            distribution = value["distributionValue"]
-                            idle = int(distribution.get("count", 0)) > 0 and float(distribution.get("mean", 0)) == 0
-                        else:
-                            idle = False
-                        require(idle, "Legacy caller still has an outstanding invocation")
-            print("PASS: legacy watcher/healing invocations finished; the compatible HTTP adapter is retained")
-            return
-        except GateError:
-            require(time.monotonic() < deadline, "Cannot prove legacy completion; retain the adapter and use the documented fallback")
-            time.sleep(10)
+    require(isinstance(revisions, list), "Invalid captured revision inventory")
+    lifetimes = []
+    for revision in revisions:
+        lifetime = revision.get("timeoutSeconds")
+        require(type(lifetime) is int and 0 < lifetime <= 3600,
+                "Missing captured request lifetime")
+        require(revision.get("revision") and revision.get("service"), "Missing captured revision identity")
+        if revision["service"] == "data-watcher":
+            require(revision.get("sourceSubscription"), "Missing legacy source subscription")
+        zero_revision_traffic(cloud, revision)
+        lifetimes.append(lifetime)
+    # Start the bound only after every old revision has been observed at zero traffic.
+    started = time.monotonic()
+    drained_after = dt.datetime.now(dt.timezone.utc)
+    lifetime = max(lifetimes, default=0)
+    while time.monotonic() - started < lifetime:
+        for revision in revisions:
+            zero_revision_traffic(cloud, revision)
+        time.sleep(min(10, max(0, lifetime - (time.monotonic() - started))))
+    for revision in revisions:
+        zero_revision_traffic(cloud, revision)
+    for subscription in {r["sourceSubscription"] for r in revisions if r.get("sourceSubscription")}:
+        zero_backlog(cloud, subscription, drained_after)
+    print("PASS: declared legacy request lifetimes elapsed at zero traffic and source subscriptions are drained")
+
 
 def write_tls_flags(cloud, profile, directory):
     expected = {"tls-cert-file", "tls-key-file", "cert-collection-file",
@@ -320,56 +349,169 @@ def select_config(cloud):
 
 
 
+def active_config(cloud):
+    watcher = cloud.function("data-watcher")
+    env = watcher["serviceConfig"]["environmentVariables"]
+    key = env["CONFIG_BLOB_KEY"]
+    require(key in ("data-watcher-config.textproto", CONFIG_V2), "Unknown active watcher configuration")
+    require(env.get("DATA_WATCHER_CONFIG_GENERATION"), "Missing pinned active configuration generation")
+    uri = env["EDPA_CONFIG_STORAGE_BUCKET"].rstrip("/") + "/" + key + "#" + str(env["DATA_WATCHER_CONFIG_GENERATION"])
+    return cloud.run(["gcloud", "storage", "cat", uri])
+
+
+def dispatch_routes(content):
+    routes = []
+    for match in re.finditer(r"(?m)^\s*watched_paths\s*\{", content):
+        start = match.end()
+        depth, quoted, escaped = 1, False, False
+        for index in range(start, len(content)):
+            char = content[index]
+            if quoted:
+                if escaped:
+                    escaped = False
+                elif char == chr(92):
+                    escaped = True
+                elif char == '"':
+                    quoted = False
+            elif char == '"':
+                quoted = True
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    block = content[start:index]
+                    if re.search(r'identifier:\s*"vid-labeling-dispatch"', block):
+                        routes.append(block)
+                    break
+        require(depth == 0, "Malformed watched-path configuration")
+    require(routes, "No VID dispatcher routes in active configuration")
+    return routes
+
+
 def is_queued(cloud):
     try:
         watcher = cloud.function("data-watcher")
+        if watcher["serviceConfig"]["environmentVariables"]["CONFIG_BLOB_KEY"] != CONFIG_V2:
+            return False
+        content = active_config(cloud)
     except GateError as error:
         if "NOT_FOUND" in str(error):
             return False
         raise
-    env = watcher["serviceConfig"]["environmentVariables"]
-    if env["CONFIG_BLOB_KEY"] != CONFIG_V2:
-        return False
-    require(env.get("DATA_WATCHER_CONFIG_GENERATION"), "Missing pinned active configuration generation")
-    uri = env["EDPA_CONFIG_STORAGE_BUCKET"].rstrip("/") + "/" + CONFIG_V2 + "#" + str(env["DATA_WATCHER_CONFIG_GENERATION"])
-    content = cloud.run(["gcloud", "storage", "cat", uri])
-    return QUEUE in content
+    return all("http_endpoint_sink" not in route and "control_plane_queue_sink" in route
+               and re.search(r'queue:\s*"vid-labeling-dispatch-queue"', route)
+               for route in dispatch_routes(content))
+
+
+def smoke_inputs(profile, raw):
+    run = json.loads(raw)
+    require(set(run) == {"ordinarySourceUri", "recoverySourceUri", "recoverySourceGeneration", "recoverySourceUpload", "approval"},
+            "Supply only fresh one-run source and approval fields")
+    prefix = profile["rawImpressionsPrefix"]
+    require(prefix.startswith("gs://") and prefix.endswith("/"), "Invalid isolated raw prefix")
+    for field in ("ordinarySourceUri", "recoverySourceUri"):
+        uri = run[field]
+        require(isinstance(uri, str) and uri.startswith(prefix) and uri.endswith("/done")
+                and "#" not in uri and "/../" not in uri and "\n" not in uri,
+                "Smoke source is outside the committed isolated raw prefix")
+    require(run["ordinarySourceUri"] != run["recoverySourceUri"], "Use separate ordinary and recovery sources")
+    require(str(run["recoverySourceGeneration"]).isdecimal() and int(run["recoverySourceGeneration"]) > 0,
+            "Supply the inspected historical recovery source generation")
+    provider = profile["isolatedDataProvider"]
+    require(run["recoverySourceUpload"].startswith(provider + "/rawImpressionUploads/"),
+            "Recovery source belongs to another provider")
+    approval = run["approval"]
+    require(approval["name"].startswith(provider + "/uploadHealingOperations/") and approval.get("etag"),
+            "Supply the inspected isolated approval identity and etag")
+    return run
+
+
+def source_from_object(uri, observed):
+    generation = observed.get("generation")
+    creation = observed.get("timeCreated") or observed.get("creation_time")
+    require(str(generation).isdecimal() and int(generation) > 0 and creation,
+            "Missing finalized source identity")
+    exact_timestamp(creation)
+    return {"dataPath": uri, "generation": str(generation), "createTime": creation}
+
+
+def finalize_marker(cloud, uri, directory, recovery=None):
+    path = Path(directory) / ("recovery.done" if recovery else "ordinary.done")
+    if recovery:
+        observed = cloud.gcloud("storage", "objects", "describe", uri)
+        previous = source_from_object(uri, observed)
+        require(previous["generation"] == str(recovery["recoverySourceGeneration"]),
+                "Recovery source changed after inspection; do not rewrite another revision")
+        cloud.run(["gcloud", "storage", "cp", uri + "#" + previous["generation"], str(path)])
+        generation = previous["generation"]
+        metadata = dict(observed.get("metadata") or {})
+        metadata.update({"recovery-source-upload": recovery["recoverySourceUpload"],
+                         "upload-healing-operation": recovery["approval"]["name"],
+                         "eviction-operation-id": recovery["approval"]["name"].rsplit("/", 1)[-1]})
+    else:
+        path.write_bytes(b"")
+        generation, metadata = "0", {}
+    nonce = uuid.uuid4().hex
+    metadata["vid-dispatch-smoke-run"] = nonce
+    print("SMOKE_SOURCE_URI=" + uri, flush=True)
+    command = ["gcloud", "storage", "cp", str(path), uri, "--if-generation-match=" + generation]
+    if metadata:
+        require(all("|" not in k and "|" not in v and "\n" not in v for k, v in metadata.items()),
+                "Unsupported marker metadata")
+        command.append("--custom-metadata=^|^" + "|".join(k + "=" + v for k, v in sorted(metadata.items())))
+    cloud.run(command)
+    current = cloud.gcloud("storage", "objects", "describe", uri)
+    source = source_from_object(uri, current)
+    require(current.get("metadata", {}).get("vid-dispatch-smoke-run") == nonce,
+            "Finalized marker was replaced by another source")
+    require(source["generation"] != generation, "Finalization did not create a new generation")
+    return source
+
+
+def expected_item(profile, source, recovery=None):
+    app = {"@type": "type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams",
+           "dataProvider": profile["isolatedDataProvider"]}
+    frame = {"@type": "type.googleapis.com/wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams",
+             "appParams": app}
+    if recovery:
+        app["recovery"] = {"source": source, "sourceUpload": recovery["recoverySourceUpload"],
+                           "uploadHealingOperation": recovery["approval"]["name"]}
+    else:
+        frame["dataPathParams"] = source
+    return {"queue": QUEUE, "workItemParams": frame}
+
 
 def smoke(cloud, args, profile, tls_flags, directory):
     isolated, live, _ = profile_providers(profile, args.vid_labeling_config)
-    files = []
-    for field in ("ordinaryWorkItem", "recoveryWorkItem", "approval"):
-        path = Path(directory) / (field + ".json")
-        path.write_text(json.dumps(profile[field]))
-        path.chmod(0o600)
-        files.append(path)
-    for field, recovery in (("ordinaryWorkItem", False), ("recoveryWorkItem", True)):
-        frame = profile[field]["workItemParams"]
-        app = frame["appParams"]
-        require(app["dataProvider"] == isolated and ("recovery" in app) == recovery, "Smoke fixture is not isolated")
-        source = app["recovery"]["source"] if recovery else frame["dataPathParams"]
-        uri = source["dataPath"]
-        require(uri.startswith("gs://") and uri.endswith("/done"), "Smoke requires a raw done-object source")
-        observed = cloud.gcloud("storage", "objects", "describe", uri + "#" + str(source["generation"]))
-        require(str(observed["generation"]) == str(source["generation"]), "Smoke source version is unavailable")
-        creation = observed.get("timeCreated") or observed.get("creation_time")
-        require(creation and exact_timestamp(creation) == exact_timestamp(source["createTime"]), "Smoke source creation time differs")
-        if not recovery:
-            current = cloud.gcloud("storage", "objects", "describe", uri)
-            require(str(current["generation"]) == str(source["generation"]), "Ordinary smoke source is stale")
+    run = smoke_inputs(profile, args.smoke_inputs)
+    # Read and validate the historical recovery identity before finalizing the ordinary marker.
+    historical = source_from_object(run["recoverySourceUri"],
+        cloud.gcloud("storage", "objects", "describe", run["recoverySourceUri"] + "#" + str(run["recoverySourceGeneration"])))
+    ordinary = finalize_marker(cloud, run["ordinarySourceUri"], directory)
+    files = [Path(directory) / (name + ".json") for name in ("ordinary", "recovery", "approval")]
+    files[0].write_text(json.dumps(expected_item(profile, ordinary)))
+    files[1].write_text(json.dumps(expected_item(profile, historical, run)))
+    files[2].write_text(json.dumps(run["approval"]))
     command = args.operator_command + ["smoke-dispatch-cutover"] + tls_flags + [
         "--isolated-data-provider=" + isolated, "--live-data-provider=" + ",".join(sorted(live)),
+        "--watcher-identifier=" + profile["watcherIdentifier"],
         "--ordinary-work-item-file=" + str(files[0]), "--recovery-work-item-file=" + str(files[1]),
-        "--approval-file=" + str(files[2])]
-    result = cloud.run_operator(command + ["--timeout=20m"], timeout=2400)
-    names = re.findall(r"^SMOKE_WORK_ITEM=(workItems/[^\s]+)$", result, flags=re.M)
-    require(len(names) == 2, "Smoke did not report both queued executions")
+        "--approval-file=" + str(files[2]), "--timeout=20m"]
+    first = cloud.run_operator(command + ["--phase=ordinary"], timeout=2400)
+    require("RECOVERY_READY=" + run["approval"]["name"] in first,
+            "Isolated recovery did not reach an authorized checkpoint")
+    recovery = finalize_marker(cloud, run["recoverySourceUri"], directory, run)
+    files[1].write_text(json.dumps(expected_item(profile, recovery, run)))
+    second = cloud.run_operator(command + ["--phase=recovery"], timeout=2400)
+    names = re.findall(r"^SMOKE_WORK_ITEM=(workItems/[^\s]+)$", first + "\n" + second, flags=re.M)
+    require(len(names) == 2 and len(set(names)) == 2, "Smoke did not discover both distinct intake executions")
     deadline = time.monotonic() + 300
     while True:
         entries = cloud.gcloud("logging", "read",
             'resource.type="cloud_run_revision" AND resource.labels.service_name="vid-labeling-dispatcher" AND '
             '(textPayload:"event=edpa.vid_labeling.dispatch.work_item" OR jsonPayload.message:"event=edpa.vid_labeling.dispatch.work_item")',
-            "--freshness=30m", "--limit=1000")
+            "--freshness=60m", "--limit=1000")
         successful = set()
         for entry in entries:
             message = entry.get("textPayload") or entry.get("jsonPayload", {}).get("message", "")
@@ -377,18 +519,21 @@ def smoke(cloud, args, profile, tls_flags, directory):
             if fields.get("xmm.outcome") in ("succeeded", "no_work"):
                 successful.add(fields.get("xmm.work_item.name"))
         if all(name in successful for name in names):
-            print("PASS: both isolated queued dispatch/recovery executions produced qualified application outcomes")
+            print("PASS: fresh storage-event intake and queued ordinary/recovery outcomes completed")
             return
-        require(time.monotonic() < deadline, "Missing qualified smoke outcome; stale/no-attempt success is not readiness")
+        require(time.monotonic() < deadline, "Missing qualified application outcome")
         time.sleep(10)
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("select-config", "is-queued", "capture-legacy", "observe-legacy", "preflight", "ready", "smoke"))
+    parser.add_argument("mode", choices=("select-config", "is-queued", "capture-legacy", "observe-legacy", "preflight", "ready", "smoke", "canary-config", "snapshot-config"))
     parser.add_argument("--project", required=True)
     parser.add_argument("--region", required=True)
     parser.add_argument("--profile-file")
+    parser.add_argument("--smoke-inputs", default="")
+    parser.add_argument("--data-watcher-config")
+    parser.add_argument("--output")
     parser.add_argument("--vid-labeling-config")
     parser.add_argument("--edpa-target")
     parser.add_argument("--control-plane-target")
@@ -421,8 +566,19 @@ def main(argv=None):
         return
     require(args.profile_file and args.vid_labeling_config and args.edpa_target and args.control_plane_target,
             "Provide the operator profile, full provider config and existing API targets")
+    if args.mode == "snapshot-config":
+        print(active_config(cloud), end="")
+        return
     profile = json.loads(Path(args.profile_file).read_text())
     _, _, configured = profile_providers(profile, args.vid_labeling_config)
+    if args.mode == "canary-config":
+        require(args.data_watcher_config and args.output, "Supply input/output canary configuration paths")
+        endpoint = "https://" + cloud.region + "-" + cloud.project + ".cloudfunctions.net/vid-labeling-dispatcher"
+        cloud.run_operator(args.operator_command + ["prepare-dispatch-canary-config",
+            "--isolated-data-provider=" + profile["isolatedDataProvider"],
+            "--data-watcher-config=" + args.data_watcher_config, "--output=" + args.output,
+            "--dispatcher-endpoint=" + endpoint], timeout=1800)
+        return
     with tempfile.TemporaryDirectory(prefix="vid-dispatch-operator-") as directory:
         tls_flags = operator_flags(cloud, profile, directory, args.edpa_target, args.control_plane_target)
         if args.mode == "preflight":

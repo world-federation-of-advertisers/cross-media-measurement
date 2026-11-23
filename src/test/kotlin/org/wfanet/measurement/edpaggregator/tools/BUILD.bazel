@@ -3,7 +3,12 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "ReplayStorageCleanupEventTest",
     srcs = ["ReplayStorageCleanupEventTest.kt"],
-    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    jvm_flags = [
+        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     test_class = "org.wfanet.measurement.edpaggregator.tools.ReplayStorageCleanupEventTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:replay_storage_cleanup_event",
@@ -20,7 +25,12 @@ kt_jvm_test(
 kt_jvm_test(
     name = "VerifyEventGroupsMainTest",
     srcs = ["VerifyEventGroupsMainTest.kt"],
-    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    jvm_flags = [
+        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     test_class = "org.wfanet.measurement.edpaggregator.tools.VerifyEventGroupsMainTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:verify_event_groups",
@@ -39,7 +49,12 @@ kt_jvm_test(
 kt_jvm_test(
     name = "VerifyVidLabeledImpressionsMainTest",
     srcs = ["VerifyVidLabeledImpressionsMainTest.kt"],
-    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    jvm_flags = [
+        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     test_class = "org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressionsMainTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:verify_vid_labeled_impressions",
@@ -113,7 +128,12 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
-    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    jvm_flags = [
+        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     test_class = "org.wfanet.measurement.edpaggregator.tools.SyncEventGroupActivitiesTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:sync_event_group_activities",
@@ -143,7 +163,12 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
-    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    jvm_flags = [
+        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     tags = ["no-remote-exec"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.RecoverMissingImpressionMetadataTest",
     deps = [
@@ -188,7 +213,12 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
-    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    jvm_flags = [
+        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     tags = ["no-remote-exec"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.ReplayDataAvailabilitySyncTest",
     deps = [
@@ -302,11 +332,22 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
-    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    jvm_flags = [
+        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+        "-Dotel.logs.exporter=none",
+    ],
     test_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingHealTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:data_watcher_config_types",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:data_watcher_function",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
@@ -324,6 +365,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/cloudevents/core",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc/netty",
         "@wfa_common_jvm//imports/java/org/junit",

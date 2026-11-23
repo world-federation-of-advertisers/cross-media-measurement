@@ -39,58 +39,79 @@ Run **Update CMMS** with `apply=true` and `vid-dispatch-cutover-mode=online`
 
 The workflow prepares compatible dispatcher, DataWatcher, healing and control-plane
 code while preserving the active watcher configuration. Terraform provisions the
-queue, IAM and authenticated push delivery. The readiness command compares deployed
-function source archives with the prepared compatible JARs, checks function/MIG/
-control-plane readiness, and verifies push authentication and alert routes. One
-isolated ordinary-dispatch/approved-recovery smoke test must complete through the
-queue and emit successful application outcomes before activation.
+queue, IAM and authenticated push delivery. Readiness compares deployed source
+archives with the prepared compatible JARs and verifies functions, MIGs, control
+plane, push authentication and alert routes.
 
-Terraform then selects `data-watcher-config.dispatch-v2.textproto` and rolls both
-cached consumers onto it. It retains `data-watcher-config.textproto` unchanged for
-older revisions and rollback, so an idle old healing parser cannot read the typed
-object. The workflow observes old watcher/healing invocations finishing and keeps
-the compatible HTTP adapter. Subsequent updates preserve an already activated
-configuration and do not repeat the migration smoke.
+A normal Terraform apply then selects a versioned canary configuration: the committed
+isolated EDP7 test provider uses the queue, while live providers retain HTTP delivery.
+Both cached consumers roll onto that configuration only after compatible code is
+verified. The workflow finalizes a fresh ordinary test `done` object, discovers its
+deterministic DataWatcher WorkItem, and waits for the worker outcome. It approves the
+supplied isolated recovery plan, waits for its authorized checkpoint, then finalizes
+a fresh recovery marker with its source-upload/operation metadata and discovers that
+DataWatcher WorkItem too. No smoke WorkItem is created directly.
+
+Only after both actual storage-event journeys and application outcomes pass does the
+final apply switch live providers to queued delivery. Terraform retains
+`data-watcher-config.textproto` for old revisions and rollback; the versioned key
+isolates an idle old healing parser from typed configuration.
+
+The workflow captures legacy revision identities and declared request lifetimes
+before each cutover apply. After zero traffic is confirmed, it waits the maximum
+captured lifetime while checking that traffic stays zero, then rechecks traffic and
+fresh zero-backlog evidence from the source subscription. Idle revisions may scale
+to zero; fresh container-concurrency samples are not required. Missing lifetime,
+ambiguous traffic or pending source deliveries fails the gate. The HTTP adapter stays
+available for rollback. Subsequent updates preserve a fully activated configuration
+and do not repeat the migration smoke.
 
 The existing CMMS control-plane compatibility barriers remain part of Update CMMS.
 Intake stays available; downstream work can wait durably while those consumers roll.
 
 ### Operator profile and checks
 
-Configure the environment secret `VID_DISPATCH_CUTOVER_PROFILE` for the isolated
-test deployment:
+Stable configuration is committed in
+`.github/env-configs/{dev,head,qa}/vid-dispatch-cutover.json`. It contains the isolated
+test provider, other configured providers, allowed raw prefix, watcher identifier
+and Secret Manager version references. Provider/model-line routing comes from the
+committed dispatcher configuration. Certificate/key contents remain in Secret Manager;
+version aliases are resolved to numbered versions before access, and private temporary
+files are never printed.
+
+For the initial cutover, supply `vid-dispatch-smoke-inputs` as JSON for this workflow
+run only:
 
 | Field | Required content |
 | --- | --- |
-| `isolatedDataProvider` | Dedicated test DataProvider, raw/labeled prefixes and model lines. |
-| `liveDataProviders` | Every other provider in the VID dispatcher configuration. |
-| `ordinaryWorkItem` | Parameter-only WorkItem JSON for a fresh finalized raw marker, with outer `dataPathParams`. |
-| `recoveryWorkItem` | Parameter-only WorkItem JSON carrying the approved source in `appParams.recovery.source` and its authorization references. |
-| `approval` | Existing `ApproveUploadHealingOperationRequest` JSON, including the inspected etag and all candidate decisions for the isolated approval-required plan. |
-| `tlsSecrets` | Secret Manager version resources keyed by the six existing EDPA/control-plane TLS flag names. |
-| `edpaCertHost`, `controlPlaneCertHost` | Certificate hosts when they differ from the API target hosts. |
+| `ordinarySourceUri` | A new isolated raw `done` path that does not yet exist; upload its raw fixture files first. |
+| `recoverySourceUri` | The existing isolated raw marker to rewrite after the approved recovery checkpoint. |
+| `recoverySourceGeneration` | The inspected historical generation belonging to that source upload; a changed current marker fails closed. |
+| `recoverySourceUpload` | The isolated RawImpressionUpload authorizing that recovery. |
+| `approval` | The freshly inspected ApproveUploadHealingOperationRequest, including name, etag and candidate decisions. |
 
-The TLS keys are `tls-cert-file`, `tls-key-file`, `cert-collection-file`,
-`control-plane-tls-cert-file`, `control-plane-tls-key-file` and
-`control-plane-cert-collection-file`. Values use
-`projects/PROJECT/secrets/SECRET/versions/VERSION`. Certificates are read into private
-temporary files and never printed.
+Both URIs must remain under the committed isolated raw prefix and must be different.
+The workflow creates the ordinary marker with a does-not-exist precondition, reads
+its new generation/creation time, and binds discovery to that identity. Recovery
+uses a generation-matched rewrite with the complete authorization metadata.
+Do not reuse prior WorkItem JSON, generations or approval etags as permanent configuration.
 
-Prepare the isolated raw baseline and correction plan with the existing upload/healing
-tools. The smoke approves only that test plan and rejects providers listed as live.
-Its ordinary source must not already have been admitted to the queue. Reused/stale
-sources, changed approvals, failed executions and missing qualified application
-outcomes fail the gate. After a partial smoke, retain and inspect its WorkItems;
-another independent trial needs a fresh isolated baseline, not a rewritten production
-marker.
+Prepare the isolated raw baseline and approval-required correction plan using the
+existing upload/healing tools. The smoke rejects other providers. Reused sources,
+changed approvals, failed executions, missing intake and missing qualified application
+outcomes fail the gate. After a partial run, retain and inspect the printed source URIs
+and deterministic WorkItem names; another trial needs a fresh isolated ordinary source
+and a currently valid recovery plan. Never rewrite a production marker for this check.
 
 The workflow invokes `.github/workflows/scripts/vid_dispatch_cutover.py`. Its
 `preflight`, `ready` and `observe-legacy` commands use read-only APIs and fail closed
 on missing access, incomplete inventories, stale metrics, incompatible code or unready
 resources. Use the project, region and artifact arguments shown in
 `terraform-cmms-v2.yml`. The checks never alter Terraform-owned resources.
-The separate `smoke` command creates isolated application WorkItems and approves the
-supplied test plan; it does not provision or modify infrastructure.
+The separate `smoke` command finalizes isolated storage objects and approves the
+supplied test plan. DataWatcher creates the application WorkItems; the operator CLI
+discovers them by deterministic identity. These application mutations do not change
+Terraform-owned infrastructure.
 
 ## Maintenance-window alternative
 
@@ -98,7 +119,8 @@ Use this shorter dispatch migration when a brief marker pause is acceptable:
 
 1. Ask EDPs to pause new raw `done` markers. Raw files may continue uploading.
 2. Run **Update CMMS** with `vid-dispatch-cutover-mode=maintenance` and the confirmed
-   RFC 3339 UTC pause time in `vid-dispatch-markers-paused-at`. One checked preflight
+   RFC 3339 UTC pause time in `vid-dispatch-markers-paused-at`, and the fresh one-run
+   `vid-dispatch-smoke-inputs`. One checked preflight
    runs before deployment changes: Eventarc/watcher DLQ deliveries need two fresh
    zero-backlog samples, registrations must be complete, and no healing operation
    may be active or unresolved.
