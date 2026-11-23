@@ -801,7 +801,9 @@ Normal zero-membership pipeline regressions remain required alongside this smoke
 
 Specify **vid-labeling-receipt-uri**, for example
 **gs://DEPLOYMENT_CONFIG_BUCKET/rollout/ENVIRONMENT/vid-cutover.json**.
-Updates use exact GCS generation conditions and a unique cutover ID. Only a
+Updates reserve exclusive ownership before pause using exact GCS generation
+conditions and a unique cutover ID. Each write uses the generation returned by
+that write; a later object's generation cannot transfer ownership. Only a
 completed READY receipt authorizes another online rollout; partial/failed
 verification is not compatibility proof.
 
@@ -835,8 +837,11 @@ For maintenance, select **vid-labeling-cutover-mode=maintenance**:
 1. Configure **vid-labeling-intake-control-url** for the publisher-owned authenticated
    HTTPS control of done markers and memoized backfills/healing approvals.
    Stopping CMM workers does not pause an external EDP. The control receives
-   action, unique request ID and complete provider/queue scope, and returns the
-   matching scope_id and paused=true for pause or paused=false for resume.
+   action, owner_id, a stable action-specific request ID and complete provider/queue
+   scope, and returns matching owner_id/scope_id and paused=true for pause or
+   paused=false for resume. It must persist the pause owner, reject another
+   owner's resume and handle retries idempotently; merely echoing these fields
+   does not satisfy this prerequisite.
    Missing, failed or wrong-scope control fails before component deployment.
 2. The workflow invokes that control and automatically runs **VidLabelingRolloutCheck
    --mode=MAINTENANCE**. Providers and all phase/availability queues come from
@@ -852,7 +857,11 @@ For maintenance, select **vid-labeling-cutover-mode=maintenance**:
 4. Final readiness and the concurrent sidecar smoke run automatically. Only after
    those and a generation-guarded verification checkpoint pass does resume run.
    Failed checks leave intake paused. A failed resume/receipt update requires
-   diagnosis; VERIFIED or IN_PROGRESS records never authorize an online rollout.
+   diagnosis. Retry completion with the same cutover ID after a failed resume;
+   readiness and smoke run again. RESERVED, VERIFIED and IN_PROGRESS records
+   never authorize another begin or an online rollout. If reservation/pause
+   failed, diagnose the publisher state and exact owner before recovery; do not
+   bypass an occupied receipt by choosing another URI for the same deployment.
 
 The workflow identity needs existing read access to deployment state, EDPA operator
 TLS secrets and sync leases, plus write/delete confined to receipt and synthetic

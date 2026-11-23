@@ -37,7 +37,7 @@ def scope_id(manifest):
     ).encode()).hexdigest()
 
 
-def control(url, action, manifest, execute=subprocess.run, opener=urllib.request.urlopen):
+def control(url, action, manifest, owner_id, execute=subprocess.run, opener=urllib.request.urlopen):
     """The publisher-owned control must attest its complete scope; stopping workers is not pause."""
     parsed = urllib.parse.urlparse(url)
     require(parsed.scheme == "https" and parsed.netloc and not parsed.username and not parsed.password,
@@ -47,15 +47,46 @@ def control(url, action, manifest, execute=subprocess.run, opener=urllib.request
     require(bool(identity), "Control identity unavailable")
     payload = json.dumps({"action": action, "scope": {
         "providers": manifest["providers"], "queues": manifest["queues"]},
-        "scope_id": scope_id(manifest), "request_id": str(uuid.uuid4())}).encode()
+        "scope_id": scope_id(manifest), "owner_id": owner_id,
+        "request_id": str(uuid.uuid5(uuid.NAMESPACE_URL, owner_id + ":" + action))}).encode()
     request = urllib.request.Request(url, data=payload, method="POST",
                                      headers={"Authorization": "Bearer " + identity,
                                               "Content-Type": "application/json"})
     with opener(request, timeout=30) as response:
         value = json.load(response)
+    require(value.get("owner_id") == owner_id, "Control belongs to another cutover owner")
     require(value.get("scope_id") == scope_id(manifest), "Control attested another scope")
     require(value.get("paused") is (action == "pause"), "Publisher/backfill control not confirmed")
     return value
+
+
+def claim_receipt(mode, manifest, previous, generation, write, ready=check_compatibility):
+    """Reserve exclusive ownership before any publisher pause or component mutation."""
+    require(mode in ("maintenance", "online"), "Unknown cutover mode")
+    if generation:
+        require(isinstance(previous, dict) and previous.get("status") == "READY",
+                "Another cutover/recovery owns this receipt")
+        require(previous.get("scope_id") == scope_id(manifest) and
+                all(previous.get(k) == manifest.get(k) for k in ("project", "region")),
+                "Receipt belongs to another deployment")
+    else:
+        require(mode == "maintenance" and previous is None, "Online requires preceding evidence")
+    if mode == "online":
+        ready(manifest["project"], manifest["region"], manifest, previous)
+    owner_id = str(uuid.uuid4())
+    reserved = dict(manifest, status="RESERVED", request_id=owner_id,
+                    scope_id=scope_id(manifest), mode=mode, started_at=int(time.time()))
+    return owner_id, write(reserved, generation)
+
+
+def resume_owned(manifest, journal, generation, read_generation, read, publish):
+    observed = read_generation()
+    require(observed == generation, "Receipt owner changed before resume")
+    current = read(observed)
+    require(current.get("status") == "VERIFIED" and
+            current.get("request_id") == journal["request_id"],
+            "Resume no longer belongs to this cutover")
+    publish(journal["request_id"])
 
 
 def begin(mode, manifest, receipt, pause, preflight, ready=check_compatibility):
@@ -80,7 +111,7 @@ def begin(mode, manifest, receipt, pause, preflight, ready=check_compatibility):
 
 
 def complete(manifest, journal, image_tag, readiness, smoke, resume, checkpoint=lambda _: None):
-    require(journal.get("status") == "IN_PROGRESS" and journal.get("scope_id") == scope_id(manifest),
+    require(journal.get("status") in ("IN_PROGRESS", "VERIFIED") and journal.get("scope_id") == scope_id(manifest),
             "No matching checked cutover boundary")
     require(all(journal.get(k) == manifest.get(k) for k in ("project", "region", "contract_id")),
             "Deployment/config contract changed during cutover")
@@ -97,7 +128,8 @@ def complete(manifest, journal, image_tag, readiness, smoke, resume, checkpoint=
             result.get("decrypted_records") > 0 and result.get("cleanup_complete") is True,
             "Concurrent-write/sidecar smoke did not prove successful publication")
     verified = dict(manifest, status="VERIFIED", scope_id=scope_id(manifest), image_tag=image_tag,
-                    smoke=result, request_id=journal["request_id"])
+                    smoke=result, request_id=journal["request_id"], mode=journal["mode"],
+                    started_at=journal["started_at"])
     checkpoint(verified)
     if journal["mode"] == "maintenance":
         resume()
@@ -124,18 +156,49 @@ def get_object(uri, generation=None, execute=subprocess.run):
     return json.loads(result.stdout)
 
 
-def put_object(uri, value, expected_generation, execute=subprocess.run):
-    require(uri.startswith("gs://") and "/rollout/" in uri, "Unsafe receipt namespace")
+def put_object(uri, value, expected_generation, execute=subprocess.run, opener=urllib.request.urlopen):
+    """Return the generation from this exact conditional write, never a later latest-object read."""
+    parsed = urllib.parse.urlparse(uri)
+    require(parsed.scheme == "gs" and parsed.netloc and "/rollout/" in uri and
+            not parsed.fragment and not parsed.query, "Unsafe receipt namespace")
     require(isinstance(expected_generation, int) and expected_generation >= 0,
-            "A precise preceding receipt generation is required")
-    with tempfile.TemporaryDirectory() as folder:
-        path = Path(folder) / "receipt.json"
-        path.write_text(json.dumps(value, sort_keys=True))
-        execute(["gcloud", "storage", "cp", str(path), uri,
-                 "--if-generation-match=" + str(expected_generation)], check=True, timeout=30)
-        return object_generation(uri, execute)
+            "Precise preceding generation required")
+    token = execute(["gcloud", "auth", "print-access-token"], check=True,
+                    capture_output=True, text=True, timeout=30).stdout.strip()
+    require(token, "Storage identity unavailable")
+    url = "https://storage.googleapis.com/upload/storage/v1/b/" + urllib.parse.quote(parsed.netloc, safe="") + "/o?"
+    url += urllib.parse.urlencode({"uploadType": "media", "name": parsed.path.lstrip("/"),
+                                  "ifGenerationMatch": expected_generation})
+    request = urllib.request.Request(url, data=json.dumps(value, sort_keys=True).encode(), method="POST",
+                                    headers={"Authorization": "Bearer " + token,
+                                             "Content-Type": "application/json"})
+    with opener(request, timeout=30) as response:
+        metadata = json.load(response)
+    require(metadata.get("bucket") == parsed.netloc and metadata.get("name") == parsed.path.lstrip("/"),
+            "Write returned another object")
+    generation = int(metadata["generation"])
+    require(generation > expected_generation, "Conditional write generation unavailable")
+    return generation
 
 
+def shared_platform_inputs(tree):
+    """Complete source/build/API/schema/config/deployment boundary for shared quiescence."""
+    # Only explicitly EDPA-specific implementation/schema directories may be excluded.
+    # Shared APIs, internal protos, all deployment/configuration and dependency inputs remain.
+    isolated = (
+        "src/main/kotlin/org/wfanet/measurement/edpaggregator/",
+        "src/main/proto/wfa/measurement/edpaggregator/",
+        "src/main/proto/wfa/measurement/internal/edpaggregator/",
+        "src/main/resources/edpaggregator/",
+    )
+    output = []
+    for line in tree.splitlines():
+        path = line.split("\t", 1)[1]
+        if path.startswith(("src/main/", ".github/", "tools/")) or path in (
+            "MODULE.bazel", "MODULE.bazel.lock", ".bazelrc", "WORKSPACE", "WORKSPACE.bazel"):
+            if not path.startswith(isolated):
+                output.append(line)
+    return output
 
 def prepare_manifest(manifest, config_file, execute=subprocess.run):
     require(config_file, "Committed provider config is required")
@@ -146,14 +209,7 @@ def prepare_manifest(manifest, config_file, execute=subprocess.run):
     value = dict(manifest, **json.loads(result.stdout.splitlines()[-1]))
     tree = execute(["git", "ls-tree", "-r", "HEAD"], check=True, capture_output=True,
                    text=True, timeout=30).stdout
-    selected = [line for line in tree.splitlines() if line.split("\t", 1)[1].startswith((
-        "src/main/kotlin/org/wfanet/measurement/securecomputation/",
-        "src/main/kotlin/org/wfanet/measurement/kingdom/",
-        "src/main/kotlin/org/wfanet/measurement/duchy/",
-        "src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/",
-        "src/main/kotlin/org/wfanet/measurement/dataprovider/",
-        "src/main/proto/wfa/measurement/securecomputation/")) or
-        line.split("\t", 1)[1] in ("MODULE.bazel", "MODULE.bazel.lock")]
+    selected = shared_platform_inputs(tree)
     value["shared_code_id"] = hashlib.sha256("\n".join(selected).encode()).hexdigest()
     scope_id(value)
     return value
@@ -213,7 +269,9 @@ def main():
     if args.phase == "begin":
         require(not args.new_receipt or args.mode == "maintenance", "Online requires preceding evidence")
         generation = 0 if args.new_receipt else object_generation(args.receipt_uri)
-        receipt = get_object(args.receipt_uri, generation) if args.mode == "online" else None
+        receipt = get_object(args.receipt_uri, generation) if generation else None
+        owner_id, generation = claim_receipt(args.mode, manifest, receipt, generation,
+            lambda value, expected: put_object(args.receipt_uri, value, expected))
         with tempfile.TemporaryDirectory() as folder:
             argv_file = Path(folder) / "arguments.json"
             def preflight():
@@ -224,7 +282,9 @@ def main():
                 return command(str(argv_file),
                   "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingRolloutCheck")
             journal = begin(args.mode, manifest, receipt,
-                            lambda: control(args.intake_control_url, "pause", manifest), preflight)
+                            lambda: control(args.intake_control_url, "pause", manifest, owner_id), preflight,
+                            ready=lambda *_: None)
+        journal["request_id"] = owner_id
         put_object(args.receipt_uri, journal, generation)
         print(json.dumps(dict(journal, manifest=manifest)))
     else:
@@ -239,11 +299,15 @@ def main():
         def readiness():
             check(manifest["project"], manifest["region"], args.image_tag)
             check_functions(manifest["project"], manifest["region"], manifest)
+        def resume():
+            resume_owned(manifest, journal, current_generation[0],
+                lambda: object_generation(args.receipt_uri),
+                lambda observed: get_object(args.receipt_uri, observed),
+                lambda owner: control(args.intake_control_url, "resume", manifest, owner))
         receipt = complete(manifest, journal, args.image_tag, readiness,
                            lambda: command(args.smoke_arguments,
                             "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingPublicationSmoke"),
-                           lambda: control(args.intake_control_url, "resume", manifest),
-                           checkpoint)
+                           resume, checkpoint)
         put_object(args.receipt_uri, receipt, current_generation[0])
         print(json.dumps(receipt))
 
