@@ -78,7 +78,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
-objectSets: [defaultNetworkPolicies] + [for objectSet in kingdom {objectSet}]
+objectSets: [defaultNetworkPolicies] + [ for objectSet in kingdom {objectSet}]
 
 kingdom: #Kingdom & {
 	_kingdom_secret_name: _secret_name
