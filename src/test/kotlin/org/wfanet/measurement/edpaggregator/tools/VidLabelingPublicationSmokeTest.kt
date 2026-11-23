@@ -68,7 +68,7 @@ class VidLabelingPublicationSmokeTest {
       val client =
         object : ConditionalOperationStorageClient by backend {
           override suspend fun writeBlobIfNotFound(
-            key: String,
+            blobKey: String,
             content: Flow<ByteString>,
           ): StorageClient.Blob {
             throw IOException("injected data write failure")
