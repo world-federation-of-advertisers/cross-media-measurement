@@ -507,21 +507,15 @@ and `--only-if-needed` cannot reuse a dataset without the stress keys. Deploy th
 additive BigQuery `device_type` and `parental_status` columns and updated event
 descriptor with the normal CMMS workflow before running the updated seeder.
 
-These fields mirror Aquila's version-4 additions, including all five device
-values.
-
-| Aquila field | Testing field | Coverage |
-| --- | --- | --- |
-| `common.sex` | `common.gender` | Male and female |
-| `common.age_group` | Same path | All three age groups |
-| `common.us_state` (v4) | Same path | All 50 reached states; positive-population DC control |
-| `common.device_type` (v4) | Same path | Desktop, mobile, tablet, TV, other |
-| `common.parental_status` (v4) | Same path | Parent and not parent, fixed per VID |
-| `common.media_type` | Same path | Video/display mix per normal entity key and device |
-
-The testing template retains its own version-1 annotations. The state
-enum also defines DC: its population is positive, but the fixture intentionally
-reaches the 50 states only.
+| Testing field | Meaning and coverage |
+| --- | --- |
+| `common.gender` | Male and female |
+| `common.age_group` | All three age groups |
+| `common.us_state` | All 50 reached states, with DC as a positive-population, zero-impression control |
+| `common.device_type` | Desktop, mobile, tablet, TV, and other |
+| `common.parental_status` | Parent and not parent, fixed per VID |
+| `common.media_type` | Video and display on every device within each normal entity key |
+| `common.signed_in` | Both values, with separate filtered report panels |
 
 `EdpAggregatorMetadataScaleTest` checks the deployed metadata service using its
 normal 4 MiB response limit. It filters by all 10,000 extra keys for each EDP,
@@ -533,6 +527,13 @@ matches the sidecars, including all 5,000 additional keys and version-pinning
 fields. The reporting cloud tests then verify fulfillment over these same blobs.
 Run `Seed High Overlap Dataset` with force refresh before
 `Run EDPA Reporting Integration Test`; do not reseed during another cloud test.
+
+The in-process `ImpressionDataSourceProviderTest` regression uses 16 blobs with
+5,000 additional keys each, served over a real loopback gRPC transport. The FULL
+response exceeds 4 MiB and fails with `RESOURCE_EXHAUSTED` under the normal
+receive limit. The production provider succeeds by requesting BASIC and recovers
+all 80,000 keys from the sidecars. The deployed cloud audit uses smaller pages;
+those pages do not themselves reproduce the oversized FULL response.
 
 ### Full report scale test
 
@@ -555,13 +556,29 @@ also requests ordered incremental contributions. The API permits those
 contributions only for total-period groups. Only person-attribute groups request
 population denominators.
 
-The test checks every cell, period, filter, and component, and every demographic
-population denominator. Seven reference cells are replayed independently against
-the source specs, including DC's zero-impression control. Device/media reach for
-the full interval and each signed-in filter is checked by merging source VID
-intervals, avoiding an impression-by-impression replay of the entire dataset.
-This also checks the last cumulative week. The test records the report resource,
-result count, and serialized response size for later tracing.
+The test checks every cell, period, filter, and demographic population
+denominator. Across the complete matrix, it checks the presence of requested
+cumulative/non-cumulative metric messages, K+ vector lengths, four total
+demographic incremental contributions, and each component's requested metrics.
+Scalar zero values are valid and have no protobuf presence. Average frequency
+and percent reach are also checked against the returned counts and denominator.
+
+Source-derived numerical checks replay seven demographic reference cells,
+including DC's zero-impression control. They cover every requested weekly and
+total metric, including impressions, average frequency, percent reach, and
+component reach. Impressions are clipped separately per EDP, as required by the
+metric configuration. Counts allow the configured noise; sparse cells use the
+derived ratio check when a truth-based average frequency would be unstable.
+
+Three device/media references (`DESKTOP/VIDEO`, `TV/DISPLAY`, `OTHER/DISPLAY`)
+cover earlier weekly values, K+ reach, impressions, average frequency, component
+reach, and signed-in/out totals. They include populated AMI/display results and
+MRC video zero controls. Full-flight union reach is additionally checked for
+every device/media cell and signed-in filter by merging source VID intervals;
+this also checks the last cumulative week without replaying the entire dataset.
+The test records the report resource, result count, serialized response size,
+and comparison results for later tracing. Focused regressions reject missing
+metrics and corrupt earlier weeks, component values, total counts, and ratios.
 
 The test is opt-in because creation, response size, and fulfillment at this scale
 remain benchmark targets. Ordinary cloud runs keep the two existing smaller

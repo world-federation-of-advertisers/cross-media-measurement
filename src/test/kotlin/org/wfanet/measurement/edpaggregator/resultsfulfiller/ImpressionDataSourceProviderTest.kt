@@ -23,10 +23,14 @@ import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.netty.NettyChannelBuilder
+import io.grpc.netty.NettyServerBuilder
 import java.io.File
+import java.net.InetSocketAddress
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -54,8 +58,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataView
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.SelectedStorageClient
@@ -946,6 +952,130 @@ class ImpressionDataSourceProviderTest {
       assertThat(sources).hasSize(1)
       assertThat(attempts.get()).isEqualTo(3)
     }
+
+  @Test
+  fun `listImpressionDataSources succeeds within default receive limit when FULL metadata exceeds it`():
+    Unit = runBlocking {
+    val bucketName = "large-metadata"
+    val storageClient = FileSystemStorageClient(tmp.newFolder(bucketName))
+    val period = interval {
+      startTime = timestamp { seconds = 1 }
+      endTime = timestamp { seconds = 2 }
+    }
+    val detailsByKey =
+      (0 until 16).associate { blobIndex ->
+        "metadata-$blobIndex.binpb" to
+          blobDetails {
+            blobUri = "file:///impressions/blob-$blobIndex"
+            encryptedDek = EncryptedDek.getDefaultInstance()
+            entityKeys += entityKeyGroup {
+              entityType = "campaign"
+              entityIds += "requested-campaign"
+            }
+            entityKeys += entityKeyGroup {
+              entityType = "ad-unit"
+              entityIds +=
+                (0 until 5_000).map { keyIndex ->
+                  "scale-high-overlap-all4-edpa_video_pub-$blobIndex-$keyIndex"
+                }
+            }
+          }
+      }
+    val full = listImpressionMetadataResponse {
+      for ((key, details) in detailsByKey) {
+        storageClient.writeBlob(key, details.toByteString())
+        impressionMetadata += impressionMetadata {
+          state = ImpressionMetadata.State.ACTIVE
+          blobUri = "file:///$bucketName/$key"
+          interval = period
+          entityKeys +=
+            details.entityKeysList.flatMap { group ->
+              group.entityIdsList.map { id ->
+                entityKey {
+                  entityType = group.entityType
+                  entityId = id
+                }
+              }
+            }
+        }
+      }
+    }
+    val basic = listImpressionMetadataResponse {
+      impressionMetadata +=
+        full.impressionMetadataList.map { it.toBuilder().clearEntityKeys().build() }
+    }
+    assertThat(full.serializedSize).isGreaterThan(4 * 1024 * 1024)
+    assertThat(basic.serializedSize).isLessThan(100 * 1024)
+    println(
+      "Metadata receive-limit regression: full_bytes=${full.serializedSize} basic_bytes=${basic.serializedSize}"
+    )
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer { invocation ->
+      val request: ListImpressionMetadataRequest = invocation.getArgument(0)
+      if (request.view == ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC) basic else full
+    }
+    // Loopback HTTP/2 serializes messages and enforces the normal 4 MiB receive limit.
+    val server =
+      NettyServerBuilder.forAddress(InetSocketAddress("127.0.0.1", 0))
+        .addService(impressionMetadataServiceMock)
+        .build()
+        .start()
+    val channel = NettyChannelBuilder.forAddress("127.0.0.1", server.port).usePlaintext().build()
+    try {
+      val stub =
+        ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel)
+          .withDeadlineAfter(30, TimeUnit.SECONDS)
+      val failure =
+        assertFailsWith<StatusException> {
+          stub.listImpressionMetadata(
+            listImpressionMetadataRequest {
+              parent = "dataProviders/123"
+              pageSize = 1000
+              view = ImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL
+            }
+          )
+        }
+      assertThat(failure.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+      val provider =
+        ImpressionDataSourceProvider(
+          impressionMetadataStub = stub,
+          dataProvider = "dataProviders/123",
+          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        )
+      val sources =
+        provider.listImpressionDataSources(
+          modelLine = modelLine,
+          eventGroups = listOf(entityEventGroup("campaign", "requested-campaign", period)),
+        )
+      assertThat(sources)
+        .containsExactlyElementsIn(
+          detailsByKey.values.map { details ->
+            ImpressionDataSource(modelLine, period, details, blobGeneration = 0L)
+          }
+        )
+        .inOrder()
+      assertThat(
+          sources
+            .flatMap { it.blobDetails.entityKeysList }
+            .filter { it.entityType == "ad-unit" }
+            .sumOf { it.entityIdsCount }
+        )
+        .isEqualTo(80_000)
+      val captor = argumentCaptor<ListImpressionMetadataRequest>()
+      verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(captor.capture())
+      assertThat(captor.allValues.map { it.view })
+        .containsExactly(
+          ImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL,
+          ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC,
+        )
+        .inOrder()
+      assertThat(captor.lastValue.pageSize).isEqualTo(1000)
+      assertThat(captor.lastValue.filter.entityKeysList.map { it.entityId })
+        .containsExactly("requested-campaign")
+    } finally {
+      channel.shutdownNow().awaitTermination(5, TimeUnit.SECONDS)
+      server.shutdownNow().awaitTermination(5, TimeUnit.SECONDS)
+    }
+  }
 
   @Test
   fun `listImpressionDataSources requests BASIC view on every page`() = runBlocking {

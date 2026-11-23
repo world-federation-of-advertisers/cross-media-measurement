@@ -286,6 +286,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/integration/common:high_overlap_data_availability",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:high_overlap_dataset",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
+        "//src/main/kotlin/org/wfanet/measurement/integration/testing:basic_report_metric_assertions",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:impression_writer",

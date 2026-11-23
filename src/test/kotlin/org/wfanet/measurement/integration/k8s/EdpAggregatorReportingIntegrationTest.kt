@@ -72,6 +72,9 @@ import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach.ExpectedMetrics
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.integration.testing.BasicReportMetricAssertions
+import org.wfanet.measurement.integration.testing.BasicReportMetricAssertions.MetricRanges
+import org.wfanet.measurement.integration.testing.BasicReportMetricAssertions.ResultRanges
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -384,14 +387,15 @@ class EdpAggregatorReportingIntegrationTest {
         buildResultGroupSpecs = ::buildScaleResultGroupSpecs,
       )
     assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    assertScaleReport(report)
     logger.info(
       "Scale report: name=${report.name} edps=${scaleComponentEdpNames.size} " +
         "weeks=$SCALE_PERIOD_COUNT results=${report.resultGroupsList.sumOf { it.resultsCount }} " +
         "response_proto_bytes=${report.serializedSize}"
     )
+    assertScaleReport(report)
   }
 
+  private lateinit var scaleSpecsByTitle: Map<String, ResultGroupSpec>
   private lateinit var scaleComponentEdpNames: List<String>
   private lateinit var scaleEdpNameByDataProvider: Map<String, String>
 
@@ -406,58 +410,59 @@ class EdpAggregatorReportingIntegrationTest {
       }
     scaleComponentEdpNames = providers.map { scaleEdpNameByDataProvider.getValue(it) }
     return SCALE_GROUPS.map { (title, fields, total, signedIn) ->
-      val populationFields = fields == SCALE_POPULATION_FIELDS
-      resultGroupSpec {
-        this.title = title
-        reportingUnit = reportingUnit { components += providers }
-        metricFrequency = metricFrequencySpec {
-          if (total) this.total = true else weekly = DayOfWeek.WEDNESDAY
-        }
-        dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += fields }
-          if (signedIn != null) {
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "common.signed_in"
-                value = EventTemplateFieldKt.fieldValue { boolValue = signedIn }
+        val populationFields = fields == SCALE_POPULATION_FIELDS
+        resultGroupSpec {
+          this.title = title
+          reportingUnit = reportingUnit { components += providers }
+          metricFrequency = metricFrequencySpec {
+            if (total) this.total = true else weekly = DayOfWeek.WEDNESDAY
+          }
+          dimensionSpec = dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += fields }
+            if (signedIn != null) {
+              filters += eventFilter {
+                terms += eventTemplateField {
+                  path = "common.signed_in"
+                  value = EventTemplateFieldKt.fieldValue { boolValue = signedIn }
+                }
               }
             }
           }
-        }
-        resultGroupMetricSpec = resultGroupMetricSpec {
-          // Population denominators use person attributes, rather than device or media fields.
-          populationSize = populationFields
-          reportingUnit =
-            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-              cumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  percentReach = populationFields
-                  if (total) {
-                    kPlusReach = K_PLUS_REACH
-                    impressions = true
-                    averageFrequency = true
-                  }
-                }
-              if (!total) {
-                nonCumulative =
+          resultGroupMetricSpec = resultGroupMetricSpec {
+            // Population denominators use person attributes, rather than device or media fields.
+            populationSize = populationFields
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative =
                   ResultGroupMetricSpecKt.basicMetricSetSpec {
                     reach = true
-                    kPlusReach = K_PLUS_REACH
-                    impressions = true
-                    averageFrequency = true
+                    percentReach = populationFields
+                    if (total) {
+                      kPlusReach = K_PLUS_REACH
+                      impressions = true
+                      averageFrequency = true
+                    }
                   }
+                if (!total) {
+                  nonCumulative =
+                    ResultGroupMetricSpecKt.basicMetricSetSpec {
+                      reach = true
+                      kPlusReach = K_PLUS_REACH
+                      impressions = true
+                      averageFrequency = true
+                    }
+                }
+                stackedIncrementalReach = total && populationFields
               }
-              stackedIncrementalReach = total && populationFields
-            }
-          component =
-            ResultGroupMetricSpecKt.componentMetricSetSpec {
-              if (total) cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
-              else nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
-            }
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                if (total) cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                else nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+              }
+          }
         }
       }
-    }
+      .also { specs -> scaleSpecsByTitle = specs.associateBy { it.title } }
   }
 
   private fun scalePopulationKey(common: Common): String =
@@ -496,13 +501,42 @@ class EdpAggregatorReportingIntegrationTest {
     )
   }
 
-  /**
-   * Checks every series and population denominator, plus replayed values for seven reference cells.
-   */
+  private val scaleExpectedDeviceWeekly by lazy {
+    HighOverlapExpectedReach.computeWeeklyRangesByDeviceAndMedia(
+      PROVISIONED_CONFIG,
+      SCALE_REPORT_EVENT_GROUP_REF_IDS,
+      POPULATION_SPEC,
+      SCALE_REPORT_START,
+      SCALE_PERIOD_COUNT,
+      BASIC_REPORT_METRIC_SPEC_CONFIG,
+      K_PLUS_REACH,
+      SCALE_DEVICE_REFERENCE_CELLS,
+    )
+  }
+
+  private val scaleExpectedSignedDeviceTotal by lazy {
+    listOf(true, false).associateWith { signedIn ->
+      HighOverlapExpectedReach.computeWholeIntervalMetricsByDeviceAndMedia(
+        PROVISIONED_CONFIG,
+        SCALE_REPORT_EVENT_GROUP_REF_IDS,
+        scaleComponentEdpNames,
+        POPULATION_SPEC,
+        SCALE_REPORT_START,
+        SCALE_REPORT_END,
+        BASIC_REPORT_METRIC_SPEC_CONFIG,
+        K_PLUS_REACH,
+        SCALE_DEVICE_REFERENCE_CELLS,
+        signedIn,
+      )
+    }
+  }
+
+  /** Checks every requested metric's structure, plus source-derived values for reference cells. */
   private fun assertScaleReport(report: BasicReport) {
     assertThat(report.resultGroupsList.map { it.title })
       .containsExactlyElementsIn(SCALE_GROUPS.map { it.title })
     val comparisons = mutableListOf<MetricComparison>()
+    var numericComparisons = 0
     val deviceExpectations =
       listOf(null, true, false).associateWith { signedIn ->
         HighOverlapExpectedReach.computeWholeIntervalRangesByDeviceAndMedia(
@@ -516,6 +550,7 @@ class EdpAggregatorReportingIntegrationTest {
       }
     for ((title, fields, total, signedIn) in SCALE_GROUPS) {
       val group = resultGroupOf(report, title)
+      val requested = scaleSpecsByTitle.getValue(title)
       val populationFields = fields == SCALE_POPULATION_FIELDS
       val expectedCells =
         if (populationFields) scalePopulationIndex.keys
@@ -548,122 +583,109 @@ class EdpAggregatorReportingIntegrationTest {
             .that(ordered)
             .hasSize(if (total) 1 else SCALE_PERIOD_COUNT)
           ordered.forEachIndexed { week, result ->
-            val end = if (total) SCALE_REPORT_END else SCALE_REPORT_START.plusWeeks(week + 1L)
-            assertThat(result.metadata.metricEndTime.seconds)
-              .isEqualTo(end.atStartOfDay(ZONE_ID).toInstant().epochSecond)
-            assertThat(result.metricSet.componentsList.map { it.key })
-              .containsExactlyElementsIn(scaleEdpNameByDataProvider.keys)
-            if (!populationFields) {
-              if (total || week == SCALE_PERIOD_COUNT - 1) {
-                comparisons +=
-                  MetricComparison(
-                    "$title $cell/$filter full-flight reach",
-                    result.metricSet.reportingUnit.cumulative.reach.toDouble(),
-                    deviceExpectations.getValue(signedIn).getValue(cell).getValue(filter),
-                  )
-              }
-              return@forEachIndexed
-            }
-            assertThat(result.metricSet.populationSize)
-              .isEqualTo(scalePopulationIndex.populationSizeByKey.getValue(cell))
-            if (cell !in SCALE_REFERENCE_CELLS) return@forEachIndexed
             val prefix = "$title $cell/$filter week=$week"
-            val metrics = result.metricSet.reportingUnit
-            if (total) {
-              val expected = scaleExpectedTotal.getValue(cell).getValue(filter)
+            val end = if (total) SCALE_REPORT_END else SCALE_REPORT_START.plusWeeks(week + 1L)
+            assertWithMessage("$prefix period end")
+              .that(result.metadata.metricEndTime.seconds)
+              .isEqualTo(end.atStartOfDay(ZONE_ID).toInstant().epochSecond)
+            if (populationFields) {
+              assertWithMessage("$prefix population")
+                .that(result.metricSet.populationSize)
+                .isEqualTo(scalePopulationIndex.populationSizeByKey.getValue(cell))
+            }
+            // This runs for every cell, including those without a numerical replay. Scalar
+            // fields have no protobuf presence; zero is valid, so check messages and vectors.
+            val expected =
+              scaleReferenceRanges(populationFields, total, signedIn, cell, filter, week)
+            numericComparisons +=
+              BasicReportMetricAssertions.assertMatches(
+                result.metricSet,
+                requested.resultGroupMetricSpec,
+                requested.reportingUnit.componentsList,
+                prefix,
+                expected,
+              )
+            if (!populationFields && (total || week == SCALE_PERIOD_COUNT - 1)) {
               comparisons +=
                 MetricComparison(
-                  "$prefix reach",
-                  metrics.cumulative.reach.toDouble(),
-                  expected.reach,
+                  "$prefix full-flight reach",
+                  result.metricSet.reportingUnit.cumulative.reach.toDouble(),
+                  deviceExpectations.getValue(signedIn).getValue(cell).getValue(filter),
                 )
-              assertThat(metrics.cumulative.kPlusReachList).hasSize(K_PLUS_REACH)
-              expected.kPlusReach.forEachIndexed { index, range ->
-                comparisons +=
-                  MetricComparison(
-                    "$prefix ${index + 1}+ reach",
-                    metrics.cumulative.kPlusReachList[index].toDouble(),
-                    range,
-                  )
-              }
-              assertThat(metrics.stackedIncrementalReachList).hasSize(4)
-              expected.stackedIncrementalReach.forEachIndexed { index, range ->
-                comparisons +=
-                  MetricComparison(
-                    "$prefix incremental ${scaleComponentEdpNames[index]}",
-                    metrics.stackedIncrementalReachList[index].toDouble(),
-                    range,
-                  )
-              }
-            } else {
-              val expected = scaleExpectedWeekly.getValue(cell).getValue(filter)[week]
-              comparisons +=
-                MetricComparison(
-                  "$prefix cumulative reach",
-                  metrics.cumulative.reach.toDouble(),
-                  expected.cumulative.reach,
-                )
-              comparisons +=
-                MetricComparison(
-                  "$prefix percent reach",
-                  metrics.cumulative.percentReach.toDouble(),
-                  expected.cumulativePercentReach,
-                )
-              comparisons +=
-                MetricComparison(
-                  "$prefix weekly reach",
-                  metrics.nonCumulative.reach.toDouble(),
-                  expected.nonCumulative.reach,
-                )
-              comparisons +=
-                MetricComparison(
-                  "$prefix impressions",
-                  metrics.nonCumulative.impressions.toDouble(),
-                  expected.nonCumulativeImpressions,
-                )
-              // A ratio of two noised zero counts need not equal zero in an unreached week.
-              if (
-                expected.nonCumulative.reach.start + expected.nonCumulative.reach.endInclusive > 0.0
-              ) {
-                comparisons +=
-                  MetricComparison(
-                    "$prefix average frequency",
-                    metrics.nonCumulative.averageFrequency.toDouble(),
-                    expected.nonCumulativeAverageFrequency,
-                  )
-              }
-              assertThat(metrics.nonCumulative.kPlusReachList).hasSize(K_PLUS_REACH)
-              expected.nonCumulative.kPlusReach.forEachIndexed { index, range ->
-                comparisons +=
-                  MetricComparison(
-                    "$prefix weekly ${index + 1}+ reach",
-                    metrics.nonCumulative.kPlusReachList[index].toDouble(),
-                    range,
-                  )
-              }
-              for (component in result.metricSet.componentsList) {
-                comparisons +=
-                  MetricComparison(
-                    "$prefix component ${component.key}",
-                    component.value.nonCumulative.reach.toDouble(),
-                    expected.componentNonCumulativeReach.getValue(
-                      scaleEdpNameByDataProvider.getValue(component.key)
-                    ),
-                  )
-              }
             }
           }
         }
       }
     }
     val outOfRange = comparisons.filter { !it.inRange }
-    logger.info("Scale references: compared=${comparisons.size} outside_range=${outOfRange.size}")
+    logger.info(
+      "Scale metrics: compared=${numericComparisons + comparisons.size} " +
+        "full_flight_outside_range=${outOfRange.size}"
+    )
     assertWithMessage(
         outOfRange.joinToString("\n", prefix = "Scale metrics outside expected ranges:\n")
       )
       .that(outOfRange)
       .isEmpty()
   }
+
+  private fun scaleReferenceRanges(
+    populationFields: Boolean,
+    total: Boolean,
+    signedIn: Boolean?,
+    cell: String,
+    filter: String,
+    week: Int,
+  ): ResultRanges {
+    if (
+      populationFields && cell !in SCALE_REFERENCE_CELLS ||
+        !populationFields && cell !in SCALE_DEVICE_REFERENCE_CELLS
+    )
+      return ResultRanges()
+    if (total) {
+      val expected =
+        when {
+          populationFields -> scaleExpectedTotal.getValue(cell).getValue(filter)
+          signedIn != null ->
+            scaleExpectedSignedDeviceTotal.getValue(signedIn).getValue(cell).getValue(filter)
+          else -> scaleExpectedDeviceWeekly.getValue(cell).getValue(filter).last().cumulative
+        }
+      return ResultRanges(
+        cumulative =
+          MetricRanges(
+            reach = expected.reach,
+            kPlusReach = expected.kPlusReach,
+            impressions = expected.impressions,
+            averageFrequency = expected.averageFrequency,
+            percentReach = if (populationFields) expected.percentReach else null,
+          ),
+        componentCumulativeReach = componentRangesByProvider(expected.componentReach),
+        stackedIncrementalReach = if (populationFields) expected.stackedIncrementalReach else null,
+      )
+    }
+    val expected =
+      (if (populationFields) scaleExpectedWeekly else scaleExpectedDeviceWeekly)
+        .getValue(cell)
+        .getValue(filter)[week]
+    return ResultRanges(
+      cumulative =
+        MetricRanges(
+          reach = expected.cumulative.reach,
+          percentReach = if (populationFields) expected.cumulativePercentReach else null,
+        ),
+      nonCumulative =
+        MetricRanges(
+          reach = expected.nonCumulative.reach,
+          kPlusReach = expected.nonCumulative.kPlusReach,
+          impressions = expected.nonCumulativeImpressions,
+          averageFrequency = expected.nonCumulativeAverageFrequency,
+        ),
+      componentNonCumulativeReach = componentRangesByProvider(expected.componentNonCumulativeReach),
+    )
+  }
+
+  private fun componentRangesByProvider(ranges: Map<String, ClosedFloatingPointRange<Double>>) =
+    scaleEdpNameByDataProvider.mapValues { (_, edp) -> ranges.getValue(edp) }
 
   /** Component EDPs of the weekly reporting unit, in the order the request lists them. */
   private lateinit var weeklyComponentEdpNames: List<String>
@@ -1457,6 +1479,8 @@ class EdpAggregatorReportingIntegrationTest {
         ScaleGroup("Scale signed-in device and media", SCALE_EVENT_FIELDS, true, true),
         ScaleGroup("Scale signed-out device and media", SCALE_EVENT_FIELDS, true, false),
       )
+    // Populated AMI display/video cells and an MRC video zero control.
+    private val SCALE_DEVICE_REFERENCE_CELLS = setOf("DESKTOP/VIDEO", "TV/DISPLAY", "OTHER/DISPLAY")
     private val SCALE_REFERENCE_CELLS =
       setOf(
         "MALE/YEARS_18_TO_34/CALIFORNIA/NOT_PARENT",

@@ -53,6 +53,10 @@ object HighOverlapExpectedReach {
      * component adds to the union of the components before it.
      */
     val stackedIncrementalReach: List<ClosedFloatingPointRange<Double>> = emptyList(),
+    val impressions: ClosedFloatingPointRange<Double>? = null,
+    val averageFrequency: ClosedFloatingPointRange<Double>? = null,
+    val percentReach: ClosedFloatingPointRange<Double>? = null,
+    val componentReach: Map<String, ClosedFloatingPointRange<Double>> = emptyMap(),
   )
 
   /** Expected metrics for one week of a weekly series. */
@@ -240,12 +244,34 @@ object HighOverlapExpectedReach {
         reportEnd,
         selectedCells?.let { cells -> { vid: Long -> demographics.keyOf(vid) in cells } },
       )
+    return wholeIntervalRangesByCell(
+      frequenciesByEdpAndFilter,
+      componentEdpNames,
+      demographics.populationSizeByKey,
+      selectedCells ?: demographics.keys,
+      metricSpecConfig,
+      maxFrequency,
+      demographics::keyOf,
+    )
+  }
+
+  private fun wholeIntervalRangesByCell(
+    frequenciesByEdpAndFilter: Map<String, Map<String, Map<Long, Int>>>,
+    componentEdpNames: List<String>,
+    populationSizeByCell: Map<String, Long>,
+    cellsToFill: Set<String>,
+    metricSpecConfig: MetricSpecConfig,
+    maxFrequency: Int,
+    cellForVid: (Long) -> String?,
+  ): Map<String, Map<String, ExpectedMetrics>> {
     for (edpName in componentEdpNames) {
       require(frequenciesByEdpAndFilter.containsKey(edpName)) {
-        "No EventGroups for component $edpName among $eventGroupReferenceIds"
+        "No EventGroups for component $edpName in the frequency maps"
       }
     }
     val params = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
+    val componentTolerance = componentReachTolerance(metricSpecConfig)
+    val impressionParams = metricSpecConfig.impressionCountParams
     val stackedTolerance =
       STACKED_NOISE_MULTIPLIER * tolerance(params.reachPrivacyParams, params.vidSamplingInterval)
 
@@ -256,7 +282,7 @@ object HighOverlapExpectedReach {
       val unionByCell = mutableMapOf<String, MutableMap<Long, Int>>()
       for (byFilter in frequenciesByEdpAndFilter.values) {
         for ((vid, frequency) in byFilter.getValue(label)) {
-          val key = demographics.keyOf(vid) ?: continue
+          val key = cellForVid(vid) ?: continue
           val frequencies = unionByCell.getOrPut(key) { mutableMapOf() }
           frequencies[vid] = (frequencies[vid] ?: 0) + frequency
         }
@@ -268,7 +294,7 @@ object HighOverlapExpectedReach {
       for (edpName in componentEdpNames) {
         val sizeBefore: Map<String, Int> = prefixByCell.mapValues { it.value.size }
         for (vid in frequenciesByEdpAndFilter.getValue(edpName).getValue(label).keys) {
-          val key = demographics.keyOf(vid) ?: continue
+          val key = cellForVid(vid) ?: continue
           prefixByCell.getOrPut(key) { mutableSetOf() }.add(vid)
         }
         for (key in unionByCell.keys) {
@@ -278,29 +304,54 @@ object HighOverlapExpectedReach {
       }
 
       for ((key, frequencies) in unionByCell) {
-        byCell.getOrPut(key) { mutableMapOf() }[label] =
+        val basic =
           expectedMetrics(frequencies, params, maxFrequency, DEMOGRAPHIC_RELATIVE_TOLERANCE)
-            .copy(
-              populationSize = demographics.populationSizeByKey.getValue(key),
-              stackedIncrementalReach =
-                incrementsByCell.getValue(key).map { increment ->
-                  rangeAround(increment.toDouble(), stackedTolerance, STACKED_RELATIVE_TOLERANCE)
-                },
-            )
+        val perEdp =
+          frequenciesByEdpAndFilter.mapValues { (_, byFilter) ->
+            byFilter.getValue(label).filterKeys { cellForVid(it) == key }
+          }
+        val impressionCount = clippedImpressionCount(perEdp.values, impressionParams)
+        byCell.getOrPut(key) { mutableMapOf() }[label] =
+          basic.copy(
+            populationSize = populationSizeByCell.getValue(key),
+            impressions = impressionRange(impressionCount, impressionParams),
+            averageFrequency = averageFrequencyRange(impressionCount, frequencies.size),
+            percentReach = percentReach(basic.reach, populationSizeByCell.getValue(key)),
+            componentReach =
+              componentEdpNames.associateWith { edp ->
+                rangeAround(
+                  perEdp.getValue(edp).size.toDouble(),
+                  componentTolerance,
+                  DEMOGRAPHIC_RELATIVE_TOLERANCE,
+                )
+              },
+            stackedIncrementalReach =
+              incrementsByCell.getValue(key).map { increment ->
+                rangeAround(increment.toDouble(), stackedTolerance, STACKED_RELATIVE_TOLERANCE)
+              },
+          )
       }
     }
-    for (key in selectedCells.orEmpty()) {
+    for (key in cellsToFill) {
       val filters = byCell.getOrPut(key) { mutableMapOf() }
       for (label in FILTER_PREDICATES.keys) {
         filters.getOrPut(label) {
-          expectedMetrics(emptyMap(), params, maxFrequency, DEMOGRAPHIC_RELATIVE_TOLERANCE)
-            .copy(
-              populationSize = demographics.populationSizeByKey.getValue(key),
-              stackedIncrementalReach =
-                componentEdpNames.map {
-                  rangeAround(0.0, stackedTolerance, STACKED_RELATIVE_TOLERANCE)
-                },
-            )
+          val basic =
+            expectedMetrics(emptyMap(), params, maxFrequency, DEMOGRAPHIC_RELATIVE_TOLERANCE)
+          basic.copy(
+            populationSize = populationSizeByCell.getValue(key),
+            impressions = impressionRange(0L, impressionParams),
+            averageFrequency = averageFrequencyRange(0L, 0),
+            percentReach = percentReach(basic.reach, populationSizeByCell.getValue(key)),
+            componentReach =
+              componentEdpNames.associateWith {
+                rangeAround(0.0, componentTolerance, DEMOGRAPHIC_RELATIVE_TOLERANCE)
+              },
+            stackedIncrementalReach =
+              componentEdpNames.map {
+                rangeAround(0.0, stackedTolerance, STACKED_RELATIVE_TOLERANCE)
+              },
+          )
         }
       }
     }
@@ -336,9 +387,29 @@ object HighOverlapExpectedReach {
         weekCount,
         selectedCells?.let { cells -> { vid: Long -> demographics.keyOf(vid) in cells } },
       )
+    return weeklyRangesByCell(
+      weeklyFrequencies,
+      demographics.populationSizeByKey,
+      selectedCells ?: demographics.keys,
+      weekCount,
+      metricSpecConfig,
+      maxFrequency,
+      demographics::keyOf,
+    )
+  }
+
+  private fun weeklyRangesByCell(
+    weeklyFrequencies: Map<String, Map<String, MutableMap<Long, IntArray>>>,
+    populationSizeByCell: Map<String, Long>,
+    cellsToFill: Set<String>,
+    weekCount: Int,
+    metricSpecConfig: MetricSpecConfig,
+    maxFrequency: Int,
+    cellForVid: (Long) -> String?,
+  ): Map<String, Map<String, List<ExpectedWeeklyMetrics>>> {
     val params = metricSpecConfig.reachAndFrequencyParams.multipleDataProviderParams
     val impressionParams = metricSpecConfig.impressionCountParams
-    val reachTolerance = tolerance(params.reachPrivacyParams, params.vidSamplingInterval)
+    val reachTolerance = componentReachTolerance(metricSpecConfig)
 
     val byCell = mutableMapOf<String, MutableMap<String, List<ExpectedWeeklyMetrics>>>()
     for (label in FILTER_PREDICATES.keys) {
@@ -349,7 +420,7 @@ object HighOverlapExpectedReach {
       val perEdpByCell = mutableMapOf<String, MutableMap<String, MutableMap<Long, IntArray>>>()
       for ((edpName, byFilter) in weeklyFrequencies) {
         for ((vid, perWeek) in byFilter.getValue(label)) {
-          val key = demographics.keyOf(vid) ?: continue
+          val key = cellForVid(vid) ?: continue
           val merged = unionByCell.getOrPut(key) { mutableMapOf() }
           val target = merged.getOrPut(vid) { IntArray(weekCount) }
           for (week in 0 until weekCount) {
@@ -361,7 +432,7 @@ object HighOverlapExpectedReach {
       }
 
       for ((key, perVidInCell) in unionByCell) {
-        val populationSize = demographics.populationSizeByKey.getValue(key)
+        val populationSize = populationSizeByCell.getValue(key)
         // Carried across weeks so each VID's cumulative frequency is accumulated once rather than
         // re-summed for every week.
         val cumulative = mutableMapOf<Long, Int>()
@@ -382,17 +453,44 @@ object HighOverlapExpectedReach {
                 val reached = perVidInEdp.values.count { it[week] > 0 }.toDouble()
                 rangeAround(reached, reachTolerance, WEEKLY_RELATIVE_TOLERANCE)
               }
+            val perEdp =
+              weeklyFrequencies.keys.associateWith { edpName ->
+                perEdpByCell[key]?.get(edpName).orEmpty()
+              }
+            val weeklyImpressions =
+              perEdp.values.sumOf { perVid ->
+                perVid.values.sumOf { weeks -> clippedFrequency(weeks[week], impressionParams) }
+              }
+            val cumulativeImpressions =
+              perEdp.values.sumOf { perVid ->
+                perVid.values.sumOf { weeks ->
+                  clippedFrequency((0..week).sumOf { weeks[it] }, impressionParams)
+                }
+              }
             val cumulativeMetrics =
               expectedMetrics(cumulative.toMap(), params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
-                .copy(populationSize = populationSize)
+                .copy(
+                  populationSize = populationSize,
+                  impressions = impressionRange(cumulativeImpressions, impressionParams),
+                  averageFrequency = averageFrequencyRange(cumulativeImpressions, cumulative.size),
+                  componentReach =
+                    perEdp.mapValues { (_, perVid) ->
+                      rangeAround(
+                        perVid.values.count { weeks -> (0..week).any { weeks[it] > 0 } }.toDouble(),
+                        reachTolerance,
+                        WEEKLY_RELATIVE_TOLERANCE,
+                      )
+                    },
+                )
             ExpectedWeeklyMetrics(
               cumulative = cumulativeMetrics,
               nonCumulative =
                 expectedMetrics(nonCumulative, params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
                   .copy(populationSize = populationSize),
               cumulativePercentReach = percentReach(cumulativeMetrics.reach, populationSize),
-              nonCumulativeImpressions = impressions(nonCumulative, impressionParams),
-              nonCumulativeAverageFrequency = averageFrequency(nonCumulative, impressionParams),
+              nonCumulativeImpressions = impressionRange(weeklyImpressions, impressionParams),
+              nonCumulativeAverageFrequency =
+                averageFrequencyRange(weeklyImpressions, nonCumulative.size),
               componentNonCumulativeReach = componentReach,
             )
           }
@@ -400,20 +498,28 @@ object HighOverlapExpectedReach {
       }
     }
 
-    for (key in selectedCells.orEmpty()) {
+    for (key in cellsToFill) {
       val filters = byCell.getOrPut(key) { mutableMapOf() }
       for (label in FILTER_PREDICATES.keys) {
         filters.getOrPut(label) {
-          val populationSize = demographics.populationSizeByKey.getValue(key)
+          val populationSize = populationSizeByCell.getValue(key)
           val zero =
             expectedMetrics(emptyMap(), params, maxFrequency, WEEKLY_RELATIVE_TOLERANCE)
-              .copy(populationSize = populationSize)
+              .copy(
+                populationSize = populationSize,
+                impressions = impressionRange(0L, impressionParams),
+                averageFrequency = averageFrequencyRange(0L, 0),
+                componentReach =
+                  weeklyFrequencies.keys.associateWith {
+                    rangeAround(0.0, reachTolerance, WEEKLY_RELATIVE_TOLERANCE)
+                  },
+              )
           List(weekCount) {
             ExpectedWeeklyMetrics(
               cumulative = zero,
               nonCumulative = zero,
               cumulativePercentReach = percentReach(zero.reach, populationSize),
-              nonCumulativeImpressions = impressions(emptyMap(), impressionParams),
+              nonCumulativeImpressions = impressionRange(0L, impressionParams),
               nonCumulativeAverageFrequency = 0.0..0.0,
               componentNonCumulativeReach =
                 weeklyFrequencies.keys.associateWith {
@@ -428,7 +534,7 @@ object HighOverlapExpectedReach {
     // The report returns a result per (cell, filter) whether or not the dataset reaches anyone
     // there, so a cell missing a filter would otherwise surface as a lookup failure at assertion
     // time rather than as the dataset gap it is.
-    for (key in selectedCells ?: demographics.keys) {
+    for (key in cellsToFill) {
       val byFilter = byCell[key]
       require(byFilter != null && byFilter.keys.containsAll(FILTER_PREDICATES.keys)) {
         "No weekly expectations for cell $key under filters " +
@@ -451,6 +557,7 @@ object HighOverlapExpectedReach {
     reportStart: LocalDate,
     weekCount: Int,
     keepVidRange: ((Long) -> Boolean)? = null,
+    keepEventRange: ((SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean)? = null,
   ): Map<String, Map<String, MutableMap<Long, IntArray>>> {
     val reportEnd = reportStart.plusWeeks(weekCount.toLong())
     val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
@@ -472,7 +579,12 @@ object HighOverlapExpectedReach {
               entityKeySpec.dataSpecResourcePath
             )
             .let { source ->
-              if (keepVidRange == null) source else selectVidRanges(source, keepVidRange)
+              if (keepVidRange == null && keepEventRange == null) source
+              else
+                selectVidRanges(source) { range ->
+                  (keepVidRange == null || keepVidRange(range.vidRange.start)) &&
+                    (keepEventRange == null || keepEventRange(range))
+                }
             }
         if (spec.dateSpecsCount == 0) continue
         for (shard in
@@ -501,7 +613,7 @@ object HighOverlapExpectedReach {
   /** Keeps sampled population cells without changing the flight or timestamp derivation. */
   private fun selectVidRanges(
     source: SyntheticEventGroupSpec,
-    keepVidRange: (Long) -> Boolean,
+    keepVidRange: (SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean,
   ): SyntheticEventGroupSpec =
     source
       .toBuilder()
@@ -510,8 +622,7 @@ object HighOverlapExpectedReach {
         source.dateSpecsList.mapNotNull { dateSpec ->
           val frequencies =
             dateSpec.frequencySpecsList.mapNotNull { frequencySpec ->
-              val ranges =
-                frequencySpec.vidRangeSpecsList.filter { keepVidRange(it.vidRange.start) }
+              val ranges = frequencySpec.vidRangeSpecsList.filter(keepVidRange)
               if (ranges.isEmpty()) null
               else
                 frequencySpec.toBuilder().clearVidRangeSpecs().addAllVidRangeSpecs(ranges).build()
@@ -521,36 +632,6 @@ object HighOverlapExpectedReach {
         }
       )
       .build()
-
-  /** Expected impression count, truncated per VID at the maximum frequency per user. */
-  private fun impressions(
-    frequencies: Map<Long, Int>,
-    impressionCountParams: MetricSpecConfig.ImpressionCountParams,
-  ): ClosedFloatingPointRange<Double> {
-    val maxPerUser = impressionCountParams.maximumFrequencyPerUser
-    val count =
-      frequencies.values.sumOf { if (maxPerUser > 0) minOf(it, maxPerUser) else it }.toDouble()
-    // Sensitivity of an impression count is the maximum per user, so sigma scales with it.
-    val impressionTolerance =
-      maxOf(maxPerUser, 1) *
-        tolerance(
-          impressionCountParams.params.privacyParams,
-          impressionCountParams.params.vidSamplingInterval,
-        )
-    return rangeAround(count, impressionTolerance, WEEKLY_RELATIVE_TOLERANCE)
-  }
-
-  /** Expected impressions divided by reach. */
-  private fun averageFrequency(
-    frequencies: Map<Long, Int>,
-    impressionCountParams: MetricSpecConfig.ImpressionCountParams,
-  ): ClosedFloatingPointRange<Double> {
-    if (frequencies.isEmpty()) return 0.0..0.0
-    val maxPerUser = impressionCountParams.maximumFrequencyPerUser
-    val count =
-      frequencies.values.sumOf { if (maxPerUser > 0) minOf(it, maxPerUser) else it }.toDouble()
-    return rangeAround(count / frequencies.size, 0.0, RATIO_RELATIVE_TOLERANCE)
-  }
 
   /**
    * Expected reach as a percentage of [populationSize], which is how the report reports it.
@@ -591,6 +672,125 @@ object HighOverlapExpectedReach {
         },
     )
   }
+
+  /** Replays each selected device/media cell separately to bound temporary frequency maps. */
+  fun computeWeeklyRangesByDeviceAndMedia(
+    config: ImpressionTestDataConfig,
+    eventGroupReferenceIds: Set<String>,
+    populationSpec: PopulationSpec,
+    reportStart: LocalDate,
+    weekCount: Int,
+    metricSpecConfig: MetricSpecConfig,
+    maxFrequency: Int,
+    selectedCells: Set<String>,
+  ): Map<String, Map<String, List<ExpectedWeeklyMetrics>>> =
+    selectedCells.associateWith { cell ->
+      val frequencies =
+        weeklyFrequenciesByEdpAndFilter(
+          config,
+          eventGroupReferenceIds,
+          populationSpec,
+          reportStart,
+          weekCount,
+          keepEventRange = { matchesDeviceAndMedia(it, cell, null) },
+        )
+      weeklyRangesByCell(
+          frequencies,
+          mapOf(cell to 0L),
+          setOf(cell),
+          weekCount,
+          metricSpecConfig,
+          maxFrequency,
+        ) {
+          cell
+        }
+        .getValue(cell)
+    }
+
+  /** Replays selected device/media totals, including signed-in and signed-out filters. */
+  fun computeWholeIntervalMetricsByDeviceAndMedia(
+    config: ImpressionTestDataConfig,
+    eventGroupReferenceIds: Set<String>,
+    componentEdpNames: List<String>,
+    populationSpec: PopulationSpec,
+    reportStart: LocalDate,
+    reportEnd: LocalDate,
+    metricSpecConfig: MetricSpecConfig,
+    maxFrequency: Int,
+    selectedCells: Set<String>,
+    signedIn: Boolean?,
+  ): Map<String, Map<String, ExpectedMetrics>> =
+    selectedCells.associateWith { cell ->
+      val frequencies =
+        frequenciesByEdpAndFilter(
+          config,
+          eventGroupReferenceIds,
+          populationSpec,
+          reportStart,
+          reportEnd,
+          keepEventRange = { matchesDeviceAndMedia(it, cell, signedIn) },
+        )
+      wholeIntervalRangesByCell(
+          frequencies,
+          componentEdpNames,
+          mapOf(cell to 0L),
+          setOf(cell),
+          metricSpecConfig,
+          maxFrequency,
+        ) {
+          cell
+        }
+        .getValue(cell)
+    }
+
+  private fun matchesDeviceAndMedia(
+    range: SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec,
+    cell: String,
+    signedIn: Boolean?,
+  ): Boolean {
+    val fields = range.nonPopulationFieldValuesMap
+    val device =
+      checkNotNull(Common.DeviceType.forNumber(fields.getValue("common.device_type").enumValue))
+    val media = checkNotNull(MediaType.forNumber(fields.getValue("common.media_type").enumValue))
+    return "${device.name}/${media.name}" == cell &&
+      (signedIn == null || fields.getValue("common.signed_in").boolValue == signedIn)
+  }
+
+  private fun componentReachTolerance(config: MetricSpecConfig): Double {
+    val params = config.reachParams.singleDataProviderParams
+    return tolerance(params.privacyParams, params.vidSamplingInterval)
+  }
+
+  private fun clippedImpressionCount(
+    perEdpFrequencies: Collection<Map<Long, Int>>,
+    params: MetricSpecConfig.ImpressionCountParams,
+  ): Long =
+    perEdpFrequencies.sumOf { frequencies ->
+      frequencies.values.sumOf { clippedFrequency(it, params) }
+    }
+
+  private fun clippedFrequency(
+    frequency: Int,
+    params: MetricSpecConfig.ImpressionCountParams,
+  ): Long =
+    (if (params.maximumFrequencyPerUser > 0) minOf(frequency, params.maximumFrequencyPerUser)
+      else frequency)
+      .toLong()
+
+  private fun impressionRange(
+    count: Long,
+    params: MetricSpecConfig.ImpressionCountParams,
+  ): ClosedFloatingPointRange<Double> =
+    rangeAround(
+      count.toDouble(),
+      maxOf(params.maximumFrequencyPerUser, 1) *
+        tolerance(params.params.privacyParams, params.params.vidSamplingInterval),
+      WEEKLY_RELATIVE_TOLERANCE,
+    )
+
+  private fun averageFrequencyRange(count: Long, reach: Int): ClosedFloatingPointRange<Double> =
+    if (reach == 0) 0.0..0.0
+    else rangeAround(count.toDouble() / reach, 0.0, RATIO_RELATIVE_TOLERANCE)
 
   /**
    * Computes full-flight device/media reach by merging VID intervals, without expanding
@@ -737,6 +937,7 @@ object HighOverlapExpectedReach {
     reportStart: LocalDate,
     reportEnd: LocalDate,
     keepVidRange: ((Long) -> Boolean)? = null,
+    keepEventRange: ((SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean)? = null,
   ): Map<String, Map<String, Map<Long, Int>>> {
     val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
     val endExclusive = reportEnd.atStartOfDay().toInstant(ZoneOffset.UTC)
@@ -757,7 +958,12 @@ object HighOverlapExpectedReach {
               entityKeySpec.dataSpecResourcePath
             )
             .let { source ->
-              if (keepVidRange == null) source else selectVidRanges(source, keepVidRange)
+              if (keepVidRange == null && keepEventRange == null) source
+              else
+                selectVidRanges(source) { range ->
+                  (keepVidRange == null || keepVidRange(range.vidRange.start)) &&
+                    (keepEventRange == null || keepEventRange(range))
+                }
             }
         if (spec.dateSpecsCount == 0) continue
         for (shard in

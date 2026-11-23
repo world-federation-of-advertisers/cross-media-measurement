@@ -244,6 +244,170 @@ class HighOverlapExpectedReachTest {
     assertFailsWith<IllegalArgumentException> { weeklyRanges(samplingConfig(), setOf("missing")) }
   }
 
+  @Test
+  fun `whole demographic metrics include total counts ratios and component reach`() {
+    val totals =
+      HighOverlapExpectedReach.computeWholeIntervalRangesByDemographic(
+          samplingConfig(),
+          REFERENCE_IDS,
+          listOf("one", "two"),
+          samplingPopulation(),
+          START,
+          START.plusWeeks(2),
+          metricConfig(),
+          2,
+          populationKey = ::populationCell,
+          selectedCells = setOf("CALIFORNIA/NOT_PARENT"),
+        )
+        .getValue("CALIFORNIA/NOT_PARENT")
+        .getValue("ami")
+    assertMidpoint(totals.reach, 10.0)
+    assertMidpoint(checkNotNull(totals.impressions), 20.0)
+    assertMidpoint(checkNotNull(totals.averageFrequency), 2.0)
+    assertMidpoint(checkNotNull(totals.percentReach), 100.0)
+    assertThat(totals.componentReach.keys).containsExactly("one", "two")
+    totals.componentReach.values.forEach { assertMidpoint(it, 10.0) }
+  }
+
+  @Test
+  fun `impressions are clipped per EDP rather than after merging the union`() {
+    val config =
+      sourceConfig(
+        listOf(sourceRange(1, 11, Common.DeviceType.DESKTOP, MediaType.VIDEO, true, 1.0F)),
+        frequency = 2,
+        days = 7,
+      )
+    val params =
+      metricConfig()
+        .toBuilder()
+        .apply { impressionCountParamsBuilder.maximumFrequencyPerUser = 1 }
+        .build()
+    val total =
+      HighOverlapExpectedReach.computeWholeIntervalRangesByDemographic(
+          config,
+          REFERENCE_IDS,
+          listOf("one", "two"),
+          samplingPopulation(),
+          START,
+          START.plusWeeks(2),
+          params,
+          2,
+          populationKey = ::populationCell,
+          selectedCells = setOf("CALIFORNIA/NOT_PARENT"),
+        )
+        .getValue("CALIFORNIA/NOT_PARENT")
+        .getValue("ami")
+    assertMidpoint(checkNotNull(total.impressions), 20.0)
+    val weeks =
+      HighOverlapExpectedReach.computeWeeklyRangesByDemographic(
+          config,
+          REFERENCE_IDS,
+          samplingPopulation(),
+          START,
+          2,
+          params,
+          2,
+          populationKey = ::populationCell,
+          selectedCells = setOf("CALIFORNIA/NOT_PARENT"),
+        )
+        .getValue("CALIFORNIA/NOT_PARENT")
+        .getValue("ami")
+    assertMidpoint(weeks[0].nonCumulativeImpressions, 20.0)
+    assertMidpoint(checkNotNull(weeks[1].cumulative.impressions), 20.0)
+    assertMidpoint(weeks[1].nonCumulativeImpressions, 0.0)
+  }
+
+  @Test
+  fun `device weekly metrics follow the source flight including an unreached later week`() {
+    val config =
+      sourceConfig(
+        listOf(sourceRange(1, 6, Common.DeviceType.DESKTOP, MediaType.VIDEO, true, 1.0F)),
+        days = 7,
+      )
+    val series =
+      HighOverlapExpectedReach.computeWeeklyRangesByDeviceAndMedia(
+        config,
+        REFERENCE_IDS,
+        samplingPopulation(),
+        START,
+        2,
+        metricConfig(),
+        2,
+        setOf("DESKTOP/VIDEO", "TV/DISPLAY"),
+      )
+    val weeks = series.getValue("DESKTOP/VIDEO").getValue("ami")
+    for (week in weeks) {
+      assertMidpoint(week.cumulative.reach, 5.0)
+      assertMidpoint(checkNotNull(week.cumulative.impressions), 10.0)
+      assertMidpoint(checkNotNull(week.cumulative.averageFrequency), 2.0)
+      week.cumulative.kPlusReach.forEach { assertMidpoint(it, 5.0) }
+      week.cumulative.componentReach.values.forEach { assertMidpoint(it, 5.0) }
+    }
+    assertMidpoint(weeks[0].nonCumulative.reach, 5.0)
+    assertMidpoint(weeks[0].nonCumulativeImpressions, 10.0)
+    assertMidpoint(weeks[0].nonCumulativeAverageFrequency, 2.0)
+    weeks[0].nonCumulative.kPlusReach.forEach { assertMidpoint(it, 5.0) }
+    weeks[0].componentNonCumulativeReach.values.forEach { assertMidpoint(it, 5.0) }
+    assertMidpoint(weeks[1].nonCumulative.reach, 0.0)
+    assertMidpoint(weeks[1].nonCumulativeImpressions, 0.0)
+    weeks[1].nonCumulative.kPlusReach.forEach { assertMidpoint(it, 0.0) }
+    weeks[1].componentNonCumulativeReach.values.forEach { assertMidpoint(it, 0.0) }
+    for (filters in
+      listOf(
+        series.getValue("TV/DISPLAY"),
+        series.getValue("DESKTOP/VIDEO").filterKeys { it == "mrc" },
+      )) {
+      for (zeroWeeks in filters.values) for (week in zeroWeeks) {
+        assertMidpoint(week.cumulative.reach, 0.0)
+        assertMidpoint(checkNotNull(week.cumulative.impressions), 0.0)
+      }
+    }
+  }
+
+  @Test
+  fun `device total metrics apply signed in and MRC filters before counting frequencies`() {
+    val config = samplingConfig()
+    fun totals(signedIn: Boolean) =
+      HighOverlapExpectedReach.computeWholeIntervalMetricsByDeviceAndMedia(
+        config,
+        REFERENCE_IDS,
+        listOf("one", "two"),
+        samplingPopulation(),
+        START,
+        START.plusWeeks(2),
+        metricConfig(),
+        2,
+        setOf("DESKTOP/VIDEO", "MOBILE/DISPLAY"),
+        signedIn,
+      )
+    val signedIn = totals(true)
+    val signedOut = totals(false)
+    val populated =
+      listOf(
+        signedIn.getValue("DESKTOP/VIDEO").getValue("ami"),
+        signedOut.getValue("MOBILE/DISPLAY").getValue("mrc"),
+      )
+    for (metric in populated) {
+      assertMidpoint(metric.reach, 5.0)
+      metric.kPlusReach.forEach { assertMidpoint(it, 5.0) }
+      assertMidpoint(checkNotNull(metric.impressions), 10.0)
+      assertMidpoint(checkNotNull(metric.averageFrequency), 2.0)
+      metric.componentReach.values.forEach { assertMidpoint(it, 5.0) }
+    }
+    val zeros =
+      listOf(
+        signedIn.getValue("DESKTOP/VIDEO").getValue("mrc"),
+        signedOut.getValue("DESKTOP/VIDEO").getValue("ami"),
+        signedIn.getValue("MOBILE/DISPLAY").getValue("ami"),
+      )
+    for (metric in zeros) {
+      assertMidpoint(metric.reach, 0.0)
+      metric.kPlusReach.forEach { assertMidpoint(it, 0.0) }
+      assertMidpoint(checkNotNull(metric.impressions), 0.0)
+      metric.componentReach.values.forEach { assertMidpoint(it, 0.0) }
+    }
+  }
+
   private fun assertMidpoint(range: ClosedFloatingPointRange<Double>, expected: Double) {
     assertThat((range.start + range.endInclusive) / 2).isWithin(0.000001).of(expected)
   }
@@ -311,6 +475,14 @@ class HighOverlapExpectedReachTest {
           MetricSpecConfig.VidSamplingInterval.FixedStart.newBuilder().setStart(0.0F).setWidth(1.0F)
         )
     return MetricSpecConfig.newBuilder()
+      .setReachParams(
+        MetricSpecConfig.ReachParams.newBuilder()
+          .setSingleDataProviderParams(
+            MetricSpecConfig.SamplingAndPrivacyParams.newBuilder()
+              .setPrivacyParams(privacy)
+              .setVidSamplingInterval(sampling)
+          )
+      )
       .setReachAndFrequencyParams(
         MetricSpecConfig.ReachAndFrequencyParams.newBuilder()
           .setMultipleDataProviderParams(
@@ -371,13 +543,17 @@ class HighOverlapExpectedReachTest {
   """
       .trimIndent()
 
-  private fun sourceConfig(ranges: List<String>): ImpressionTestDataConfig {
+  private fun sourceConfig(
+    ranges: List<String>,
+    frequency: Int = 1,
+    days: Int = 14,
+  ): ImpressionTestDataConfig {
     val source = temp.newFile()
     source.writeText(
       """
       date_specs {
-        date_range { start { year: 2026 month: 4 day: 1 } end_exclusive { year: 2026 month: 4 day: 15 } }
-        frequency_specs { frequency: 1 ${ranges.joinToString("\n")} }
+        date_range { start { year: 2026 month: 4 day: 1 } end_exclusive { year: 2026 month: 4 day: ${days + 1} } }
+        frequency_specs { frequency: $frequency ${ranges.joinToString("\n")} }
       }
     """
         .trimIndent()
