@@ -259,6 +259,35 @@ class SubpoolFingerprintsStoreTest {
     }
 
   @Test
+  fun `pool assigning replacement never reads the existing merged payload`() =
+    runBlocking<Unit> {
+      val writer = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val dek = writer.generateDek(kekUri)
+      writer.writeBlob("merged", dek, 7L, flowOf(pack(listOf(fp(0x00)))))
+      writer.writeBlob("input", dek, 7L, flowOf(pack(listOf(fp(0x11)))))
+      val noOutputRead =
+        object : ConditionalOperationStorageClient by storageClient {
+          override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+            val blob = storageClient.getBlob(blobKey) ?: return null
+            if (blobKey != "merged") return blob
+            val conditional = blob as ConditionalOperationStorageClient.Blob
+            return object : ConditionalOperationStorageClient.Blob by conditional {
+              override fun read(): Flow<ByteString> =
+                error("existing merged payload must not be read")
+            }
+          }
+        }
+      SubpoolFingerprintsStore(noOutputRead, kmsClient)
+        .mergeSubpool(
+          listOf(SubpoolFingerprintsStore.SubpoolBlob("input", dek)),
+          "merged",
+          dek,
+          Semaphore(1),
+        )
+      assertThat(readAll(writer, "merged", dek)).isEqualTo(pack(listOf(fp(0x11))))
+    }
+
+  @Test
   fun `lost replacement generation is re-observed before retry`() =
     runBlocking<Unit> {
       val writer = SubpoolFingerprintsStore(storageClient, kmsClient)
