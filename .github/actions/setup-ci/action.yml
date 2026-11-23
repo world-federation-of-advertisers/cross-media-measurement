@@ -120,4 +120,3 @@ runs:
     - name: Check lockfile
       shell: bash
       run: bazel mod deps
-
