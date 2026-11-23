@@ -62,6 +62,7 @@ import picocli.CommandLine.Option
       RetryDispatchWorkItemCommand::class,
       PreflightDispatchCutoverCommand::class,
       SmokeDispatchCutoverCommand::class,
+      PrepareDispatchCanaryConfigCommand::class,
       MarkFailedCommand::class,
       RetryFailedCommand::class,
       BackfillModelLineCommand::class,

@@ -19,14 +19,17 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.Any
+import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
+import io.cloudevents.core.builder.CloudEventBuilder
 import io.grpc.BindableService
 import io.grpc.Status
 import io.grpc.netty.NettyServerBuilder
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
+import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit.SECONDS
@@ -38,12 +41,20 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
 import org.wfanet.measurement.common.testing.CommandLineTesting
 import org.wfanet.measurement.common.testing.ExitInterceptingSecurityManager
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
+import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.watchedPath
+import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
@@ -70,6 +81,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -79,8 +91,12 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
+import org.wfanet.measurement.securecomputation.deploy.gcloud.datawatcher.DataWatcherFunction
 import picocli.CommandLine
 
 @RunWith(JUnit4::class)
@@ -93,6 +109,7 @@ class VidLabelingHealTest {
         "retry-dispatch-work-item",
         "preflight-dispatch-cutover",
         "smoke-dispatch-cutover",
+        "prepare-dispatch-canary-config",
         "mark-failed",
         "retry-failed",
         "backfill-model-line",
@@ -609,17 +626,23 @@ class VidLabelingHealTest {
   }
 
   @Test
-  fun `smoke creates isolated ordinary work then approves and queues exact recovery`() {
+  fun `smoke discovers ordinary and recovery work admitted through storage CloudEvents`() {
+    EdpaTelemetry.ensureInitialized()
     val provider = "dataProviders/test"
     val operationName = "$provider/uploadHealingOperations/operation"
     val creations = mutableListOf<WorkItem>()
     val stored = mutableMapOf<String, WorkItem>()
     val order = mutableListOf<String>()
+    val getCalls = mutableListOf<String>()
+    val processingStorageEvent = java.util.concurrent.atomic.AtomicBoolean(false)
+    val denyIntake = java.util.concurrent.atomic.AtomicBoolean(false)
     val items =
       object : WorkItemsCoroutineImplBase() {
         override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
+          check(processingStorageEvent.get()) { "Smoke CLI must never create WorkItems directly" }
+          if (denyIntake.get()) throw Status.PERMISSION_DENIED.asException()
           creations += request.workItem
-          order += "create"
+          order += "storage-create"
           return request.workItem
             .copy {
               name = "workItems/${request.workItemId}"
@@ -629,29 +652,30 @@ class VidLabelingHealTest {
             .also { stored[it.name] = it }
         }
 
-        override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem =
-          checkNotNull(stored[request.name]).copy { state = WorkItem.State.SUCCEEDED }
+        override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
+          getCalls += request.name
+          return (stored[request.name] ?: throw Status.NOT_FOUND.asException()).copy {
+            state = WorkItem.State.SUCCEEDED
+          }
+        }
       }
     var approved = false
     val operations =
       object : UploadHealingOperationServiceCoroutineImplBase() {
         override suspend fun getUploadHealingOperation(
           request: GetUploadHealingOperationRequest
-        ): UploadHealingOperation {
-          require(request.name == operationName)
-          return uploadHealingOperation {
-            name = operationName
-            etag = "etag"
-            state =
-              if (approved) UploadHealingOperation.State.REPLAYING
-              else UploadHealingOperation.State.APPROVAL_REQUIRED
-          }
+        ): UploadHealingOperation = uploadHealingOperation {
+          name = operationName
+          etag = "etag"
+          state =
+            if (approved) UploadHealingOperation.State.REPLAYING
+            else UploadHealingOperation.State.APPROVAL_REQUIRED
         }
 
         override suspend fun approveUploadHealingOperation(
           request: ApproveUploadHealingOperationRequest
         ): UploadHealingOperation {
-          require(request.name == operationName && request.etag == "etag")
+          check(request.name == operationName && request.etag == "etag")
           approved = true
           order += "approve"
           return uploadHealingOperation {
@@ -660,8 +684,39 @@ class VidLabelingHealTest {
           }
         }
       }
+    val directory = Files.createTempDirectory("dispatch-intake-test")
+    val ordinaryPath = directory.resolve("ordinary.json")
+    val recoveryPath = directory.resolve("recovery.json")
+    val approvalPath = directory.resolve("approval.json")
+    val configPath = directory.resolve("final.textproto")
+    val canaryPath = directory.resolve("canary.textproto")
+    val printer =
+      JsonFormat.printer()
+        .usingTypeRegistry(
+          TypeRegistry.newBuilder()
+            .add(WorkItem.WorkItemParams.getDescriptor())
+            .add(VidLabelingDispatchWorkItemParams.getDescriptor())
+            .build()
+        )
     val source =
-      dispatchItem().workItemParams.unpack(WorkItem.WorkItemParams::class.java).dataPathParams
+      dispatchItem()
+        .workItemParams
+        .unpack(WorkItem.WorkItemParams::class.java)
+        .dataPathParams
+        .toBuilder()
+        .setDataPath("gs://isolated/raw/ordinary/done")
+        .build()
+    val historicalRecoverySource =
+      source
+        .toBuilder()
+        .setDataPath("gs://isolated/raw/recovery/done")
+        .setGeneration(source.generation + 1)
+        .build()
+    val recoverySource =
+      historicalRecoverySource
+        .toBuilder()
+        .setGeneration(historicalRecoverySource.generation + 1)
+        .build()
     val ordinary = workItem {
       queue = "vid-labeling-dispatch-queue"
       workItemParams =
@@ -682,7 +737,7 @@ class VidLabelingHealTest {
                 vidLabelingDispatchWorkItemParams {
                   dataProvider = provider
                   recovery = recoveryParams {
-                    this.source = source
+                    this.source = historicalRecoverySource
                     sourceUpload = "$provider/rawImpressionUploads/source"
                     uploadHealingOperation = operationName
                   }
@@ -691,41 +746,175 @@ class VidLabelingHealTest {
           }
         )
     }
-    val directory = Files.createTempDirectory("dispatch-smoke-test")
-    val ordinaryPath = directory.resolve("ordinary.json")
-    val recoveryPath = directory.resolve("recovery.json")
-    val approvalPath = directory.resolve("approval.json")
-    val printer =
-      JsonFormat.printer()
-        .usingTypeRegistry(
-          TypeRegistry.newBuilder()
-            .add(WorkItem.WorkItemParams.getDescriptor())
-            .add(VidLabelingDispatchWorkItemParams.getDescriptor())
-            .build()
-        )
     Files.writeString(ordinaryPath, printer.print(ordinary))
     Files.writeString(recoveryPath, printer.print(recovery))
     Files.writeString(approvalPath, """{"name":"$operationName","etag":"etag"}""")
-    try {
-      withOperatorServer(listOf(items, operations)) { controlFlags, edpaFlags ->
-        val code =
-          runProductionMain(
-            *(listOf(
-                "smoke-dispatch-cutover",
-                "--isolated-data-provider=$provider",
-                "--live-data-provider=dataProviders/live",
-                "--ordinary-work-item-file=$ordinaryPath",
-                "--recovery-work-item-file=$recoveryPath",
-                "--approval-file=$approvalPath",
-              ) + controlFlags + edpaFlags)
-              .toTypedArray()
-          )
-        assertThat(code).isEqualTo(0)
+    val finalConfig = dataWatcherConfig {
+      watchedPaths += watchedPath {
+        identifier = "vid-labeling-dispatch"
+        sourcePathRegex = "^gs://isolated/raw/.+/done$"
+        eventTypes += "google.cloud.storage.object.v1.finalized"
+        controlPlaneQueueSink = controlPlaneQueueSink {
+          queue = ordinary.queue
+          appParams = Any.pack(vidLabelingDispatcherParams { dataProvider = provider })
+        }
       }
-      assertThat(order).containsExactly("create", "approve", "create").inOrder()
-      assertThat(creations).containsExactly(ordinary, recovery).inOrder()
+      watchedPaths += watchedPath {
+        identifier = "vid-labeling-dispatch"
+        sourcePathRegex = "^gs://live/raw/.+/done$"
+        controlPlaneQueueSink = controlPlaneQueueSink {
+          queue = ordinary.queue
+          appParams = Any.pack(vidLabelingDispatcherParams { dataProvider = "dataProviders/live" })
+        }
+      }
+    }
+    Files.writeString(
+      configPath,
+      TextFormat.printer()
+        .usingTypeRegistry(DataWatcherConfigTypes.registry)
+        .printToString(finalConfig),
+    )
+    try {
+      assertThat(
+          runProductionMain(
+            "prepare-dispatch-canary-config",
+            "--data-watcher-config=$configPath",
+            "--output=$canaryPath",
+            "--isolated-data-provider=$provider",
+            "--dispatcher-endpoint=https://dispatcher.test",
+          )
+        )
+        .isEqualTo(0)
+      val canaryBuilder = DataWatcherConfig.newBuilder()
+      TextFormat.Parser.newBuilder()
+        .setTypeRegistry(DataWatcherConfigTypes.registry)
+        .build()
+        .merge(Files.readString(canaryPath), canaryBuilder)
+      val canary = canaryBuilder.build()
+      assertThat(canary.watchedPathsList[0].hasControlPlaneQueueSink()).isTrue()
+      assertThat(canary.watchedPathsList[1].hasHttpEndpointSink()).isTrue()
+      val uploads =
+        object : RawImpressionUploadServiceCoroutineImplBase() {
+          override suspend fun getRawImpressionUpload(
+            request: GetRawImpressionUploadRequest
+          ): RawImpressionUpload = rawImpressionUpload {
+            name = "$provider/rawImpressionUploads/source"
+            doneBlobUri = recoverySource.dataPath
+            doneBlobGeneration = historicalRecoverySource.generation
+          }
+        }
+      withOperatorServer(listOf(items, operations, uploads)) { controlFlags, edpaFlags ->
+        fun flag(name: String) =
+          controlFlags.single { it.startsWith("--$name=") }.substringAfter('=')
+        val channel =
+          buildMutualTlsChannel(
+            flag("control-plane-api-target"),
+            SigningCerts.fromPemFiles(
+              java.io.File(flag("control-plane-tls-cert-file")),
+              java.io.File(flag("control-plane-tls-key-file")),
+              java.io.File(flag("control-plane-cert-collection-file")),
+            ),
+            "localhost",
+          )
+        try {
+          val watcher = DataWatcher(WorkItemsCoroutineStub(channel), canary.watchedPathsList)
+          val function = DataWatcherFunction(watcher::receivePath)
+          fun finalizeEvent(
+            recoveryEvent: Boolean,
+            eventType: String = "google.cloud.storage.object.v1.finalized",
+            receiver: DataWatcherFunction = function,
+          ) {
+            val selected = if (recoveryEvent) recoverySource else source
+            val metadata =
+              if (recoveryEvent)
+                ""","metadata":{"${WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY}":"$provider/rawImpressionUploads/source","${WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY}":"$operationName"}"""
+              else ""
+            val data =
+              """{"bucket":"isolated","name":"${selected.dataPath.substringAfter("gs://isolated/")}","generation":"${selected.generation}","size":"0","timeCreated":"1970-01-01T00:02:03Z"$metadata}"""
+            val event =
+              CloudEventBuilder.v1()
+                .withId("event-${selected.generation}-$eventType")
+                .withSource(URI.create("gs://isolated"))
+                .withType(eventType)
+                .withData(data.toByteArray())
+                .build()
+            processingStorageEvent.set(true)
+            try {
+              receiver.accept(event)
+            } finally {
+              processingStorageEvent.set(false)
+            }
+          }
+          finalizeEvent(false, "google.cloud.storage.object.v1.deleted")
+          assertThat(creations).isEmpty()
+          val args =
+            listOf(
+              "smoke-dispatch-cutover",
+              "--isolated-data-provider=$provider",
+              "--live-data-provider=dataProviders/live",
+              "--watcher-identifier=vid-labeling-dispatch",
+              "--ordinary-work-item-file=$ordinaryPath",
+              "--recovery-work-item-file=$recoveryPath",
+              "--approval-file=$approvalPath",
+            ) + controlFlags + edpaFlags
+          val disabled =
+            DataWatcherFunction(
+              DataWatcher(
+                WorkItemsCoroutineStub(channel),
+                canary.watchedPathsList.map { it.toBuilder().setSourcePathRegex("^never$").build() },
+              )::receivePath
+            )
+          finalizeEvent(false, receiver = disabled)
+          assertThat(
+              runProductionMain(*(args + listOf("--phase=ordinary", "--timeout=1s")).toTypedArray())
+            )
+            .isNotEqualTo(0)
+          assertThat(creations).isEmpty()
+          assertThat(approved).isFalse()
+          assertThat(getCalls).isNotEmpty()
+          getCalls.clear()
+          denyIntake.set(true)
+          assertFailsWith<RuntimeException> { finalizeEvent(false) }
+          assertThat(
+              runProductionMain(*(args + listOf("--phase=ordinary", "--timeout=1s")).toTypedArray())
+            )
+            .isNotEqualTo(0)
+          assertThat(creations).isEmpty()
+          assertThat(getCalls).isNotEmpty()
+          denyIntake.set(false)
+          finalizeEvent(false)
+          assertThat(runProductionMain(*(args + "--phase=ordinary").toTypedArray())).isEqualTo(0)
+          finalizeEvent(true)
+          val frame = recovery.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+          val app = frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+          val fresh =
+            recovery.copy {
+              workItemParams =
+                Any.pack(
+                  frame
+                    .toBuilder()
+                    .setAppParams(
+                      Any.pack(
+                        app
+                          .toBuilder()
+                          .setRecovery(app.recovery.toBuilder().setSource(recoverySource))
+                          .build()
+                      )
+                    )
+                    .build()
+                )
+            }
+          Files.writeString(recoveryPath, printer.print(fresh))
+          assertThat(runProductionMain(*(args + "--phase=recovery").toTypedArray())).isEqualTo(0)
+        } finally {
+          channel.shutdownNow().awaitTermination(1, SECONDS)
+        }
+      }
+      assertThat(order).containsExactly("storage-create", "approve", "storage-create").inOrder()
+      assertThat(creations).hasSize(2)
     } finally {
-      for (file in listOf(ordinaryPath, recoveryPath, approvalPath)) Files.deleteIfExists(file)
+      for (file in listOf(ordinaryPath, recoveryPath, approvalPath, configPath, canaryPath)) Files
+        .deleteIfExists(file)
       Files.deleteIfExists(directory)
     }
   }
