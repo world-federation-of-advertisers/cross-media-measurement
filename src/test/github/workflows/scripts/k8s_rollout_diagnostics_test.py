@@ -36,7 +36,12 @@ if "logs" in args:
     print("schema migration rejected")
 else:
     resource = args[args.index("get") + 1]
-    print(json.dumps({"items": data[resource]}))
+    if resource == "pods" and "--field-selector" in args:
+        name = args[args.index("--field-selector") + 1].removeprefix("metadata.name=")
+        items = [pod for pod in data.get("additional_pods", []) if pod["metadata"]["name"] == name]
+    else:
+        items = data[resource]
+    print(json.dumps({"items": items}))
 """
 
 
@@ -93,6 +98,7 @@ class RolloutDiagnosticsTest(unittest.TestCase):
         result = subprocess.run([
             sys.executable, str(SCRIPT), "--selector=app.kubernetes.io/component=edp-aggregator",
             "--output-dir", str(output),
+            *["--pod=" + name for name in data.get("requested_pods", [])],
         ], env=env, capture_output=True, text=True)
         commands = [json.loads(line) for line in calls.read_text().splitlines()]
         return result, output, commands, summary.read_text()
@@ -207,6 +213,40 @@ class RolloutDiagnosticsTest(unittest.TestCase):
         self.assertIn("No deployments", summary)
         self.assertTrue(json.loads((output / "errors.json").read_text()))
         self.assertEqual(len(commands), 1)
+
+    def test_main_collects_requested_standalone_pod_status_and_main_logs(self):
+        data = self.fixture()
+        data["requested_pods"] = ["spanner-emulator"]
+        data["additional_pods"] = [{
+            "metadata": {"name": "spanner-emulator", "uid": "emulator-1"},
+            "spec": {"containers": [{"env": [{"value": "SECRET_FROM_ENV"}]}]},
+            "status": {"phase": "Failed", "containerStatuses": [{
+                "name": "emulator", "restartCount": 0,
+                "state": {"terminated": {"exitCode": 255, "reason": "Error"}},
+            }]},
+        }]
+        data["events"].append({"involvedObject": {"uid": "emulator-1"}, "reason": "Stopped", "message": "emulator exited"})
+        result, output, commands, summary = self.invoke(data)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("exit=255", summary)
+        self.assertTrue((output / "spanner-emulator-emulator.log").exists())
+        status = json.loads((output / "status.json").read_text())
+        self.assertEqual([pod["name"] for pod in status["pods"]], ["edpa-pod", "spanner-emulator"])
+        self.assertIn("Stopped", [event["reason"] for event in status["events"]])
+        self.assertNotIn("SECRET_FROM_ENV", (output / "status.json").read_text())
+        named_reads = [command for command in commands if "--field-selector" in command]
+        self.assertEqual(len(named_reads), 1)
+        self.assertIn("metadata.name=spanner-emulator", named_reads[0])
+
+    def test_main_deduplicates_requested_pod_already_found_by_deployment(self):
+        data = self.fixture()
+        data["requested_pods"] = ["edpa-pod", "edpa-pod"]
+        data["additional_pods"] = data["pods"]
+        result, output, commands, _ = self.invoke(data)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(len(json.loads((output / "status.json").read_text())["pods"]), 1)
+        self.assertEqual(sum("--field-selector" in command for command in commands), 1)
+        self.assertEqual(sum("logs" in command for command in commands), 2)
 
 
 if __name__ == "__main__":

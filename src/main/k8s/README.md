@@ -22,6 +22,18 @@ python3 .github/workflows/scripts/k8s_rollout_diagnostics.py \
   --output-dir=/tmp/edp-aggregator-rollout-diagnostics
 ```
 
+## Kubernetes correctness-test failures
+
+The CI correctness tests stop if a Spanner or PostgreSQL emulator exits,
+restarts, disappears, or is replaced. Their in-memory database cannot safely
+be recovered by restarting the pod. Check the job summary and the
+`correctness-emulators` or `panelmatch-emulators` directory in the cluster-log
+artifact for the original container exit and bounded logs.
+
+The rollout diagnostics also include these standalone pods. For other
+standalone dependencies, pass `--pod=<name>` to the collector above to include
+that pod's status, events, and bounded main-container logs.
+
 ## Useful Labels
 
 All resources defined in these manifests should have the
