@@ -68,6 +68,7 @@ import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listVidLabelingJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.listVidLabelingJobsResponse
 import org.wfanet.measurement.internal.edpaggregator.markVidLabelingJobSucceededResponse
+import org.wfanet.measurement.internal.edpaggregator.vidLabelingJob
 
 /**
  * Cloud Spanner implementation of the internal [VidLabelingJob] service.
@@ -163,7 +164,7 @@ class SpannerVidLabelingJobService(
           etag = ETags.computeETag(commitTimestamp.toInstant())
         }
       }
-    return boundedCreateResponse(response)
+    return originalCreateResponse(response)
   }
 
   override suspend fun batchCreateVidLabelingJobs(
@@ -305,7 +306,7 @@ class SpannerVidLabelingJobService(
                 etag = ETags.computeETag(commitTimestamp.toInstant())
               }
             }
-          boundedCreateResponse(response)
+          originalCreateResponse(response)
         }
     }
   }
@@ -659,28 +660,17 @@ class SpannerVidLabelingJobService(
     }
   }
 
-  /**
-   * Create RPCs return a bounded failure preview, including for legacy failed rows. The stored
-   * diagnostic and Get response remain unchanged. Cut at a Unicode code-point boundary.
-   */
-  private fun boundedCreateResponse(job: VidLabelingJob): VidLabelingJob {
-    val error = job.errorMessage
-    var end = 0
-    var bytes = 0
-    while (end < error.length) {
-      val codePoint = error.codePointAt(end)
-      val encodedBytes =
-        when {
-          codePoint <= 0x7f -> 1
-          codePoint <= 0x7ff -> 2
-          codePoint <= 0xffff -> 3
-          else -> 4
-        }
-      if (bytes + encodedBytes > MAX_CREATE_ERROR_PREVIEW_BYTES) break
-      bytes += encodedBytes
-      end += Character.charCount(codePoint)
-    }
-    return if (end == error.length) job else job.copy { errorMessage = error.substring(0, end) }
+  /** Reconstructs the committed Create response; lifecycle changes are exposed by Get. */
+  private fun originalCreateResponse(job: VidLabelingJob): VidLabelingJob = vidLabelingJob {
+    dataProviderResourceId = job.dataProviderResourceId
+    rawImpressionUploadResourceId = job.rawImpressionUploadResourceId
+    vidLabelingJobResourceId = job.vidLabelingJobResourceId
+    cmmsModelLines += job.cmmsModelLinesList
+    rawImpressionUploadFiles += job.rawImpressionUploadFilesList
+    state = State.VID_LABELING_STATE_CREATED
+    createTime = job.createTime
+    updateTime = job.createTime
+    etag = ETags.computeETag(job.createTime.toInstant())
   }
 
   /** Original file/model-line membership is immutable; ordering alone is insignificant. */
@@ -725,8 +715,6 @@ class SpannerVidLabelingJobService(
   }
 
   companion object {
-    // Fits within the memoized producer's 1 KiB response-metadata allowance.
-    private const val MAX_CREATE_ERROR_PREVIEW_BYTES = 512
 
     private const val VID_LABELING_JOB_RESOURCE_ID_PREFIX = "vidLabelingJob"
     private const val MAX_PAGE_SIZE = 100
