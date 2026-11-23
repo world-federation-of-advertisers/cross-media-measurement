@@ -218,10 +218,15 @@ The watched-path types per EDP:
    supplies the exact source identity and recovery authorization. The source is application-owned
    so approved historical recovery can reuse its original generation.
 
-Deploy the typed DataWatcher/healing controller, dispatcher worker, queue and registry before
-adopting these routes. Follow [the VID dispatch migration guide](../operations/migrating-vid-labeling-dispatch.md)
-for preparation, activation, generation-fenced retries, and rollback. Legacy HTTP deliveries
-remain supported during rollout.
+Use **Update CMMS** with the default online VID dispatch cutover. The workflow prepares
+compatible dispatcher, DataWatcher and healing code, provisions and verifies the queue,
+passes readiness and isolated smoke gates, then activates these routes through Terraform.
+EDPs can continue publishing raw done markers. For a shorter maintenance cutover, pause
+new raw done markers and select maintenance mode; the workflow runs one fail-closed
+preflight and one final-stack apply before readiness/smoke checks and marker resumption.
+Follow [the VID dispatch migration guide](../operations/migrating-vid-labeling-dispatch.md)
+for the operator profile, fallback sequencing, generation-checked CLI retries and rollback.
+Legacy HTTP deliveries retain the compatible adapter throughout the transition.
 
 Requisition blobs are not watched in the recommended configuration. RequisitionFetcher creates
 their WorkItems directly after the blob and all associated metadata rows are durable.
