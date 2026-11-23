@@ -39,11 +39,17 @@ import org.wfanet.measurement.storage.StorageException
  * Closing is the GCS commit operation, so failed/cancelled uploads are left unfinalized; their
  * resumable sessions expire in GCS. Reads and freshness tokens retain the common client behavior.
  */
-class CompleteGcsStorageClient(
+class CompleteGcsStorageClient
+private constructor(
   private val storage: Storage,
   private val bucketName: String,
-  private val delegate: GcsStorageClient = GcsStorageClient(storage, bucketName),
+  private val delegate: GcsStorageClient,
 ) : ConditionalOperationStorageClient by delegate {
+  constructor(
+    storage: Storage,
+    bucketName: String,
+  ) : this(storage, bucketName, GcsStorageClient(storage, bucketName))
+
   override suspend fun writeBlobIfNotFound(
     blobKey: String,
     content: Flow<ByteString>,
