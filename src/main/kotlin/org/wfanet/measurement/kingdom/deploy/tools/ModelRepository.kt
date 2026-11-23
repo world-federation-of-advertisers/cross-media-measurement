@@ -65,6 +65,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelSuite
 import org.wfanet.measurement.api.v2alpha.population
 import org.wfanet.measurement.api.v2alpha.setModelLineActiveEndTimeRequest
+import org.wfanet.measurement.api.v2alpha.setModelLineEventTemplateVersionRequest
 import org.wfanet.measurement.api.v2alpha.setModelLineTypeRequest
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.ProtobufMessages
@@ -365,7 +366,15 @@ class CreatePopulation : Runnable {
   )
   private lateinit var eventMessageTypeUrl: String
 
+  @Option(
+    names = ["--event-template-version"],
+    required = true,
+    description = ["Positive event-template version defining the population-field contract"],
+  )
+  private var eventTemplateVersion: Int = 0
+
   override fun run() {
+    require(eventTemplateVersion > 0) { "event-template-version must be positive" }
     val populationSpec =
       ProtobufMessages.parseMessage(populationSpecFile, PopulationSpec.getDefaultInstance())
     val typeRegistry: TypeRegistry = buildTypeRegistry()
@@ -373,7 +382,7 @@ class CreatePopulation : Runnable {
       requireNotNull(typeRegistry.getDescriptorForTypeUrl(eventMessageTypeUrl)) {
         "Event message descriptor not found"
       }
-    PopulationSpecValidator.validate(populationSpec, eventMessageDescriptor)
+    PopulationSpecValidator.validate(populationSpec, eventMessageDescriptor, eventTemplateVersion)
 
     val population =
       parentCommand.populationsClient.createPopulation(
@@ -469,6 +478,7 @@ class ListPopulations : Runnable {
       ListModelLines::class,
       SetModelLineActiveEndTime::class,
       SetModelLineType::class,
+      SetModelLineEventTemplateVersion::class,
     ],
 )
 private class ModelLines {
@@ -554,7 +564,16 @@ class CreateModelLine : Runnable {
   )
   private lateinit var populationName: String
 
+  @Option(
+    names = ["--event-template-version"],
+    required = true,
+    description =
+      ["Positive event-template version defining the model line's population-field contract"],
+  )
+  private var eventTemplateVersion: Int = 0
+
   override fun run() {
+    require(eventTemplateVersion > 0) { "event-template-version must be positive" }
     val modelLine =
       parentCommand.modelLinesClient.createModelLine(
         createModelLineRequest {
@@ -567,6 +586,7 @@ class CreateModelLine : Runnable {
               activeEndTime = endTime!!.toProtoTime()
             }
             type = modelLineType
+            eventTemplateVersion = this@CreateModelLine.eventTemplateVersion
             holdbackModelLine = holdbackModelLineName
           }
         }
@@ -730,4 +750,33 @@ private class PageParams {
   )
   lateinit var pageToken: String
     private set
+}
+
+@Command(
+  name = "set-event-template-version",
+  description = ["Initialize the immutable version of a historical ModelLine"],
+  subcommands = [CommandLine.HelpCommand::class],
+)
+class SetModelLineEventTemplateVersion : Runnable {
+  @ParentCommand private lateinit var parentCommand: ModelLines
+  @Option(names = ["--name"], required = true, description = ["Resource name of the ModelLine"])
+  private lateinit var modelLineName: String
+  @Option(
+    names = ["--event-template-version"],
+    required = true,
+    description = ["Positive event-template version"],
+  )
+  private var eventTemplateVersion: Int = 0
+
+  override fun run() {
+    require(eventTemplateVersion > 0) { "event-template-version must be positive" }
+    println(
+      parentCommand.modelLinesClient.setModelLineEventTemplateVersion(
+        setModelLineEventTemplateVersionRequest {
+          name = modelLineName
+          eventTemplateVersion = this@SetModelLineEventTemplateVersion.eventTemplateVersion
+        }
+      )
+    )
+  }
 }

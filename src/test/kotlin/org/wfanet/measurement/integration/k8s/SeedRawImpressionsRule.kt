@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.integration.testing.ManagedDoneBlobCleanup
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
@@ -70,8 +71,8 @@ import org.wfanet.measurement.storage.parquetValue
  * KMS client both do. PME encryption happens during the local write (via the Tink [KmsClient]); the
  * uploaded bytes are the finished encrypted file, which the TEE reads and decrypts unchanged.
  *
- * Idempotent across runs: existing blobs under the prefix are deleted first, and each `done` marker
- * is rewritten (a new GCS generation yields a fresh `RawImpressionUpload` request id).
+ * Idempotent across runs: raw inputs and managed done markers for the pipelined dates are cleared
+ * before resetting their upload owners. Rewritten raw `done` markers have fresh GCS generations.
  *
  * Env-provided inputs (wired by the cloud-test workflow); the rule is a **no-op** unless both
  * [RAW_IMPRESSIONS_BUCKET] and [EDP7_KEK_URI] are resolvable, so unrelated runs are unaffected:
@@ -93,9 +94,14 @@ class SeedRawImpressionsRule(
   private val eventGroupConfigs: Map<String, EventGroupConfig>,
 ) : TestRule {
 
+  /** Exact done-blob versions written by this rule, keyed by GCS URI. */
+  var doneBlobGenerations: Map<String, Long> = emptyMap()
+    private set
+
   override fun apply(base: Statement, description: Description): Statement {
     return object : Statement() {
       override fun evaluate() {
+        doneBlobGenerations = emptyMap()
         if (RAW_IMPRESSIONS_BUCKET.isEmpty() || EDP7_KEK_URI.isEmpty()) {
           logger.warning(
             "RAW_IMPRESSIONS_BUCKET/EDP7_KEK_URI unresolved; skipping edp7 raw-impression seeding."
@@ -117,6 +123,13 @@ class SeedRawImpressionsRule(
     val rootPath = Path(localRoot.toURI())
 
     deleteExistingRawImpressions(storage)
+    ManagedDoneBlobCleanup(
+        storage,
+        RAW_IMPRESSIONS_BUCKET,
+        LABELED_IMPRESSIONS_PREFIX,
+        PIPELINED_DATES,
+      )
+      .delete()
     deleteExistingRawImpressionUploads()
 
     val datesWritten = sortedSetOf<String>()
@@ -155,12 +168,16 @@ class SeedRawImpressionsRule(
       )
     }
 
-    for (date in datesWritten) {
-      val doneKey = "$RAW_IMPRESSIONS_PREFIX/$date/done"
-      storage.create(
-        BlobInfo.newBuilder(BlobId.of(RAW_IMPRESSIONS_BUCKET, doneKey)).build(),
-        ByteArray(0),
-      )
+    doneBlobGenerations = buildMap {
+      for (date in datesWritten) {
+        val doneKey = "$RAW_IMPRESSIONS_PREFIX/$date/done"
+        val blob =
+          storage.create(
+            BlobInfo.newBuilder(BlobId.of(RAW_IMPRESSIONS_BUCKET, doneKey)).build(),
+            ByteArray(0),
+          )
+        put("gs://$RAW_IMPRESSIONS_BUCKET/$doneKey", checkNotNull(blob.generation))
+      }
     }
     logger.info(
       "Seeded edp7 raw impressions for ${datesWritten.size} date(s); done markers written."
@@ -316,6 +333,8 @@ class SeedRawImpressionsRule(
     private val KEK_URI_BY_PROJECT: Map<String, String> = Edp7StorageKek.BY_PROJECT
     private val EDP7_KEK_URI: String =
       env("EDP7_KEK_URI").ifEmpty { KEK_URI_BY_PROJECT[PROJECT_ID].orEmpty() }
+
+    private const val LABELED_IMPRESSIONS_PREFIX = "vid-labeled-impressions/edp/edp7"
 
     private val RAW_IMPRESSIONS_BUCKET: String = env("RAW_IMPRESSIONS_BUCKET")
     private val RAW_IMPRESSIONS_PREFIX: String =

@@ -28,6 +28,7 @@ import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.computation.ResultNoiser
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
@@ -43,15 +44,75 @@ import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
  * @param maxPopulation The max Population that can be returned. Optional.
  * @param resultMinimumThresholds Optional small-cell suppression parameters.
  */
-class DirectReachResultBuilder(
+class DirectReachResultBuilder
+private constructor(
   private val directProtocolConfig: ProtocolConfig.Direct,
-  private val frequencyData: IntArray,
+  private val histogramBuilder: (Int) -> LongArray,
+  private val noiserBuilder:
+    (DifferentialPrivacyParams, DifferentialPrivacyParams, Int) -> ResultNoiser,
   private val reachPrivacyParams: CmmsDpParams,
   private val samplingRate: Float,
   private val directNoiseMechanism: DirectNoiseMechanism,
   private val maxPopulation: Int?,
   private val resultMinimumThresholds: ResultMinimumThresholds?,
 ) : MeasurementResultBuilder {
+  constructor(
+    directProtocolConfig: ProtocolConfig.Direct,
+    frequencyData: IntArray,
+    reachPrivacyParams: CmmsDpParams,
+    samplingRate: Float,
+    directNoiseMechanism: DirectNoiseMechanism,
+    maxPopulation: Int?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ) : this(
+    directProtocolConfig = directProtocolConfig,
+    histogramBuilder = { maxFrequency ->
+      HistogramComputations.buildHistogram(frequencyData, maxFrequency)
+    },
+    noiserBuilder = { reachDpParams, frequencyDpParams, maxFrequencyPerUser ->
+      buildDirectResultNoiser(
+        directNoiseMechanism,
+        frequencyData,
+        reachDpParams,
+        frequencyDpParams,
+        maxFrequencyPerUser,
+      )
+    },
+    reachPrivacyParams = reachPrivacyParams,
+    samplingRate = samplingRate,
+    directNoiseMechanism = directNoiseMechanism,
+    maxPopulation = maxPopulation,
+    resultMinimumThresholds = resultMinimumThresholds,
+  )
+
+  constructor(
+    directProtocolConfig: ProtocolConfig.Direct,
+    frequencyData: ByteArray,
+    reachPrivacyParams: CmmsDpParams,
+    samplingRate: Float,
+    directNoiseMechanism: DirectNoiseMechanism,
+    maxPopulation: Int?,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ) : this(
+    directProtocolConfig = directProtocolConfig,
+    histogramBuilder = { maxFrequency ->
+      HistogramComputations.buildHistogram(frequencyData, maxFrequency)
+    },
+    noiserBuilder = { reachDpParams, frequencyDpParams, maxFrequencyPerUser ->
+      buildDirectResultNoiser(
+        directNoiseMechanism,
+        frequencyData,
+        reachDpParams,
+        frequencyDpParams,
+        maxFrequencyPerUser,
+      )
+    },
+    reachPrivacyParams = reachPrivacyParams,
+    samplingRate = samplingRate,
+    directNoiseMechanism = directNoiseMechanism,
+    maxPopulation = maxPopulation,
+    resultMinimumThresholds = resultMinimumThresholds,
+  )
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
     if (!directProtocolConfig.hasDeterministicCountDistinct()) {
@@ -61,10 +122,7 @@ class DirectReachResultBuilder(
       )
     }
     val histogram: LongArray =
-      HistogramComputations.buildHistogram(
-        frequencyVector = frequencyData,
-        maxFrequency = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
-      )
+      histogramBuilder(resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1)
 
     val reachValue = getReachValue(histogram)
 
@@ -91,12 +149,10 @@ class DirectReachResultBuilder(
     return ReachAndFrequencyComputations.computeReach(
       rawHistogram = histogram,
       noiser =
-        buildDirectResultNoiser(
-          directNoiseMechanism = directNoiseMechanism,
-          frequencyData = frequencyData,
-          reachDpParams = reachDpParams,
-          frequencyDpParams = reachDpParams,
-          maxFrequencyPerUser = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
+        noiserBuilder(
+          reachDpParams,
+          reachDpParams,
+          resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
         ),
       vidSamplingIntervalWidth = samplingRate.toDouble(),
       vectorSize = maxPopulation,

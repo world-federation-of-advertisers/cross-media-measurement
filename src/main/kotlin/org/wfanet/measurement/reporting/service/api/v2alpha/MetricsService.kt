@@ -23,6 +23,7 @@ import com.google.protobuf.Duration as ProtoDuration
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -279,6 +280,7 @@ class MetricsService(
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   kingdomMeasurementBatchConcurrency: Int,
+  private val logMeasurementValues: Boolean,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -834,6 +836,9 @@ class MetricsService(
         reportingMetadata = reportingMetadata {
           report = metric.details.containingReport
           basicReport = metric.details.basicReport
+          if (metric.details.hasReportInterval()) {
+            reportInterval = metric.details.reportInterval
+          }
           this.metric =
             MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName()
         }
@@ -2320,6 +2325,24 @@ class MetricsService(
       "TimeInterval endTime is not later than startTime."
     }
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
+    if (request.metric.hasReportInterval()) {
+      val reportInterval = request.metric.reportInterval
+      grpcRequire(
+        reportInterval.hasStartTime() &&
+          reportInterval.hasEndTime() &&
+          Timestamps.isValid(reportInterval.startTime) &&
+          Timestamps.isValid(reportInterval.endTime) &&
+          Timestamps.compare(reportInterval.startTime, reportInterval.endTime) < 0
+      ) {
+        "Report interval in metric is invalid."
+      }
+      grpcRequire(
+        Timestamps.compare(request.metric.timeInterval.startTime, reportInterval.startTime) >= 0 &&
+          Timestamps.compare(request.metric.timeInterval.endTime, reportInterval.endTime) <= 0
+      ) {
+        "Metric time interval must be within the Report interval."
+      }
+    }
 
     // Utilizes the property of the set expression compilation result -- If the set expression
     // contains only union operators, the compilation result has to be a single component.
@@ -2362,6 +2385,9 @@ class MetricsService(
           InternalMetricKt.details {
             containingReport = request.metric.containingReport
             basicReport = request.metric.basicReport
+            if (request.metric.hasReportInterval()) {
+              reportInterval = request.metric.reportInterval
+            }
             filters += request.metric.filtersList
           }
       }
@@ -2792,13 +2818,23 @@ class MetricsService(
       createTime = source.createTime
       containingReport = source.details.containingReport
       basicReport = source.details.basicReport
+      if (source.details.hasReportInterval()) {
+        reportInterval = source.details.reportInterval
+      }
       // The calculations can throw an error, but we still want to return the metric.
       when (state) {
         Metric.State.SUCCEEDED -> {
           try {
             result = buildMetricResult(source, variances)
           } catch (e: Exception) {
-            logger.log(Level.SEVERE, "buildMetricResult exception:", e)
+            if (logMeasurementValues) {
+              logger.log(Level.SEVERE, "buildMetricResult exception:", e)
+            } else {
+              logger.log(
+                Level.SEVERE,
+                "buildMetricResult failed for $name: ${e.javaClass.simpleName}",
+              )
+            }
             state = Metric.State.FAILED
             when (e) {
               is MeasurementVarianceNotComputableException -> {
@@ -3534,10 +3570,9 @@ private fun calculateFrequencyHistogramResults(
         weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
           weightedMeasurementVarianceParamsList.size == 1 &&
           weightedMeasurementVarianceParamsList
-            .first()
+            .single()
             .measurementVarianceParams
-            .reachMeasurementVariance >= 0.0 &&
-          weightedMeasurementVarianceParamsList.first().measurementVarianceParams.totalReach > 0.0
+            .reachMeasurementVariance >= 0.0
       ) {
         try {
           variances.computeMetricVariance(

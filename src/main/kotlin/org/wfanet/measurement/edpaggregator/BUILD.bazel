@@ -8,6 +8,16 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "model_line_cutover",
+    srcs = ["ModelLineCutover.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:model_line_cutover_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "storage_config",
     srcs = ["StorageConfig.kt"],
 )
@@ -147,8 +157,5 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     ],
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
-    ],
+    deps = ["@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler"],
 )

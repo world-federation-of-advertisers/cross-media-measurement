@@ -139,6 +139,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
       "common.gender == ${Common.Gender.FEMALE_VALUE} && " +
         "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}",
       TestEvent.getDescriptor(),
+      configuredEventTemplateVersion = null,
     )
   }
 

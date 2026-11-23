@@ -45,6 +45,7 @@ import "list"
 	_edp_secret_name:    string
 	_requisitionFulfillmentServiceConfigs: [...#RequisitionFulfillmentServiceConfig]
 	_kingdom_public_api_target: string
+	_logMeasurementValues:      bool | *false
 	_logSketchDetails:          bool | *false
 	_kingdomRpcMinInterval:     string | *"200ms"
 	_imageConfig:               #ImageConfig
@@ -104,6 +105,7 @@ import "list"
 				"--mc-resource-name=\(_mc_resource_name)",
 				"--kingdom-public-api-target=\(_kingdom_public_api_target)",
 				"--kingdom-public-api-cert-host=localhost",
+				"--log-measurement-values=\(_logMeasurementValues)",
 				"--log-sketch-details=\(_logSketchDetails)",
 				"--kingdom-rpc-min-interval=\(_kingdomRpcMinInterval)",
 				"--health-file=\(HealthFile)",

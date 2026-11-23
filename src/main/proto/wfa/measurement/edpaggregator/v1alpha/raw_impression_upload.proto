@@ -50,6 +50,9 @@ message RawImpressionUpload {
     FAILED = 4;
     // The upload is quarantined pending correction approval.
     CORRECTION_REQUIRED = 5;
+    // The upload's manifest is the permanent baseline after the operator
+    // removed its prior contribution without applying a replacement.
+    REMOVED_WITHOUT_REPLACEMENT = 6;
   }
 
   // Resource name.

@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.api.client.http.javanet.NetHttpTransport
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.common.truth.Truth.assertThat
@@ -24,9 +26,6 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
 import java.nio.file.Paths
 import java.time.Duration
 import java.time.LocalDate
@@ -60,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -81,14 +81,19 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.Met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.integration.testing.ImpressionMetadataAwaiter
+import org.wfanet.measurement.integration.testing.RequisitionFetcherClient
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.LabeledEvent
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -109,7 +114,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     val doneBlobKey = "$EDP7_IMPRESSION_PATH/model-line/$modelLineId/$ACTIVITY_START_DATE/done"
     val storageClient = StorageOptions.getDefaultInstance().service
 
-    withTimeout(EVENT_GROUP_ACTIVITY_TIMEOUT) {
+    withTimeout(DATA_AVAILABILITY_PUBLICATION_TIMEOUT) {
       while (true) {
         val metadata = storageClient.get(TEST_CONFIG.storageBucket, doneBlobKey)?.metadata.orEmpty()
         val syncId = metadata[DATA_AVAILABILITY_SYNC_ID_METADATA_KEY]
@@ -344,7 +349,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   private class CreateDoneBlobs : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
-    private val storageClient = StorageOptions.getDefaultInstance().service
     private val googleProjectId: String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
 
@@ -357,7 +361,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             )
             createDoneBlobs()
 
-            logger.info("Event Group Sync completed.")
+            logger.info("Labeled fixture synchronization completed.")
           }
           base.evaluate()
         }
@@ -376,7 +380,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             "non-memoized model line must be a full ModelLine resource name: $modelLine"
           }
           .modelLineId
-      buildPaths(modelLineId).forEach { path ->
+      val paths = buildPaths(modelLineId)
+      val expectedBlobs = writeReusedLabeledImpressions.expectedBlobGenerations
+      ImpressionMetadataAwaiter.requireCompleteFixtureCoverage(expectedBlobs, paths)
+      val doneBlobGenerations = mutableMapOf<String, Long>()
+      paths.forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient =
           SelectedStorageClient(
@@ -392,7 +400,57 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         }
 
         logger.info("Creating a new DONE blob at path: $path...")
-        selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
+        val written = selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
+        doneBlobGenerations[path] =
+          (written as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
+      }
+      awaitFixtureAvailability(modelLine, doneBlobGenerations, expectedBlobs)
+    }
+
+    private suspend fun awaitFixtureAvailability(
+      modelLine: String,
+      doneBlobs: Map<String, Long>,
+      expectedBlobs: Map<String, Long>,
+    ) {
+      val pipelinedDataProvider =
+        System.getenv("PIPELINED_DATA_PROVIDER") ?: EDPA_DATA_PROVIDERS.first()
+      val parentsByPath =
+        mapOf(
+          EDP7_IMPRESSION_PATH to pipelinedDataProvider,
+          EDPA_META_IMPRESSION_PATH to EDPA_DATA_PROVIDERS.single { it != pipelinedDataProvider },
+        )
+      val expectedByParent =
+        expectedBlobs.entries
+          .filter { it.key.substringAfterLast('/').startsWith("metadata") }
+          .groupBy { (uri, _) ->
+            val key = SelectedStorageClient.parseBlobUri(uri).key
+            parentsByPath.getValue(key.substringBefore("/model-line/"))
+          }
+          .mapValues { (_, blobs) ->
+            blobs.map { (uri, generation) ->
+              val prefix = uri.substringBeforeLast('/')
+              val suffix =
+                uri.substringAfterLast('/').removePrefix("metadata").removeSuffix(".binpb")
+              impressionMetadata {
+                blobUri = uri
+                this.modelLine = modelLine
+                metadataBlobGeneration = generation
+                impressionsBlobGeneration = expectedBlobs.getValue("$prefix/impressions$suffix")
+                outputDoneBlobGeneration = doneBlobs.getValue("$prefix/done")
+              }
+            }
+          }
+      val channel = AwaitVidLabelingRule.buildEdpaChannel()
+      try {
+        ImpressionMetadataAwaiter(
+            ImpressionMetadataServiceCoroutineStub(channel),
+            pollInterval = 5.seconds,
+            timeout = DATA_AVAILABILITY_PUBLICATION_TIMEOUT,
+            rpcTimeout = 30.seconds,
+          )
+          .awaitCompletion(expectedByParent)
+      } finally {
+        channel.shutdown()
       }
     }
 
@@ -409,10 +467,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       // drops an edp7 `done` for them too.
       private val EDP7_PIPELINED_DATES: Set<LocalDate> = Edp7PipelinedDates.DATES
 
-      // Per-EDP folder segment for VID-labeled impressions. MUST match each EDP's
-      // `output_base_path` (impression_test_data_config.textproto), the `edp_impression_path` in
-      // the deployed VidLabeling dispatcher/monitor + DataAvailabilitySync configs, and the
-      // data-watcher `data-availability` regex.
+      // External fixture paths match GenerateSyntheticData, DataAvailabilitySync's external
+      // configuration, and DataWatcher. The deployed VidLabeler uses its separate internal path.
       private const val EDP7_IMPRESSION_PATH = "edp/edp7"
       private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
 
@@ -469,7 +525,16 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       }
     }
 
+    private val requisitionFetcherClient: RequisitionFetcherClient by lazy {
+      RequisitionFetcherClient(
+        endpoint = URI.create(TEST_CONFIG.requisitionFetcherEndpoint),
+        credentials = GoogleCredentials.getApplicationDefault(),
+        transport = NetHttpTransport(),
+      )
+    }
+
     private fun triggerRequisitionFetcher() {
+      val client = requisitionFetcherClient
 
       // Snapshot existing direct-dispatch blobs so the readiness check observes this test's group
       // without deleting inputs that another WorkItem may still need.
@@ -486,21 +551,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           var areRequisitionsReady: Boolean
 
           do {
-            val jwt = TEST_CONFIG.authIdToken
-            val requisitionFetcherEndpoint = TEST_CONFIG.requisitionFetcherEndpoint
-
-            val client = HttpClient.newHttpClient()
-            val request =
-              HttpRequest.newBuilder()
-                .uri(URI.create(requisitionFetcherEndpoint))
-                .timeout(Duration.ofSeconds(120))
-                .header("Authorization", "Bearer $jwt")
-                .GET()
-                .build()
-            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-            check(response.statusCode() == 200) {
-              "RequisitionFetcher returned HTTP ${response.statusCode()}: ${response.body()}"
-            }
+            client.trigger()
 
             areRequisitionsReady =
               storageClient
@@ -536,6 +587,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
+        ModelLinesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         TestEvent.getDefaultInstance(),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
@@ -592,6 +644,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
+    // Allow a full nine-minute sync request plus completion-marker delivery.
+    private val DATA_AVAILABILITY_PUBLICATION_TIMEOUT = 10.minutes
     private val EVENT_GROUP_ACTIVITY_TIMEOUT = 5.minutes
     private val EVENT_GROUP_ACTIVITY_POLLING_INTERVAL = 3.seconds
     private const val ACTIVITY_START_DATE = "2021-03-15"
@@ -722,7 +776,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     private val uploadEventGroup = UploadEventGroup()
     private val seedRawImpressions = SeedRawImpressionsRule(populationSpec, edp7EventGroupConfigs)
-    private val awaitVidLabeling = AwaitVidLabelingRule()
+    private val awaitVidLabeling = AwaitVidLabelingRule { seedRawImpressions.doneBlobGenerations }
     // Writes pre-labeled impressions stamped with the non-memoized model line for the dates the
     // pipeline does not produce, so the `done` blobs dropped by createDoneBlobs register them under
     // that line. Each impression is relabeled with the non-memoized labeler so its VID matches what

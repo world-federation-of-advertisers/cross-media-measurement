@@ -23,6 +23,9 @@ option java_multiple_files = true;
 option java_outer_classname = "CorrectnessTestConfigProto";
 
 message EdpaCorrectnessTestConfig {
+  reserved 5;
+  reserved "auth_id_token";
+
   // gRPC target of Kingdom public API server.
   string kingdom_public_api_target = 1;
 
@@ -38,9 +41,6 @@ message EdpaCorrectnessTestConfig {
 
   // Authentication key for the CMMS public API.
   string api_authentication_key = 4;
-
-  // JWT used to authenticate requests to the RequisitionFetcher Cloud Function.
-  string auth_id_token = 5;
 
   // Full HTTP endpoint URL of the RequisitionFetcher Cloud Function.
   string requisition_fetcher_endpoint = 6;

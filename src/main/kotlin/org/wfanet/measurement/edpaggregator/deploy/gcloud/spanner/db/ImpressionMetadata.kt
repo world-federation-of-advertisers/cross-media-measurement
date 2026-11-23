@@ -295,6 +295,16 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     if (impressionMetadata.outputDoneBlobGeneration != 0L) {
       set("OutputDoneBlobGeneration").to(impressionMetadata.outputDoneBlobGeneration)
     }
+    set("MetadataBlobGeneration")
+      .to(
+        if (impressionMetadata.metadataBlobGeneration == 0L) Value.int64(null)
+        else Value.int64(impressionMetadata.metadataBlobGeneration)
+      )
+    set("ImpressionsBlobGeneration")
+      .to(
+        if (impressionMetadata.impressionsBlobGeneration == 0L) Value.int64(null)
+        else Value.int64(impressionMetadata.impressionsBlobGeneration)
+      )
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(impressionMetadata.state)
@@ -419,6 +429,7 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   dataProviderResourceId: String,
   filter: ListImpressionMetadataRequest.Filter,
   limit: Int,
+  includeEntityKeys: Boolean,
   after: ListImpressionMetadataPageToken.After? = null,
 ): Flow<ImpressionMetadataResult> {
   val entityKeyFilter: List<EntityKey> = filter.entityKeysList
@@ -439,7 +450,7 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
     }
 
   val sql = buildString {
-    appendLine(ImpressionMetadataEntity.baseSql(tableIndexDirective))
+    appendLine(ImpressionMetadataEntity.baseSql(tableIndexDirective, includeEntityKeys))
 
     val conjuncts =
       mutableListOf("ImpressionMetadata.DataProviderResourceId = @dataProviderResourceId")
@@ -657,6 +668,16 @@ private fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataField
           Value.int64(impressionMetadata.outputDoneBlobGeneration)
         }
       )
+    set("MetadataBlobGeneration")
+      .to(
+        if (impressionMetadata.metadataBlobGeneration == 0L) Value.int64(null)
+        else Value.int64(impressionMetadata.metadataBlobGeneration)
+      )
+    set("ImpressionsBlobGeneration")
+      .to(
+        if (impressionMetadata.impressionsBlobGeneration == 0L) Value.int64(null)
+        else Value.int64(impressionMetadata.impressionsBlobGeneration)
+      )
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     if (updateRequestId.isNotEmpty()) {
@@ -760,8 +781,25 @@ private object ImpressionMetadataEntity {
    *   other read shapes (by resource id, by blob URI, by create request id) rely on that to keep
    *   using their own indexes.
    */
-  fun baseSql(tableIndexDirective: String = ""): String =
-    """
+  fun baseSql(tableIndexDirective: String, includeEntityKeys: Boolean): String {
+    val entityKeysSql =
+      if (includeEntityKeys) {
+        """
+        ARRAY(
+          SELECT AS STRUCT
+            ImpressionMetadataEntityKeys.EntityType,
+            ImpressionMetadataEntityKeys.EntityId
+          FROM ImpressionMetadataEntityKeys
+          WHERE ImpressionMetadataEntityKeys.DataProviderResourceId = ImpressionMetadata.DataProviderResourceId
+            AND ImpressionMetadataEntityKeys.ImpressionMetadataId = ImpressionMetadata.ImpressionMetadataId
+          ORDER BY ImpressionMetadataEntityKeys.EntityType, ImpressionMetadataEntityKeys.EntityId
+        )
+        """
+          .trimIndent()
+      } else {
+        "ARRAY<STRUCT<EntityType STRING, EntityId STRING>>[]"
+      }
+    return """
     SELECT
       ImpressionMetadata.DataProviderResourceId,
       ImpressionMetadata.ImpressionMetadataId,
@@ -774,27 +812,22 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.CmmsModelLine,
       ImpressionMetadata.RawImpressionUploadResourceId,
       ImpressionMetadata.OutputDoneBlobGeneration,
+      ImpressionMetadata.MetadataBlobGeneration,
+      ImpressionMetadata.ImpressionsBlobGeneration,
       ImpressionMetadata.IntervalStartTime,
       ImpressionMetadata.IntervalEndTime,
       ImpressionMetadata.State,
       ImpressionMetadata.CreateTime,
       ImpressionMetadata.UpdateTime,
-      ARRAY(
-        SELECT AS STRUCT
-          ImpressionMetadataEntityKeys.EntityType,
-          ImpressionMetadataEntityKeys.EntityId
-        FROM ImpressionMetadataEntityKeys
-        WHERE ImpressionMetadataEntityKeys.DataProviderResourceId = ImpressionMetadata.DataProviderResourceId
-          AND ImpressionMetadataEntityKeys.ImpressionMetadataId = ImpressionMetadata.ImpressionMetadataId
-        ORDER BY ImpressionMetadataEntityKeys.EntityType, ImpressionMetadataEntityKeys.EntityId
-      ) AS EntityKeys,
+      $entityKeysSql AS EntityKeys,
     FROM
       ImpressionMetadata$tableIndexDirective
     """
       .trimIndent()
+  }
 
   /** Base SELECT with no index directive; the optimizer chooses the index. */
-  val BASE_SQL = baseSql()
+  val BASE_SQL = baseSql(tableIndexDirective = "", includeEntityKeys = true)
 
   fun buildImpressionMetadataResult(struct: Struct): ImpressionMetadataResult {
     return ImpressionMetadataResult(
@@ -810,6 +843,12 @@ private object ImpressionMetadataEntity {
         }
         if (!struct.isNull("OutputDoneBlobGeneration")) {
           outputDoneBlobGeneration = struct.getLong("OutputDoneBlobGeneration")
+        }
+        if (!struct.isNull("MetadataBlobGeneration")) {
+          metadataBlobGeneration = struct.getLong("MetadataBlobGeneration")
+        }
+        if (!struct.isNull("ImpressionsBlobGeneration")) {
+          impressionsBlobGeneration = struct.getLong("ImpressionsBlobGeneration")
         }
         interval =
           Interval.newBuilder()

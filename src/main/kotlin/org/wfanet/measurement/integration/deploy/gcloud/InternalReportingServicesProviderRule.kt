@@ -54,7 +54,9 @@ class InternalReportingServicesProviderRule(
               spannerDatabase.databaseClient,
               impressionQualificationFilterMapping,
               TestEvent.getDescriptor(),
-              false,
+              disableMetricsReuse = false,
+              validateInsertBasicReport = true,
+              validateCreateReportingSet = true,
               EmptyCoroutineContext,
             )
           base.evaluate()

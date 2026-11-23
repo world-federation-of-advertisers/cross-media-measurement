@@ -83,6 +83,18 @@ variable "trigger_event_type" {
   }
 }
 
+variable "additional_trigger_event_types" {
+  description = "Additional GCS events delivered to the same function."
+  type        = set(string)
+  nullable    = false
+  default     = []
+
+  validation {
+    condition     = alltrue([for event_type in var.additional_trigger_event_types : contains(["finalized", "deleted", "archived"], event_type)])
+    error_message = "additional_trigger_event_types must contain only finalized, deleted or archived."
+  }
+}
+
 variable "max_delivery_attempts" {
   description = "Maximum number of delivery attempts before a message is sent to the dead letter topic."
   type        = number
@@ -99,6 +111,26 @@ variable "retry_on_failure" {
   description = "Whether Eventarc retries failed Cloud Function invocations."
   type        = bool
   default     = true
+}
+
+variable "max_instances" {
+  description = "Maximum function instances. Null retains the deployment default."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.max_instances == null ? true : var.max_instances >= 1 && floor(var.max_instances) == var.max_instances
+    error_message = "Maximum instances must be a positive integer."
+  }
+}
+
+variable "concurrency" {
+  description = "Maximum requests per instance. Null retains the deployment default."
+  type        = number
+  default     = null
+  validation {
+    condition     = var.concurrency == null ? true : var.concurrency >= 1 && var.concurrency <= 1000 && floor(var.concurrency) == var.concurrency
+    error_message = "Concurrency must be an integer from 1 to 1000."
+  }
 }
 
 variable "alert_notification_channels" {

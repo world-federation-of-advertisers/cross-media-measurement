@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.TextFormat
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
 import com.google.type.interval
@@ -45,15 +46,21 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.EventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurementSpec
@@ -73,6 +80,8 @@ import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
+import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -86,19 +95,24 @@ import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
   @Volatile private var ensureWorkItemRequest: EnsureWorkItemRequest? = null
+  private val refuseRequisitionRequests = mutableListOf<RefuseRequisitionRequest>()
 
   /** Temp folder to store Requisitions in test. */
   @Rule @JvmField val tempFolder = TemporaryFolder()
@@ -110,6 +124,11 @@ class RequisitionFetcherFunctionTest {
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
       .thenReturn(listRequisitionsResponse { requisitions += REQUISITION })
+    onBlocking { refuseRequisition(any()) }
+      .thenAnswer { invocation ->
+        refuseRequisitionRequests += invocation.getArgument<RefuseRequisitionRequest>(0)
+        requisition {}
+      }
   }
 
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
@@ -265,7 +284,6 @@ class RequisitionFetcherFunctionTest {
             "METADATA_STORAGE_CERT_HOST" to "localhost",
             "SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
-            "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configFolder.root.toPath()}",
             "GRPC_REQUEST_INTERVAL" to "1s",
             "OTEL_METRICS_EXPORTER" to "none",
@@ -321,11 +339,145 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
+  fun `service dispatches mixed selectors when mapping is configured`() {
+    val sourceEventGroups = configureMixedSelectors(mappingEnabled = true)
+
+    val response = invokeFunction()
+
+    assertThat(response.statusCode()).isEqualTo(200)
+    assertThat(refuseRequisitionRequests).isEmpty()
+    val storageDir = tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile()
+    val storedBlob = checkNotNull(storageDir.listFiles()).single()
+    val groupedRequisitions =
+      Any.parseFrom(storedBlob.readByteString()).unpack(GroupedRequisitions::class.java)
+    assertThat(groupedRequisitions.requisitionsList).hasSize(1)
+    assertThat(groupedRequisitions.eventGroupMapList.map { it.eventGroup })
+      .containsExactlyElementsIn(sourceEventGroups.map { it.name })
+    for (entry in groupedRequisitions.eventGroupMapList) {
+      val source = sourceEventGroups.single { it.name == entry.eventGroup }
+      assertThat(entry.details.eventGroupReferenceId).isEqualTo(source.eventGroupReferenceId)
+      assertThat(entry.details.entityKey.entityType).isEqualTo(source.entityKey.entityType)
+      assertThat(entry.details.entityKey.entityId).isEqualTo(source.entityKey.entityId)
+      assertThat(entry.details.hasEntityKey()).isEqualTo(source.hasEntityKey())
+    }
+    val dispatchedParams =
+      checkNotNull(ensureWorkItemRequest)
+        .workItem
+        .workItemParams
+        .unpack(WorkItem.WorkItemParams::class.java)
+        .appParams
+        .unpack(ResultsFulfillerParams::class.java)
+    assertThat(dispatchedParams.hasEventGroupReferenceIdEntityKeyMapping()).isTrue()
+    assertThat(dispatchedParams.eventGroupReferenceIdEntityKeyMapping.entityType)
+      .isEqualTo("campaign")
+    assertThat(dispatchedParams.eventGroupReferenceIdEntityKeyMapping.eventGroupReferenceIdPrefix)
+      .isEqualTo("ref_")
+    assertThat(dispatchedParams.eventGroupReferenceIdEntityKeyMapping.entityIdPrefix)
+      .isEqualTo("cp_")
+  }
+
+  @Test
+  fun `service refuses mixed selectors when mapping is absent`() {
+    configureMixedSelectors(mappingEnabled = false)
+
+    val response = invokeFunction()
+
+    assertThat(response.statusCode()).isEqualTo(200)
+    assertThat(ensureWorkItemRequest).isNull()
+    assertThat(tempFolder.root.listFiles()).isEmpty()
+    assertThat(refuseRequisitionRequests).hasSize(1)
+    assertThat(refuseRequisitionRequests.single().refusal.justification)
+      .isEqualTo(Requisition.Refusal.Justification.UNFULFILLABLE)
+  }
+
+  private fun configureMixedSelectors(mappingEnabled: Boolean): List<EventGroup> {
+    functionProcess.close()
+    val sourceEventGroups =
+      listOf(
+        eventGroup {
+          name = EVENT_GROUP_NAME
+          eventGroupReferenceId = "ref_1"
+        },
+        eventGroup {
+          name = "$EDP_NAME/eventGroups/entity-only"
+          entityKey =
+            EventGroupKt.entityKey {
+              entityType = "campaign"
+              entityId = "cp_2"
+            }
+        },
+        eventGroup {
+          name = "$EDP_NAME/eventGroups/dual"
+          eventGroupReferenceId = "ref_3"
+          entityKey =
+            EventGroupKt.entityKey {
+              entityType = "campaign"
+              entityId = "cp_3"
+            }
+        },
+      )
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetEventGroupRequest>(0)
+          sourceEventGroups.single { it.name == request.name }
+        }
+    }
+    val spec =
+      REQUISITION_SPEC.copy {
+        events =
+          RequisitionSpecKt.events {
+            eventGroups +=
+              sourceEventGroups.map { source -> EVENT_GROUP_ENTRY.copy { key = source.name } }
+          }
+      }
+    val mixedRequisition =
+      REQUISITION.copy {
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signRequisitionSpec(spec, MC_SIGNING_KEY),
+            DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+    requisitionsServiceMock.stub {
+      onBlocking { listRequisitions(any()) }
+        .thenReturn(listRequisitionsResponse { requisitions += mixedRequisition })
+    }
+    val configFile =
+      configFolder.root.toPath().resolve("requisition-fetcher-config.textproto").toFile()
+    val configBuilder = RequisitionFetcherConfig.newBuilder()
+    TextFormat.merge(configFile.readText(), configBuilder)
+    val config =
+      configBuilder.build().copy {
+        configs[0] =
+          configs[0].copy {
+            workItemDispatch =
+              workItemDispatch.copy {
+                resultsFulfillerParams =
+                  resultsFulfillerParams.copy {
+                    if (mappingEnabled) {
+                      eventGroupReferenceIdEntityKeyMapping =
+                        ResultsFulfillerParamsKt.eventGroupReferenceIdEntityKeyMapping {
+                          entityType = "campaign"
+                          eventGroupReferenceIdPrefix = "ref_"
+                          entityIdPrefix = "cp_"
+                        }
+                    }
+                  }
+              }
+          }
+      }
+    configFile.writeText(TextFormat.printer().printToString(config))
+    startFunction()
+    return sourceEventGroups
+  }
+
+  @Test
   fun `service rejects config without work_item_dispatch`() {
     functionProcess.close()
     ensureWorkItemRequest = null
     copyConfig(
-      "legacy-requisition-fetcher-config.textproto",
+      "missing-dispatch-requisition-fetcher-config.textproto",
       "requisition-fetcher-config.textproto",
     )
     startFunction()
@@ -346,7 +498,7 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
-  fun `service fails closed when direct storage prefix is below legacy prefix`() {
+  fun `service rejects deprecated top-level storage path prefix`() {
     functionProcess.close()
     ensureWorkItemRequest = null
     val mutableConfig = configFolder.root.toPath().resolve("requisition-fetcher-config.textproto")
@@ -356,7 +508,10 @@ class RequisitionFetcherFunctionTest {
         mutableConfig
           .toFile()
           .readText()
-          .replace(DIRECT_STORAGE_PATH_PREFIX, "$STORAGE_PATH_PREFIX/v2")
+          .replace(
+            "  cmms_connection {",
+            "  storage_path_prefix: \"$DEPRECATED_STORAGE_PATH_PREFIX\"\n  cmms_connection {",
+          )
       )
     startFunction()
 
@@ -369,20 +524,18 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
-  fun `service fails closed when one provider direct prefix overlaps another legacy prefix`() {
+  fun `service fails closed when providers share a direct storage prefix`() {
     functionProcess.close()
     ensureWorkItemRequest = null
-    val legacyConfig =
+    val configFile =
       configFolder.root.toPath().resolve("requisition-fetcher-config.textproto").toFile()
-    val originalConfig = legacyConfig.readText()
+    val originalConfig = configFile.readText()
     val secondProviderConfig =
-      originalConfig
-        .replace("dataProviders/edp7", "dataProviders/edp8")
-        .replace(
-          "storage_path_prefix: \"$STORAGE_PATH_PREFIX\"",
-          "storage_path_prefix: \"$DIRECT_STORAGE_PATH_PREFIX/legacy\"",
-        )
-    legacyConfig.writeText("$originalConfig\n$secondProviderConfig")
+      originalConfig.replace(
+        "data_provider: \"dataProviders/edp7\"",
+        "data_provider: \"dataProviders/edp8\"",
+      )
+    configFile.writeText("$originalConfig\n$secondProviderConfig")
     startFunction()
 
     val response = invokeFunction()
@@ -560,7 +713,7 @@ class RequisitionFetcherFunctionTest {
       groupId = createDeterministicId(REQUISITION)
     }
 
-    private val STORAGE_PATH_PREFIX = "edp7"
+    private val DEPRECATED_STORAGE_PATH_PREFIX = "edp7"
     private val DIRECT_STORAGE_PATH_PREFIX = "edp7-v2"
     private val SECRETS_DIR: Path =
       getRuntimePath(

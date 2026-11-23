@@ -23,6 +23,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
@@ -37,6 +38,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate
 
 data class RawImpressionUploadCorrectionCandidateResult(
@@ -44,6 +46,11 @@ data class RawImpressionUploadCorrectionCandidateResult(
   val createRequestId: String,
   val advanceRequestIds: List<String>,
   val advanceRequestFingerprints: List<ByteString>,
+)
+
+data class ExpiredRawImpressionUploadCorrectionCandidate(
+  val rawImpressionUploadCorrectionCandidateId: String,
+  val rawImpressionUploadResourceId: String,
 )
 
 /** Reads a raw-impression upload correction candidate by resource ID. */
@@ -271,6 +278,54 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadCorrectionCandidates(
     .map { buildRawImpressionUploadCorrectionCandidateResult(it) }
 }
 
+/** Reads expired correction candidates in one terminal state. */
+fun AsyncDatabaseClient.ReadContext.readExpiredRawImpressionUploadCorrectionCandidates(
+  dataProviderResourceId: String,
+  state: RawImpressionUploadCorrectionCandidate.State,
+  now: Instant,
+  limit: Int,
+): Flow<ExpiredRawImpressionUploadCorrectionCandidate> {
+  val sql =
+    """
+    SELECT
+      candidate.RawImpressionUploadCorrectionCandidateId,
+      candidate.RawImpressionUploadResourceId,
+    FROM RawImpressionUploadCorrectionCandidate@{
+      FORCE_INDEX=RawImpressionUploadCorrectionCandidateByStateAndExpireTime
+    } AS candidate
+    LEFT JOIN UploadHealingOperation AS operation
+      ON operation.DataProviderResourceId = candidate.DataProviderResourceId
+      AND operation.UploadHealingOperationId = candidate.UploadHealingOperationId
+    WHERE candidate.DataProviderResourceId = @dataProviderResourceId
+      AND candidate.State = @state
+      AND candidate.ExpireTime <= @now
+      AND (
+        candidate.UploadHealingOperationId IS NULL
+        OR CAST(operation.State AS INT64) = @completeOperationState
+      )
+    ORDER BY candidate.ExpireTime, candidate.RawImpressionUploadCorrectionCandidateId
+    LIMIT @limit
+    """
+      .trimIndent()
+  return executeQuery(
+      statement(sql) {
+        bind("dataProviderResourceId").to(dataProviderResourceId)
+        bind("state").to(Value.protoEnum(state))
+        bind("now").to(now.toGcloudTimestamp())
+        bind("completeOperationState")
+          .to(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE.number.toLong())
+        bind("limit").to(limit.toLong())
+      },
+      Options.tag("action=readExpiredRawImpressionUploadCorrectionCandidates"),
+    )
+    .map { row ->
+      ExpiredRawImpressionUploadCorrectionCandidate(
+        row.getString("RawImpressionUploadCorrectionCandidateId"),
+        row.getString("RawImpressionUploadResourceId"),
+      )
+    }
+}
+
 /** Buffers a raw-impression upload correction candidate insert. */
 fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadCorrectionCandidate(
   rawImpressionUploadCorrectionCandidate: RawImpressionUploadCorrectionCandidate,
@@ -373,6 +428,33 @@ fun AsyncDatabaseClient.TransactionContext.approveRawImpressionUploadCorrectionC
       .to(candidate.rawImpressionUploadCorrectionCandidateId)
     set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED)
     set("Decision").to(decision)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Marks an approved correction candidate complete after its healing operation finishes. */
+fun AsyncDatabaseClient.TransactionContext.completeRawImpressionUploadCorrectionCandidate(
+  candidate: RawImpressionUploadCorrectionCandidate
+) {
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(candidate.rawImpressionUploadCorrectionCandidateId)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Returns an approved correction candidate to its mutable healing plan. */
+fun AsyncDatabaseClient.TransactionContext.reopenRawImpressionUploadCorrectionCandidate(
+  candidate: RawImpressionUploadCorrectionCandidate
+) {
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(candidate.rawImpressionUploadCorrectionCandidateId)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED)
+    set("Decision").to(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }

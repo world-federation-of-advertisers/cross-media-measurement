@@ -21,7 +21,6 @@ import io.cloudevents.CloudEvent
 import io.cloudevents.CloudEventData
 import io.cloudevents.SpecVersion
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import java.net.URI
 import java.time.OffsetDateTime
 import kotlin.test.assertFailsWith
@@ -64,6 +63,7 @@ class DataWatcherFunctionTest {
       .containsEntry(DataWatcher.CREATE_TIME_METADATA_KEY, "2026-08-15T10:15:30Z")
     assertThat(capturedMetadata.single())
       .containsEntry(DataWatcher.EVENT_TYPE_METADATA_KEY, EVENT_TYPE)
+    assertThat(capturedMetadata.single()).containsEntry(DataWatcher.EVENT_ID_METADATA_KEY, EVENT_ID)
     // Existing custom object metadata is preserved alongside the generation.
     assertThat(capturedMetadata.single())
       .containsEntry("impression-metadata-resource-id", "res-123")
@@ -86,11 +86,23 @@ class DataWatcherFunctionTest {
         .trimIndent()
 
     val exception =
-      assertFailsWith<StatusRuntimeException> {
+      assertFailsWith<RuntimeException> {
         DataWatcherFunction(pathReceiver).accept(TestCloudEvent(cloudEventData.toByteArray()))
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception).hasMessageThat().contains("errorCode=grpc.UNAVAILABLE")
+    assertThat(exception).hasMessageThat().doesNotContain("gs://")
+    assertThat(exception.stackTrace).isEmpty()
+  }
+
+  @Test
+  fun `legacy events keep their ID without inventing an object creation time`() {
+    val captured = mutableListOf<Map<String, String>>()
+    val json = """{"bucket":"test-bucket","name":"path/to/blob","size":"1"}"""
+    DataWatcherFunction { _, metadata -> captured += metadata }
+      .accept(TestCloudEvent(json.toByteArray()))
+    assertThat(captured.single()).containsEntry(DataWatcher.EVENT_ID_METADATA_KEY, EVENT_ID)
+    assertThat(captured.single()).doesNotContainKey(DataWatcher.CREATE_TIME_METADATA_KEY)
   }
 
   private class TestCloudEvent(private val dataBytes: ByteArray) : CloudEvent {

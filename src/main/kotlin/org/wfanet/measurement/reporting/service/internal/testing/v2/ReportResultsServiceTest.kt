@@ -22,6 +22,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
+import com.google.type.copy
 import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
@@ -31,7 +32,17 @@ import io.grpc.StatusException
 import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import io.grpc.testing.GrpcCleanupRule
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.util.UUID
+import java.util.concurrent.Callable
 import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.CyclicBarrier
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.test.assertFailsWith
 import org.junit.Rule
@@ -50,7 +61,9 @@ import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequ
 import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequestKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpc
+import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.BatchCreateReportingSetResultsRequest
+import org.wfanet.measurement.internal.reporting.v2.BeginReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpc
 import org.wfanet.measurement.internal.reporting.v2.ReportResult
@@ -70,15 +83,20 @@ import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.ba
 import org.wfanet.measurement.internal.reporting.v2.addProcessedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
+import org.wfanet.measurement.internal.reporting.v2.batchCreateReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsResponse
+import org.wfanet.measurement.internal.reporting.v2.beginReportResultAssemblyRequest
+import org.wfanet.measurement.internal.reporting.v2.cleanupReportResultAssembliesRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
+import org.wfanet.measurement.internal.reporting.v2.discardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventFilter
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
+import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsRequest
@@ -95,6 +113,16 @@ import org.wfanet.measurement.reporting.service.internal.ImpressionQualification
 @RunWith(JUnit4::class)
 abstract class ReportResultsServiceTest {
   private val forcedIds = ConcurrentLinkedQueue<Long>()
+  private var currentTime: Instant = Instant.parse("2026-01-01T00:00:00Z")
+  protected val clock: Clock =
+    object : Clock() {
+      override fun instant(): Instant = currentTime
+
+      override fun getZone(): ZoneId = ZoneOffset.UTC
+
+      override fun withZone(zone: ZoneId): Clock = Clock.fixed(currentTime, zone)
+    }
+
   private val idGenerator =
     object : IdGenerator {
       private val nextId = AtomicLong(1)
@@ -139,6 +167,682 @@ abstract class ReportResultsServiceTest {
     idGenerator: IdGenerator,
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   ): List<BindableService>
+
+  private fun newAssemblyRequest(): BeginReportResultAssemblyRequest {
+    val basicReport = ensureMeasurementConsumer()
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        externalReportId = "report"
+      }
+    )
+    return beginReportResultAssemblyRequest {
+      cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+      externalBasicReportId = basicReport.externalBasicReportId
+      reportResult = CREATE_REPORT_RESULT_REQUEST.reportResult
+      requestId = UUID.randomUUID().toString()
+    }
+  }
+
+  private fun assemblyBatch(
+    begin: BeginReportResultAssemblyRequest,
+    result: ReportResult,
+    finalBatch: Boolean,
+  ): BatchCreateReportResultAssemblyRequest {
+    return batchCreateReportResultAssemblyRequest {
+      cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      externalBasicReportId = begin.externalBasicReportId
+      externalReportResultId = result.externalReportResultId
+      requests += BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.requestsList
+      this.finalBatch = finalBatch
+    }
+  }
+
+  @Test
+  fun `beginReportResultAssembly repeats the same request and protects an active attempt`() {
+    val begin = newAssemblyRequest()
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+    assertThat(reportResultsStub.beginReportResultAssembly(begin)).isEqualTo(result)
+    val exception =
+      assertFailsWith<StatusException> {
+        reportResultsStub.beginReportResultAssembly(
+          begin.copy { requestId = UUID.randomUUID().toString() }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    val owner =
+      basicReportsStub.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+          externalBasicReportId = begin.externalBasicReportId
+        }
+      )
+    assertThat(owner.state).isEqualTo(BasicReport.State.REPORT_CREATED)
+    assertThat(owner.externalReportResultId).isEqualTo(0L)
+  }
+
+  @Test
+  fun `beginReportResultAssembly retry normalizes a nonempty timezone version`() {
+    val begin =
+      newAssemblyRequest().copy {
+        reportResult =
+          reportResult.copy {
+            reportStart =
+              reportStart.copy {
+                timeZone = timeZone {
+                  id = "Europe/Rome"
+                  version = "2025b"
+                }
+                nanos = 123456789
+              }
+          }
+      }
+
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+
+    assertThat(result.reportStart)
+      .isEqualTo(
+        begin.reportResult.reportStart.copy { timeZone = timeZone.copy { clearVersion() } }
+      )
+    assertThat(reportResultsStub.beginReportResultAssembly(begin)).isEqualTo(result)
+    assertThat(
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      )
+      .isEqualTo(result)
+  }
+
+  @Test
+  fun `concurrent assembly begins grant ownership to exactly one worker`() {
+    val begin = newAssemblyRequest()
+    val executor = Executors.newFixedThreadPool(2)
+    val barrier = CyclicBarrier(2)
+    try {
+      val futures =
+        (0..1).map {
+          executor.submit(
+            Callable {
+              barrier.await(30, TimeUnit.SECONDS)
+              try {
+                reportResultsStub.beginReportResultAssembly(
+                  begin.copy { requestId = UUID.randomUUID().toString() }
+                )
+              } catch (e: StatusException) {
+                assertThat(e.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+                null
+              }
+            }
+          )
+        }
+      val results = futures.map { it.get(30, TimeUnit.SECONDS) }
+      assertThat(results.filterNotNull()).hasSize(1)
+    } finally {
+      executor.shutdownNow()
+    }
+  }
+
+  @Test
+  fun `begin and batch assembly validate required scope and attempt fields`() {
+    val begin = newAssemblyRequest()
+    for (request in
+      listOf(
+        begin.copy { cmmsMeasurementConsumerId = "" },
+        begin.copy { externalBasicReportId = "" },
+        begin.copy { requestId = "" },
+        begin.copy { requestId = "invalid" },
+        begin.copy { clearReportResult() },
+      )) {
+      val exception =
+        assertFailsWith<StatusException> { reportResultsStub.beginReportResultAssembly(request) }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+    val batch = assemblyBatch(begin, result, finalBatch = false)
+    for (request in
+      listOf(
+        batch.copy { cmmsMeasurementConsumerId = "" },
+        batch.copy { externalBasicReportId = "" },
+        batch.copy { externalReportResultId = 0L },
+      )) {
+      val exception =
+        assertFailsWith<StatusException> {
+          reportResultsStub.batchCreateReportResultAssembly(request)
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+    val wrongTenant =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportResultAssembly(
+          batch.copy { cmmsMeasurementConsumerId = "other-consumer" }
+        )
+      }
+    assertThat(wrongTenant.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `beginReportResultAssembly rejects request ID reused with different metadata`() {
+    val begin = newAssemblyRequest()
+    reportResultsStub.beginReportResultAssembly(begin)
+    val exception =
+      assertFailsWith<StatusException> {
+        reportResultsStub.beginReportResultAssembly(
+          begin.copy {
+            reportResult = reportResult.copy { reportStart = reportStart.copy { day = day + 1 } }
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `expired assembly discards a committed prefix and fences the old worker`() {
+    val begin = newAssemblyRequest()
+    val old = reportResultsStub.beginReportResultAssembly(begin)
+    reportResultsStub.batchCreateReportResultAssembly(assemblyBatch(begin, old, finalBatch = false))
+    currentTime = currentTime.plus(Duration.ofMinutes(11))
+    val replacement =
+      reportResultsStub.beginReportResultAssembly(
+        begin.copy { requestId = UUID.randomUUID().toString() }
+      )
+    assertThat(replacement.externalReportResultId).isNotEqualTo(old.externalReportResultId)
+    val stale =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportResultAssembly(
+          assemblyBatch(begin, old, finalBatch = true)
+        )
+      }
+    assertThat(stale.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    reportResultsStub.batchCreateReportResultAssembly(
+      assemblyBatch(begin, replacement, finalBatch = true)
+    )
+    val rows =
+      reportResultsStub.listReportingSetResults(
+        listReportingSetResultsRequest {
+          cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+          externalReportResultId = replacement.externalReportResultId
+          view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNPROCESSED
+        }
+      )
+    assertThat(rows.reportingSetResultsCount)
+      .isEqualTo(BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.requestsCount)
+    val owner =
+      basicReportsStub.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+          externalBasicReportId = begin.externalBasicReportId
+        }
+      )
+    assertThat(owner.state).isEqualTo(BasicReport.State.UNPROCESSED_RESULTS_READY)
+    assertThat(owner.externalReportResultId).isEqualTo(replacement.externalReportResultId)
+  }
+
+  @Test
+  fun `expired assembly batches leave committed children and owner unchanged`() {
+    val begin = newAssemblyRequest()
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+    reportResultsStub.batchCreateReportResultAssembly(
+      assemblyBatch(begin, result, finalBatch = false)
+    )
+    val listRequest = listReportingSetResultsRequest {
+      cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      externalReportResultId = result.externalReportResultId
+      view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNPROCESSED
+    }
+    val committed = reportResultsStub.listReportingSetResults(listRequest)
+    val ownerRequest = getBasicReportRequest {
+      cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      externalBasicReportId = begin.externalBasicReportId
+    }
+    val owner = basicReportsStub.getBasicReport(ownerRequest)
+    currentTime = currentTime.plus(Duration.ofMinutes(11))
+
+    for (finalBatch in listOf(false, true)) {
+      val expired =
+        assertFailsWith<StatusException> {
+          reportResultsStub.batchCreateReportResultAssembly(
+            assemblyBatch(begin, result, finalBatch = finalBatch)
+          )
+        }
+      assertThat(expired.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+    assertThat(reportResultsStub.listReportingSetResults(listRequest)).isEqualTo(committed)
+    assertThat(basicReportsStub.getBasicReport(ownerRequest)).isEqualTo(owner)
+
+    reportResultsStub.cleanupReportResultAssemblies(
+      cleanupReportResultAssembliesRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      }
+    )
+    val missing =
+      assertFailsWith<StatusException> {
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      }
+    assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `assembly batch at exact lease expiry requires a fresh attempt`() {
+    val begin = newAssemblyRequest()
+    val expired = reportResultsStub.beginReportResultAssembly(begin)
+    currentTime = currentTime.plus(Duration.ofMinutes(10))
+
+    val failure =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportResultAssembly(
+          assemblyBatch(begin, expired, finalBatch = true)
+        )
+      }
+    assertThat(failure.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(
+        reportResultsStub
+          .listReportingSetResults(
+            listReportingSetResultsRequest {
+              cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+              externalReportResultId = expired.externalReportResultId
+              view = ReportingSetResultView.REPORTING_SET_RESULT_VIEW_UNPROCESSED
+            }
+          )
+          .reportingSetResultsList
+      )
+      .isEmpty()
+    val ownerRequest = getBasicReportRequest {
+      cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      externalBasicReportId = begin.externalBasicReportId
+    }
+    val owner = basicReportsStub.getBasicReport(ownerRequest)
+    assertThat(owner.state).isEqualTo(BasicReport.State.REPORT_CREATED)
+    assertThat(owner.externalReportResultId).isEqualTo(0L)
+
+    val replacement =
+      reportResultsStub.beginReportResultAssembly(
+        begin.copy { requestId = UUID.randomUUID().toString() }
+      )
+    assertThat(replacement.externalReportResultId).isNotEqualTo(expired.externalReportResultId)
+    reportResultsStub.batchCreateReportResultAssembly(
+      assemblyBatch(begin, replacement, finalBatch = true)
+    )
+    val completed = basicReportsStub.getBasicReport(ownerRequest)
+    assertThat(completed.state).isEqualTo(BasicReport.State.UNPROCESSED_RESULTS_READY)
+    assertThat(completed.externalReportResultId).isEqualTo(replacement.externalReportResultId)
+  }
+
+  @Test
+  fun `batch writes renew the lease and only the final batch completes assembly`() {
+    val begin = newAssemblyRequest()
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+    currentTime = currentTime.plus(Duration.ofMinutes(9))
+    reportResultsStub.batchCreateReportResultAssembly(
+      assemblyBatch(begin, result, finalBatch = false)
+    )
+    currentTime = currentTime.plus(Duration.ofMinutes(2))
+    reportResultsStub.cleanupReportResultAssemblies(
+      cleanupReportResultAssembliesRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      }
+    )
+    val owner =
+      basicReportsStub.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+          externalBasicReportId = begin.externalBasicReportId
+        }
+      )
+    assertThat(owner.state).isEqualTo(BasicReport.State.REPORT_CREATED)
+    reportResultsStub.batchCreateReportResultAssembly(
+      assemblyBatch(begin, result, finalBatch = true).copy { requests.clear() }
+    )
+    basicReportsStub.failBasicReport(
+      failBasicReportRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+        externalBasicReportId = begin.externalBasicReportId
+      }
+    )
+    currentTime = currentTime.plus(Duration.ofMinutes(20))
+    reportResultsStub.cleanupReportResultAssemblies(
+      cleanupReportResultAssembliesRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      }
+    )
+    reportResultsStub.discardReportResult(
+      discardReportResultRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+        externalReportResultId = result.externalReportResultId
+      }
+    )
+    assertThat(
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      )
+      .isEqualTo(result)
+    assertThat(reportResultsStub.beginReportResultAssembly(begin)).isEqualTo(result)
+  }
+
+  @Test
+  fun `cleanupReportResultAssemblies removes crashed attempts before their first batch`() {
+    val begin = newAssemblyRequest()
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+    currentTime = currentTime.plus(Duration.ofMinutes(11))
+    reportResultsStub.cleanupReportResultAssemblies(
+      cleanupReportResultAssembliesRequest { cmmsMeasurementConsumerId = "another-consumer" }
+    )
+    assertThat(
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      )
+      .isEqualTo(result)
+    reportResultsStub.cleanupReportResultAssemblies(
+      cleanupReportResultAssembliesRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      }
+    )
+    val missing =
+      assertFailsWith<StatusException> {
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      }
+    assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `cleanupReportResultAssemblies removes terminal report attempts without waiting for expiry`() {
+    val begin = newAssemblyRequest()
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+    basicReportsStub.failBasicReport(
+      failBasicReportRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+        externalBasicReportId = begin.externalBasicReportId
+      }
+    )
+    reportResultsStub.cleanupReportResultAssemblies(
+      cleanupReportResultAssembliesRequest {
+        cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+      }
+    )
+    val missing =
+      assertFailsWith<StatusException> {
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = begin.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      }
+    assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `cleanupReportResultAssemblies bounds work per run and eventually reclaims all attempts`() {
+    val template = ensureMeasurementConsumer()
+    val results =
+      (0..100).map { index ->
+        val owner =
+          basicReportsStub.createBasicReport(
+            createBasicReportRequest {
+              basicReport = template.copy { externalBasicReportId = "assembly-$index" }
+            }
+          )
+        basicReportsStub.setExternalReportId(
+          setExternalReportIdRequest {
+            cmmsMeasurementConsumerId = owner.cmmsMeasurementConsumerId
+            externalBasicReportId = owner.externalBasicReportId
+            externalReportId = "report-$index"
+          }
+        )
+        reportResultsStub.beginReportResultAssembly(
+          beginReportResultAssemblyRequest {
+            cmmsMeasurementConsumerId = owner.cmmsMeasurementConsumerId
+            externalBasicReportId = owner.externalBasicReportId
+            reportResult = CREATE_REPORT_RESULT_REQUEST.reportResult
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+    currentTime = currentTime.plus(Duration.ofMinutes(11))
+    val cleanup = cleanupReportResultAssembliesRequest {
+      cmmsMeasurementConsumerId = template.cmmsMeasurementConsumerId
+    }
+    reportResultsStub.cleanupReportResultAssemblies(cleanup)
+    val remaining =
+      results.filter { result ->
+        try {
+          reportResultsStub.getReportResult(
+            getReportResultRequest {
+              cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+              externalReportResultId = result.externalReportResultId
+            }
+          )
+          true
+        } catch (e: StatusException) {
+          assertThat(e.status.code).isEqualTo(Status.Code.NOT_FOUND)
+          false
+        }
+      }
+    assertThat(remaining).hasSize(1)
+    reportResultsStub.cleanupReportResultAssemblies(cleanup)
+    val missing =
+      assertFailsWith<StatusException> {
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = remaining.single().cmmsMeasurementConsumerId
+            externalReportResultId = remaining.single().externalReportResultId
+          }
+        )
+      }
+    assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `legacy APIs cannot write owned results or publish over an owned attempt`() {
+    val begin = newAssemblyRequest()
+    val result = reportResultsStub.beginReportResultAssembly(begin)
+    val exception =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.copy {
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val legacy = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val legacyException =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportingSetResults(
+          BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.copy {
+            externalReportResultId = legacy.externalReportResultId
+            externalBasicReportId = begin.externalBasicReportId
+          }
+        )
+      }
+    assertThat(legacyException.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val wrongOwner =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportResultAssembly(
+          assemblyBatch(begin, result, finalBatch = false).copy {
+            externalBasicReportId = "missing"
+          }
+        )
+      }
+    assertThat(wrongOwner.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `discardReportResult reclaims committed prefix and permits a complete retry`() {
+    val basicReport = ensureMeasurementConsumer()
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        externalReportId = "report"
+      }
+    )
+    val result = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val requests =
+      (0..100).map { index ->
+        BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.requestsList.first().copy {
+          reportingSetResult =
+            reportingSetResult.copy {
+              dimension = dimension.copy { externalReportingSetId = "set$index" }
+            }
+        }
+      }
+    val firstBatch =
+      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.copy {
+          this.requests.clear()
+          this.requests += requests.take(100)
+        }
+        .withExternalReportResultId(result.externalReportResultId)
+    reportResultsStub.batchCreateReportingSetResults(firstBatch)
+    val secondBatch =
+      firstBatch
+        .copy {
+          this.requests.clear()
+          this.requests +=
+            requests.last().copy {
+              reportingSetResult =
+                reportingSetResult.copy {
+                  dimension = dimension.copy { externalReportingSetId = "" }
+                }
+            }
+        }
+        .withExternalReportResultId(result.externalReportResultId)
+    val failure =
+      assertFailsWith<StatusException> {
+        reportResultsStub.batchCreateReportingSetResults(secondBatch)
+      }
+    assertThat(failure.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val request = discardReportResultRequest {
+      cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+      externalReportResultId = result.externalReportResultId
+    }
+    reportResultsStub.discardReportResult(request)
+    reportResultsStub.discardReportResult(request)
+    val error =
+      assertFailsWith<StatusException> {
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.NOT_FOUND)
+
+    val retry = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    for ((index, batch) in requests.chunked(100).withIndex()) {
+      reportResultsStub.batchCreateReportingSetResults(
+        firstBatch
+          .copy {
+            this.requests.clear()
+            this.requests += batch
+            if (index == 1) externalBasicReportId = basicReport.externalBasicReportId
+          }
+          .withExternalReportResultId(retry.externalReportResultId)
+      )
+    }
+    val results =
+      reportResultsStub.listReportingSetResults(
+        listReportingSetResultsRequest {
+          cmmsMeasurementConsumerId = retry.cmmsMeasurementConsumerId
+          externalReportResultId = retry.externalReportResultId
+        }
+      )
+    assertThat(results.reportingSetResultsList.map { it.dimension.externalReportingSetId })
+      .containsExactlyElementsIn((0..100).map { "set$it" })
+  }
+
+  @Test
+  fun `discardReportResult preserves results already associated with a BasicReport`() {
+    val basicReport = ensureMeasurementConsumer()
+    basicReportsStub.setExternalReportId(
+      setExternalReportIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        externalReportId = "report"
+      }
+    )
+    val result = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val created =
+      reportResultsStub.batchCreateReportingSetResults(
+        BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+            result.externalReportResultId
+          )
+          .copy { externalBasicReportId = basicReport.externalBasicReportId }
+      )
+    reportResultsStub.discardReportResult(
+      discardReportResultRequest {
+        cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+        externalReportResultId = result.externalReportResultId
+      }
+    )
+
+    assertThat(
+        reportResultsStub.getReportResult(
+          getReportResultRequest {
+            cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+            externalReportResultId = result.externalReportResultId
+          }
+        )
+      )
+      .isEqualTo(result)
+    assertThat(
+        reportResultsStub
+          .listReportingSetResults(
+            listReportingSetResultsRequest {
+              cmmsMeasurementConsumerId = result.cmmsMeasurementConsumerId
+              externalReportResultId = result.externalReportResultId
+            }
+          )
+          .reportingSetResultsList
+      )
+      .containsExactlyElementsIn(created.reportingSetResultsList)
+    assertThat(
+        basicReportsStub
+          .getBasicReport(
+            getBasicReportRequest {
+              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+              externalBasicReportId = basicReport.externalBasicReportId
+            }
+          )
+          .state
+      )
+      .isEqualTo(BasicReport.State.UNPROCESSED_RESULTS_READY)
+  }
+
+  @Test
+  fun `discardReportResult requires measurement consumer and result IDs`() {
+    for (request in
+      listOf(
+        discardReportResultRequest { externalReportResultId = 1 },
+        discardReportResultRequest { cmmsMeasurementConsumerId = "mc" },
+      )) {
+      val error =
+        assertFailsWith<StatusException> { reportResultsStub.discardReportResult(request) }
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+  }
 
   @Test
   fun `createReportResult creates ReportResult`() {
