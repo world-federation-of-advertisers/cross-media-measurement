@@ -56,7 +56,6 @@ internal data class VidLabelingDispatchSource(
       dataPath = uri
       generation = this@VidLabelingDispatchSource.generation
       createTime = time.toProtoTime()
-      eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
     }
     val ordinary = vidLabelingDispatchWorkItemParams {
       dataProvider = this@VidLabelingDispatchSource.dataProvider
