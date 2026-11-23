@@ -507,6 +507,14 @@ and `--only-if-needed` cannot reuse a dataset without the stress keys. Deploy th
 additive BigQuery `device_type` and `parental_status` columns and updated event
 descriptor with the normal CMMS workflow before running the updated seeder.
 
+The testing template declares parental status as a population attribute. Every
+population using that template must supply it, including the older small,
+hash-only, and simulator fixtures. Those fixtures use `NOT_PARENT` throughout;
+the high-overlap fixture exercises both statuses. `CommittedPopulationSpecsTest`
+validates all seven committed populations against the current event descriptor.
+When deploying the expanded descriptor, refresh previously provisioned test
+population resources from these updated files as part of test setup.
+
 | Testing field | Meaning and coverage |
 | --- | --- |
 | `common.gender` | Male and female |

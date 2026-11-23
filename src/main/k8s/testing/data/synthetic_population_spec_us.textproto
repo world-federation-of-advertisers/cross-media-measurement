@@ -25,6 +25,7 @@ subpopulations {
       gender: MALE
       age_group: YEARS_18_TO_34
       us_state: CALIFORNIA
+      parental_status: NOT_PARENT
     }
   }
 }
