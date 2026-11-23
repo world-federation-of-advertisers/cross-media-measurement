@@ -131,30 +131,18 @@ class RawImpressionFileBinPackerTest {
   }
 
   @Test
-  fun `encoded names limit uses UTF-8 bytes and protobuf framing`() {
-    // "a" costs 3 wire bytes, "é" costs 4; both fit the raw-byte and file-count bounds.
-    val result =
-      RawImpressionFileBinPacker.pack(
-        listOf(file("a", 1), file("é", 1)),
-        100,
-        maxFilesPerBatch = 10,
-        maxFileNamesSizeBytes = 4,
-      )
-    assertThat(result).containsExactly(listOf("a"), listOf("é")).inOrder()
+  fun `raw size and file count constraints apply together`() {
+    val files = listOf(file("a", 60), file("b", 40), file("c", 30), file("d", 20))
+    val result = RawImpressionFileBinPacker.pack(files, 100, maxFilesPerBatch = 2)
+    assertThat(result).containsExactly(listOf("a", "b"), listOf("c", "d")).inOrder()
+    assertThat(RawImpressionFileBinPacker.pack(files.reversed(), 100, maxFilesPerBatch = 2))
+      .isEqualTo(result)
   }
 
   @Test
-  fun `an indivisible name over the metadata cap is rejected`() {
-    assertFailsWith<IllegalArgumentException> {
-      RawImpressionFileBinPacker.pack(listOf(file("é", 1)), 100, maxFileNamesSizeBytes = 3)
-    }
-  }
-
-  @Test
-  fun `all three constraints apply together`() {
-    val files = listOf(file("a", 60), file("b", 40), file("c", 30))
-    val result =
-      RawImpressionFileBinPacker.pack(files, 100, maxFilesPerBatch = 2, maxFileNamesSizeBytes = 6)
-    assertThat(result).containsExactly(listOf("a", "b"), listOf("c")).inOrder()
+  fun `default packing does not impose a file name limit on other callers`() {
+    val names = listOf("a".repeat(8_000), "é")
+    val result = RawImpressionFileBinPacker.pack(names.map { file(it, 1) }, 100)
+    assertThat(result).containsExactly(names)
   }
 }
