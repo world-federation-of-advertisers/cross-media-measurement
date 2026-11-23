@@ -106,6 +106,11 @@ resource "google_bigquery_table" "impressions" {
     "mode": "NULLABLE"
   },
   {
+    "name": "device_type",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "signed_in",
     "type": "BOOLEAN",
     "mode": "NULLABLE"

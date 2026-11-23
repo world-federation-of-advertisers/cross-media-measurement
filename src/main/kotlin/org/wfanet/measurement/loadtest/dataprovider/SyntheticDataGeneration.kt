@@ -27,6 +27,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlin.math.abs
 import kotlin.math.max
@@ -134,10 +135,16 @@ object SyntheticDataGeneration {
     private val subPopulationVidRanges: List<List<PopulationSpec.VidRange>> =
       populationSpec.subpopulationsList.map { it.vidRangesList }
 
+    // Every date reuses the same immutable VID ranges and population specification.
+    private val subPopulationIndexByVidRange = ConcurrentHashMap<VidRange, Int>()
+
     /**
      * Returns the index of the subpopulation that fully contains [vidRange], or null if none does.
      */
     fun findSubPopulationIndex(vidRange: VidRange): Int? {
+      subPopulationIndexByVidRange[vidRange]?.let {
+        return it
+      }
       for ((index, vidRanges) in subPopulationVidRanges.withIndex()) {
         for (subRange in vidRanges) {
           // VidRangeSpec.vidRange.endExclusive is exclusive;
@@ -148,6 +155,7 @@ object SyntheticDataGeneration {
             vidRange.start >= subRange.startVid &&
               vidRange.endExclusive - 1 <= subRange.endVidInclusive
           ) {
+            subPopulationIndexByVidRange[vidRange] = index
             return index
           }
         }

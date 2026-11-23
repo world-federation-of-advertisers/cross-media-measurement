@@ -31,11 +31,13 @@ import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.entityKeySpec
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.syntheticEventGroup
 import org.measurement.integration.k8s.testing.impressionTestDataConfig
+import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpecKt
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.fieldValue
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.syntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 
 /**
  * Generates the high overlap synthetic data specs.
@@ -44,14 +46,14 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.vidRange
  * aggregator EDPs, plus a deliberately sub-sigma noise probe. A segment is seeded on exactly the
  * EDPs named in its region, so selecting the whole menu lights up all 15 regions at once.
  *
- * The committed population spec interleaves 30 demographic tuples in [STRIPE_SIZE]-VID stripes
+ * The committed population spec interleaves 300 demographic tuples in [STRIPE_SIZE]-VID stripes
  * across the reached range, so every Venn region carries the full reached demographic mix.
  *
  * Usage: `GenerateHighOverlapSpecs <output-directory>`
  */
 object GenerateHighOverlapSpecs {
 
-  private const val STRIPE_SIZE = 10_000
+  private const val STRIPE_SIZE = 1_000
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4563): Move the EDP
   // names and the segment table below into a HighOverlapDatasetSpec config, so
@@ -72,6 +74,10 @@ object GenerateHighOverlapSpecs {
   private val FLIGHT_ALWAYS_ON = Flight(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 7, 1))
 
   private const val TRANCHES = 6
+  private const val ADDITIONAL_ENTITY_KEY_COUNT = 5_000
+  private val MEDIA_TYPES = listOf(MediaType.VIDEO, MediaType.DISPLAY)
+  private val DEVICE_TYPES =
+    listOf(Common.DeviceType.DESKTOP, Common.DeviceType.MOBILE, Common.DeviceType.TABLET)
 
   /** Mean frequency 2.1, monotonic K+ curve. */
   private val FREQUENCY_MIX =
@@ -303,20 +309,20 @@ object GenerateHighOverlapSpecs {
   /** Key grouping the blocks that share a tranche and a frequency. */
   private data class TrancheFrequency(val tranche: Int, val frequency: Int)
 
-  private data class Block(val start: Long, val endExclusive: Long, val video: Boolean)
+  private data class Block(val start: Long, val endExclusive: Long)
 
   /**
    * Builds the spec for one entity key of a segment, covering that key's VID slice.
    *
-   * Every `vid_range_spec` is exactly one population stripe: `SyntheticDataGeneration` resolves a
+   * Every `vid_range_spec` stays inside one population stripe: `SyntheticDataGeneration` resolves a
    * range's demographics by finding the single subpopulation wholly containing it, so a range
    * spanning two stripes fails. Slice boundaries are multiples of [STRIPE_SIZE], so stripes tile
    * each slice exactly.
    *
-   * Stripes are assigned round-robin to (tranche, frequency, media): tranches stagger first
-   * exposure across the flight so cumulative reach grows week over week, the frequency mix gives a
-   * non-flat monotonic K+ curve, and alternating media means every slice emits both VIDEO and
-   * DISPLAY.
+   * Stripes are assigned round-robin to (tranche, frequency): tranches stagger first exposure
+   * across the flight so cumulative reach grows week over week, the frequency mix gives a non-flat
+   * monotonic K+ curve. Each stripe is partitioned across three devices and both VIDEO and DISPLAY,
+   * so those dimensions do not collapse into particular demographics.
    */
   private fun buildSegmentSpec(segment: Segment, entityIndex: Int): SyntheticEventGroupSpec {
     val flightStart = segment.flight.start
@@ -349,7 +355,7 @@ object GenerateHighOverlapSpecs {
       val frequency = pattern[i % pattern.size]
       blocks
         .getOrPut(TrancheFrequency(tranche, frequency)) { mutableListOf() }
-        .add(Block(stripe.start, stripe.endExclusive, i % 2 == 0))
+        .add(Block(stripe.start, stripe.endExclusive))
     }
 
     return syntheticEventGroupSpec {
@@ -372,25 +378,47 @@ object GenerateHighOverlapSpecs {
                 SyntheticEventGroupSpecKt.frequencySpec {
                   this.frequency = frequency.toLong()
                   blocks.getValue(TrancheFrequency(tranche, frequency)).forEachIndexed { n, block ->
-                    vidRangeSpecs +=
-                      SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
-                        vidRange = vidRange {
-                          start = block.start
-                          endExclusive = block.endExclusive
-                        }
-                        if (block.video) {
-                          nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
-                            floatValue = COMPLETED_FRACTIONS[n % COMPLETED_FRACTIONS.size]
+                    for ((deviceIndex, deviceType) in DEVICE_TYPES.withIndex()) {
+                      for ((mediaIndex, mediaType) in MEDIA_TYPES.withIndex()) {
+                        val partition = deviceIndex * MEDIA_TYPES.size + mediaIndex
+                        val partitionCount = DEVICE_TYPES.size * MEDIA_TYPES.size
+                        val start =
+                          block.start +
+                            (block.endExclusive - block.start) * partition / partitionCount
+                        val end =
+                          block.start +
+                            (block.endExclusive - block.start) * (partition + 1) / partitionCount
+                        if (start == end) continue
+                        vidRangeSpecs +=
+                          SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
+                            vidRange = vidRange {
+                              this.start = start
+                              endExclusive = end
+                            }
+                            nonPopulationFieldValues["common.media_type"] = fieldValue {
+                              enumValue = mediaType.number
+                            }
+                            nonPopulationFieldValues["common.signed_in"] = fieldValue {
+                              boolValue = (n + partition) % 2 == 0
+                            }
+                            nonPopulationFieldValues["common.device_type"] = fieldValue {
+                              enumValue = deviceType.number
+                            }
+                            if (mediaType == MediaType.VIDEO) {
+                              nonPopulationFieldValues["video.completed_fraction"] = fieldValue {
+                                floatValue = COMPLETED_FRACTIONS[n % COMPLETED_FRACTIONS.size]
+                              }
+                              nonPopulationFieldValues["video.viewable_fraction"] = fieldValue {
+                                floatValue = VIEWABLE_FRACTIONS[n % VIEWABLE_FRACTIONS.size]
+                              }
+                            } else {
+                              nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
+                                floatValue = VIEWABLE_FRACTIONS[(n + 1) % VIEWABLE_FRACTIONS.size]
+                              }
+                            }
                           }
-                          nonPopulationFieldValues["video.viewable_fraction"] = fieldValue {
-                            floatValue = VIEWABLE_FRACTIONS[n % VIEWABLE_FRACTIONS.size]
-                          }
-                        } else {
-                          nonPopulationFieldValues["display.viewable_fraction"] = fieldValue {
-                            floatValue = VIEWABLE_FRACTIONS[(n + 1) % VIEWABLE_FRACTIONS.size]
-                          }
-                        }
                       }
+                    }
                   }
                 }
             }
@@ -409,6 +437,16 @@ object GenerateHighOverlapSpecs {
           edpName = edp
           outputBasePath = "edp/$edp"
           outputKey = "high-overlap-${segment.name}"
+          if (segment.name == "all4" || (segment.edps.size == 1 && segment.name != "noise")) {
+            additionalEntityKeyCount = ADDITIONAL_ENTITY_KEY_COUNT
+            additionalEntityKeyDates +=
+              (if (segment.flight == FLIGHT_SUMMER || segment.name == "all4") {
+                  LocalDate.of(2026, 6, 16)
+                } else {
+                  LocalDate.of(2026, 4, 30)
+                })
+                .toProtoDate()
+          }
           for (i in 0 until segment.entityCount) {
             val suffix = if (segment.entityCount == 1) "" else "-${i + 1}"
             entityKeySpecs += entityKeySpec {

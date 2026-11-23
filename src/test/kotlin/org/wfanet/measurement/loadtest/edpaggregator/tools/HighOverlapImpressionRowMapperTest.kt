@@ -56,6 +56,7 @@ class HighOverlapImpressionRowMapperTest {
           gender = "FEMALE"
           ageGroup = "YEARS_35_TO_54"
           usState = "CALIFORNIA"
+          deviceType = "MOBILE"
           signedIn = true
           videoCompletedFraction = 0.75F
           videoViewableFraction = 0.5F
@@ -74,6 +75,7 @@ class HighOverlapImpressionRowMapperTest {
     val row = mapRow(event)
 
     assertThat(row.mediaType).isEqualTo("DISPLAY")
+    assertThat(row.deviceType).isEqualTo("MOBILE")
     assertThat(row.displayViewableFraction).isEqualTo(0.25F)
     assertThat(row.hasVideoCompletedFraction()).isFalse()
     assertThat(row.hasVideoViewableFraction()).isFalse()
@@ -110,6 +112,22 @@ class HighOverlapImpressionRowMapperTest {
   }
 
   @Test
+  fun `map preserves device types through serialization`() {
+    for (device in
+      listOf(Common.DeviceType.DESKTOP, Common.DeviceType.MOBILE, Common.DeviceType.TABLET)) {
+      val mapped =
+        mapRow(VIDEO_EVENT.copy { common = VIDEO_EVENT.common.copy { deviceType = device } })
+      val row = HighOverlapImpressionRow.parseFrom(mapped.toByteString())
+
+      assertThat(row.deviceType).isEqualTo(device.name)
+      assertThat(row.hasDeviceType()).isTrue()
+      assertThat(row.usState).isEqualTo("CALIFORNIA")
+      assertThat(row.gender).isEqualTo("FEMALE")
+      assertThat(row.ageGroup).isEqualTo("YEARS_35_TO_54")
+    }
+  }
+
+  @Test
   fun `map truncates timestamp precision below microseconds`() {
     val row = mapRow(VIDEO_EVENT, Instant.ofEpochSecond(0, 999))
 
@@ -131,6 +149,7 @@ class HighOverlapImpressionRowMapperTest {
     assertThat(row.ageGroup).isEqualTo("AGE_GROUP_UNSPECIFIED")
     assertThat(row.usState).isEqualTo("US_STATE_UNSPECIFIED")
     assertThat(row.hasSignedIn()).isFalse()
+    assertThat(row.hasDeviceType()).isFalse()
   }
 
   @Test
@@ -171,6 +190,7 @@ class HighOverlapImpressionRowMapperTest {
         gender = Common.Gender.FEMALE
         ageGroup = Common.AgeGroup.YEARS_35_TO_54
         usState = Common.UsState.CALIFORNIA
+        deviceType = Common.DeviceType.MOBILE
         signedIn = true
       }
       video = video {

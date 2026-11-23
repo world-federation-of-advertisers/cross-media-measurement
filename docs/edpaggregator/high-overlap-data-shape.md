@@ -92,8 +92,8 @@ override.
 The full 360M is not reached. The remaining VIDs generate no impressions and are
 split evenly across **300 `(gender × age_group × us_state)` cohorts**, covering
 both genders, all three age groups and all 50 states (excluding DC). Every cohort
-therefore has a positive population, including the 45 states with no impressions.
-This lets state reports exercise zero impressions without a zero denominator.
+therefore has a positive population and reached impressions. Zero-impression
+filters still have a positive population denominator.
 
 The frequency vector is a dense `ByteArray` sized to the whole population — one
 slot per population VID, per filter sink — so a 360M population stresses
@@ -101,18 +101,18 @@ frequency-vector allocation regardless of how few VIDs are actually reached.
 
 ### Demographic Striping
 
-The reached range is divided into **10,000-VID stripes** cycling round-robin
-through the 30 `(gender × age_group × us_state)` tuples of
+The reached range is divided into **1,000-VID stripes** cycling round-robin
+through the 300 `(gender × age_group × us_state)` tuples of
 `event_templates.testing.v1.Common`:
 
 *   gender — `MALE`, `FEMALE`
 *   age_group — `YEARS_18_TO_34`, `YEARS_35_TO_54`, `YEARS_55_PLUS`
-*   us_state — `CALIFORNIA`, `NEW_YORK`, `TEXAS`, `FLORIDA`, `ILLINOIS`
+*   us_state — all 50 states, excluding DC
 
 Striping exists so demographics stay **orthogonal to the Venn structure**.
 Demographics partition reach — a VID has exactly one gender, one age band, one
 state — whereas Venn membership comes only from which EDPs carry a segment. One
-full cycle is `30 × 10,000 = 300,000` VIDs, which fits inside the *smallest*
+full cycle is `300 × 1,000 = 300,000` VIDs, which fits inside the *smallest*
 Venn region, so every region carries the full demographic mix and any region can
 be broken down by gender, age or state.
 
@@ -121,12 +121,12 @@ subpopulations of 30M each, so all of VIDs 1–10.6M fall inside a single
 `MALE / YEARS_18_TO_34 / CALIFORNIA` subpopulation — zero demographic variation
 across the entire reached range.
 
-**The stripe is also the unit of every data spec's `vid_range_spec`.**
+**Each data spec's `vid_range_spec` stays inside one population stripe.**
 `SyntheticDataGeneration.findSubPopulationIndex` resolves a range's demographics
 by finding the one subpopulation that *wholly contains* it, so a range spanning
 two stripes fails outright with `Sub-population not found for start: N`. Segment
 boundaries are all multiples of `STRIPE_SIZE`, so stripes tile each segment
-exactly. Tranche, frequency and media are therefore assigned **per stripe**
+exactly. Tranche and frequency are assigned **per stripe**; device and media partition each stripe
 rather than by carving a segment into larger blocks.
 
 ## Overlap Topology
@@ -251,7 +251,7 @@ Slices are proportional and tile the segment exactly. They need not land on
 stripe boundaries: each `vid_range_spec` is clamped to its enclosing stripe, so a
 slice boundary falling mid-stripe still yields ranges that sit wholly within one
 subpopulation. Note a consequence — a single sliced event group carries a subset
-of the 30 demographic tuples, so the full-mix guarantee below holds per Venn
+of the 300 demographic tuples, so the full-mix guarantee below holds per Venn
 region, not per event group.
 
 **Every event group must carry an entity key.** `EventGroupSync` filters its
@@ -470,3 +470,46 @@ Terraform resource tracks it — recreating the config bucket drops it silently.
 
 *   [Deployment Guide](deployment-guide.md) — seeding and `--create-done-blobs`
 *   [EDP Onboarding](README.md) — registering a new aggregator EDP
+
+## Device fields and metadata scale coverage
+
+Every reached age/gender/state stripe is split into desktop, mobile, and tablet
+subranges. Each impression carries its home state, device, media type, signed-in
+status, and engagement values. Device and signed-in status are event fields, not
+population attributes. The committed population still includes all 50 states;
+reached impressions cover all 50 states. A complete 300-cohort cycle fits inside
+each main Venn region. The sub-sigma noise probe is smaller than one cycle.
+Total population, segment VID ranges, frequency mix, media split, and overlap
+region sizes are preserved; reached demographics change, so stored impressions
+must be reseeded.
+
+Eight encrypted impression blobs carry 5,000 additional `ad-unit` entity keys
+apiece, alongside their original campaign/ad-group/creative keys. Each extra key
+is attached to one existing impression; it is not just an entry in the sidecar.
+These keys are intentionally not registered as Kingdom EventGroups. Data
+availability publishes activity for mapped entity types; `ad-unit` is additional
+metadata and does not require a mapping. No impressions or ground-truth BigQuery
+rows are added or duplicated.
+
+| EDP | Exclusive segment stress date | All-four segment stress date |
+| --- | --- | --- |
+| edp7 | 2026-04-30 | 2026-06-16 |
+| edpa_meta | 2026-04-30 | 2026-06-16 |
+| edpa_video_pub | 2026-04-30 | 2026-06-16 |
+| edpa_retail_pub | 2026-06-16 | 2026-06-16 |
+
+The generated config records the counts and dates, so its fingerprint changes
+and `--only-if-needed` cannot reuse a dataset without the stress keys. Deploy the
+additive BigQuery `device_type` column and updated event descriptor with the
+normal CMMS workflow before running the updated seeder.
+
+`EdpAggregatorMetadataScaleTest` checks the deployed metadata service using its
+normal 4 MiB response limit. It filters by all 10,000 extra keys for each EDP,
+paginates with one blob per page, and verifies no duplicate or missing blobs.
+It also audits every active seed row against the live blobs and checks metadata,
+impressions, and completion-marker generations. The BASIC view (the API name
+for compact listing) omits keys while the FULL view
+matches the sidecars, including all 5,000 additional keys and version-pinning
+fields. The reporting cloud tests then verify fulfillment over these same blobs.
+Run `Seed High Overlap Dataset` with force refresh before
+`Run EDPA Reporting Integration Test`; do not reseed during another cloud test.

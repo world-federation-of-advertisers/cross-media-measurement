@@ -524,3 +524,48 @@ java_test(
     test_class = "org.wfanet.measurement.integration.k8s.DashboardIsolationTest",
     runtime_deps = [":dashboard_isolation_test_lib"],
 )
+
+kt_jvm_library(
+    name = "edp_aggregator_metadata_scale_test",
+    srcs = ["EdpAggregatorMetadataScaleTest.kt"],
+    data = [
+        "//src/main/k8s/testing/secretfiles:secret_files",
+        "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
+        "//src/main/terraform/gcloud/cmms:metadata_scale_test_configs",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:high_overlap_dataset",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:high_overlap_dataset_manifest_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+java_test(
+    name = "EdpAggregatorMetadataScaleTest",
+    timeout = "long",
+    tags = [
+        "exclusive",
+        "external",
+        "manual",
+        "no-remote-exec",
+    ],
+    test_class = "org.wfanet.measurement.integration.k8s.EdpAggregatorMetadataScaleTest",
+    runtime_deps = [":edp_aggregator_metadata_scale_test"],
+)

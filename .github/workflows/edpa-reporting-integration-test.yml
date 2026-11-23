@@ -101,6 +101,21 @@ jobs:
       - name: Set TCP keepalive
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
+      - name: Audit seeded metadata and compact listing
+        id: metadata-scale
+        env:
+          CMMS_ENVIRONMENT: ${{ inputs.environment }}
+          EDPA_PUBLIC_API_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).METADATA_STORAGE_PUBLIC_API_TARGET }}
+        run: |
+          tools/bazel-with-results bazel test \
+          --test_env=GOOGLE_APPLICATION_CREDENTIALS \
+          --test_env=GOOGLE_CLOUD_PROJECT \
+          --test_env=HIGH_OVERLAP_MODEL_LINE \
+          --test_env=SECURE_COMPUTATION_STORAGE_BUCKET \
+          --test_env=EDPA_PUBLIC_API_TARGET \
+          --test_env=CMMS_ENVIRONMENT \
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorMetadataScaleTest
+
       - name: Run tests
         id: run-tests
         run: |
@@ -112,4 +127,4 @@ jobs:
       - name: Upload Bazel testlogs
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
-        if: ${{ !cancelled() && (steps.run-tests.outcome == 'success' || steps.run-tests.outcome == 'failure') }}
+        if: ${{ !cancelled() && (steps.metadata-scale.outcome == 'success' || steps.metadata-scale.outcome == 'failure' || steps.run-tests.outcome == 'success' || steps.run-tests.outcome == 'failure') }}

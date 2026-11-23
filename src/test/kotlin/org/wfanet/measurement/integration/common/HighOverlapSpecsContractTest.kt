@@ -24,8 +24,11 @@ import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 
 /**
  * Pins the shape of the high overlap dataset.
@@ -154,17 +157,13 @@ class HighOverlapSpecsContractTest {
         subpopulation.vidRangesList.all { it.endVidInclusive <= REACHED_VID_END }
       }
     assertWithMessage("reached subpopulations").that(reached).hasSize(STRIPE_COUNT)
+    assertWithMessage("reached stripes")
+      .that(reached.sumOf { it.vidRangesCount })
+      .isEqualTo(STRIPE_COUNT)
     val reachedDemographics =
       reached.map { it.attributesList.single().unpack(Common::class.java) }.toSet()
-    assertThat(reachedDemographics).hasSize(2 * 3 * 5)
-    assertThat(reachedDemographics.map { it.usState }.toSet())
-      .containsExactly(
-        Common.UsState.CALIFORNIA,
-        Common.UsState.NEW_YORK,
-        Common.UsState.TEXAS,
-        Common.UsState.FLORIDA,
-        Common.UsState.ILLINOIS,
-      )
+    assertThat(reachedDemographics).hasSize(2 * 3 * 50)
+    assertThat(reachedDemographics.map { it.usState }.toSet()).hasSize(50)
 
     for (subpopulation in reached) {
       for (range in subpopulation.vidRangesList) {
@@ -185,6 +184,29 @@ class HighOverlapSpecsContractTest {
 
     val edps: Set<String> = regions.flatten().toSet()
     assertWithMessage("EDPs: $edps").that(edps).hasSize(EDP_COUNT)
+  }
+
+  @Test
+  fun `every Venn region includes all state age and gender cohorts`() {
+    val demographicsByStripe =
+      populationSpec.subpopulationsList
+        .flatMap { subpopulation ->
+          val demographic = subpopulation.attributesList.single().unpack(Common::class.java)
+          subpopulation.vidRangesList
+            .filter { it.endVidInclusive <= REACHED_VID_END }
+            .map { (it.startVid - 1) / STRIPE_SIZE to demographic }
+        }
+        .toMap()
+    val demographicsByRegion = mutableMapOf<Set<String>, MutableSet<Common>>()
+    for ((vidStart, edps) in edpsByVidRangeStart) {
+      demographicsByRegion
+        .getOrPut(edps) { mutableSetOf() }
+        .add(demographicsByStripe.getValue((vidStart - 1) / STRIPE_SIZE))
+    }
+    assertThat(demographicsByRegion).hasSize(VENN_REGIONS)
+    for ((edps, demographics) in demographicsByRegion) {
+      assertWithMessage("demographic cohorts in region $edps").that(demographics).hasSize(300)
+    }
   }
 
   @Test
@@ -211,6 +233,128 @@ class HighOverlapSpecsContractTest {
     }
   }
 
+  @Test
+  fun `every reached stripe includes all device types for both media`() {
+    for (eventGroup in config.eventGroupsList) {
+      for (entity in eventGroup.entityKeySpecsList) {
+        val ranges =
+          ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(entity.dataSpecResourcePath)
+            .dateSpecsList
+            .flatMap { it.frequencySpecsList }
+            .flatMap { it.vidRangeSpecsList }
+        val devicesByStripe = ranges.groupBy { (it.vidRange.start - 1) / STRIPE_SIZE }
+        for ((stripe, deviceRanges) in devicesByStripe) {
+          val rangesByMedia =
+            deviceRanges.groupBy { "video.completed_fraction" in it.nonPopulationFieldValuesMap }
+          assertThat(rangesByMedia.keys).containsExactly(true, false)
+          for (mediaRanges in rangesByMedia.values) {
+            val devices =
+              mediaRanges.map {
+                it.nonPopulationFieldValuesMap.getValue("common.device_type").enumValue
+              }
+            assertWithMessage("devices on stripe $stripe for ${entity.entityId}")
+              .that(devices)
+              .containsExactly(
+                Common.DeviceType.DESKTOP.number,
+                Common.DeviceType.MOBILE.number,
+                Common.DeviceType.TABLET.number,
+              )
+          }
+          assertThat(
+              deviceRanges
+                .map { it.nonPopulationFieldValuesMap.getValue("common.signed_in").boolValue }
+                .toSet()
+            )
+            .containsExactly(true, false)
+          val ordered = deviceRanges.sortedBy { it.vidRange.start }
+          for ((previous, next) in ordered.zipWithNext()) {
+            assertThat(previous.vidRange.endExclusive).isEqualTo(next.vidRange.start)
+          }
+        }
+      }
+    }
+  }
+
+  @Test
+  fun `generated impressions retain device geo demographics and media fields`() {
+    val source =
+      ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
+        config.eventGroupsList.first().entityKeySpecsList.single().dataSpecResourcePath
+      )
+    val firstDate = source.dateSpecsList.first()
+    val firstFrequency = firstDate.frequencySpecsList.first()
+    val samples =
+      firstFrequency.vidRangeSpecsList.take(6).map { range ->
+        range
+          .toBuilder()
+          .setVidRange(range.vidRange.toBuilder().setEndExclusive(range.vidRange.start + 1))
+          .build()
+      }
+    val sampleSpec =
+      source
+        .toBuilder()
+        .clearDateSpecs()
+        .addDateSpecs(
+          firstDate
+            .toBuilder()
+            .clearFrequencySpecs()
+            .addFrequencySpecs(
+              firstFrequency.toBuilder().clearVidRangeSpecs().addAllVidRangeSpecs(samples)
+            )
+        )
+        .build()
+    val events =
+      SyntheticDataGeneration.generateEvents(
+          TestEvent.getDefaultInstance(),
+          populationSpec,
+          sampleSpec,
+        )
+        .flatMap { it.labeledEvents }
+        .toList()
+    assertThat(events).hasSize(6)
+    assertThat(events.map { it.message.common.deviceType }.toSet())
+      .containsExactly(
+        Common.DeviceType.DESKTOP,
+        Common.DeviceType.MOBILE,
+        Common.DeviceType.TABLET,
+      )
+    assertThat(events.map { it.message.common.mediaType }.toSet()).hasSize(2)
+    assertThat(events.map { it.message.common.signedIn }.toSet()).containsExactly(true, false)
+    for (event in events) {
+      assertThat(event.message.common.usState).isEqualTo(Common.UsState.ALABAMA)
+      assertThat(event.message.common.gender).isEqualTo(Common.Gender.MALE)
+      assertThat(event.message.common.ageGroup).isEqualTo(Common.AgeGroup.YEARS_18_TO_34)
+      assertThat(event.message.hasVideo() != event.message.hasDisplay()).isTrue()
+    }
+  }
+
+  @Test
+  fun `two blobs per EDP carry five thousand unregistered keys`() {
+    val stressGroups = config.eventGroupsList.filter { it.additionalEntityKeyCount > 0 }
+    assertThat(stressGroups).hasSize(8)
+    assertThat(stressGroups.groupingBy { it.edpName }.eachCount().values)
+      .containsExactly(2, 2, 2, 2)
+    assertThat(config.eventGroupsList.flatMap { it.entityKeySpecsList }.map { it.entityType })
+      .doesNotContain("ad-unit")
+    for (group in stressGroups) {
+      assertThat(group.additionalEntityKeyCount).isEqualTo(5_000)
+      assertThat(group.additionalEntityKeyDatesList).hasSize(1)
+      val stressDate = group.additionalEntityKeyDatesList.single()
+      val ranges =
+        group.entityKeySpecsList.flatMap { entity ->
+          ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(entity.dataSpecResourcePath)
+            .dateSpecsList
+        }
+      assertThat(
+          ranges.any {
+            stressDate.toLocalDate() >= it.dateRange.start.toLocalDate() &&
+              stressDate.toLocalDate() < it.dateRange.endExclusive.toLocalDate()
+          }
+        )
+        .isTrue()
+    }
+  }
+
   companion object {
     private const val CONFIG_FILE = "high_overlap_impression_test_data_config.textproto"
     /** The population spec packs its demographics into `Any`, so parsing needs the descriptor. */
@@ -219,7 +363,7 @@ class HighOverlapSpecsContractTest {
 
     private const val TOTAL_POPULATION = 360_000_000L
     private const val REACHED_VID_END = 10_610_000L
-    private const val STRIPE_SIZE = 10_000L
+    private const val STRIPE_SIZE = 1_000L
     private const val STRIPE_COUNT = (REACHED_VID_END / STRIPE_SIZE).toInt()
 
     /** Every non-empty subset of the four EDPs. */

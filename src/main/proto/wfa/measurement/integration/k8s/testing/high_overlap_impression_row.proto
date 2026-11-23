@@ -69,4 +69,6 @@ message HighOverlapImpressionRow {
   // Media type of the impression, restricted to `VIDEO` or `DISPLAY` according
   // to which sub-message is present in the source `TestEvent`.
   string media_type = 17;
+  // Device used for the impression. Unset when the Common template is absent.
+  optional string device_type = 18;
 }
