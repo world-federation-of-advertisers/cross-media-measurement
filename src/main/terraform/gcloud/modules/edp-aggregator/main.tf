@@ -234,11 +234,28 @@ module "vid_models_bucket" {
 }
 
 resource "google_storage_bucket_object" "upload_data_watcher_config" {
-  depends_on     = [module.vid_labeling_dispatch_work_item_queue]
   name           = var.data_watcher_config.destination
   bucket         = module.config_files_bucket.storage_bucket.name
   source         = var.data_watcher_config.local_path
   source_md5hash = filemd5(var.data_watcher_config.local_path)
+
+  # Older revisions may lazily load this object throughout the rolling upgrade.
+  lifecycle {
+    ignore_changes = [source, source_md5hash]
+  }
+}
+
+resource "google_storage_bucket_object" "upload_data_watcher_dispatch_config" {
+  depends_on     = [module.vid_labeling_dispatch_work_item_queue]
+  name           = "${trimsuffix(var.data_watcher_config.destination, ".textproto")}.dispatch-v2.textproto"
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = var.data_watcher_config.local_path
+  source_md5hash = filemd5(var.data_watcher_config.local_path)
+}
+
+locals {
+  active_data_watcher_config_key        = var.activate_vid_labeling_dispatch_config ? google_storage_bucket_object.upload_data_watcher_dispatch_config.name : google_storage_bucket_object.upload_data_watcher_config.name
+  active_data_watcher_config_generation = var.activate_vid_labeling_dispatch_config ? google_storage_bucket_object.upload_data_watcher_dispatch_config.generation : google_storage_bucket_object.upload_data_watcher_config.generation
 }
 
 resource "google_storage_bucket_object" "upload_data_watcher_delete_config" {
@@ -322,13 +339,17 @@ module "data_watcher_cloud_function" {
   terraform_service_account                   = var.terraform_service_account
   function_name                               = var.cloud_function_configs.data_watcher.function_name
   entry_point                                 = var.cloud_function_configs.data_watcher.entry_point
-  extra_env_vars                              = var.cloud_function_configs.data_watcher.extra_env_vars
-  secret_mappings                             = var.cloud_function_configs.data_watcher.secret_mappings
-  uber_jar_path                               = var.cloud_function_configs.data_watcher.uber_jar_path
-  secrets_to_access                           = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
-  trigger_event_type                          = "finalized"
-  retry_on_failure                            = true
-  uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_config.generation
+  extra_env_vars = join(",", concat(
+    [for assignment in split(",", var.cloud_function_configs.data_watcher.extra_env_vars) : assignment
+    if !startswith(assignment, "CONFIG_BLOB_KEY=") && !startswith(assignment, "DATA_WATCHER_CONFIG_GENERATION=")],
+    ["CONFIG_BLOB_KEY=${local.active_data_watcher_config_key}", "DATA_WATCHER_CONFIG_GENERATION=${local.active_data_watcher_config_generation}"]
+  ))
+  secret_mappings            = var.cloud_function_configs.data_watcher.secret_mappings
+  uber_jar_path              = var.cloud_function_configs.data_watcher.uber_jar_path
+  secrets_to_access          = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
+  trigger_event_type         = "finalized"
+  retry_on_failure           = true
+  uploaded_config_generation = local.active_data_watcher_config_generation
   # The DataWatcher waits synchronously for the dispatcher. Event-driven gen2 functions allow at
   # most 540 seconds, so give the caller that maximum and keep the dispatcher below it.
   timeout_seconds = 540
@@ -1310,19 +1331,24 @@ module "vid_labeling_healing_controller_cloud_function" {
     module.secrets,
     google_storage_bucket_object.upload_vid_labeling_dispatcher_config,
     google_storage_bucket_object.upload_data_watcher_config,
+    google_storage_bucket_object.upload_data_watcher_dispatch_config,
   ]
 
   http_cloud_function_service_account_name = var.vid_labeling_healing_controller_service_account_name
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.vid_labeling_healing_controller.function_name
   entry_point                              = var.cloud_function_configs.vid_labeling_healing_controller.entry_point
-  extra_env_vars                           = var.cloud_function_configs.vid_labeling_healing_controller.extra_env_vars
-  secret_mappings                          = var.cloud_function_configs.vid_labeling_healing_controller.secret_mappings
-  uber_jar_path                            = var.cloud_function_configs.vid_labeling_healing_controller.uber_jar_path
-  secrets_to_access                        = [for key in local.vid_labeling_healing_controller_secrets_access : local.all_secrets[key].secret_id]
-  timeout_seconds                          = 600
-  max_instances                            = 1
-  concurrency                              = 1
+  extra_env_vars = join(",", concat(
+    [for assignment in split(",", var.cloud_function_configs.vid_labeling_healing_controller.extra_env_vars) : assignment
+    if !startswith(assignment, "DATA_WATCHER_CONFIG_BLOB_KEY=") && !startswith(assignment, "DATA_WATCHER_CONFIG_GENERATION=")],
+    ["DATA_WATCHER_CONFIG_BLOB_KEY=${local.active_data_watcher_config_key}", "DATA_WATCHER_CONFIG_GENERATION=${local.active_data_watcher_config_generation}"]
+  ))
+  secret_mappings   = var.cloud_function_configs.vid_labeling_healing_controller.secret_mappings
+  uber_jar_path     = var.cloud_function_configs.vid_labeling_healing_controller.uber_jar_path
+  secrets_to_access = [for key in local.vid_labeling_healing_controller_secrets_access : local.all_secrets[key].secret_id]
+  timeout_seconds   = 600
+  max_instances     = 1
+  concurrency       = 1
 }
 
 module "vid_labeling_healing_controller_cloud_scheduler" {

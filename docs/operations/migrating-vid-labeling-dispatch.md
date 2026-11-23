@@ -32,25 +32,111 @@ For a custom manifest using `#SecureComputation`, enable
 The generic definition defaults to disabled; the CMMS manifest enables it alongside
 its committed Terraform queue configuration.
 
-## Deploy in order
+## Automated online cutover (recommended)
 
-1. Deploy the compatible dispatcher worker before updating DataWatcher intake.
-   Then deploy the lease-aware control plane, DataWatcher, and healing controller
-   while retaining the existing watcher configuration.
-2. Provision the queue, authenticated push delivery, queue registry entry, and generic
-   DLQ listener. Terraform orders watcher config publication after worker/queue readiness.
-3. Validate an isolated test provider's queued dispatch and recovery. Then adopt the
-   committed queued dispatcher routes in Dev, followed by Head and QA. Upgrade the
-   healing controller's embedded watcher/parser before adopting typed config.
-4. Let old HTTP deliveries finish. Keep the compatible legacy adapter while resolving
-   in-flight work and preserving rollback. Other watcher routes retain their contracts.
+Run **Update CMMS** with `apply=true` and `vid-dispatch-cutover-mode=online`
+(the default), leaving `existing-image-tag` empty to publish the current compatible source. EDPs continue uploading raw files and publishing `done` markers.
 
-If all changes are in one release, perform a preparation deployment with the earlier
-watcher configuration before the activation deployment. A source merge alone does not
-prove deployed worker/parser readiness. Preserve queued jobs, topics, registry mapping,
-and worker code during rollback; restore the previous watcher configuration to return
-new notifications to the earlier route. Never downgrade the worker while queued jobs
-remain.
+The workflow prepares compatible dispatcher, DataWatcher, healing and control-plane
+code while preserving the active watcher configuration. Terraform provisions the
+queue, IAM and authenticated push delivery. The readiness command compares deployed
+function source archives with the prepared compatible JARs, checks function/MIG/
+control-plane readiness, and verifies push authentication and alert routes. One
+isolated ordinary-dispatch/approved-recovery smoke test must complete through the
+queue and emit successful application outcomes before activation.
+
+Terraform then selects `data-watcher-config.dispatch-v2.textproto` and rolls both
+cached consumers onto it. It retains `data-watcher-config.textproto` unchanged for
+older revisions and rollback, so an idle old healing parser cannot read the typed
+object. The workflow observes old watcher/healing invocations finishing and keeps
+the compatible HTTP adapter. Subsequent updates preserve an already activated
+configuration and do not repeat the migration smoke.
+
+The existing CMMS control-plane compatibility barriers remain part of Update CMMS.
+Intake stays available; downstream work can wait durably while those consumers roll.
+
+### Operator profile and checks
+
+Configure the environment secret `VID_DISPATCH_CUTOVER_PROFILE` for the isolated
+test deployment:
+
+| Field | Required content |
+| --- | --- |
+| `isolatedDataProvider` | Dedicated test DataProvider, raw/labeled prefixes and model lines. |
+| `liveDataProviders` | Every other provider in the VID dispatcher configuration. |
+| `ordinaryWorkItem` | Parameter-only WorkItem JSON for a fresh finalized raw marker, with outer `dataPathParams`. |
+| `recoveryWorkItem` | Parameter-only WorkItem JSON carrying the approved source in `appParams.recovery.source` and its authorization references. |
+| `approval` | Existing `ApproveUploadHealingOperationRequest` JSON, including the inspected etag and all candidate decisions for the isolated approval-required plan. |
+| `tlsSecrets` | Secret Manager version resources keyed by the six existing EDPA/control-plane TLS flag names. |
+| `edpaCertHost`, `controlPlaneCertHost` | Certificate hosts when they differ from the API target hosts. |
+
+The TLS keys are `tls-cert-file`, `tls-key-file`, `cert-collection-file`,
+`control-plane-tls-cert-file`, `control-plane-tls-key-file` and
+`control-plane-cert-collection-file`. Values use
+`projects/PROJECT/secrets/SECRET/versions/VERSION`. Certificates are read into private
+temporary files and never printed.
+
+Prepare the isolated raw baseline and correction plan with the existing upload/healing
+tools. The smoke approves only that test plan and rejects providers listed as live.
+Its ordinary source must not already have been admitted to the queue. Reused/stale
+sources, changed approvals, failed executions and missing qualified application
+outcomes fail the gate. After a partial smoke, retain and inspect its WorkItems;
+another independent trial needs a fresh isolated baseline, not a rewritten production
+marker.
+
+The workflow invokes `.github/workflows/scripts/vid_dispatch_cutover.py`. Its
+`preflight`, `ready` and `observe-legacy` commands use read-only APIs and fail closed
+on missing access, incomplete inventories, stale metrics, incompatible code or unready
+resources. Use the project, region and artifact arguments shown in
+`terraform-cmms-v2.yml`. The checks never alter Terraform-owned resources.
+The separate `smoke` command creates isolated application WorkItems and approves the
+supplied test plan; it does not provision or modify infrastructure.
+
+## Maintenance-window alternative
+
+Use this shorter dispatch migration when a brief marker pause is acceptable:
+
+1. Ask EDPs to pause new raw `done` markers. Raw files may continue uploading.
+2. Run **Update CMMS** with `vid-dispatch-cutover-mode=maintenance` and the confirmed
+   RFC 3339 UTC pause time in `vid-dispatch-markers-paused-at`. One checked preflight
+   runs before deployment changes: Eventarc/watcher DLQ deliveries need two fresh
+   zero-backlog samples, registrations must be complete, and no healing operation
+   may be active or unresolved.
+3. Let the workflow deploy the final stack with one final-stack Terraform apply,
+   creating queue/IAM/push delivery and rolling compatible DataWatcher, dispatcher
+   and healing together. The additional dispatch preparation apply is skipped.
+   Existing CMMS control-plane compatibility barriers still run.
+4. Wait for function/MIG/control-plane/queue readiness and the isolated queued
+   dispatch/recovery smoke to pass.
+5. Resume raw `done` markers.
+
+A timeout or empty log search does not prove HTTP work finished. Missing or stale
+evidence fails the check. Correct the reported condition and rerun the command;
+do not acknowledge or delete pending notifications to bypass it.
+
+## Manual sequencing fallback
+
+Use the dual-route sequence only when the workflow cannot prove readiness:
+
+1. Deploy compatible dispatcher/control-plane/DataWatcher/healing code while
+   retaining the HTTP watcher configuration.
+2. Provision queue, registry, authenticated push delivery and DLQ listener through
+   the normal deployment/Terraform workflow, then pass the same readiness checks.
+3. Pass the isolated queued-dispatch/recovery smoke, then activate the committed
+   queued configuration in Dev, followed by Head and QA.
+4. Observe legacy HTTP deliveries finishing and retain the adapter for rollback.
+
+Do not use targeted component deployments to bypass a failed readiness gate or
+an incomplete CMMS compatibility rollout.
+
+## Rollback
+
+Direct Terraform applies default `activate_vid_labeling_dispatch_config` to false;
+the gated workflow supplies true for activation.
+
+Apply Terraform with `activate_vid_labeling_dispatch_config=false` to restore the
+retained legacy config. Keep queue resources, registry mapping, queued jobs and
+compatible worker code. Never downgrade the worker while queued work remains.
 
 ## Failure signals and cutover readiness
 
@@ -68,15 +154,39 @@ queued dispatch must not be activated until this readiness is verified.
 
 ## Inspect and retry
 
-Inspect a failed WorkItem, its attempts, and its source before retrying: outer
-`data_path_params` for ordinary work or `app_params.recovery.source` for replay.
-Use the existing WorkItems API with the exact execution generation inspected:
+Inspect a failed dispatch WorkItem before retrying. Use the existing `VidLabelingHeal`
+tool and the same control-plane connection/TLS flags as `retry-failed`. A Picocli
+argument file can hold those flags once:
 
 ```shell
-grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
-  -authority CONTROL_PLANE_CERT_HOST \
-  -d '{"name":"workItems/WORK_ITEM_ID","expectedWorkItemGeneration":"GENERATION"}' \
-  CONTROL_PLANE_TARGET \
+bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal -- \\
+  get-dispatch-work-item workItems/WORK_ITEM_ID @control-plane.flags
+
+bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal -- \\
+  retry-dispatch-work-item workItems/WORK_ITEM_ID \\
+  --expected-work-item-generation=INSPECTED_GENERATION @control-plane.flags
+```
+
+Inspection prints execution generation, state and stored ordinary/recovery source,
+including malformed parameters that may explain a failure. Retry requires `FAILED`
+and the exact positive execution generation inspected. It refuses `RUNNING`,
+unsupported states and generation mismatches before issuing RetryWorkItem. The server
+checks that generation transactionally again against concurrent retries. The command
+prints the returned generation/state and exits nonzero on RPC failure; it never
+automatically resubmits an uncertain retry.
+
+Low-level fallback:
+
+```shell
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \\
+  -authority CONTROL_PLANE_CERT_HOST \\
+  -d '{"name":"workItems/WORK_ITEM_ID"}' CONTROL_PLANE_TARGET \\
+  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/GetWorkItem
+
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \\
+  -authority CONTROL_PLANE_CERT_HOST \\
+  -d '{"name":"workItems/WORK_ITEM_ID","expectedWorkItemGeneration":"GENERATION"}' \\
+  CONTROL_PLANE_TARGET \\
   wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
 ```
 

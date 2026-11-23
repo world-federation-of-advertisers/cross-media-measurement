@@ -747,3 +747,9 @@ variable "vid_labeling_dispatch_work_item_queue" {
   })
   default = null
 }
+
+variable "activate_vid_labeling_dispatch_config" {
+  description = "Select the v2 watcher configuration while retaining the legacy configuration object."
+  type        = bool
+  default     = false
+}
