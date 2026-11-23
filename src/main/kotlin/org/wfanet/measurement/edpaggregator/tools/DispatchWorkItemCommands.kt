@@ -1,0 +1,423 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.tools
+
+import com.google.protobuf.TypeRegistry
+import com.google.protobuf.util.JsonFormat
+import java.io.File
+import java.time.Duration
+import java.util.UUID
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
+import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.retryWorkItemRequest
+import picocli.CommandLine.Command
+import picocli.CommandLine.Mixin
+import picocli.CommandLine.Option
+import picocli.CommandLine.Parameters
+
+/** Connection options for operator commands using the control plane. */
+abstract class DispatchWorkItemCommand : Runnable {
+  @Mixin protected lateinit var controlPlaneTlsFlags: ControlPlaneTlsFlags
+
+  @Option(names = ["--control-plane-api-target"], required = true)
+  protected lateinit var controlPlaneApiTarget: String
+
+  @Option(names = ["--control-plane-api-cert-host"])
+  protected var controlPlaneApiCertHost: String? = null
+
+  @Option(
+    names = ["--rpc-timeout"],
+    defaultValue = "30s",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  protected lateinit var rpcTimeout: Duration
+
+  protected fun runWithClient(block: suspend (WorkItemsCoroutineStub) -> Unit) {
+    require(!rpcTimeout.isZero && !rpcTimeout.isNegative) { "RPC timeout must be positive" }
+    val channel =
+      buildMutualTlsChannel(
+        controlPlaneApiTarget,
+        controlPlaneTlsFlags.signingCerts,
+        controlPlaneApiCertHost,
+      )
+    try {
+      runBlocking {
+        block(
+          WorkItemsCoroutineStub(channel)
+            .withDeadlineAfter(rpcTimeout.toMillis(), TimeUnit.MILLISECONDS)
+        )
+      }
+    } finally {
+      channel.shutdown()
+      channel.awaitTermination(EdpaApiCommand.SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+  }
+}
+
+/** Inspects a dispatch execution and its original source. */
+@Command(
+  name = "get-dispatch-work-item",
+  mixinStandardHelpOptions = true,
+  description = ["Inspects a VID dispatch WorkItem, including its execution generation and source."],
+)
+class GetDispatchWorkItemCommand : DispatchWorkItemCommand() {
+  @Parameters(index = "0", description = ["WorkItem resource name."])
+  private lateinit var name: String
+
+  override fun run() {
+    runWithClient { items ->
+      val item =
+        items.getWorkItem(getWorkItemRequest { this.name = this@GetDispatchWorkItemCommand.name })
+      check(item.name == name) { "WorkItem response does not match the requested name" }
+      require(item.queue == VidLabelingDispatchWorkItems.QUEUE) { "Not a VID dispatch WorkItem" }
+      println("name: ${item.name}\nstate: ${item.state}\nexecution_generation: ${item.generation}")
+      val frame =
+        runCatching { item.workItemParams.unpack(WorkItem.WorkItemParams::class.java) }.getOrNull()
+      val app =
+        frame?.let {
+          runCatching { it.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java) }
+            .getOrNull()
+        }
+      val source = if (app?.hasRecovery() == true) app.recovery.source else frame?.dataPathParams
+      if (source != null) println("source:\n$source")
+      if (app != null) println("application_parameters:\n$app")
+      else println("work_item_params:\n${item.workItemParams}")
+    }
+  }
+}
+
+/** Retries only the failed execution the operator inspected. */
+@Command(
+  name = "retry-dispatch-work-item",
+  mixinStandardHelpOptions = true,
+  description =
+    ["Retries a failed VID dispatch WorkItem at the explicitly inspected execution generation."],
+)
+class RetryDispatchWorkItemCommand : DispatchWorkItemCommand() {
+  @Parameters(index = "0", description = ["WorkItem resource name."])
+  private lateinit var name: String
+
+  @Option(names = ["--expected-work-item-generation"], required = true)
+  private var expectedGeneration: Long = 0L
+
+  override fun run() {
+    require(expectedGeneration > 0L) { "Expected execution generation must be positive" }
+    runWithClient { items ->
+      val item =
+        items.getWorkItem(getWorkItemRequest { this.name = this@RetryDispatchWorkItemCommand.name })
+      check(item.name == name) { "WorkItem response does not match the requested name" }
+      check(item.queue == VidLabelingDispatchWorkItems.QUEUE) { "Not a VID dispatch WorkItem" }
+      check(item.generation == expectedGeneration) {
+        "Execution generation changed: inspected $expectedGeneration, current ${item.generation}"
+      }
+      check(item.state == WorkItem.State.FAILED) {
+        "Retry requires FAILED; current state is ${item.state}. RUNNING work must be inspected separately."
+      }
+      val retried =
+        items.retryWorkItem(
+          retryWorkItemRequest {
+            this.name = this@RetryDispatchWorkItemCommand.name
+            expectedWorkItemGeneration = expectedGeneration
+          }
+        )
+      println(
+        "name: ${retried.name}\nstate: ${retried.state}\nexecution_generation: ${retried.generation}"
+      )
+    }
+  }
+}
+
+/** Reads all registration and healing pages without advancing either workflow. */
+@Command(
+  name = "preflight-dispatch-cutover",
+  mixinStandardHelpOptions = true,
+  description =
+    ["Fails unless every selected provider has complete registrations and no active healing."],
+)
+class PreflightDispatchCutoverCommand : EdpaApiCommand() {
+  @Option(names = ["--data-provider"], split = ",", required = true)
+  private lateinit var dataProviders: List<String>
+
+  override fun run() {
+    require(
+      dataProviders.isNotEmpty() && dataProviders.all { DataProviderKey.fromName(it) != null }
+    ) {
+      "Supply every configured VID-labeling DataProvider"
+    }
+    val channel = buildEdpaChannel()
+    try {
+      runBlocking {
+        val uploads = RawImpressionUploadServiceCoroutineStub(channel)
+        val operations = UploadHealingOperationServiceCoroutineStub(channel)
+        for (provider in dataProviders.distinct()) {
+          var pageToken = ""
+          val uploadTokens = mutableSetOf<String>()
+          do {
+            check(uploadTokens.add(pageToken)) { "Repeated registration page token" }
+            val response =
+              uploads
+                .withDeadlineAfter(30L, TimeUnit.SECONDS)
+                .listRawImpressionUploads(
+                  listRawImpressionUploadsRequest {
+                    parent = provider
+                    pageSize = 1000
+                    this.pageToken = pageToken
+                  }
+                )
+            check(response.rawImpressionUploadsList.all { it.registrationComplete }) {
+              "Incomplete upload registration for $provider"
+            }
+            pageToken = response.nextPageToken
+            if (pageToken.isNotEmpty()) delay(250L)
+          } while (pageToken.isNotEmpty())
+          pageToken = ""
+          val operationTokens = mutableSetOf<String>()
+          do {
+            check(operationTokens.add(pageToken)) { "Repeated healing page token" }
+            val response =
+              operations
+                .withDeadlineAfter(30L, TimeUnit.SECONDS)
+                .listUploadHealingOperations(
+                  listUploadHealingOperationsRequest {
+                    parent = provider
+                    pageSize = 1000
+                    this.pageToken = pageToken
+                  }
+                )
+            check(
+              response.uploadHealingOperationsList.all {
+                it.state == UploadHealingOperation.State.COMPLETE ||
+                  it.state == UploadHealingOperation.State.APPROVAL_REQUIRED
+              }
+            ) {
+              "Active or unresolved healing operation for $provider"
+            }
+            pageToken = response.nextPageToken
+            if (pageToken.isNotEmpty()) delay(250L)
+          } while (pageToken.isNotEmpty())
+        }
+        println(
+          "PASS: complete registration and inactive healing inventories for ${dataProviders.distinct().joinToString()}"
+        )
+      }
+    } finally {
+      channel.shutdown()
+      channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+  }
+}
+
+/** Exercises authenticated queued ordinary intake and approved recovery on an isolated provider. */
+@Command(
+  name = "smoke-dispatch-cutover",
+  mixinStandardHelpOptions = true,
+  description = ["Runs one isolated ordinary/recovery queued-dispatch smoke test."],
+)
+class SmokeDispatchCutoverCommand : EdpaApiCommand() {
+  @Mixin private lateinit var controlPlaneTlsFlags: ControlPlaneTlsFlags
+  @Option(names = ["--control-plane-api-target"], required = true)
+  private lateinit var controlPlaneApiTarget: String
+  @Option(names = ["--control-plane-api-cert-host"])
+  private var controlPlaneApiCertHost: String? = null
+  @Option(names = ["--isolated-data-provider"], required = true)
+  private lateinit var isolatedDataProvider: String
+  @Option(names = ["--live-data-provider"], required = true, split = ",")
+  private lateinit var liveDataProviders: List<String>
+  @Option(names = ["--ordinary-work-item-file"], required = true)
+  private lateinit var ordinaryFile: File
+  @Option(names = ["--recovery-work-item-file"], required = true)
+  private lateinit var recoveryFile: File
+  @Option(names = ["--approval-file"], required = true) private lateinit var approvalFile: File
+  @Option(
+    names = ["--timeout"],
+    defaultValue = "20m",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var timeout: Duration
+
+  override fun run() {
+    require(DataProviderKey.fromName(isolatedDataProvider) != null)
+    require(
+      liveDataProviders.isNotEmpty() &&
+        liveDataProviders.all { DataProviderKey.fromName(it) != null } &&
+        isolatedDataProvider !in liveDataProviders
+    ) {
+      "Smoke provider must be isolated from every live provider"
+    }
+    require(!timeout.isNegative && !timeout.isZero) { "Smoke timeout must be positive" }
+    val registry =
+      TypeRegistry.newBuilder()
+        .add(WorkItem.WorkItemParams.getDescriptor())
+        .add(VidLabelingDispatchWorkItemParams.getDescriptor())
+        .build()
+    fun readItem(file: File): WorkItem {
+      val item =
+        WorkItem.newBuilder()
+          .apply { JsonFormat.parser().usingTypeRegistry(registry).merge(file.readText(), this) }
+          .build()
+      require(
+        item.name.isEmpty() &&
+          item.generation == 0L &&
+          item.state == WorkItem.State.STATE_UNSPECIFIED &&
+          item.serializationKey.isEmpty()
+      ) {
+        "Smoke fixtures contain parameters only, without execution state"
+      }
+      require(item.queue == VidLabelingDispatchWorkItems.QUEUE) { "Unexpected smoke queue" }
+      val frame = item.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      val app =
+        VidLabelingDispatchWorkItems.normalize(
+          frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+        )
+      require(app.dataProvider == isolatedDataProvider) {
+        "Smoke WorkItem belongs to a live or different provider"
+      }
+      VidLabelingDispatchWorkItems.source(
+        app,
+        frame.dataPathParams.takeIf { frame.hasDataPathParams() },
+      )
+      return item
+    }
+    val ordinary = readItem(ordinaryFile)
+    val recovery = readItem(recoveryFile)
+    val ordinaryApp =
+      ordinary.workItemParams
+        .unpack(WorkItem.WorkItemParams::class.java)
+        .appParams
+        .unpack(VidLabelingDispatchWorkItemParams::class.java)
+    val recoveryApp =
+      recovery.workItemParams
+        .unpack(WorkItem.WorkItemParams::class.java)
+        .appParams
+        .unpack(VidLabelingDispatchWorkItemParams::class.java)
+    require(!ordinaryApp.hasRecovery() && recoveryApp.hasRecovery()) {
+      "Provide one ordinary and one recovery fixture"
+    }
+    val approval =
+      ApproveUploadHealingOperationRequest.newBuilder()
+        .apply { JsonFormat.parser().merge(approvalFile.readText(), this) }
+        .build()
+    require(
+      approval.name.startsWith("$isolatedDataProvider/uploadHealingOperations/") &&
+        approval.etag.isNotEmpty() &&
+        approval.name == recoveryApp.recovery.uploadHealingOperation
+    ) {
+      "Approval must authorize the isolated recovery fixture"
+    }
+
+    val edpaChannel = buildEdpaChannel()
+    val controlPlaneChannel =
+      buildMutualTlsChannel(
+        controlPlaneApiTarget,
+        controlPlaneTlsFlags.signingCerts,
+        controlPlaneApiCertHost,
+      )
+    try {
+      runBlocking {
+        val items = WorkItemsCoroutineStub(controlPlaneChannel)
+        val operations = UploadHealingOperationServiceCoroutineStub(edpaChannel)
+        val deadline = System.nanoTime() + timeout.toNanos()
+        suspend fun createAndWait(fixture: WorkItem): WorkItem {
+          val created =
+            items
+              .withDeadlineAfter(30L, TimeUnit.SECONDS)
+              .createWorkItem(
+                createWorkItemRequest {
+                  workItemId = "dispatch-smoke-" + UUID.randomUUID().toString()
+                  workItem = fixture
+                }
+              )
+          check(created.state == WorkItem.State.QUEUED) {
+            "Smoke source was already admitted or superseded; use a fresh isolated ordinary marker"
+          }
+          println("SMOKE_WORK_ITEM=${created.name}")
+          while (System.nanoTime() < deadline) {
+            val current =
+              items
+                .withDeadlineAfter(30L, TimeUnit.SECONDS)
+                .getWorkItem(getWorkItemRequest { name = created.name })
+            check(current.generation == created.generation) { "Smoke execution generation changed" }
+            when (current.state) {
+              WorkItem.State.SUCCEEDED -> return current
+              WorkItem.State.QUEUED,
+              WorkItem.State.RUNNING -> delay(2000L)
+              else -> error("Smoke WorkItem ${current.name} ended in ${current.state}")
+            }
+          }
+          error("Timed out waiting for smoke dispatch")
+        }
+        createAndWait(ordinary)
+        val operation =
+          operations
+            .withDeadlineAfter(30L, TimeUnit.SECONDS)
+            .getUploadHealingOperation(getUploadHealingOperationRequest { name = approval.name })
+        check(
+          operation.state == UploadHealingOperation.State.APPROVAL_REQUIRED &&
+            operation.etag == approval.etag
+        ) {
+          "Inspect a fresh isolated approval-required recovery plan"
+        }
+        operations.withDeadlineAfter(30L, TimeUnit.SECONDS).approveUploadHealingOperation(approval)
+        var replayReady = false
+        while (System.nanoTime() < deadline) {
+          val current =
+            operations
+              .withDeadlineAfter(30L, TimeUnit.SECONDS)
+              .getUploadHealingOperation(getUploadHealingOperationRequest { name = approval.name })
+          when (current.state) {
+            UploadHealingOperation.State.REPLAYING,
+            UploadHealingOperation.State.RECOVERING -> {
+              replayReady = true
+              break
+            }
+            UploadHealingOperation.State.APPROVED,
+            UploadHealingOperation.State.DRAINING,
+            UploadHealingOperation.State.EVICTING -> delay(2000L)
+            else -> error("Isolated healing did not reach replay: ${current.state}")
+          }
+        }
+        check(replayReady) { "Timed out waiting for an authorized recovery checkpoint" }
+        createAndWait(recovery)
+        println(
+          "PASS: isolated queued dispatch and recovery completed; verify the emitted lifecycle outcomes"
+        )
+      }
+    } finally {
+      edpaChannel.shutdown()
+      controlPlaneChannel.shutdown()
+      edpaChannel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+      controlPlaneChannel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+  }
+}

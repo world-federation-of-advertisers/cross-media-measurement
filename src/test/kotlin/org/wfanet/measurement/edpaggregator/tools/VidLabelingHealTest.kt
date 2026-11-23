@@ -19,8 +19,15 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.Any
+import com.google.protobuf.TypeRegistry
+import com.google.protobuf.timestamp
+import com.google.protobuf.util.JsonFormat
+import io.grpc.BindableService
 import io.grpc.Status
 import io.grpc.netty.NettyServerBuilder
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
+import java.nio.file.Files
 import java.nio.file.Paths
 import java.util.concurrent.TimeUnit.SECONDS
 import kotlin.test.assertFailsWith
@@ -34,27 +41,40 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
@@ -67,6 +87,10 @@ class VidLabelingHealTest {
   fun `command exposes only supported operator actions`() {
     assertThat(CommandLine(VidLabelingHeal()).subcommands.keys)
       .containsExactly(
+        "get-dispatch-work-item",
+        "retry-dispatch-work-item",
+        "preflight-dispatch-cutover",
+        "smoke-dispatch-cutover",
         "mark-failed",
         "retry-failed",
         "backfill-model-line",
@@ -270,5 +294,466 @@ class VidLabelingHealTest {
     val retryFailed = checkNotNull(result.subcommand())
     assertThat(retryFailed.hasMatchedOption("--tls-cert-file")).isTrue()
     assertThat(retryFailed.hasMatchedOption("--control-plane-tls-cert-file")).isTrue()
+  }
+
+  private class DispatchService(var current: WorkItem) : WorkItemsCoroutineImplBase() {
+    var getCalls = 0
+    val retries = mutableListOf<RetryWorkItemRequest>()
+    var rejectRetry = false
+
+    override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem {
+      getCalls++
+      require(request.name == current.name)
+      return current
+    }
+
+    override suspend fun retryWorkItem(request: RetryWorkItemRequest): WorkItem {
+      retries += request
+      if (rejectRetry)
+        throw Status.FAILED_PRECONDITION.withDescription("generation changed").asRuntimeException()
+      require(request.expectedWorkItemGeneration == current.generation)
+      current =
+        current.copy {
+          generation = current.generation + 1
+          state = WorkItem.State.QUEUED
+        }
+      return current
+    }
+  }
+
+  private fun dispatchItem(
+    state: WorkItem.State = WorkItem.State.FAILED,
+    executionGeneration: Long = 7L,
+  ): WorkItem = workItem {
+    name = "workItems/dispatch"
+    queue = "vid-labeling-dispatch-queue"
+    this.state = state
+    generation = executionGeneration
+    workItemParams =
+      Any.pack(
+        workItemParams {
+          appParams =
+            Any.pack(vidLabelingDispatchWorkItemParams { dataProvider = "dataProviders/dp" })
+          dataPathParams = dataPathParams {
+            dataPath = "gs://isolated/raw/done"
+            generation = 123456789L
+            createTime = timestamp { seconds = 123L }
+          }
+        }
+      )
+  }
+
+  private fun withOperatorServer(
+    services: List<BindableService>,
+    block: (List<String>, List<String>) -> Unit,
+  ) {
+    val secrets =
+      checkNotNull(
+        Runfiles.preload()
+          .withSourceRepository("")
+          .getRuntimePath(
+            Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+          )
+      )
+    val certs =
+      SigningCerts.fromPemFiles(
+        secrets.resolve("kingdom_tls.pem").toFile(),
+        secrets.resolve("kingdom_tls.key").toFile(),
+        secrets.resolve("edp7_root.pem").toFile(),
+      )
+    val builder = NettyServerBuilder.forPort(0).sslContext(certs.toServerTlsContext())
+    services.forEach(builder::addService)
+    val server = builder.build().start()
+    try {
+      val controlFlags =
+        listOf(
+          "--control-plane-api-target=localhost:${server.port}",
+          "--control-plane-api-cert-host=localhost",
+          "--control-plane-tls-cert-file=${secrets.resolve("edp7_tls.pem")}",
+          "--control-plane-tls-key-file=${secrets.resolve("edp7_tls.key")}",
+          "--control-plane-cert-collection-file=${secrets.resolve("kingdom_root.pem")}",
+        )
+      val edpaFlags =
+        listOf(
+          "--edpa-public-api-target=localhost:${server.port}",
+          "--edpa-public-api-cert-host=localhost",
+          "--tls-cert-file=${secrets.resolve("edp7_tls.pem")}",
+          "--tls-key-file=${secrets.resolve("edp7_tls.key")}",
+          "--cert-collection-file=${secrets.resolve("kingdom_root.pem")}",
+        )
+      block(controlFlags, edpaFlags)
+    } finally {
+      server.shutdownNow().awaitTermination(1, SECONDS)
+    }
+  }
+
+  @Test
+  fun `retry dispatch sends the inspected execution generation and preserves parameters`() {
+    val original = dispatchItem()
+    val service = DispatchService(original)
+    val bytes = ByteArrayOutputStream()
+    val previousOut = System.out
+    try {
+      System.setOut(PrintStream(bytes))
+      withOperatorServer(listOf(service)) { flags, _ ->
+        val code =
+          CommandLine(VidLabelingHeal())
+            .execute(
+              *(listOf(
+                  "retry-dispatch-work-item",
+                  original.name,
+                  "--expected-work-item-generation=7",
+                ) + flags)
+                .toTypedArray()
+            )
+        assertThat(code).isEqualTo(0)
+      }
+    } finally {
+      System.setOut(previousOut)
+    }
+    assertThat(bytes.toString()).contains("execution_generation: 8")
+    assertThat(bytes.toString()).contains("state: QUEUED")
+    assertThat(service.getCalls).isEqualTo(1)
+    assertThat(service.retries.single().name).isEqualTo(original.name)
+    assertThat(service.retries.single().expectedWorkItemGeneration).isEqualTo(7L)
+    assertThat(service.current.generation).isEqualTo(8L)
+    assertThat(service.current.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(service.current.workItemParams).isEqualTo(original.workItemParams)
+  }
+
+  @Test
+  fun `retry dispatch refuses running queued succeeded and unknown states without retry RPC`() {
+    for (state in
+      listOf(
+        WorkItem.State.RUNNING,
+        WorkItem.State.QUEUED,
+        WorkItem.State.SUCCEEDED,
+        WorkItem.State.STATE_UNSPECIFIED,
+      )) {
+      val service = DispatchService(dispatchItem(state))
+      withOperatorServer(listOf(service)) { flags, _ ->
+        assertThat(
+            CommandLine(VidLabelingHeal())
+              .execute(
+                *(listOf(
+                    "retry-dispatch-work-item",
+                    service.current.name,
+                    "--expected-work-item-generation=7",
+                  ) + flags)
+                  .toTypedArray()
+              )
+          )
+          .isNotEqualTo(0)
+      }
+      assertThat(service.retries).isEmpty()
+    }
+  }
+
+  @Test
+  fun `retry dispatch rejects a stale inspected generation before retry RPC`() {
+    val service = DispatchService(dispatchItem(executionGeneration = 8L))
+    withOperatorServer(listOf(service)) { flags, _ ->
+      assertThat(
+          CommandLine(VidLabelingHeal())
+            .execute(
+              *(listOf(
+                  "retry-dispatch-work-item",
+                  service.current.name,
+                  "--expected-work-item-generation=7",
+                ) + flags)
+                .toTypedArray()
+            )
+        )
+        .isNotEqualTo(0)
+    }
+    assertThat(service.retries).isEmpty()
+  }
+
+  @Test
+  fun `retry dispatch requires an explicit positive generation`() {
+    val service = DispatchService(dispatchItem())
+    withOperatorServer(listOf(service)) { flags, _ ->
+      for (generationFlag in
+        listOf(
+          emptyList(),
+          listOf("--expected-work-item-generation=0"),
+          listOf("--expected-work-item-generation=-1"),
+        )) {
+        assertThat(
+            CommandLine(VidLabelingHeal())
+              .execute(
+                *(listOf("retry-dispatch-work-item", service.current.name) + generationFlag + flags)
+                  .toTypedArray()
+              )
+          )
+          .isNotEqualTo(0)
+      }
+    }
+    assertThat(service.getCalls).isEqualTo(0)
+    assertThat(service.retries).isEmpty()
+  }
+
+  @Test
+  fun `retry dispatch propagates a concurrent server generation rejection without resubmitting`() {
+    val service = DispatchService(dispatchItem()).apply { rejectRetry = true }
+    withOperatorServer(listOf(service)) { flags, _ ->
+      assertThat(
+          CommandLine(VidLabelingHeal())
+            .execute(
+              *(listOf(
+                  "retry-dispatch-work-item",
+                  service.current.name,
+                  "--expected-work-item-generation=7",
+                ) + flags)
+                .toTypedArray()
+            )
+        )
+        .isNotEqualTo(0)
+    }
+    assertThat(service.retries).hasSize(1)
+    assertThat(service.current.generation).isEqualTo(7L)
+  }
+
+  @Test
+  fun `inspect dispatch prints source identity separately from execution generation`() {
+    val service = DispatchService(dispatchItem())
+    val bytes = ByteArrayOutputStream()
+    val previousOut = System.out
+    try {
+      System.setOut(PrintStream(bytes))
+      withOperatorServer(listOf(service)) { flags, _ ->
+        assertThat(
+            CommandLine(VidLabelingHeal())
+              .execute(
+                *(listOf("get-dispatch-work-item", service.current.name) + flags).toTypedArray()
+              )
+          )
+          .isEqualTo(0)
+      }
+    } finally {
+      System.setOut(previousOut)
+    }
+    assertThat(bytes.toString()).contains("execution_generation: 7")
+    assertThat(bytes.toString()).contains("123456789")
+    assertThat(bytes.toString()).contains("gs://isolated/raw/done")
+    assertThat(service.retries).isEmpty()
+  }
+
+  @Test
+  fun `preflight rejects incomplete registration on a later page`() {
+    val tokens = mutableListOf<String>()
+    val uploads =
+      object : RawImpressionUploadServiceCoroutineImplBase() {
+        override suspend fun listRawImpressionUploads(request: ListRawImpressionUploadsRequest) =
+          listRawImpressionUploadsResponse {
+            tokens += request.pageToken
+            rawImpressionUploads += rawImpressionUpload {
+              registrationComplete = request.pageToken.isEmpty()
+            }
+            if (request.pageToken.isEmpty()) nextPageToken = "second"
+          }
+      }
+    val operations =
+      object : UploadHealingOperationServiceCoroutineImplBase() {
+        override suspend fun listUploadHealingOperations(
+          request: ListUploadHealingOperationsRequest
+        ) = listUploadHealingOperationsResponse {}
+      }
+    withOperatorServer(listOf(uploads, operations)) { _, flags ->
+      assertThat(
+          CommandLine(VidLabelingHeal())
+            .execute(
+              *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
+                .toTypedArray()
+            )
+        )
+        .isNotEqualTo(0)
+    }
+    assertThat(tokens).containsExactly("", "second").inOrder()
+  }
+
+  @Test
+  fun `preflight rejects active or unknown healing without mutations`() {
+    val uploads =
+      object : RawImpressionUploadServiceCoroutineImplBase() {
+        override suspend fun listRawImpressionUploads(request: ListRawImpressionUploadsRequest) =
+          listRawImpressionUploadsResponse {}
+      }
+    val operations =
+      object : UploadHealingOperationServiceCoroutineImplBase() {
+        override suspend fun listUploadHealingOperations(
+          request: ListUploadHealingOperationsRequest
+        ) = listUploadHealingOperationsResponse {
+          uploadHealingOperations +=
+            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {}
+        }
+      }
+    withOperatorServer(listOf(uploads, operations)) { _, flags ->
+      assertThat(
+          CommandLine(VidLabelingHeal())
+            .execute(
+              *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
+                .toTypedArray()
+            )
+        )
+        .isNotEqualTo(0)
+    }
+  }
+
+  @Test
+  fun `smoke creates isolated ordinary work then approves and queues exact recovery`() {
+    val provider = "dataProviders/test"
+    val operationName = "$provider/uploadHealingOperations/operation"
+    val creations = mutableListOf<WorkItem>()
+    val stored = mutableMapOf<String, WorkItem>()
+    val order = mutableListOf<String>()
+    val items =
+      object : WorkItemsCoroutineImplBase() {
+        override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
+          creations += request.workItem
+          order += "create"
+          return request.workItem
+            .copy {
+              name = "workItems/${request.workItemId}"
+              generation = 1L
+              state = WorkItem.State.QUEUED
+            }
+            .also { stored[it.name] = it }
+        }
+
+        override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem =
+          checkNotNull(stored[request.name]).copy { state = WorkItem.State.SUCCEEDED }
+      }
+    var approved = false
+    val operations =
+      object : UploadHealingOperationServiceCoroutineImplBase() {
+        override suspend fun getUploadHealingOperation(
+          request: GetUploadHealingOperationRequest
+        ): UploadHealingOperation {
+          require(request.name == operationName)
+          return uploadHealingOperation {
+            name = operationName
+            etag = "etag"
+            state =
+              if (approved) UploadHealingOperation.State.REPLAYING
+              else UploadHealingOperation.State.APPROVAL_REQUIRED
+          }
+        }
+
+        override suspend fun approveUploadHealingOperation(
+          request: ApproveUploadHealingOperationRequest
+        ): UploadHealingOperation {
+          require(request.name == operationName && request.etag == "etag")
+          approved = true
+          order += "approve"
+          return uploadHealingOperation {
+            name = operationName
+            state = UploadHealingOperation.State.APPROVED
+          }
+        }
+      }
+    val source =
+      dispatchItem().workItemParams.unpack(WorkItem.WorkItemParams::class.java).dataPathParams
+    val ordinary = workItem {
+      queue = "vid-labeling-dispatch-queue"
+      workItemParams =
+        Any.pack(
+          workItemParams {
+            dataPathParams = source
+            appParams = Any.pack(vidLabelingDispatchWorkItemParams { dataProvider = provider })
+          }
+        )
+    }
+    val recovery = workItem {
+      queue = ordinary.queue
+      workItemParams =
+        Any.pack(
+          workItemParams {
+            appParams =
+              Any.pack(
+                vidLabelingDispatchWorkItemParams {
+                  dataProvider = provider
+                  recovery = recoveryParams {
+                    this.source = source
+                    sourceUpload = "$provider/rawImpressionUploads/source"
+                    uploadHealingOperation = operationName
+                  }
+                }
+              )
+          }
+        )
+    }
+    val directory = Files.createTempDirectory("dispatch-smoke-test")
+    val ordinaryPath = directory.resolve("ordinary.json")
+    val recoveryPath = directory.resolve("recovery.json")
+    val approvalPath = directory.resolve("approval.json")
+    val printer =
+      JsonFormat.printer()
+        .usingTypeRegistry(
+          TypeRegistry.newBuilder()
+            .add(WorkItem.WorkItemParams.getDescriptor())
+            .add(VidLabelingDispatchWorkItemParams.getDescriptor())
+            .build()
+        )
+    Files.writeString(ordinaryPath, printer.print(ordinary))
+    Files.writeString(recoveryPath, printer.print(recovery))
+    Files.writeString(approvalPath, """{"name":"$operationName","etag":"etag"}""")
+    try {
+      withOperatorServer(listOf(items, operations)) { controlFlags, edpaFlags ->
+        val code =
+          CommandLine(VidLabelingHeal())
+            .execute(
+              *(listOf(
+                  "smoke-dispatch-cutover",
+                  "--isolated-data-provider=$provider",
+                  "--live-data-provider=dataProviders/live",
+                  "--ordinary-work-item-file=$ordinaryPath",
+                  "--recovery-work-item-file=$recoveryPath",
+                  "--approval-file=$approvalPath",
+                ) + controlFlags + edpaFlags)
+                .toTypedArray()
+            )
+        assertThat(code).isEqualTo(0)
+      }
+      assertThat(order).containsExactly("create", "approve", "create").inOrder()
+      assertThat(creations).containsExactly(ordinary, recovery).inOrder()
+    } finally {
+      for (file in listOf(ordinaryPath, recoveryPath, approvalPath)) Files.deleteIfExists(file)
+      Files.deleteIfExists(directory)
+    }
+  }
+
+  @Test
+  fun `preflight accepts complete registrations and inactive approval plans`() {
+    val uploads =
+      object : RawImpressionUploadServiceCoroutineImplBase() {
+        override suspend fun listRawImpressionUploads(request: ListRawImpressionUploadsRequest) =
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload { registrationComplete = true }
+          }
+      }
+    val operations =
+      object : UploadHealingOperationServiceCoroutineImplBase() {
+        override suspend fun listUploadHealingOperations(
+          request: ListUploadHealingOperationsRequest
+        ) = listUploadHealingOperationsResponse {
+          uploadHealingOperations += uploadHealingOperation {
+            state = UploadHealingOperation.State.COMPLETE
+          }
+          uploadHealingOperations += uploadHealingOperation {
+            state = UploadHealingOperation.State.APPROVAL_REQUIRED
+          }
+        }
+      }
+    withOperatorServer(listOf(uploads, operations)) { _, flags ->
+      assertThat(
+          CommandLine(VidLabelingHeal())
+            .execute(
+              *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
+                .toTypedArray()
+            )
+        )
+        .isEqualTo(0)
+    }
   }
 }
