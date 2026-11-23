@@ -21,6 +21,7 @@ import com.google.protobuf.Parser
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.rawimpressions.CompleteGcsStorageClient
 import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
@@ -30,10 +31,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams.StorageParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
+import org.wfanet.measurement.gcloud.gcs.GcsStorageRetryConfig
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.storage.SelectedStorageClient
 import picocli.CommandLine
 
 /**
@@ -117,7 +120,17 @@ class SubpoolAssignerAppRunner :
         poolAssignmentJobsStub = poolAssignmentJobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
         buildParquetStorageClient = { cfg, kms -> buildParquetStorageClient(cfg, kms) },
-        buildSubpoolMapStorageClient = { cfg -> buildStorageClient(cfg) },
+        buildSubpoolMapStorageClient = { cfg ->
+          val uri = SelectedStorageClient.parseBlobUri(requireNotNull(cfg.blobPrefix))
+          if (uri.scheme == "gs") {
+            CompleteGcsStorageClient(
+              GcsStorageRetryConfig.DEFAULT.buildStorageOptions(projectId = cfg.projectId).service,
+              uri.bucket,
+            )
+          } else {
+            buildStorageClient(cfg)
+          }
+        },
         loadPoolEmitLabeler = { modelStorageConfig, modelBlobPath ->
           VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(
             readCompiledModelBlob(modelStorageConfig, modelBlobPath)

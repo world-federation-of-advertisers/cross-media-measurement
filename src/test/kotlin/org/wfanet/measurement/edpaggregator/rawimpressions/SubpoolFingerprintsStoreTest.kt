@@ -25,8 +25,10 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
@@ -38,6 +40,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.storage.BlobChangedException
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
+import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -101,6 +106,216 @@ class SubpoolFingerprintsStoreTest {
     }
     return set
   }
+
+  @Test
+  fun `attempt input lookup reads a legacy shard with its persisted DEK`() =
+    runBlocking<Unit> {
+      val store = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val dek = store.generateDek(kekUri)
+      val legacy =
+        SubpoolFingerprintsStore.shardSubpoolKey("maps", "uploads/up", "modelLines/ml", 0, 7L)
+      val attempt =
+        SubpoolFingerprintsStore.shardSubpoolKey("maps", "uploads/up", "modelLines/ml", 0, 7L, dek)
+      store.writeBlob(legacy, dek, 7L, flowOf(pack(listOf(fp(0x11)))))
+      val mergedDek = store.generateDek(kekUri)
+      store.mergeSubpool(
+        listOf(SubpoolFingerprintsStore.SubpoolBlob(attempt, dek)),
+        "merged",
+        mergedDek,
+        Semaphore(1),
+      )
+      assertThat(readAll(store, "merged", mergedDek)).isEqualTo(pack(listOf(fp(0x11))))
+    }
+
+  @Test
+  fun `conditional shard write leaves winning ciphertext and DEK unchanged`() =
+    runBlocking<Unit> {
+      val store = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val winner = store.generateDek(kekUri)
+      val loser = store.generateDek(kekUri)
+      val expected = pack(listOf(fp(0x11)))
+      store.writeBlob("shard", winner, 7L, flowOf(expected))
+      val ciphertext = checkNotNull(storageClient.getBlob("shard")).read().toList()
+      assertFailsWith<BlobChangedException> {
+        store.writeBlob("shard", loser, 7L, flowOf(pack(listOf(fp(0x22)))))
+      }
+      assertThat(checkNotNull(storageClient.getBlob("shard")).read().toList()).isEqualTo(ciphertext)
+      assertThat(readAll(store, "shard", winner)).isEqualTo(expected)
+    }
+
+  @Test
+  fun `different wrapped DEKs isolate shard attempts while persisted bytes reconstruct the key`() =
+    runBlocking<Unit> {
+      val store = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val winner = store.generateDek(kekUri)
+      val loser = store.generateDek(kekUri)
+      val upload = "dataProviders/dp/rawImpressionUploads/up"
+      val model = "modelProviders/mp/modelSuites/ms/modelLines/ml"
+      val winnerKey = SubpoolFingerprintsStore.shardSubpoolKey("maps", upload, model, 0, 7L, winner)
+      val loserKey = SubpoolFingerprintsStore.shardSubpoolKey("maps", upload, model, 0, 7L, loser)
+      assertThat(loserKey).isNotEqualTo(winnerKey)
+      assertThat(
+          SubpoolFingerprintsStore.shardSubpoolKey(
+            "maps",
+            upload,
+            model,
+            0,
+            7L,
+            EncryptedDek.parseFrom(winner.toByteString()),
+          )
+        )
+        .isEqualTo(winnerKey)
+      store.writeBlob(winnerKey, winner, 7L, flowOf(pack(listOf(fp(0x11)))))
+      store.writeBlob(loserKey, loser, 7L, flowOf(pack(listOf(fp(0x22)))))
+      assertThat(readAll(store, winnerKey, winner)).isEqualTo(pack(listOf(fp(0x11))))
+      assertThat(readAll(store, loserKey, loser)).isEqualTo(pack(listOf(fp(0x22))))
+    }
+
+  @Test
+  fun `failed first merge publishes a clean prefix and retry replaces its generation`() =
+    runBlocking<Unit> {
+      val writer = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val shardDek = writer.generateDek(kekUri)
+      val mergedDek = writer.generateDek(kekUri)
+      val prefix = pack(listOf(fp(0x11)))
+      val suffix = pack(listOf(fp(0x22)))
+      writer.writeBlob("input", shardDek, 7L, flowOf(prefix, suffix))
+      var failFirst = true
+      var replacements = 0
+      var expectedToken: String? = null
+      val failingClient =
+        object : ConditionalOperationStorageClient by storageClient {
+          override suspend fun writeBlobIfNotFound(
+            blobKey: String,
+            content: Flow<ByteString>,
+          ): StorageClient.Blob {
+            if (blobKey == "merged" && failFirst) {
+              failFirst = false
+              // Simulate finalization of already processed records on input failure.
+              writer.writeBlob("merged", mergedDek, 7L, flowOf(prefix))
+              throw java.io.IOException("source failed after one complete record")
+            }
+            return storageClient.writeBlobIfNotFound(blobKey, content)
+          }
+
+          override suspend fun writeBlobIfUnchanged(
+            blobKey: String,
+            freshnessToken: String,
+            content: Flow<ByteString>,
+          ): StorageClient.Blob {
+            replacements++
+            assertThat(freshnessToken).isEqualTo(expectedToken)
+            return storageClient.writeBlobIfUnchanged(blobKey, freshnessToken, content)
+          }
+        }
+      val store = SubpoolFingerprintsStore(failingClient, kmsClient)
+      val inputs = listOf(SubpoolFingerprintsStore.SubpoolBlob("input", shardDek))
+      assertFailsWith<java.io.IOException> {
+        store.mergeSubpool(inputs, "merged", mergedDek, Semaphore(1))
+      }
+      // This prefix is valid ciphertext and RecordIO, so scanning it accepts incomplete output.
+      assertThat(readAll(writer, "merged", mergedDek)).isEqualTo(prefix)
+      expectedToken = storageClient.getFreshnessToken("merged")
+      store.mergeSubpool(inputs, "merged", mergedDek, Semaphore(1))
+      assertThat(replacements).isEqualTo(1)
+      assertThat(storageClient.getFreshnessToken("merged")).isNotEqualTo(expectedToken)
+      assertThat(readAll(writer, "merged", mergedDek)).isEqualTo(prefix.concat(suffix))
+    }
+
+  @Test
+  fun `ranking retry accepts existing output without reading or writing payload`() =
+    runBlocking<Unit> {
+      val writer = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val dek = writer.generateDek(kekUri)
+      writer.writeBlob("merged", dek, 7L, flowOf(pack(listOf(fp(0x11)))))
+      val metadataOnlyClient =
+        object : ConditionalOperationStorageClient by storageClient {
+          override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+            val blob = storageClient.getBlob(blobKey) ?: return null
+            return object : StorageClient.Blob by blob {
+              override fun read(): Flow<ByteString> = error("merged payload must not be read")
+            }
+          }
+
+          override suspend fun writeBlobIfNotFound(
+            blobKey: String,
+            content: Flow<ByteString>,
+          ): StorageClient.Blob = error("completed merge must not be rewritten")
+
+          override suspend fun writeBlobIfUnchanged(
+            blobKey: String,
+            freshnessToken: String,
+            content: Flow<ByteString>,
+          ): StorageClient.Blob = error("completed merge must not be replaced")
+        }
+      SubpoolFingerprintsStore(metadataOnlyClient, kmsClient).mergeSubpool(
+        emptyList(),
+        "merged",
+        dek,
+        Semaphore(1),
+      ) {
+        false
+      }
+    }
+
+  @Test
+  fun `lost replacement generation is re-observed before retry`() =
+    runBlocking<Unit> {
+      val writer = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val dek = writer.generateDek(kekUri)
+      writer.writeBlob("merged", dek, 7L, flowOf(pack(listOf(fp(0x00)))))
+      writer.writeBlob("input", dek, 7L, flowOf(pack(listOf(fp(0x11)))))
+      val tokens = mutableListOf<String>()
+      val racingClient =
+        object : ConditionalOperationStorageClient by storageClient {
+          override suspend fun writeBlobIfUnchanged(
+            blobKey: String,
+            freshnessToken: String,
+            content: Flow<ByteString>,
+          ): StorageClient.Blob {
+            tokens += freshnessToken
+            if (tokens.size == 1) {
+              storageClient.writeBlob(
+                blobKey,
+                flowOf(ByteString.copyFromUtf8("changed generation")),
+              )
+            }
+            return storageClient.writeBlobIfUnchanged(blobKey, freshnessToken, content)
+          }
+        }
+      SubpoolFingerprintsStore(racingClient, kmsClient)
+        .mergeSubpool(
+          listOf(SubpoolFingerprintsStore.SubpoolBlob("input", dek)),
+          "merged",
+          dek,
+          Semaphore(1),
+        )
+      assertThat(tokens).hasSize(2)
+      assertThat(tokens[1]).isNotEqualTo(tokens[0])
+      assertThat(readAll(writer, "merged", dek)).isEqualTo(pack(listOf(fp(0x11))))
+    }
+
+  @Test
+  fun `parent advancing during source reads leaves committed output unchanged`() =
+    runBlocking<Unit> {
+      val writer = SubpoolFingerprintsStore(storageClient, kmsClient)
+      val dek = writer.generateDek(kekUri)
+      writer.writeBlob("merged", dek, 7L, flowOf(pack(listOf(fp(0x11)))))
+      writer.writeBlob("input", dek, 7L, flowOf(pack(listOf(fp(0x22)))))
+      val token = storageClient.getFreshnessToken("merged")
+      var stateReads = 0
+      SubpoolFingerprintsStore(storageClient, kmsClient).mergeSubpool(
+        listOf(SubpoolFingerprintsStore.SubpoolBlob("input", dek)),
+        "merged",
+        dek,
+        Semaphore(1),
+      ) {
+        stateReads++ == 0
+      }
+      assertThat(stateReads).isEqualTo(2)
+      assertThat(storageClient.getFreshnessToken("merged")).isEqualTo(token)
+      assertThat(readAll(writer, "merged", dek)).isEqualTo(pack(listOf(fp(0x11))))
+    }
 
   @Test
   fun `writeBlob writes one record per chunk and readBlob round-trips`() = runBlocking {

@@ -436,7 +436,6 @@ private fun handleInternalError(e: StatusException): StatusRuntimeException {
     InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
     InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
     InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-    InternalErrors.Reason.INVALID_FIELD_VALUE,
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
     InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -461,6 +460,8 @@ private fun handleInternalError(e: StatusException): StatusRuntimeException {
       Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
     InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS ->
       Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
+    InternalErrors.Reason.INVALID_FIELD_VALUE ->
+      Status.INVALID_ARGUMENT.withCause(e).asRuntimeException(e.trailers)
     InternalErrors.Reason.ETAG_MISMATCH -> Status.ABORTED.withCause(e).asRuntimeException()
   }
 }
