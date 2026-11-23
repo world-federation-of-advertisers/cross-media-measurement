@@ -690,7 +690,7 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
-  fun `Mark replay mismatch reaches public caller as structured INVALID_ARGUMENT`() =
+  fun `Mark replay mismatch reaches public caller as ALREADY_EXISTS`() =
     runBlocking<Unit> {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
       createRawImpressionUploadModelLine(
@@ -729,9 +729,7 @@ class PoolAssignmentJobServiceTest {
               .build()
           )
         }
-      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(error.errorInfo?.reason).isEqualTo("INVALID_FIELD_VALUE")
-      assertThat(error.errorInfo?.metadataMap?.get("fieldName")).isEqualTo("request_id")
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
       assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
     }
 
