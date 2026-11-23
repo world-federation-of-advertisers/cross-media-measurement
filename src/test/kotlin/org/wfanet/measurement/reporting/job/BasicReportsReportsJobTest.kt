@@ -318,12 +318,13 @@ class BasicReportsReportsJobTest {
   }
 
   private fun manyReportingSetResultsReport(
-    windowCounts: List<Int> = List(101) { 1 },
-    histogramBinCount: Int = 0,
+    windowCounts: List<Int>,
+    histogramBinCounts: List<Int>,
   ): Report =
     REPORT.copy {
       metricCalculationResults.clear()
       for ((index, windowCount) in windowCounts.withIndex()) {
+        val binCount = histogramBinCounts[index]
         metricCalculationResults +=
           ReportKt.metricCalculationResult {
             metricCalculationSpec =
@@ -338,13 +339,11 @@ class BasicReportsReportsJobTest {
                 ReportKt.MetricCalculationResultKt.resultAttribute {
                   filter = "banner_ad != null && banner_ad.viewable == true"
                   metricSpec = metricSpec {
-                    if (histogramBinCount == 0) {
+                    if (binCount == 0) {
                       reach = MetricSpecKt.reachParams {}
                     } else {
                       reachAndFrequency =
-                        MetricSpecKt.reachAndFrequencyParams {
-                          maximumFrequency = histogramBinCount
-                        }
+                        MetricSpecKt.reachAndFrequencyParams { maximumFrequency = binCount }
                     }
                   }
                   timeInterval = interval {
@@ -352,16 +351,15 @@ class BasicReportsReportsJobTest {
                     endTime = timestamp { seconds = 1736755200L + 604800L * windowIndex }
                   }
                   metricResult = metricResult {
-                    if (histogramBinCount == 0) {
+                    if (binCount == 0) {
                       reach = MetricResultKt.reachResult { value = 1L }
                     } else {
                       reachAndFrequency =
                         MetricResultKt.reachAndFrequencyResult {
-                          reach =
-                            MetricResultKt.reachResult { value = 10_000_000L * histogramBinCount }
+                          reach = MetricResultKt.reachResult { value = 10_000_000L * binCount }
                           frequencyHistogram =
                             MetricResultKt.histogramResult {
-                              for (frequency in 1..histogramBinCount) {
+                              for (frequency in 1..binCount) {
                                 bins +=
                                   MetricResultKt.HistogramResultKt.bin {
                                     label = frequency.toString()
@@ -387,7 +385,8 @@ class BasicReportsReportsJobTest {
   @Test
   fun `execute skips an attempt owned by another worker`(): Unit = runBlocking {
     stubBasicReportForAssembly()
-    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(List(101) { 1 }, List(101) { 0 }))
     whenever(reportResultsMock.beginReportResultAssembly(any())).thenAnswer {
       throw Status.ALREADY_EXISTS.asException()
     }
@@ -407,13 +406,14 @@ class BasicReportsReportsJobTest {
   fun `execute bounds write batches by varying window counts`(): Unit = runBlocking {
     val basicReport = stubBasicReportForAssembly()
     val windowCounts = List(101) { if (it % 2 == 0) 1 else 99 }
-    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport(windowCounts))
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(windowCounts, List(windowCounts.size) { 0 }))
 
     job.execute()
 
     val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
-    verify(reportResultsMock, times(3)).batchCreateReportResultAssembly(captor.capture())
-    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(49, 48, 4).inOrder()
+    verify(reportResultsMock, times(4)).batchCreateReportResultAssembly(captor.capture())
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(49, 48, 3, 1).inOrder()
     val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
     assertThat(results.map { it.dimension.externalReportingSetId })
       .containsExactlyElementsIn((0..100).map { "set$it" })
@@ -427,9 +427,58 @@ class BasicReportsReportsJobTest {
           .map { it.value.unprocessedReportResultValues.nonCumulativeResults.reach.value }
       )
       .containsExactlyElementsIn(List(windowCounts.sum()) { 1L })
-    assertThat(captor.allValues.map { it.finalBatch }).containsExactly(false, false, true).inOrder()
+    assertThat(captor.allValues.map { it.finalBatch })
+      .containsExactly(false, false, false, true)
+      .inOrder()
     assertThat(captor.allValues.map { it.externalBasicReportId }.toSet())
       .containsExactly(basicReport.externalBasicReportId)
+  }
+
+  @Test
+  fun `execute preserves original batch boundaries when mutation splitting large histograms`():
+    Unit = runBlocking {
+    val basicReport = stubBasicReportForAssembly()
+    val windowCounts = List(200) { index -> if (index < 12 || index in 94..105) 160 else 1 }
+    val histogramBinCounts = List(200) { index -> if (index in 94..105) 110 else 0 }
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(
+        manyReportingSetResultsReport(windowCounts, histogramBinCounts = histogramBinCounts)
+      )
+
+    job.execute()
+
+    val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
+    verify(reportResultsMock, times(3)).batchCreateReportResultAssembly(captor.capture())
+    for (batch in captor.allValues) {
+      assertThat(batch.serializedSize).isLessThan(3 * 1024 * 1024)
+    }
+    assertThat(captor.allValues.map { it.requestsCount }).containsExactly(96, 4, 100).inOrder()
+    val results = captor.allValues.flatMap { it.requestsList }.map { it.reportingSetResult }
+    assertThat(results.map { it.dimension.externalReportingSetId })
+      .containsExactlyElementsIn((0..199).map { "set$it" })
+      .inOrder()
+    assertThat(results.map { it.reportingWindowResultsCount })
+      .containsExactlyElementsIn(windowCounts)
+      .inOrder()
+    for ((index, result) in results.withIndex()) {
+      for (window in result.reportingWindowResultsList) {
+        val values = window.value.unprocessedReportResultValues.nonCumulativeResults
+        val bins = histogramBinCounts[index]
+        assertThat(values.reach.value).isEqualTo(if (bins == 0) 1L else 10_000_000L * bins)
+        assertThat(values.frequencyHistogram.binResultsMap.keys).containsExactlyElementsIn(1..bins)
+        assertThat(values.frequencyHistogram.binResultsMap.values.map { it.value })
+          .containsExactlyElementsIn(List(bins) { if ((it + 1) % 2 == 0) 10_000_000 else -50_000 })
+        assertThat(
+            values.frequencyHistogram.binResultsMap.values.map {
+              it.univariateStatistics.standardDeviation
+            }
+          )
+          .containsExactlyElementsIn(List(bins) { 100_000.0 })
+      }
+    }
+    assertThat(captor.allValues.map { it.externalBasicReportId }.toSet())
+      .containsExactly(basicReport.externalBasicReportId)
+    assertThat(captor.allValues.map { it.finalBatch }).containsExactly(false, false, true).inOrder()
   }
 
   @Test
@@ -438,7 +487,7 @@ class BasicReportsReportsJobTest {
       stubBasicReportForAssembly()
       val windowCounts = List(251) { 9 }
       whenever(reportsMock.getReport(any()))
-        .thenReturn(manyReportingSetResultsReport(windowCounts, histogramBinCount = 100))
+        .thenReturn(manyReportingSetResultsReport(windowCounts, List(windowCounts.size) { 100 }))
 
       job.execute()
 
@@ -476,7 +525,7 @@ class BasicReportsReportsJobTest {
   fun `execute bounds requests with 255 bin frequency histograms`(): Unit = runBlocking {
     stubBasicReportForAssembly()
     whenever(reportsMock.getReport(any()))
-      .thenReturn(manyReportingSetResultsReport(List(101) { 2 }, histogramBinCount = 255))
+      .thenReturn(manyReportingSetResultsReport(List(101) { 2 }, List(101) { 255 }))
 
     job.execute()
 
@@ -507,7 +556,7 @@ class BasicReportsReportsJobTest {
     runBlocking {
       stubBasicReportForAssembly()
       whenever(reportsMock.getReport(any()))
-        .thenReturn(manyReportingSetResultsReport(listOf(1, 3290, 1)))
+        .thenReturn(manyReportingSetResultsReport(listOf(1, 3290, 1), List(3) { 0 }))
 
       job.execute()
 
@@ -532,7 +581,7 @@ class BasicReportsReportsJobTest {
     Unit = runBlocking {
     stubBasicReportForAssembly()
     whenever(reportsMock.getReport(any()))
-      .thenReturn(manyReportingSetResultsReport(listOf(1, 3291)))
+      .thenReturn(manyReportingSetResultsReport(listOf(1, 3291), List(2) { 0 }))
 
     job.execute()
 
@@ -544,7 +593,8 @@ class BasicReportsReportsJobTest {
   @Test
   fun `execute persists bounded batches and associates only the final batch`(): Unit = runBlocking {
     val basicReport = stubBasicReportForAssembly()
-    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(List(101) { 1 }, List(101) { 0 }))
     job.execute()
     val captor = argumentCaptor<BatchCreateReportResultAssemblyRequest>()
     verify(reportResultsMock, times(2)).batchCreateReportResultAssembly(captor.capture())
@@ -575,7 +625,8 @@ class BasicReportsReportsJobTest {
 
   @Test
   fun `execute stops on failed batch without sending report association`(): Unit = runBlocking {
-    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(List(101) { 1 }, List(101) { 0 }))
     whenever(reportResultsMock.batchCreateReportResultAssembly(any())).thenAnswer {
       throw Status.UNAVAILABLE.asException()
     }
@@ -590,7 +641,8 @@ class BasicReportsReportsJobTest {
   fun `execute discards committed prefix after later batch failure and retries without orphans`():
     Unit = runBlocking {
     stubBasicReportForAssembly()
-    whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(manyReportingSetResultsReport(List(101) { 1 }, List(101) { 0 }))
     val trees = mutableMapOf<Long, MutableList<CreateReportingSetResultRequest>>()
     var nextId = 1L
     var associatedId: Long? = null
@@ -644,7 +696,8 @@ class BasicReportsReportsJobTest {
   fun `execute preserves associated results when final batch response is lost`(): Unit =
     runBlocking {
       stubBasicReportForAssembly()
-      whenever(reportsMock.getReport(any())).thenReturn(manyReportingSetResultsReport())
+      whenever(reportsMock.getReport(any()))
+        .thenReturn(manyReportingSetResultsReport(List(101) { 1 }, List(101) { 0 }))
       val committed = mutableListOf<CreateReportingSetResultRequest>()
       var associated = false
       whenever(reportResultsMock.batchCreateReportResultAssembly(any())).thenAnswer { invocation ->
