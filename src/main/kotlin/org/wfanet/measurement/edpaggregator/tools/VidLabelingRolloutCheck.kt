@@ -17,8 +17,14 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.cloud.spanner.DatabaseId
 import com.google.cloud.spanner.SpannerOptions
 import com.google.cloud.spanner.Statement
+import com.google.protobuf.ListValue
+import com.google.protobuf.Struct
+import com.google.protobuf.TextFormat
+import com.google.protobuf.Value
+import com.google.protobuf.util.JsonFormat
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -26,6 +32,7 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
@@ -52,6 +59,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.listWorkItemsRequest
 import picocli.CommandLine
+
+/** Known active work may finish naturally while the maintenance boundary remains held. */
+class RolloutWorkInProgressException(message: String) : IllegalStateException(message)
 
 /** Existing-API, read-only rollout checks. All query failures propagate and fail the check. */
 class VidLabelingRolloutChecker(
@@ -106,19 +116,28 @@ class VidLabelingRolloutChecker(
     for (item in items) {
       check(item.queue.isNotEmpty()) { "WorkItem queue missing" }
       if (item.queue !in queues) continue
-      check(item.state == WorkItem.State.SUCCEEDED || item.state == WorkItem.State.FAILED) {
-        "VID queue is not drained: ${item.name} (${item.state})"
+      if (item.state != WorkItem.State.SUCCEEDED && item.state != WorkItem.State.FAILED) {
+        if (item.state == WorkItem.State.QUEUED || item.state == WorkItem.State.RUNNING) {
+          throw RolloutWorkInProgressException("VID queue is not drained: ${item.name}")
+        }
+        error("Unknown WorkItem state: ${item.name} (${item.state})")
       }
     }
     for (provider in providers) {
       require(provider.startsWith("dataProviders/") && provider.substringAfter('/').isNotEmpty())
       for (upload in allUploads(provider)) {
-        check(
-          upload.state == RawImpressionUpload.State.COMPLETED ||
-            upload.state == RawImpressionUpload.State.FAILED ||
-            upload.state == RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
+        if (
+          upload.state != RawImpressionUpload.State.COMPLETED &&
+            upload.state != RawImpressionUpload.State.FAILED &&
+            upload.state != RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
         ) {
-          "Nonterminal upload: ${upload.name} (${upload.state})"
+          if (
+            upload.state == RawImpressionUpload.State.CREATED ||
+              upload.state == RawImpressionUpload.State.ACTIVE
+          ) {
+            throw RolloutWorkInProgressException("Nonterminal upload: ${upload.name}")
+          }
+          error("Upload requires intervention or has unknown state: ${upload.name}")
         }
         check(!upload.processingDeferred) { "Deferred processing: ${upload.name}" }
         check(upload.registrationComplete) { "Incomplete registration: ${upload.name}" }
@@ -356,7 +375,16 @@ class VidLabelingRolloutCheck : Runnable {
       withTimeout(timeoutSeconds * 1000) {
         when (mode) {
           Mode.DRAINED -> checker.requireDrained(providers.toSet(), queues.toSet())
-          Mode.MAINTENANCE -> checker.requireMaintenanceDrained(providers.toSet(), queues.toSet())
+          Mode.MAINTENANCE -> {
+            while (true) {
+              try {
+                checker.requireMaintenanceDrained(providers.toSet(), queues.toSet())
+                break
+              } catch (e: RolloutWorkInProgressException) {
+                delay(1000L)
+              }
+            }
+          }
           Mode.ZERO_MEMBERSHIP -> {
             require(providers.size == 1 && modelLine.isNotEmpty())
             checker.requireZeroMembership(
@@ -369,7 +397,22 @@ class VidLabelingRolloutCheck : Runnable {
           }
         }
       }
-      println("PASS: ${mode.name}")
+      if (mode == Mode.MAINTENANCE) {
+        val summary =
+          Struct.newBuilder()
+            .putFields("status", Value.newBuilder().setStringValue("PASS").build())
+            .putFields("mode", Value.newBuilder().setStringValue("MAINTENANCE").build())
+        for ((name, values) in listOf("providers" to providers, "queues" to queues)) {
+          val list = ListValue.newBuilder()
+          values.distinct().sorted().forEach {
+            list.addValues(Value.newBuilder().setStringValue(it).build())
+          }
+          summary.putFields(name, Value.newBuilder().setListValue(list).build())
+        }
+        println(JsonFormat.printer().omittingInsignificantWhitespace().print(summary.build()))
+      } else {
+        println("PASS: ${mode.name}")
+      }
     } finally {
       edpa.shutdownNow()
       control.shutdownNow()
@@ -402,13 +445,11 @@ private suspend fun requireNoActiveSynchronizationLeases(
       val statement =
         Statement.newBuilder(
             """
-      SELECT COUNT(*) AS BlockingLeaseCount
+      SELECT
+        COUNTIF(CAST(State AS INT64) NOT IN (1, 2, 3)) AS UnknownLeaseCount,
+        COUNTIF(CAST(State AS INT64) = 1 AND ExpireTime > CURRENT_TIMESTAMP()) AS ActiveLeaseCount
       FROM DataAvailabilitySyncLease
       WHERE DataProviderResourceId IN UNNEST(@providers)
-        AND (
-          CAST(State AS INT64) NOT IN (1, 2, 3)
-          OR (CAST(State AS INT64) = 1 AND ExpireTime > CURRENT_TIMESTAMP())
-        )
       """
               .trimIndent()
           )
@@ -416,10 +457,51 @@ private suspend fun requireNoActiveSynchronizationLeases(
           .toStringArray(ids)
           .build()
       client.singleUse().executeQuery(statement).use { rows ->
-        check(rows.next() && rows.getLong("BlockingLeaseCount") == 0L) {
-          "Active or unknown synchronization leases remain"
+        check(rows.next() && rows.getLong("UnknownLeaseCount") == 0L) {
+          "Unknown synchronization lease state"
+        }
+        if (rows.getLong("ActiveLeaseCount") > 0L) {
+          throw RolloutWorkInProgressException("Active synchronization leases remain")
         }
         check(!rows.next()) { "Ambiguous lease evidence" }
       }
     }
   }
+
+/** Read the deployment's complete provider scope using its actual protobuf config parser. */
+@CommandLine.Command(name = "vid-labeling-rollout-scope", mixinStandardHelpOptions = true)
+class VidLabelingRolloutScope : Runnable {
+  @CommandLine.Option(names = ["--vid-labeling-config"], required = true)
+  private lateinit var configFile: File
+
+  override fun run() {
+    val builder = VidLabelingConfigs.newBuilder()
+    configFile.reader().use { TextFormat.getParser().merge(it, builder) }
+    val configs = builder.build().configsList
+    val providers = configs.map { it.dataProvider }
+    require(providers.isNotEmpty() && providers.distinct().size == providers.size) {
+      "VID provider scope is missing or duplicated"
+    }
+    require(
+      providers.all {
+        it.startsWith("dataProviders/") &&
+          it.count { c -> c == '/' } == 1 &&
+          it.substringAfter('/').isNotEmpty()
+      }
+    ) {
+      "Invalid configured provider"
+    }
+    require(configs.all { it.maxFileBatchSizeBytes > 0 }) { "Packing contract is missing" }
+    val list = ListValue.newBuilder()
+    providers.sorted().forEach { list.addValues(Value.newBuilder().setStringValue(it)) }
+    val summary =
+      Struct.newBuilder()
+        .putFields("providers", Value.newBuilder().setListValue(list).build())
+        .build()
+    println(JsonFormat.printer().omittingInsignificantWhitespace().print(summary))
+  }
+
+  companion object {
+    @JvmStatic fun main(args: Array<String>) = commandLineMain(VidLabelingRolloutScope(), args)
+  }
+}

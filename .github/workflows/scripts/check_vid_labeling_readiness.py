@@ -209,10 +209,16 @@ def check_compatibility(project, region, candidate, receipt, read=read_json):
     require(receipt.get("status") == "READY", "No completed preceding cutover")
     require(receipt.get("project") == project and receipt.get("region") == region,
             "Receipt belongs to another deployment")
+    require(isinstance(candidate.get("shared_code_id"), str) and candidate["shared_code_id"] and
+            candidate["shared_code_id"] == receipt.get("shared_code_id"),
+            "Changed shared platform cannot bypass ordinary quiescence")
     require(candidate["contract_id"] == receipt["contract_id"],
             "Legacy or changed storage/config contract requires checked maintenance")
     require({f["name"] for f in candidate["functions"]} ==
             {f["name"] for f in receipt["functions"]}, "Function scope changed")
+    require(isinstance(receipt.get("image_tag"), str) and receipt["image_tag"],
+            "Receipt has no verified workload image")
+    check(project, region, receipt["image_tag"], read)
     check_functions(project, region, receipt, read)
 
 def main():
@@ -220,6 +226,7 @@ def main():
     parser.add_argument("--project", required=True)
     parser.add_argument("--region", required=True)
     parser.add_argument("--image-tag", required=True)
+    parser.add_argument("--functions-only", action="store_true", help="Terraform consumer-before-writer gate")
     parser.add_argument("--manifest", help="Terraform desired function/config contract JSON")
     parser.add_argument("--timeout-seconds", type=int, default=600)
     args = parser.parse_args()
@@ -229,10 +236,12 @@ def main():
         with open(args.manifest) as file:
             manifest = json.load(file)
         require_manifest(manifest)
+    require(not args.functions_only or manifest is not None, "Function gate requires exact manifest")
     end = time.monotonic() + args.timeout_seconds
     while True:
         try:
-            check(args.project, args.region, args.image_tag)
+            if not args.functions_only:
+                check(args.project, args.region, args.image_tag)
             if manifest is not None:
                 check_functions(args.project, args.region, manifest)
             print("PASS: metadata schema/services and desired VID worker templates are ready")
