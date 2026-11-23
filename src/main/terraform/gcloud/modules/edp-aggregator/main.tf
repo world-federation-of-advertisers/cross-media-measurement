@@ -1011,8 +1011,13 @@ locals {
 
   # To attribute an entity Meta hides to its ad account, the function looks up the entity's
   # EventGroup in the Kingdom as Meta's DataProvider over mutual TLS. Each secret mounted as a file
-  # needs its own directory.
-  meta_impression_query_edp_certs            = var.edps_certs[var.meta_impression_query_edp_display_name]
+  # needs its own directory. Only resolved when the function is deployed, so an environment without
+  # it needs no certificates for Meta's DataProvider.
+  meta_impression_query_edp_certs = (
+    local.deploy_meta_impression_query
+    ? var.edps_certs[var.meta_impression_query_edp_display_name]
+    : null
+  )
   meta_impression_query_tls_cert_file        = "/secrets/tls-cert/tls.pem"
   meta_impression_query_tls_key_file         = "/secrets/tls-key/tls.key"
   meta_impression_query_cert_collection_file = "/secrets/ca/trusted_root_ca.pem"
