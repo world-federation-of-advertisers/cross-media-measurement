@@ -31,3 +31,8 @@ output "vid_labeling_trace_operator_service_account_email" {
   description = "Email of the logs-and-traces-only VID-labeling trace operator service account."
   value       = module.reporting_v2.vid_labeling_trace_operator_service_account_email
 }
+
+output "vid_labeling_rollout_manifest" {
+  description = "Expected VID cutover identity for the supported deployment workflow."
+  value       = module.edp_aggregator.vid_labeling_rollout_manifest
+}

@@ -775,80 +775,102 @@ schema through the internal server's schema-updater init container, rolls metada
 services, and uses Terraform to roll compatible workers and flags. Do not sequence
 individual services or edit Terraform-owned MIGs, schedulers, or flags by hand.
 
-#### Online compatibility and the maintenance alternative
+#### Checked online rollout and the maintenance alternative
 
-Prefer an online rollout when deployed and candidate contracts are compatible.
-The first upgrade to this completion/batching contract cannot safely mix active
-legacy memoized work with updated producers. Its exact state/API incompatibilities are:
+Use the normal **Update CMMS** workflow with **vid-labeling-cutover-mode=online**
+for a compatible upgrade. This mode requests neither an EDP pause nor a manual
+queue drain. It requires a preceding successful receipt with the same storage/API
+and configuration contract, and checks actual serving consumer versions before
+normal deployment. Changed shared platform/control-plane code cannot bypass its
+ordinary quiescence. Missing evidence does not certify a legacy upgrade.
 
-- Older SubpoolAssigner code interprets any present `last_shard_result` as ranking.
-  The new present-empty result means direct labeling, and the RPC has no caller-version
-  negotiation to provide both meanings during a mixed rollout.
-- Labeling-job membership is immutable and request IDs identify batch slots. New
-  packing limits can change an existing slot. The service must reject that replay;
-  existing uploads have no persisted packing-version choice.
-- Legacy successful marks may lack original-input fingerprints. Aggregate current
-  state cannot prove that a replay matches the original immutable request.
+Terraform exports **vid_labeling_rollout_manifest** with expected function hashes,
+protocol/config identity, queues and MIGs. Its identity includes dispatcher packing
+settings and storage routing. A Terraform-managed read-only reader gate checks
+each relevant function's actual ready Cloud Run revision and traffic before new
+VID MIG templates roll. Final checks cover schema-init success, metadata images,
+every MIG instance and all serving function revisions; desired templates alone
+are insufficient.
 
-These constraints do not require paused uploads for every future deployment.
-An online bridge for active legacy work must provide response compatibility and stable
-per-upload packing before producer activation. This release does not claim that
-bridge exists. Operators requiring online compatibility can retain their current
-release until those conditions are supported. For this breaking upgrade, use the
-simpler maintenance alternative below:
+The final-stack **VidLabelingPublicationSmoke** runs two production sink instances
+concurrently against a fresh GCS prefix under **rollout/**. It verifies two complete
+attempt files, one winning sidecar and the selected decryptable data/key pair,
+then deletes only that run's objects. Synthetic events and an ephemeral local
+test KEK exercise publication without production KMS permissions or EDP data.
+Normal zero-membership pipeline regressions remain required alongside this smoke.
 
-1. Pause new raw **done markers** at the input publisher and defer new healing
-   approvals for the window. Leave existing consumers running while work finishes;
-   do not mutate Terraform-owned resources out of band.
-2. Run `VidLabelingRolloutCheck --mode=DRAINED` with every deployment EDP and VID queue,
-   including availability handoff. It lists only unfinished WorkItems in those queues,
-   unfinished uploads, unfinished model lines across all uploads and unfinished healing
-   operations, so its cost follows outstanding work rather than retained history. It
-   fails on queued/running work, nonterminal uploads, unfinished healing, unknown states,
-   missing evidence or query errors. Proceed only after it succeeds.
-   `--mode=MAINTENANCE` repeats these checks after waiting one maximum synchronization-lease
-   lifetime plus margin (`--max-sync-lease-lifetime`, default `10m`, and
-   `--sync-lease-margin`, default `1m`). With intake paused and no unfinished work, no
-   worker can renew a lease, so any abandoned lease has expired before the second check.
-   The check uses only service APIs and needs no database access.
-3. Run one normal Update CMMS deployment with `apply=true` and
-   `vid-labeling-readiness=true`. Its normal schema/service/Terraform sequence is
-   followed by read-only checks of schema-init success, expected metadata images,
-   stable MIG templates, consumer enablement and required worker flags.
-4. Submit one fresh zero-membership smoke upload through the normal test-input
-   publisher, with impressions outside the active window. Verify it using
-   `VidLabelingRolloutCheck --mode=ZERO_MEMBERSHIP` and its exact done URI/generation,
-   model line and expected shard count. The verifier requires completed empty
-   assignment, every expected shard successful, no ranked date/merged DEK or RankerJobs,
-   successful labeling and exact registered-file coverage.
-5. Resume production done markers only after deployment readiness and the smoke
-   verification succeed. A failed check leaves the window closed for diagnosis.
+Specify **vid-labeling-receipt-uri**, for example
+**gs://DEPLOYMENT_CONFIG_BUCKET/rollout/ENVIRONMENT/vid-cutover.json**.
+Updates use exact GCS generation conditions and a unique cutover ID. Only a
+completed READY receipt authorizes another online rollout; partial/failed
+verification is not compatibility proof.
 
-The CLI performs only List RPCs with server-side state filters, complete pagination and a
-bounded deadline. A server that predates a filter returns a complete listing, which the CLI
-still evaluates correctly. It never creates, retries, updates or deletes API resources. Smoke input
-is application test data emitted by the normal publisher. The readiness script uses
-only get/describe/list commands and never changes Terraform-owned state.
+The initial breaking upgrade has concrete legacy incompatibilities:
 
-Example preflight (repeat `--data-provider` for every configured EDP and use the
-queues from the deployment registry):
+- Older Phase-0 consumers find canonical shard keys. New output uses a DEK-scoped
+  **.../subpoolOffset/N/attempt/HASH** key. Current readers have a legacy fallback;
+  old consumers cannot discover new attempts. Old merged writers can also replace
+  canonical output without the new generation/state guards.
+- Older Phase-2 consumers decrypt canonical data. New writers publish
+  **.attempt-UUID** data selected by an immutable canonical sidecar. Old writers
+  can overwrite canonical data/sidecar state; old readers do not follow the new URI.
+- Older SubpoolAssigner interprets any present **last_shard_result** as ranking.
+  A present empty result now means direct labeling. Existing RPCs have no caller
+  version negotiation for both meanings.
+- Changed packing limits can change immutable job membership for a request-ID
+  slot. Existing uploads have no persisted packing-version choice.
+- Legacy marks can lack original-input fingerprints. Current aggregate state
+  cannot establish exact immutable-input replay.
 
-```shell
-bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingRolloutCheck -- \
-  --mode=DRAINED --data-provider=dataProviders/edp7 \
-  --queue=queues/subpool-assigner-queue --queue=queues/vid-rank-builder-queue \
-  --queue=queues/vid-labeler-queue --queue=queues/data-availability-sync-queue \
-  --edpa-public-api-target=EDPA_TARGET --control-plane-target=CONTROL_PLANE_TARGET \
-  --tls-cert-file=edpa-client.crt --tls-key-file=edpa-client.key \
-  --cert-collection-file=edpa-roots.pem \
-  --control-plane-tls-cert-file=control-client.crt \
-  --control-plane-tls-key-file=control-client.key \
-  --control-plane-cert-collection-file=control-roots.pem
-```
+Versioned queues/storage namespaces and a persisted per-upload processing/packing
+contract are the possible bridge for active legacy work, along with legacy-response
+compatibility and consumer-first routing. A deployment label alone is not that
+bridge. This release does not weaken replay checks or invent lost input evidence
+to claim legacy mixing is safe. Its online route requires an unchanged previously
+attested contract; use maintenance for an unversioned first upgrade or changed
+contract.
 
-For smoke verification use the same targets/TLS flags and one EDP, plus
-`--done-blob-uri`, `--done-blob-generation`, `--model-line` and `--expected-shards`.
-Rerun the read-only verifier within the window while asynchronous work completes.
+For maintenance, select **vid-labeling-cutover-mode=maintenance**:
+
+1. Configure **vid-labeling-intake-control-url** for the publisher-owned authenticated
+   HTTPS control of done markers and memoized backfills/healing approvals.
+   Stopping CMM workers does not pause an external EDP. The control receives
+   action, unique request ID and complete provider/queue scope, and returns the
+   matching scope_id and paused=true for pause or paused=false for resume.
+   Missing, failed or wrong-scope control fails before component deployment.
+2. The workflow invokes that control and automatically runs **VidLabelingRolloutCheck
+   --mode=MAINTENANCE**. Providers and all phase/availability queues come from
+   committed configuration and the deployment manifest. Existing workers finish
+   naturally: the checker never deletes, retries or edits WorkItems. It checks
+   complete pagination, upload/healing states and authoritative unexpired sync
+   leases against the Spanner server clock. Known active work can be polled
+   within the deadline; unknown or missing evidence fails closed.
+3. Run the normal final-stack deployment once. The schema updater applies
+   migrations 27/28/29 in changelog order; metadata services, sidecar-aware readers,
+   healing consumers and writers roll through normal ownership. Do not deploy
+   components individually, patch MIGs or edit Terraform-owned flags.
+4. Final readiness and the concurrent sidecar smoke run automatically. Only after
+   those and a generation-guarded verification checkpoint pass does resume run.
+   Failed checks leave intake paused. A failed resume/receipt update requires
+   diagnosis; VERIFIED or IN_PROGRESS records never authorize an online rollout.
+
+The workflow identity needs existing read access to deployment state, EDPA operator
+TLS secrets and sync leases, plus write/delete confined to receipt and synthetic
+rollout prefixes. Publisher control must accept its OIDC identity/audience.
+These are explicit prerequisites, not a claim that an external EDP already
+implements the hook. For the first maintenance receipt only, use
+**vid-labeling-new-receipt=true**; generation zero prevents overwriting an existing
+receipt.
+
+DRAINED remains a read-only diagnostic mode. Full maintenance uses MAINTENANCE,
+with **--spanner-project**, **--spanner-instance** and **--spanner-database** plus
+EDPA/control-plane mTLS. ZERO_MEMBERSHIP remains the separate normal-publisher
+verifier for exact done URI/generation, empty assignment, no rank work, successful
+labeling and complete registered-file coverage.
+
+The per-phase reader-before-writer/prerequisite-release sequence below is an
+optional coordinated online alternative only when compatibility prerequisites
+are established, not the recommended manual cutover procedure.
 
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0
 SubpoolAssigner, Phase 1 VidRankBuilder, Phase 2 VidLabeler) as Confidential Space
@@ -883,8 +905,8 @@ route. The worker publishes every labeling WorkItem before requesting the parent
 Its metadata mTLS identity must be permitted to create labeling jobs, and its control-plane
 identity must be permitted to publish to the labeling queue.
 
-For releases introducing this route, deploy the metadata services first, then VidLabeler and
-VidRankBuilder, and finally SubpoolAssigner with the new queue option. Since stock Terraform
+For the optional coordinated compatibility path, prerequisites are metadata services,
+then VidLabeler and VidRankBuilder, then SubpoolAssigner with the new queue option. Since stock Terraform
 workers share `image_tag`, use prerequisite releases or hold Phase-0 consumption until the
 metadata and labeling consumers are ready. Verify ordinary-only and no-active-row uploads
 complete their dated availability handoffs, then verify a ranked upload on the same model line.
