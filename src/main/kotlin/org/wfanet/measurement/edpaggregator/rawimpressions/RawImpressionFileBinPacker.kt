@@ -16,9 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.rawimpressions
 
-import com.google.protobuf.CodedOutputStream
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 
 /**
  * Partitions an upload's [RawImpressionUploadFile]s into Phase-2 VID-labeling batches.
@@ -49,23 +47,17 @@ object RawImpressionFileBinPacker {
    * @param maxFileBatchSizeBytes the bin-packing threshold: the maximum total `size_bytes` per
    *   batch; must be `> 0`.
    * @param maxFilesPerBatch maximum whole files per batch; defaults to unbounded.
-   * @param maxFileNamesSizeBytes maximum encoded bytes of the job's repeated file names, including
-   *   protobuf tags and length prefixes; excludes other job fields. Defaults to unbounded. A name
-   *   that alone exceeds this bound is rejected.
    * @return batches of `RawImpressionUploadFile` resource names, in deterministic order.
    */
   fun pack(
     files: List<RawImpressionUploadFile>,
     maxFileBatchSizeBytes: Long,
     maxFilesPerBatch: Int = Int.MAX_VALUE,
-    maxFileNamesSizeBytes: Int = Int.MAX_VALUE,
   ): List<List<String>> {
     require(maxFileBatchSizeBytes > 0) {
       "maxFileBatchSizeBytes must be > 0, got $maxFileBatchSizeBytes"
     }
     require(maxFilesPerBatch > 0) { "maxFilesPerBatch must be > 0" }
-    require(maxFileNamesSizeBytes > 0) { "maxFileNamesSizeBytes must be > 0" }
-    val batchFileNameBytes = mutableListOf<Long>()
     val batchFiles = mutableListOf<MutableList<String>>()
     val batchBytes = mutableListOf<Long>()
     val ordered =
@@ -73,31 +65,19 @@ object RawImpressionFileBinPacker {
         compareByDescending<RawImpressionUploadFile> { it.sizeBytes }.thenBy { it.name }
       )
     for (file in ordered) {
-      val nameBytes =
-        CodedOutputStream.computeStringSize(
-            VidLabelingJob.RAW_IMPRESSION_UPLOAD_FILES_FIELD_NUMBER,
-            file.name,
-          )
-          .toLong()
-      require(nameBytes <= maxFileNamesSizeBytes) {
-        "File resource name exceeds the labeling-job metadata limit"
-      }
       val fit =
         batchBytes.indices.firstOrNull { index ->
           batchBytes[index] + file.sizeBytes <= maxFileBatchSizeBytes &&
-            batchFiles[index].size < maxFilesPerBatch &&
-            batchFileNameBytes[index] + nameBytes <= maxFileNamesSizeBytes
+            batchFiles[index].size < maxFilesPerBatch
         } ?: -1
       if (fit >= 0) {
         batchFiles[fit].add(file.name)
         batchBytes[fit] += file.sizeBytes
-        batchFileNameBytes[fit] += nameBytes
       } else {
         // No open batch has room (includes a file that alone meets/exceeds the cap): start a new
         // one.
         batchFiles.add(mutableListOf(file.name))
         batchBytes.add(file.sizeBytes)
-        batchFileNameBytes.add(nameBytes)
       }
     }
     return batchFiles

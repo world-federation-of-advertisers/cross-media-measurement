@@ -294,7 +294,7 @@ class MemoizedVidLabelingJobDispatcherTest {
         dispatcher(maxFileBatchSizeBytes = 1_000_000_000, maxJobsPerBatchCreate = 50).dispatch()
       )
       .isEqualTo(50)
-    assertThat(createRequests.size).isGreaterThan(1)
+    assertThat(createRequests).hasSize(10)
     assertThat(jobsByRequest.values.flatMap { it.rawImpressionUploadFilesList })
       .containsExactlyElementsIn(filesByUpload.getValue(UPLOAD).map { it.name })
     for (job in jobsByRequest.values) {
@@ -312,7 +312,7 @@ class MemoizedVidLabelingJobDispatcherTest {
     assertThat(largestRequest.toByteArray().size).isAtMost(3 * 1024 * 1024)
     assertThat(largestResponse.toByteArray().size).isLessThan(4 * 1024 * 1024)
     for (request in createRequests) {
-      assertThat(request.requestsCount).isAtMost(50)
+      assertThat(request.requestsCount).isAtMost(5)
       assertThat(request.toByteArray().size).isAtMost(3 * 1024 * 1024)
     }
     for (response in createResponses) {
@@ -321,25 +321,111 @@ class MemoizedVidLabelingJobDispatcherTest {
   }
 
   @Test
-  fun `serialized job bytes can split before the file-count cap`() =
+  fun `dispatch bounds maximum-length names in jobs and batch requests and responses`() =
     runBlocking<Unit> {
-      pageSize = 100
-      filesByUpload[UPLOAD] =
-        (0 until 100).map { index ->
+      val upload = UPLOAD + "u".repeat(440 - UPLOAD.length)
+      val model = MODEL + "m".repeat(512 - MODEL.length)
+      val filePrefix = "$upload/files/"
+      pageSize = 500
+      filesByUpload[upload] =
+        (0 until 5_001).map { index ->
           rawImpressionUploadFile {
-            name = "$UPLOAD/files/${index.toString().padStart(3, '0')}-${"x".repeat(8_000)}"
+            name = filePrefix + index.toString().padStart(512 - filePrefix.length, 'f')
             sizeBytes = 1
           }
         }
-      assertThat(dispatcher(maxFileBatchSizeBytes = 1_000_000).dispatch()).isGreaterThan(1)
-      dispatcher(maxFileBatchSizeBytes = 1_000_000).dispatch()
+      assertThat(
+          dispatcher(
+              upload = upload,
+              model = model,
+              maxFileBatchSizeBytes = 1_000_000_000,
+              maxJobsPerBatchCreate = 50,
+            )
+            .dispatch()
+        )
+        .isEqualTo(6)
+      assertThat(createRequests.map { it.requestsCount }).containsExactly(5, 1).inOrder()
+      assertThat(jobsByRequest.values.map { it.rawImpressionUploadFilesCount })
+        .containsExactly(1_000, 1_000, 1_000, 1_000, 1_000, 1)
+        .inOrder()
+      assertThat(jobsByRequest.values.flatMap { it.rawImpressionUploadFilesList })
+        .containsExactlyElementsIn(filesByUpload.getValue(upload).map { it.name })
       for (job in jobsByRequest.values) {
-        assertThat(job.rawImpressionUploadFilesCount).isLessThan(1_000)
+        assertThat(job.cmmsModelLinesList).containsExactly(model)
         assertThat(job.toByteArray().size).isAtMost(512 * 1024)
       }
-      assertThat(jobsByRequest.values.flatMap { it.rawImpressionUploadFilesList })
-        .containsExactlyElementsIn(filesByUpload.getValue(UPLOAD).map { it.name })
+      for (request in createRequests) {
+        assertThat(request.toByteArray().size).isAtMost(3 * 1024 * 1024)
+      }
+      for (response in createResponses) {
+        assertThat(response.toByteArray().size).isAtMost(3 * 1024 * 1024)
+      }
+      println(
+        "Worst-case serialized bytes: job=${jobsByRequest.values.maxOf { it.toByteArray().size }}, " +
+          "request=${createRequests.maxOf { it.toByteArray().size }}, " +
+          "response=${createResponses.maxOf { it.toByteArray().size }}"
+      )
     }
+
+  @Test
+  fun `dispatch rejects oversized file names before creating any jobs`() =
+    runBlocking<Unit> {
+      seedFiles()
+      filesByUpload[UPLOAD] =
+        filesByUpload.getValue(UPLOAD) +
+          rawImpressionUploadFile {
+            name = "$UPLOAD/files/" + "f".repeat(513 - "$UPLOAD/files/".length)
+            sizeBytes = 1
+          }
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          dispatcher(maxFileBatchSizeBytes = 1_000_000).dispatch()
+        }
+      assertThat(error).hasMessageThat().contains("file resource name")
+      assertThat(createRequests).isEmpty()
+      assertThat(workItems).isEmpty()
+    }
+
+  @Test
+  fun `dispatch rejects non-ASCII file names before creating any jobs`() =
+    runBlocking<Unit> {
+      seedFiles()
+      filesByUpload[UPLOAD] =
+        filesByUpload.getValue(UPLOAD) +
+          rawImpressionUploadFile {
+            name = "$UPLOAD/files/é"
+            sizeBytes = 1
+          }
+      assertFailsWith<IllegalArgumentException> { dispatcher().dispatch() }
+      assertThat(createRequests).isEmpty()
+      assertThat(workItems).isEmpty()
+    }
+
+  @Test
+  fun `dispatcher rejects oversized upload names before querying metadata`() {
+    assertFailsWith<IllegalArgumentException> {
+      dispatcher(upload = UPLOAD + "u".repeat(513 - UPLOAD.length))
+    }
+    assertThat(pages).isEmpty()
+    assertThat(createRequests).isEmpty()
+  }
+
+  @Test
+  fun `dispatcher rejects oversized model-line names before querying metadata`() {
+    assertFailsWith<IllegalArgumentException> {
+      dispatcher(model = MODEL + "m".repeat(513 - MODEL.length))
+    }
+    assertThat(pages).isEmpty()
+    assertThat(createRequests).isEmpty()
+  }
+
+  @Test
+  fun `dispatcher rejects non-ASCII upload and model-line names`() {
+    assertFailsWith<IllegalArgumentException> { dispatcher(upload = "$UPLOAD-é") }
+    assertFailsWith<IllegalArgumentException> { dispatcher(model = "$MODEL-é") }
+    assertThat(pages).isEmpty()
+    assertThat(createRequests).isEmpty()
+  }
 
   @Test
   fun `dispatch requires completed registration before listing files`() = runBlocking {
