@@ -1857,7 +1857,7 @@ class SubpoolAssignerTest {
       assertFailsWith<StorageException> {
         assigner(store, paj, ruml, ranker, workItems, totalShards = 2).assign()
       }
-      val firstCiphertext = checkNotNull(backing.getBlob(mergedKey(7L))).read().toList()
+      val firstGeneration = checkNotNull(backing.getFreshnessToken(mergedKey(7L)))
       verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
       verifyBlocking(workItems, never()) { createWorkItem(any(), any()) }
       verifyBlocking(ruml, never()) { markRawImpressionUploadModelLineRanking(any(), any()) }
@@ -1868,8 +1868,7 @@ class SubpoolAssignerTest {
         )
         .isNotNull()
       assigner(store, paj, ruml, ranker, workItems, totalShards = 2).assign()
-      assertThat(checkNotNull(backing.getBlob(mergedKey(7L))).read().toList())
-        .isEqualTo(firstCiphertext)
+      assertThat(backing.getFreshnessToken(mergedKey(7L))).isNotEqualTo(firstGeneration)
       assertThat(backing.getBlob(orphanKey)).isNotNull()
       val publications = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItems, times(2)) { createWorkItem(publications.capture(), any()) }
