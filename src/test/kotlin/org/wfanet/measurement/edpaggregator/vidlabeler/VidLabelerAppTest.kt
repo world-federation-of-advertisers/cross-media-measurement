@@ -352,9 +352,6 @@ class VidLabelerAppTest {
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
     queueSubscriber: QueueSubscriber = mockQueueSubscriber,
     parquetStorageClient: ParquetStorageClient = mockParquetStorageClient,
-    converter: ImpressionConverter = ImpressionConverter { _, _ ->
-      error("impressionConverter should not be invoked")
-    },
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     writeGcsObject: suspend (String?, BlobInfo, ByteArray, Long) -> Long = { _, _, _, _ ->
       error("writeGcsObject should not be invoked")
