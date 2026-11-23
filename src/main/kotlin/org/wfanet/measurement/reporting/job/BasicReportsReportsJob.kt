@@ -1070,30 +1070,32 @@ class BasicReportsReportsJob(
     requests: List<CreateReportingSetResultRequest>
   ): List<List<CreateReportingSetResultRequest>> {
     return buildList {
-        var batch = mutableListOf<CreateReportingSetResultRequest>()
-        var batchMutations = 0L
-        for (request in requests) {
-          val requestMutations =
-            REPORTING_SET_RESULT_MUTATIONS +
-              REPORTING_WINDOW_RESULT_MUTATIONS *
-                request.reportingSetResult.reportingWindowResultsCount
-          require(requestMutations <= SPANNER_MUTATION_LIMIT - REPORT_RESULT_MUTATION_RESERVE) {
-            "A reporting set result has too many windows for one Spanner transaction"
+        // Preserve request boundaries so mutation splitting cannot regroup large payloads.
+        for (chunk in requests.chunked(REPORTING_SET_RESULT_BATCH_SIZE)) {
+          var batch = mutableListOf<CreateReportingSetResultRequest>()
+          var batchMutations = 0L
+          for (request in chunk) {
+            val requestMutations =
+              REPORTING_SET_RESULT_MUTATIONS +
+                REPORTING_WINDOW_RESULT_MUTATIONS *
+                  request.reportingSetResult.reportingWindowResultsCount
+            require(requestMutations <= SPANNER_MUTATION_LIMIT - REPORT_RESULT_MUTATION_RESERVE) {
+              "A reporting set result has too many windows for one Spanner transaction"
+            }
+            if (
+              batch.isNotEmpty() &&
+                batchMutations + requestMutations > REPORT_RESULT_BATCH_MUTATIONS
+            ) {
+              add(batch)
+              batch = mutableListOf()
+              batchMutations = 0L
+            }
+            batch += request
+            batchMutations += requestMutations
           }
-          if (
-            batch.isNotEmpty() &&
-              (batch.size >= REPORTING_SET_RESULT_BATCH_SIZE ||
-                batchMutations + requestMutations > REPORT_RESULT_BATCH_MUTATIONS)
-          ) {
+          if (batch.isNotEmpty()) {
             add(batch)
-            batch = mutableListOf()
-            batchMutations = 0L
           }
-          batch += request
-          batchMutations += requestMutations
-        }
-        if (batch.isNotEmpty()) {
-          add(batch)
         }
       }
       .ifEmpty { listOf(emptyList()) }
