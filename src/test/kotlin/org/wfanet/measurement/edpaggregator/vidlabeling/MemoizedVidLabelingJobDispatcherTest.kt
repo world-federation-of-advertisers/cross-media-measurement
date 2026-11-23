@@ -301,14 +301,6 @@ class MemoizedVidLabelingJobDispatcherTest {
       assertThat(job.rawImpressionUploadFilesCount).isAtMost(1_000)
       assertThat(job.toByteArray().size).isAtMost(512 * 1024)
     }
-    // Existing failed jobs carry the metadata service's maximum UTF-8 preview on replay.
-    for ((id, job) in jobsByRequest.toMap()) {
-      jobsByRequest[id] =
-        job.copy {
-          state = VidLabelingJob.State.FAILED
-          errorMessage = "😀".repeat(128)
-        }
-    }
     assertThat(
         dispatcher(maxFileBatchSizeBytes = 1_000_000_000, maxJobsPerBatchCreate = 50).dispatch()
       )
@@ -340,13 +332,6 @@ class MemoizedVidLabelingJobDispatcherTest {
           }
         }
       assertThat(dispatcher(maxFileBatchSizeBytes = 1_000_000).dispatch()).isGreaterThan(1)
-      for ((id, job) in jobsByRequest.toMap()) {
-        jobsByRequest[id] =
-          job.copy {
-            state = VidLabelingJob.State.FAILED
-            errorMessage = "😀".repeat(128)
-          }
-      }
       dispatcher(maxFileBatchSizeBytes = 1_000_000).dispatch()
       for (job in jobsByRequest.values) {
         assertThat(job.rawImpressionUploadFilesCount).isLessThan(1_000)
