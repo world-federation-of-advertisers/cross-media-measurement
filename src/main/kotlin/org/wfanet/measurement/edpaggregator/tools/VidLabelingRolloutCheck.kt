@@ -14,8 +14,13 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.cloud.spanner.DatabaseId
+import com.google.cloud.spanner.SpannerOptions
+import com.google.cloud.spanner.Statement
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -58,6 +63,7 @@ class VidLabelingRolloutChecker(
   private val files: RawImpressionUploadFileServiceCoroutineStub,
   private val healing: UploadHealingOperationServiceCoroutineStub,
   private val workItems: WorkItemsCoroutineStub,
+  private val requireNoSyncLeases: (suspend (Set<String>) -> Unit)? = null,
 ) {
   private suspend fun <T> pages(fetch: suspend (String) -> Pair<List<T>, String>): List<T> {
     val result = mutableListOf<T>()
@@ -153,6 +159,19 @@ class VidLabelingRolloutChecker(
         }
       }
     }
+  }
+
+  /**
+   * Complete maintenance preflight, including synchronization leases. A second state read rejects
+   * work that changed while the first evidence set and lease query were collected. Intake/backfill
+   * control must remain paused for the entire caller-owned maintenance window.
+   */
+  suspend fun requireMaintenanceDrained(providers: Set<String>, queues: Set<String>) {
+    val probe = checkNotNull(requireNoSyncLeases) { "Authoritative lease checker is required" }
+    requireDrained(providers, queues)
+    probe(providers)
+    requireDrained(providers, queues)
+    probe(providers)
   }
 
   /** Verifies one real, exact-generation smoke upload; does not create or modify test data. */
@@ -265,9 +284,13 @@ class VidLabelingRolloutChecker(
 class VidLabelingRolloutCheck : Runnable {
   enum class Mode {
     DRAINED,
+    MAINTENANCE,
     ZERO_MEMBERSHIP,
   }
 
+  @CommandLine.Option(names = ["--spanner-project"]) private var spannerProject: String = ""
+  @CommandLine.Option(names = ["--spanner-instance"]) private var spannerInstance: String = ""
+  @CommandLine.Option(names = ["--spanner-database"]) private var spannerDatabase: String = ""
   @CommandLine.Mixin private lateinit var tls: TlsFlags
   @CommandLine.Option(names = ["--edpa-public-api-target"], required = true)
   private lateinit var edpaTarget: String
@@ -296,6 +319,13 @@ class VidLabelingRolloutCheck : Runnable {
 
   override fun run() = runBlocking {
     require(timeoutSeconds > 0)
+    if (mode == Mode.MAINTENANCE) {
+      require(
+        spannerProject.isNotEmpty() && spannerInstance.isNotEmpty() && spannerDatabase.isNotEmpty()
+      ) {
+        "Maintenance requires the exact Spanner project/instance/database"
+      }
+    }
     val certs = SigningCerts.fromPemFiles(tls.certFile, tls.privateKeyFile, tls.certCollectionFile)
     val controlCerts = SigningCerts.fromPemFiles(controlCert, controlKey, controlRoots)
     val edpa = buildMutualTlsChannel(edpaTarget, certs, edpaCertHost)
@@ -311,10 +341,22 @@ class VidLabelingRolloutCheck : Runnable {
           RawImpressionUploadFileServiceCoroutineStub(edpa),
           UploadHealingOperationServiceCoroutineStub(edpa),
           WorkItemsCoroutineStub(control),
+          requireNoSyncLeases =
+            if (mode == Mode.MAINTENANCE) {
+              { providers ->
+                requireNoActiveSynchronizationLeases(
+                  spannerProject,
+                  spannerInstance,
+                  spannerDatabase,
+                  providers,
+                )
+              }
+            } else null,
         )
       withTimeout(timeoutSeconds * 1000) {
         when (mode) {
           Mode.DRAINED -> checker.requireDrained(providers.toSet(), queues.toSet())
+          Mode.MAINTENANCE -> checker.requireMaintenanceDrained(providers.toSet(), queues.toSet())
           Mode.ZERO_MEMBERSHIP -> {
             require(providers.size == 1 && modelLine.isNotEmpty())
             checker.requireZeroMembership(
@@ -336,3 +378,48 @@ class VidLabelingRolloutCheck : Runnable {
 }
 
 fun main(args: Array<String>) = commandLineMain(VidLabelingRolloutCheck(), args)
+
+/** Read-only, server-clock lease check against the deployed authoritative EDPA table. */
+private suspend fun requireNoActiveSynchronizationLeases(
+  project: String,
+  instance: String,
+  database: String,
+  providers: Set<String>,
+) =
+  withContext(Dispatchers.IO) {
+    require(providers.isNotEmpty())
+    val ids =
+      providers.map { name ->
+        require(
+          name.startsWith("dataProviders/") &&
+            name.count { it == '/' } == 1 &&
+            name.substringAfter('/').isNotEmpty()
+        )
+        name.substringAfter('/')
+      }
+    SpannerOptions.newBuilder().setProjectId(project).build().service.use { spanner ->
+      val client = spanner.getDatabaseClient(DatabaseId.of(project, instance, database))
+      val statement =
+        Statement.newBuilder(
+            """
+      SELECT COUNT(*) AS BlockingLeaseCount
+      FROM DataAvailabilitySyncLease
+      WHERE DataProviderResourceId IN UNNEST(@providers)
+        AND (
+          CAST(State AS INT64) NOT IN (1, 2, 3)
+          OR (CAST(State AS INT64) = 1 AND ExpireTime > CURRENT_TIMESTAMP())
+        )
+      """
+              .trimIndent()
+          )
+          .bind("providers")
+          .toStringArray(ids)
+          .build()
+      client.singleUse().executeQuery(statement).use { rows ->
+        check(rows.next() && rows.getLong("BlockingLeaseCount") == 0L) {
+          "Active or unknown synchronization leases remain"
+        }
+        check(!rows.next()) { "Ambiguous lease evidence" }
+      }
+    }
+  }

@@ -129,21 +129,115 @@ def check(project, region, image_tag, read=read_json):
         # The separately run real smoke test proves the worker can consume actual input.
 
 
+
+REQUIRED_FUNCTIONS = {"data_watcher", "data_watcher_delete", "data_availability_sync",
+                      "data_availability_cleanup", "data_availability_monitor",
+                      "vid_labeling_dispatcher", "vid_labeling_monitor",
+                      "vid_labeling_healing_controller"}
+
+
+def require_manifest(manifest):
+    require(isinstance(manifest, dict) and manifest.get("schema_version") == 1,
+            "Missing/unsupported rollout manifest")
+    require(isinstance(manifest.get("contract_id"), str) and manifest["contract_id"],
+            "Missing storage/config contract identity")
+    functions = manifest.get("functions")
+    require(isinstance(functions, list) and functions, "No declared function scope")
+    roles = [function.get("role") for function in functions]
+    require(REQUIRED_FUNCTIONS <= set(roles) and len(set(roles)) == len(roles),
+            "Required function scope missing/duplicated")
+    names = [function.get("name") for function in functions]
+    require(all(isinstance(name, str) and name for name in names) and len(set(names)) == len(names),
+            "Missing/duplicate function identity")
+    for function in functions:
+        require(isinstance(function.get("artifact_sha256"), str) and
+                len(function["artifact_sha256"]) == 64 and
+                all(c in "0123456789abcdef" for c in function["artifact_sha256"]),
+                "Missing function artifact identity")
+    return functions
+
+
+def check_functions(project, region, manifest, read=read_json):
+    """Verify actual serving revisions, rather than only a desired function/template."""
+    for expected in require_manifest(manifest):
+        function = read(["gcloud", "functions", "describe", expected["name"],
+                         "--gen2", "--project", project, "--region", region, "--format=json"])
+        require(function.get("name", "").rsplit("/", 1)[-1] == expected["name"],
+                f"{expected['name']}: returned another function")
+        require(function.get("state") == "ACTIVE", f"{expected['name']}: function not active")
+        service = function.get("serviceConfig", {})
+        require(service.get("allTrafficOnLatestRevision") is True,
+                f"{expected['name']}: traffic still reaches an old revision")
+        revision = service.get("revision")
+        require(isinstance(revision, str) and bool(revision),
+                f"{expected['name']}: serving revision unavailable")
+        environment = service.get("environmentVariables", {})
+        require(environment.get("CMMS_ARTIFACT_SHA256") == expected["artifact_sha256"],
+                f"{expected['name']}: wrong function artifact")
+        require(environment.get("VID_LABELING_CONTRACT_ID") == manifest["contract_id"],
+                f"{expected['name']}: wrong storage/config contract")
+        run_service = service.get("service")
+        require(isinstance(run_service, str) and bool(run_service),
+                f"{expected['name']}: Cloud Run service unavailable")
+        observed = read(["gcloud", "run", "services", "describe", run_service.rsplit("/", 1)[-1],
+                         "--project", project, "--region", region, "--format=json"])
+        status = observed.get("status", {})
+        require(status.get("latestReadyRevisionName") == revision.rsplit("/", 1)[-1],
+                f"{expected['name']}: latest revision is not ready")
+        traffic = status.get("traffic")
+        require(isinstance(traffic, list) and len(traffic) == 1 and
+                traffic[0].get("percent") == 100 and
+                traffic[0].get("revisionName") == revision.rsplit("/", 1)[-1],
+                f"{expected['name']}: ambiguous/old serving revision")
+        actual = read(["gcloud", "run", "revisions", "describe", revision.rsplit("/", 1)[-1],
+                       "--project", project, "--region", region, "--format=json"])
+        conditions = actual.get("status", {}).get("conditions", [])
+        require(any(c.get("type") == "Ready" and c.get("status") == "True" for c in conditions),
+                f"{expected['name']}: serving revision is not ready")
+        containers = actual.get("spec", {}).get("containers", [])
+        require(len(containers) == 1, f"{expected['name']}: ambiguous serving container")
+        env = {item["name"]: item.get("value") for item in containers[0].get("env", [])}
+        require(env.get("CMMS_ARTIFACT_SHA256") == expected["artifact_sha256"] and
+                env.get("VID_LABELING_CONTRACT_ID") == manifest["contract_id"],
+                f"{expected['name']}: serving revision has stale identity")
+
+
+def check_compatibility(project, region, candidate, receipt, read=read_json):
+    """Online activation requires an attested preceding cutover with unchanged contracts."""
+    require_manifest(candidate)
+    require_manifest(receipt)
+    require(receipt.get("status") == "READY", "No completed preceding cutover")
+    require(receipt.get("project") == project and receipt.get("region") == region,
+            "Receipt belongs to another deployment")
+    require(candidate["contract_id"] == receipt["contract_id"],
+            "Legacy or changed storage/config contract requires checked maintenance")
+    require({f["name"] for f in candidate["functions"]} ==
+            {f["name"] for f in receipt["functions"]}, "Function scope changed")
+    check_functions(project, region, receipt, read)
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", required=True)
     parser.add_argument("--region", required=True)
     parser.add_argument("--image-tag", required=True)
+    parser.add_argument("--manifest", help="Terraform desired function/config contract JSON")
     parser.add_argument("--timeout-seconds", type=int, default=600)
     args = parser.parse_args()
     require(args.timeout_seconds > 0, "Positive timeout required")
+    manifest = None
+    if args.manifest:
+        with open(args.manifest) as file:
+            manifest = json.load(file)
+        require_manifest(manifest)
     end = time.monotonic() + args.timeout_seconds
     while True:
         try:
             check(args.project, args.region, args.image_tag)
+            if manifest is not None:
+                check_functions(args.project, args.region, manifest)
             print("PASS: metadata schema/services and desired VID worker templates are ready")
             return
-        except (RuntimeError, KeyError, ValueError, subprocess.SubprocessError) as error:
+        except (RuntimeError, KeyError, ValueError, TypeError, subprocess.SubprocessError) as error:
             if time.monotonic() >= end:
                 raise RuntimeError(f"VID readiness failed closed: {error}") from error
             time.sleep(min(5, max(0, end - time.monotonic())))
