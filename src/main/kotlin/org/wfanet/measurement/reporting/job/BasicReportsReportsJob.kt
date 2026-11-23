@@ -1069,6 +1069,8 @@ class BasicReportsReportsJob(
   private fun batchReportingSetResultRequests(
     requests: List<CreateReportingSetResultRequest>
   ): List<List<CreateReportingSetResultRequest>> {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#5020): Bound histogram
+    // entries per batch before supporting 127 bins so requests and responses fit within 4 MiB.
     return buildList {
         // Preserve request boundaries so mutation splitting cannot regroup large payloads.
         for (chunk in requests.chunked(REPORTING_SET_RESULT_BATCH_SIZE)) {
