@@ -608,11 +608,23 @@ class VidLabelerAppTest {
     )
   }
 
+  @Test
+  fun `run reports configured missing path before processing encrypted Parquet input`() =
+    runBlocking {
+      assertParquetFailure(
+        privateScalar("CONFIGURED_MISSING_FIELD"),
+        parquetValue { stringValue = PRIVATE_VALUE },
+        PRIVATE_VALUE,
+        expectedConfiguration = "CONFIGURED_MISSING_FIELD",
+      )
+    }
+
   private suspend fun assertParquetFailure(
     mapping: LabelerInputFieldMapping,
     value: ParquetValue,
     marker: String,
     converterOverride: ImpressionConverter? = null,
+    expectedConfiguration: String? = null,
   ) = coroutineScope {
     val configuration =
       Configuration().apply {
@@ -774,12 +786,21 @@ class VidLabelerAppTest {
     }
     val request = argumentCaptor<FailWorkItemAttemptRequest>()
     verifyBlocking(workItemAttemptsService) { failWorkItemAttempt(request.capture()) }
-    assertThat(converted.get()).isTrue()
+    if (expectedConfiguration == null) {
+      assertThat(converted.get()).isTrue()
+    } else {
+      assertThat(converted.get()).isFalse()
+    }
     assertThat(request.firstValue.errorMessage).doesNotContain(marker)
     assertThat(request.firstValue.errorMessage).isNotEmpty()
     if (converterOverride == null) {
       assertThat(request.firstValue.errorMessage).contains("ValidationFailure")
-      assertThat(request.firstValue.errorMessage).contains("field=")
+      if (expectedConfiguration == null) {
+        assertThat(request.firstValue.errorMessage).contains("field=")
+      } else {
+        assertThat(request.firstValue.errorMessage).contains(expectedConfiguration)
+        assertThat(request.firstValue.errorMessage).contains("missing_segment=")
+      }
     } else {
       assertThat(request.firstValue.errorMessage).contains("IllegalStateException")
     }
@@ -787,6 +808,12 @@ class VidLabelerAppTest {
       workItemAttemptsStub.getWorkItemAttempt(getWorkItemAttemptRequest { name = attempt.name })
     assertThat(readBack.errorMessage).isEqualTo(request.firstValue.errorMessage)
     assertThat(readBack.errorMessage).doesNotContain(marker)
+    if (expectedConfiguration != null) {
+      assertThat(readBack.errorMessage).contains(expectedConfiguration)
+      assertThat(logRecords.joinToString("\n") { SimpleFormatter().format(it) })
+        .contains(expectedConfiguration)
+    }
+
     assertThat(logRecords.joinToString("\n") { SimpleFormatter().format(it) })
       .doesNotContain(marker)
     assertThat(logRecords.joinToString("\n") { SimpleFormatter().format(it) })

@@ -122,7 +122,7 @@ object ProtoRowProjector {
     allowMessageLeaf: Boolean = false,
   ): List<FieldDescriptor> {
     if (fieldPath.isEmpty()) {
-      throw ValidationFailure.invalidConfiguration(expected = Type.SCHEMA_FIELD)
+      throw ValidationFailure.missingConfiguredField(fieldPath, "")
     }
     val segments = fieldPath.split('.')
     val path = ArrayList<FieldDescriptor>(segments.size)
@@ -130,7 +130,7 @@ object ProtoRowProjector {
     for ((index, name) in segments.withIndex()) {
       val field =
         current.findFieldByName(name)
-          ?: throw ValidationFailure.invalidConfiguration(expected = Type.SCHEMA_FIELD)
+          ?: throw ValidationFailure.missingConfiguredField(fieldPath, name)
       val isLast = index == segments.size - 1
       if (!isLast) {
         if (field.javaType != JavaType.MESSAGE || field.isRepeated) {

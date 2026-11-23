@@ -195,7 +195,7 @@ class LabelerInputMapperTest {
         )
       }
     assertThat(ex).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
-    assertThat(ex).hasMessageThat().doesNotContain("NOT_A_GENDER")
+    assertThat(ex).hasMessageThat().contains("NOT_A_GENDER")
     assertThat(ex).hasMessageThat().contains("INVALID_CONFIGURATION")
   }
 
@@ -208,8 +208,8 @@ class LabelerInputMapperTest {
             fieldPath = GENDER_PATH
             enumLookup = enumLookup {
               column = "g"
-              lookupTable["M"] = "GENDER_MALE"
-              defaultEnumValue = "SYNTHETIC_PRIVATE_VALUE"
+              lookupTable["SYNTHETIC_PRIVATE_VALUE"] = "GENDER_MALE"
+              defaultEnumValue = "NOT_A_DEFAULT_GENDER"
             }
           }
         )
@@ -217,6 +217,7 @@ class LabelerInputMapperTest {
     assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
     assertThat(failure).hasMessageThat().contains("INVALID_CONFIGURATION")
     assertThat(failure).hasMessageThat().contains("field=")
+    assertThat(failure).hasMessageThat().contains("NOT_A_DEFAULT_GENDER")
   }
 
   @Test
@@ -384,12 +385,24 @@ class LabelerInputMapperTest {
   }
 
   @Test
-  fun `rejects a duplicate field path at construction`() {
-    val failure =
-      assertFailsWith<IllegalArgumentException> {
-        mapperOf(scalar("SYNTHETIC_PRIVATE_VALUE", "a"), scalar("SYNTHETIC_PRIVATE_VALUE", "b"))
-      }
-    assertPrivateConfiguration(failure)
+  fun `duplicate configured paths are reported in sorted order without source columns`() {
+    val mappings =
+      listOf(
+        scalar("timestamp_usec", "SYNTHETIC_PRIVATE_VALUE"),
+        scalar("event_id.id", "e1"),
+        scalar("timestamp_usec", "t2"),
+        scalar("event_id.id", "e2"),
+      )
+    for (configured in listOf(mappings, mappings.reversed())) {
+      val failure = assertFailsWith<IllegalArgumentException> { LabelerInputMapper(configured) }
+      assertPrivateConfiguration(failure)
+      assertThat(failure.message).contains("UNIQUE_FIELD_PATH")
+      assertThat(failure.message).contains("duplicate_paths=[\"event_id.id\",\"timestamp_usec\"]")
+      val wrapped = IllegalStateException("SYNTHETIC_PRIVATE_VALUE", failure)
+      assertThat(ExceptionDiagnostics.summary(wrapped))
+        .contains("duplicate_paths=[\"event_id.id\",\"timestamp_usec\"]")
+      assertThat(ExceptionDiagnostics.summary(wrapped)).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    }
   }
 
   @Test
@@ -404,8 +417,11 @@ class LabelerInputMapperTest {
   @Test
   fun `rejects an unknown field path at construction`() {
     val failure =
-      assertFailsWith<IllegalArgumentException> { mapperOf(scalar("SYNTHETIC_PRIVATE_VALUE", "c")) }
+      assertFailsWith<IllegalArgumentException> {
+        mapperOf(scalar("CONFIGURED_MISSING_FIELD", "SYNTHETIC_PRIVATE_VALUE"))
+      }
     assertPrivateConfiguration(failure)
+    assertThat(failure.message).contains("CONFIGURED_MISSING_FIELD")
   }
 
   @Test
