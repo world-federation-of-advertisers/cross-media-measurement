@@ -150,7 +150,11 @@ class BasicReportMetricAssertionsTest {
         .toBuilder()
         .apply { reportingUnitBuilder.cumulativeBuilder.setImpressions(60).setAverageFrequency(3F) }
         .build()
-    assertFailsWith<AssertionError> { check(actual, true, ranges(true)) }
+    // Keep the derived ratio consistent so the impression comparison must detect this corruption.
+    val expected = ranges(true)
+    val countRanges =
+      expected.copy(cumulative = checkNotNull(expected.cumulative).copy(averageFrequency = null))
+    assertFailsWith<AssertionError> { check(actual, true, countRanges) }
   }
 
   @Test
