@@ -26,7 +26,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemP
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 
@@ -66,16 +65,13 @@ class VidLabelingDispatchWorkItemsTest {
   }
 
   @Test
-  fun `source rejects incomplete or unfinalized identity`() {
+  fun `source rejects incomplete identity`() {
     for (invalid in
       listOf(
         source().copy { dataPath = "" },
         source().copy { clearGeneration() },
         source().copy { generation = 0L },
         source().copy { clearCreateTime() },
-        source().copy {
-          eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-        },
       )) {
       assertFailsWith<IllegalArgumentException> {
         VidLabelingDispatchWorkItems.source(ordinary(), invalid)
@@ -154,7 +150,6 @@ class VidLabelingDispatchWorkItemsTest {
     dataPath = "gs://raw/day/done"
     generation = 42L
     createTime = Instant.parse("2026-01-01T00:00:00Z").toProtoTime()
-    eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
   }
 
   private fun recovery() =

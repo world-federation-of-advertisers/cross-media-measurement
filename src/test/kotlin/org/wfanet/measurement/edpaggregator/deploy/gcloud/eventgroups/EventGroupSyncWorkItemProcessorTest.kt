@@ -182,22 +182,6 @@ class EventGroupSyncWorkItemProcessorTest {
     assertThat(controlPlane.claims).hasSize(1)
   }
 
-  @Test
-  fun `deleted event is rejected before attempt creation`() {
-    val work = input().workItem
-    val params = work.workItemParams.unpack(WorkItem.WorkItemParams::class.java).toBuilder()
-    params.dataPathParams =
-      params.dataPathParams
-        .toBuilder()
-        .setEventType(WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED)
-        .build()
-    assertFailsWith<IllegalArgumentException> {
-      EventGroupSyncWorkItem.parse(
-        work.toBuilder().setWorkItemParams(Any.pack(params.build())).build()
-      )
-    }
-  }
-
   private fun input(): EventGroupSyncWorkItem =
     input("gs://example-bucket/provider/event_groups.json")
 
@@ -213,7 +197,6 @@ class EventGroupSyncWorkItemProcessorTest {
               dataPathParams = dataPathParams {
                 dataPath = sourcePath
                 generation = 7L
-                eventType = WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
               }
             }
           )
