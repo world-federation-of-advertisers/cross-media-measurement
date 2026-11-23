@@ -64,7 +64,7 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
   init {
     val fieldPaths = mappings.map { it.fieldPath }
     if (fieldPaths.size != fieldPaths.toSet().size) {
-      throw ValidationFailure.invalidConfiguration(expected = Type.UNIQUE_FIELD_PATH)
+      throw ValidationFailure.duplicateFieldPaths(fieldPaths)
     }
     for (requiredPath in REQUIRED_FIELD_PATHS) {
       require(requiredPath in fieldPaths) {
@@ -137,17 +137,14 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
           val rawToEnumValue: Map<String, EnumValueDescriptor> =
             lookup.lookupTableMap.mapValues { (_, enumName) ->
               enumType.findValueByName(enumName)
-                ?: throw ValidationFailure.invalidConfiguration(expected = Type.ENUM, field = leaf)
+                ?: throw ValidationFailure.invalidEnumTarget(leaf, enumName)
             }
           val defaultEnumValue: EnumValueDescriptor? =
             lookup.defaultEnumValue
               .takeIf { it.isNotEmpty() }
               ?.let { enumName ->
                 enumType.findValueByName(enumName)
-                  ?: throw ValidationFailure.invalidConfiguration(
-                    expected = Type.ENUM,
-                    field = leaf,
-                  )
+                  ?: throw ValidationFailure.invalidEnumTarget(leaf, enumName)
               }
           record(columnKinds, column, setOf(KindCase.STRING_VALUE))
           Applier { row, builder ->
