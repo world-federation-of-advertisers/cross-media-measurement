@@ -6,6 +6,7 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.Struct
@@ -74,7 +75,8 @@ class VidLabelingPublicationSmokeRunner(
         FakeKmsClient().apply {
           setAead(
             kekUri,
-            KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM")).getPrimitive(Aead::class.java),
+            KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+              .getPrimitive(RegistryConfiguration.get(), Aead::class.java),
           )
         }
       val population =
