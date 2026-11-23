@@ -109,5 +109,5 @@ message Requisition {
   // Copied by the Kingdom from the `Measurement.Multimeasurement.Vector.index`
   // the `MeasurementConsumer` assigned. A Duchy resolves a base vector from
   // the [Requisition][] its blob arrived on. Set only for a multimeasurement.
-  int32 vector_index = 8;
+  optional int32 vector_index = 8;
 }
