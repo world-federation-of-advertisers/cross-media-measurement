@@ -137,6 +137,26 @@ class DataWatcherTest() {
     return metricExporter.finishedMetricItems
   }
 
+  @Test
+  fun `dispatch rejects non-finalized and missing event types before queue writes`() = runBlocking {
+    for (event in
+      listOf(
+        DataWatcher.DELETED_EVENT_TYPE,
+        "google.cloud.storage.object.v1.archived",
+        "invalid",
+        null,
+      )) {
+      val metadata = sourceMetadata().toMutableMap()
+      if (event == null) metadata.remove(DataWatcher.EVENT_TYPE_METADATA_KEY)
+      else metadata[DataWatcher.EVENT_TYPE_METADATA_KEY] = event
+      assertFailsWith<IllegalArgumentException> {
+        dispatchWatcher().receivePath("gs://raw/day/done", metadata)
+      }
+    }
+    verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
+  }
+
   private fun dispatchWatcher(provider: String = "dataProviders/provider") =
     DataWatcher(
       workItemsStub,
