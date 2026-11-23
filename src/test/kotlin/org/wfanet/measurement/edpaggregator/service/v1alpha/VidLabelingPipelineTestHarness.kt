@@ -1260,6 +1260,9 @@ abstract class VidLabelingPipelineTestHarness(
         workItemsClient = workItemsStub,
         workItemAttemptsClient = workItemAttemptsStub,
         vidRankBuilderQueue = RANK_BUILDER_QUEUE,
+        vidLabelerQueue = VID_LABELER_QUEUE,
+        vidLabelingJobsStub =
+          VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
         kmsClients = mapOf(providerName to kmsClient),
         getSubpoolMapStorageConfig = {
           StorageConfig(rootDirectory = fileStorageRoot, blobPrefix = it.blobPrefix)

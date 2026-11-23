@@ -323,6 +323,48 @@ class SubpoolAssignerTest {
   }
 
   @Test
+  fun `empty replay conflict adopts succeeded shard without a DEK and resumes labeling`() =
+    runBlocking<Unit> {
+      var reads = 0
+      val jobs =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doAnswer
+            {
+              jobResponse(
+                if (reads++ == 0) PoolAssignmentJob.State.CREATED
+                else PoolAssignmentJob.State.SUCCEEDED
+              )
+            }
+          onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doAnswer
+            {
+              throw Status.ALREADY_EXISTS.asException()
+            }
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 0
+                state = PoolAssignmentJob.State.SUCCEEDED
+              }
+            }
+        }
+      val models = emptyModels()
+      val store = storeMock()
+      val ranker = rankerStubMock()
+      val result = assigner(store, jobs, models, ranker).assign()
+      assertThat(result.lastShardOut).isTrue()
+      assertThat(result.outcome).isEqualTo("recovered")
+      assertThat(order).containsExactly("labeling", "labeling-state").inOrder()
+      verify(store, never()).generateDek(any())
+      verifyBlocking(store, never()) { writeBlob(any(), any(), any(), any()) }
+      verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any(), any()) }
+      verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
+      val requests = argumentCaptor<MarkPoolAssignmentJobSucceededRequest>()
+      verifyBlocking(jobs) { markPoolAssignmentJobSucceeded(requests.capture(), any()) }
+      assertThat(requests.firstValue.hasEncryptedDek()).isFalse()
+      assertThat(requests.firstValue.poolOffsetsList).isEmpty()
+    }
+
+  @Test
   fun `fresh empty last shard publishes labeling before parent transition`() =
     runBlocking<Unit> {
       val jobs = emptyJobs(fresh = true)

@@ -368,3 +368,82 @@ internal class VidLabelingConcurrencyIntegrationTest : VidLabelingPipelineTestHa
     assertThat(listMetadata()).hasSize(1)
   }
 }
+
+internal class VidLabelingZeroMembershipConcurrencyIntegrationTest :
+  VidLabelingPipelineTestHarness(
+    PipelineHarnessConfig(
+      initiallyVisibleModelLines = setOf(MEMOIZED_MODEL_LINE),
+      modelLineActiveStarts =
+        mapOf(
+          MEMOIZED_MODEL_LINE to
+            VidLabelingPipelineTestHarness.EVENT_DATE.plusDays(1)
+              .atStartOfDay(java.time.ZoneOffset.UTC)
+              .toInstant()
+        ),
+    )
+  ) {
+  @Test
+  fun `concurrent duplicate empty shard replays without a DEK and hands off once`() =
+    runBlocking<Unit> {
+      withholdNextPoolAssignmentPublications()
+      withholdNextVidLabelerPublications()
+      writeRawFile("empty-shard-race", "input.parquet", listOf("outside-active-window"))
+      finalizeRawUpload("empty-shard-race")
+      workItemTransport.awaitIdle()
+      val workItem = poolAssignmentWorkItems().single()
+      val gate =
+        edpaBeforeCallFaults.holdNextCall(
+          "wfa.measurement.edpaggregator.v1alpha.PoolAssignmentJobService/MarkPoolAssignmentJobSucceeded"
+        )
+      val first = async(Dispatchers.Default) { runCatching { runPoolAssignerDirect(workItem) } }
+      try {
+        withTimeout(30_000L) { gate.held.await() }
+        // The first worker has read CREATED but its Mark has not reached the real service.
+        val second = async(Dispatchers.Default) { runCatching { runPoolAssignerDirect(workItem) } }
+        assertThat(withTimeout(30_000L) { second.await() }.isSuccess).isTrue()
+        val requests =
+          gate.requests.map {
+            it as org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededRequest
+          }
+        assertThat(requests).hasSize(2)
+        assertThat(requests.map { it.requestId }.toSet()).hasSize(1)
+        assertThat(
+            requests.all {
+              !it.hasEncryptedDek() && it.poolOffsetsCount == 0 && !it.hasMaxEventDate()
+            }
+          )
+          .isTrue()
+        gate.release()
+        assertThat(withTimeout(30_000L) { first.await() }.isSuccess).isTrue()
+      } finally {
+        gate.release()
+      }
+      val upload = listUploads().single()
+      val parent = listModelLines(upload.name).single()
+      assertThat(parent.poolAssignmentComplete).isTrue()
+      assertThat(parent.poolOffsetsList).isEmpty()
+      assertThat(parent.hasEncryptedMergedDek()).isFalse()
+      assertThat(parent.state).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+      val stub =
+        org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+          .PoolAssignmentJobServiceCoroutineStub(edpaPublicServer.channel)
+      val request =
+        gate.requests.first()
+          as org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededRequest
+      val replay = stub.markPoolAssignmentJobSucceeded(request)
+      assertThat(replay.hasLastShardResult()).isTrue()
+      assertThat(replay.lastShardResult.poolOffsetsList).isEmpty()
+      assertThat(replay.lastShardResult.hasMaxEventDate()).isFalse()
+      assertThat(replay.poolAssignmentJob.hasEncryptedDek()).isFalse()
+      assertThat(rankBuilderWorkItems()).isEmpty()
+      assertThat(listRankIndexBlobs(upload.name)).isEmpty()
+      assertThat(vidLabelerWorkItems()).hasSize(1)
+      val labelingNames = vidLabelerWorkItems().map { it.name }
+      runPoolAssignerDirect(workItem)
+      assertThat(vidLabelerWorkItems().map { it.name }).containsExactlyElementsIn(labelingNames)
+      republishQueuedVidLabelers()
+      awaitPipelineIdle()
+      assertThat(listModelLines(upload.name).single().state)
+        .isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+    }
+}

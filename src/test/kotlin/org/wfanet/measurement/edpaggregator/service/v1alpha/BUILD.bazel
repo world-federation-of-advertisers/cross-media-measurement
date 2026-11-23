@@ -847,6 +847,9 @@ spanner_emulator_test(
     deps = [
         ":vid_labeling_pipeline_test_harness",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
@@ -1448,5 +1451,27 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+spanner_emulator_test(
+    name = "VidLabelingZeroMembershipConcurrencyIntegrationTest",
+    srcs = ["VidLabelingConcurrencyIntegrationTest.kt"],
+    data = ["//src/main/resources/testing/labeler:memoized_reference_test_model_riegeli"],
+    test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingZeroMembershipConcurrencyIntegrationTest",
+    deps = [
+        ":vid_labeling_pipeline_test_harness",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
