@@ -45,6 +45,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.data.SpanData
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -73,7 +74,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
-import org.mockito.kotlin.anyOrNull
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
@@ -2838,7 +2838,18 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `fulfillRequisitions excludes processed values from refusal reports`() = runBlocking {
+  fun `refusal boundaries stay safe with measurement value logging disabled`() = runBlocking {
+    assertSafeRefusal(logMeasurementValues = false)
+  }
+
+  @Test
+  fun `refusal boundaries stay safe with measurement value logging enabled`() = runBlocking {
+    assertSafeRefusal(logMeasurementValues = true)
+  }
+
+  private suspend fun assertSafeRefusal(logMeasurementValues: Boolean) {
+    val metadataName =
+      REQUISITION_NAME.substringBefore("/requisitions/") + "/requisitionMetadata/refusal-test"
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
@@ -2861,6 +2872,7 @@ class ResultsFulfillerTest {
       .thenReturn(
         listRequisitionMetadataResponse {
           requisitionMetadata += requisitionMetadata {
+            name = metadataName
             state = RequisitionMetadata.State.STORED
             cmmsCreateTime = timestamp { seconds = 12345 }
             cmmsRequisition = REQUISITION_NAME
@@ -2876,6 +2888,18 @@ class ResultsFulfillerTest {
     whenever(requisitionsServiceMock.refuseRequisition(any())).thenReturn(requisition {})
     whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
       .thenReturn(requisitionMetadata {})
+    whenever(requisitionMetadataServiceMock.startProcessingRequisitionMetadata(any()))
+      .thenReturn(
+        requisitionMetadata {
+          name = metadataName
+          state = RequisitionMetadata.State.PROCESSING
+          cmmsRequisition = REQUISITION_NAME
+          cmmsCreateTime = timestamp { seconds = 12345 }
+          groupId = "an-existing-group-id"
+          report = "report-name"
+          etag = "processing"
+        }
+      )
 
     val kmsClient = FakeKmsClient()
     val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
@@ -2888,7 +2912,7 @@ class ResultsFulfillerTest {
       metadataTmpPath,
       requisitionsTmpPath,
       impressions,
-      listOf(TRUSTEE_NO_NOISE_REQUISITION),
+      listOf(DIRECT_RNF_REQUISITION),
     )
     val impressionsMetadataService =
       ImpressionDataSourceProvider(
@@ -2897,16 +2921,60 @@ class ResultsFulfillerTest {
         impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
       )
 
+    val cause =
+      IOException("SYNTHETIC_PRIVATE_CAUSE").apply {
+        stackTrace =
+          arrayOf(StackTraceElement("org.wfanet.fixture.Cause", "read", "CauseFixture.kt", 41))
+      }
     val failure =
       RequisitionRefusalException.Default(
           Requisition.Refusal.Justification.UNFULFILLABLE,
           "SYNTHETIC_PRIVATE_VALUE",
-          IllegalArgumentException("SYNTHETIC_PRIVATE_VALUE"),
+          cause,
         )
-        .apply { addSuppressed(IllegalArgumentException("SYNTHETIC_PRIVATE_VALUE")) }
-    val fulfillerSelector = mock<FulfillerSelector>()
-    whenever(fulfillerSelector.selectFulfiller(any(), any(), any(), any(), any(), anyOrNull()))
+        .apply {
+          stackTrace =
+            arrayOf(
+              StackTraceElement("org.wfanet.fixture.Refusal", "refuse", "RefusalFixture.kt", 27)
+            )
+          addSuppressed(
+            IllegalArgumentException("SYNTHETIC_PRIVATE_SUPPRESSED").apply {
+              stackTrace =
+                arrayOf(
+                  StackTraceElement(
+                    "org.wfanet.fixture.Suppressed",
+                    "close",
+                    "SuppressedFixture.kt",
+                    63,
+                  )
+                )
+            }
+          )
+        }
+    val fulfillmentClient = mock<RequisitionsCoroutineStub>()
+    whenever(fulfillmentClient.getRequisition(any(), any<io.grpc.Metadata>()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(fulfillmentClient.fulfillDirectRequisition(any(), any<io.grpc.Metadata>()))
       .thenAnswer { throw failure }
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = fulfillmentClient,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig = null,
+        kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = logMeasurementValues,
+      )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
 
@@ -2954,16 +3022,97 @@ class ResultsFulfillerTest {
     verifyBlocking(requisitionMetadataServiceMock) {
       refuseRequisitionMetadata(metadataRequest.capture())
     }
-    assertThat(metadataRequest.firstValue.refusalMessage).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
-    assertThat(metadataRequest.firstValue.refusalMessage).contains("UNFULFILLABLE")
+    assertThat(metadataRequest.firstValue.name).isEqualTo(metadataName)
     val kingdomRequest =
       argumentCaptor<org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest>()
     verifyBlocking(requisitionsServiceMock) { refuseRequisition(kingdomRequest.capture()) }
-    assertThat(kingdomRequest.firstValue.refusal.message).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    for (description in
+      listOf(
+        metadataRequest.firstValue.refusalMessage,
+        kingdomRequest.firstValue.refusal.message,
+      )) {
+      assertThat(description).contains("justification=UNFULFILLABLE")
+      assertThat(description).contains("category=REQUISITION_REFUSAL")
+      assertThat(description).contains("code=FULFILLMENT_FAILED")
+      for (privateText in
+        listOf(
+          "SYNTHETIC_PRIVATE_VALUE",
+          "SYNTHETIC_PRIVATE_CAUSE",
+          "SYNTHETIC_PRIVATE_SUPPRESSED",
+          "RequisitionRefusalException",
+          "IOException",
+          "IllegalArgumentException",
+          "RefusalFixture.kt",
+          "CauseFixture.kt",
+          "SuppressedFixture.kt",
+          "; at ",
+          "org.wfanet",
+        )) assertThat(description).doesNotContain(privateText)
+    }
+    assertThat(metadataRequest.firstValue.refusalMessage)
+      .isEqualTo(kingdomRequest.firstValue.refusal.message)
     assertThat(kingdomRequest.firstValue.refusal.justification).isEqualTo(failure.justification)
-    assertThat(output.joinToString("\n")).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
-    assertThat(output.joinToString("\n")).contains("Refused requisition")
-    assertThat(collectSpans().joinToString()).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    val formattedLogs = output.joinToString("\n")
+    assertThat(formattedLogs).contains(failure.javaClass.name)
+    assertThat(formattedLogs).contains("java.io.IOException")
+    assertThat(formattedLogs).contains("java.lang.IllegalArgumentException")
+    assertThat(formattedLogs).contains("RefusalFixture.kt:27")
+    assertThat(formattedLogs).contains("CauseFixture.kt:41")
+    assertThat(formattedLogs).contains("SuppressedFixture.kt:63")
+    assertThat(formattedLogs).contains(REQUISITION_NAME)
+    assertThat(formattedLogs).contains("justification=UNFULFILLABLE")
+    assertThat(formattedLogs).contains("category=REQUISITION_REFUSAL")
+    assertThat(formattedLogs).contains("code=FULFILLMENT_FAILED")
+    // The actual direct fulfiller proves that #4944's flag is wired, independent of refusal
+    // sanitization.
+    assertThat(formattedLogs.contains("Direct MeasurementResult:")).isEqualTo(logMeasurementValues)
+    val spans = collectSpans()
+    val refusalSpan = spans.single { it.name == "requisition_fulfillment" }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.justification")
+        )
+      )
+      .isEqualTo("UNFULFILLABLE")
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.category")
+        )
+      )
+      .isEqualTo("REQUISITION_REFUSAL")
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.code")
+        )
+      )
+      .isEqualTo("FULFILLMENT_FAILED")
+    val exceptionEvent = refusalSpan.events.single { it.name == "exception" }
+    val exceptionEvidence = exceptionEvent.attributes.asMap().toString()
+    assertThat(exceptionEvidence).contains(failure.javaClass.name)
+    assertThat(exceptionEvidence).contains("IOException")
+    assertThat(exceptionEvidence).contains("CauseFixture.kt:41")
+    val internalSpans =
+      spans.joinToString { span ->
+        span.toString() + span.events.joinToString { it.attributes.asMap().toString() }
+      }
+    assertThat(internalSpans).contains("IOException")
+    assertThat(internalSpans).contains("CauseFixture.kt")
+    assertThat(internalSpans).contains(REQUISITION_NAME)
+    assertThat(internalSpans).contains("FULFILLMENT_FAILED")
+    for (privateText in
+      listOf(
+        "SYNTHETIC_PRIVATE_VALUE",
+        "SYNTHETIC_PRIVATE_CAUSE",
+        "SYNTHETIC_PRIVATE_SUPPRESSED",
+      )) {
+      assertThat(formattedLogs).doesNotContain(privateText)
+      assertThat(internalSpans).doesNotContain(privateText)
+    }
+    verifyBlocking(fulfillmentClient) { fulfillDirectRequisition(any(), any<io.grpc.Metadata>()) }
+    verifyBlocking(requisitionMetadataServiceMock) { startProcessingRequisitionMetadata(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(0)) { fulfillRequisitionMetadata(any()) }
     assertThat(failure.message).isEqualTo("SYNTHETIC_PRIVATE_VALUE")
   }
 
