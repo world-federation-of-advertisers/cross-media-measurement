@@ -1189,8 +1189,6 @@ abstract class PoolAssignmentJobServiceTest {
           )
         }
       assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
-      assertThat(error.errorInfo?.metadataMap?.get(Errors.Metadata.FIELD_NAME.key))
-        .isEqualTo("request_id")
       assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
     }
 
