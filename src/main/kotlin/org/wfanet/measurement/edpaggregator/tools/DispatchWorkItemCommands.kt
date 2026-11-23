@@ -34,9 +34,11 @@ import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
 import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
@@ -436,44 +438,90 @@ class SmokeDispatchCutoverCommand : EdpaApiCommand() {
           }
           awaitIntake(ordinary)
         }
+        fun operatorSteps(operation: UploadHealingOperation): List<UploadHealingStep> {
+          check(operation.name == approval.name) { "Healing response identity differs" }
+          check(
+            operation.planFormatVersion == 2 &&
+              operation.rawImpressionUploadCorrectionCandidatesCount > 0
+          ) {
+            "Use a current candidate-backed operator-recovery plan"
+          }
+          val steps =
+            operation.stepsList.filter {
+              it.recoveryTarget && it.sourceRawImpressionUpload == recoveryApp.recovery.sourceUpload
+            }
+          check(
+            steps.isNotEmpty() &&
+              steps.all {
+                it.recoveryAction ==
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              }
+          ) {
+            "Smoke requires an explicit operator-recovery target; candidate correction replay is not a fresh storage event"
+          }
+          return steps
+        }
         val operation =
           operations
             .withDeadlineAfter(30L, TimeUnit.SECONDS)
             .getUploadHealingOperation(getUploadHealingOperationRequest { name = approval.name })
-        check(operation.name == approval.name) { "Healing response identity differs" }
+        operatorSteps(operation)
         if (phase == "ordinary") {
           check(
             operation.state == UploadHealingOperation.State.APPROVAL_REQUIRED &&
               operation.etag == approval.etag
           ) {
-            "Inspect a fresh isolated approval-required recovery plan"
+            "Inspect a fresh isolated approval-required operator-recovery plan"
           }
           operations
             .withDeadlineAfter(30L, TimeUnit.SECONDS)
             .approveUploadHealingOperation(approval)
         }
-        var replayReady = false
+        var recordedGeneration: Long? = null
         while (System.nanoTime() < deadline) {
           val current =
             operations
               .withDeadlineAfter(30L, TimeUnit.SECONDS)
               .getUploadHealingOperation(getUploadHealingOperationRequest { name = approval.name })
-          when (current.state) {
-            UploadHealingOperation.State.REPLAYING,
-            UploadHealingOperation.State.RECOVERING -> {
-              replayReady = true
-              break
-            }
-            UploadHealingOperation.State.APPROVED,
-            UploadHealingOperation.State.DRAINING,
-            UploadHealingOperation.State.EVICTING -> delay(2000L)
-            else -> error("Isolated healing did not reach replay: ${current.state}")
+          val steps = operatorSteps(current)
+          val generations = steps.map { it.recoveryDoneBlobGeneration }.toSet()
+          if (
+            steps.all {
+              it.state in
+                setOf(UploadHealingStep.State.RECOVERY_STARTED, UploadHealingStep.State.COMPLETE)
+            } && generations.size == 1 && generations.single() > 0L
+          ) {
+            recordedGeneration = generations.single()
+            break
           }
+          check(
+            current.state in
+              setOf(
+                UploadHealingOperation.State.APPROVED,
+                UploadHealingOperation.State.DRAINING,
+                UploadHealingOperation.State.EVICTING,
+                UploadHealingOperation.State.REPLAYING,
+                UploadHealingOperation.State.RECOVERING,
+              )
+          ) {
+            "Operator recovery stopped before recording its marker: ${current.state}"
+          }
+          delay(2000L)
         }
-        check(replayReady) { "Timed out waiting for an authorized recovery checkpoint" }
+        val generation =
+          checkNotNull(recordedGeneration) {
+            "Timed out waiting for the controller-recorded recovery generation"
+          }
         if (phase == "ordinary") {
+          check(generation != recoveryApp.recovery.source.generation) {
+            "Operator recovery reused an old generation; choose a fresh-marker fixture"
+          }
           println("RECOVERY_READY=${approval.name}")
+          println("RECOVERY_SOURCE_GENERATION=$generation")
           return@runBlocking
+        }
+        check(generation == recoveryApp.recovery.source.generation) {
+          "Recovery fixture does not match the persisted checkpoint"
         }
         awaitIntake(recovery)
         println(

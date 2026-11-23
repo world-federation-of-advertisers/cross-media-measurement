@@ -3,12 +3,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "ReplayStorageCleanupEventTest",
     srcs = ["ReplayStorageCleanupEventTest.kt"],
-    jvm_flags = [
-        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
-        "-Dotel.metrics.exporter=none",
-        "-Dotel.traces.exporter=none",
-        "-Dotel.logs.exporter=none",
-    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.ReplayStorageCleanupEventTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:replay_storage_cleanup_event",
@@ -25,12 +20,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "VerifyEventGroupsMainTest",
     srcs = ["VerifyEventGroupsMainTest.kt"],
-    jvm_flags = [
-        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
-        "-Dotel.metrics.exporter=none",
-        "-Dotel.traces.exporter=none",
-        "-Dotel.logs.exporter=none",
-    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.VerifyEventGroupsMainTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:verify_event_groups",
@@ -49,12 +39,7 @@ kt_jvm_test(
 kt_jvm_test(
     name = "VerifyVidLabeledImpressionsMainTest",
     srcs = ["VerifyVidLabeledImpressionsMainTest.kt"],
-    jvm_flags = [
-        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
-        "-Dotel.metrics.exporter=none",
-        "-Dotel.traces.exporter=none",
-        "-Dotel.logs.exporter=none",
-    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.VerifyVidLabeledImpressionsMainTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:verify_vid_labeled_impressions",
@@ -128,12 +113,7 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
-    jvm_flags = [
-        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
-        "-Dotel.metrics.exporter=none",
-        "-Dotel.traces.exporter=none",
-        "-Dotel.logs.exporter=none",
-    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.SyncEventGroupActivitiesTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:sync_event_group_activities",
@@ -163,12 +143,7 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
-    jvm_flags = [
-        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
-        "-Dotel.metrics.exporter=none",
-        "-Dotel.traces.exporter=none",
-        "-Dotel.logs.exporter=none",
-    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     tags = ["no-remote-exec"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.RecoverMissingImpressionMetadataTest",
     deps = [
@@ -213,12 +188,7 @@ kt_jvm_test(
         "//src/main/k8s/testing/secretfiles:root_certs",
         "//src/main/k8s/testing/secretfiles:secret_files",
     ],
-    jvm_flags = [
-        "-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false",
-        "-Dotel.metrics.exporter=none",
-        "-Dotel.traces.exporter=none",
-        "-Dotel.logs.exporter=none",
-    ],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
     tags = ["no-remote-exec"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.ReplayDataAvailabilitySyncTest",
     deps = [

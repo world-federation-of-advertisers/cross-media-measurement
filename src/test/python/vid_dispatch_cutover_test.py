@@ -243,6 +243,34 @@ class CutoverTest(unittest.TestCase):
         cloud.run = lambda command: 'watched_paths { identifier: "vid-labeling-dispatch" control_plane_queue_sink { queue: "vid-labeling-dispatch-queue" } }'
         self.assertTrue(cutover.is_queued(cloud))
 
+    def test_snapshot_main_uses_workflow_arguments_without_api_or_profile(self):
+        cloud = FakeCloud()
+        cloud.function = lambda _: {"serviceConfig": {"environmentVariables": {
+            "CONFIG_BLOB_KEY": cutover.CONFIG_V2, "DATA_WATCHER_CONFIG_GENERATION": "5",
+            "EDPA_CONFIG_STORAGE_BUCKET": "gs://config"}}}
+        cloud.run = lambda _: "committed canary configuration"
+        output = io.StringIO()
+        with mock.patch.object(cutover, "Cloud", return_value=cloud), mock.patch("sys.stdout", output):
+            cutover.main(["snapshot-config", "--project=test-project", "--region=us-central1"])
+        self.assertEqual(output.getvalue(), "committed canary configuration")
+
+    def test_canary_main_uses_workflow_arguments_without_api_targets(self):
+        cloud = FakeCloud()
+        called = []
+        cloud.run_operator = lambda command, timeout: called.append(command)
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory) / "profile.json"
+            config = Path(directory) / "vid.textproto"
+            profile.write_text(json.dumps({"isolatedDataProvider": "dataProviders/test",
+                "liveDataProviders": ["dataProviders/live"]}))
+            config.write_text('data_provider: "dataProviders/test"' + chr(10) + 'data_provider: "dataProviders/live"')
+            with mock.patch.object(cutover, "Cloud", return_value=cloud):
+                cutover.main(["canary-config", "--project=test-project", "--region=us-central1",
+                    "--profile-file=" + str(profile), "--vid-labeling-config=" + str(config),
+                    "--data-watcher-config=" + str(config), "--output=" + str(Path(directory) / "out")])
+        self.assertEqual(len(called), 1)
+        self.assertIn("prepare-dispatch-canary-config", called[0])
+
     def test_canary_is_not_full_activation_and_malformed_config_fails(self):
         cloud = FakeCloud()
         cloud.function = lambda _: {"serviceConfig": {"environmentVariables": {
@@ -266,8 +294,8 @@ class CutoverTest(unittest.TestCase):
                 if destination.startswith("gs://"):
                     expected = next(v.split("=", 1)[1] for v in command if v.startswith("--if-generation-match="))
                     self.assertEqual(expected, objects.get(destination, {}).get("generation", "0"))
-                    metadata_flag = next(v for v in command if v.startswith("--custom-metadata=^|^"))
-                    metadata = dict(part.split("=", 1) for part in metadata_flag.split("^|^", 1)[1].split("|"))
+                    metadata_flag = next(v for v in command if v.startswith("--custom-metadata="))
+                    metadata = dict(part.split("=", 1) for part in metadata_flag.split("=", 1)[1].split(","))
                     self.assertIn("vid-dispatch-smoke-run", metadata)
                     objects[destination] = {"generation": str(int(expected) + 1), "timeCreated": "2026-11-23T12:01:00Z", "metadata": metadata}
                     events.append("finalize")
@@ -279,13 +307,22 @@ class CutoverTest(unittest.TestCase):
             if command[:3] == ("storage", "objects", "describe"):
                 return objects[command[3].split("#", 1)[0]].copy()
             if command[:2] == ("logging", "read"):
-                return [{"textPayload": "xmm.outcome=succeeded xmm.work_item.name=workItems/dw-" + phase}
+                return [{"resource": {"labels": {"service_name": "vid-labeling-dispatcher"}},
+                         "textPayload": "xmm.outcome=succeeded xmm.work_item.name=workItems/dw-" + phase}
+                        for phase in ("ordinary", "recovery")] + [
+                        {"resource": {"labels": {"service_name": "data-watcher"}},
+                         "textPayload": "Submitted work item to control plane queue: config=vid-labeling-dispatch, pathHash=hash, queue=vid-labeling-dispatch-queue, workItemId=dw-" + phase}
                         for phase in ("ordinary", "recovery")]
             raise AssertionError(command)
         def operator(command, timeout):
             phase = next(v.split("=", 1)[1] for v in command if v.startswith("--phase="))
             events.append(phase)
-            return "SMOKE_WORK_ITEM=workItems/dw-" + phase + chr(10) + ("RECOVERY_READY=dataProviders/test/uploadHealingOperations/op" if phase == "ordinary" else "")
+            if phase == "ordinary":
+                objects["gs://test/raw/recovery/done"] = {"generation": "8", "timeCreated": "2026-11-23T12:01:00Z",
+                    "metadata": {"recovery-source-upload": "dataProviders/test/rawImpressionUploads/source",
+                                 "upload-healing-operation": "dataProviders/test/uploadHealingOperations/op"}}
+                events.append("controller-finalize")
+            return "SMOKE_WORK_ITEM=workItems/dw-" + phase + chr(10) + ("RECOVERY_READY=dataProviders/test/uploadHealingOperations/op" + chr(10) + "RECOVERY_SOURCE_GENERATION=8" if phase == "ordinary" else "")
         cloud.run, cloud.gcloud, cloud.run_operator = process, describe, operator
         profile = {"isolatedDataProvider": "dataProviders/test", "liveDataProviders": ["dataProviders/live"],
                    "rawImpressionsPrefix": "gs://test/raw/", "watcherIdentifier": "vid-labeling-dispatch"}
@@ -298,7 +335,7 @@ class CutoverTest(unittest.TestCase):
             config.write_text('data_provider: "dataProviders/test"' + chr(10) + 'data_provider: "dataProviders/live"')
             args = type("Args", (), {"vid_labeling_config": str(config), "operator_command": ["operator"], "smoke_inputs": json.dumps(run)})()
             cutover.smoke(cloud, args, profile, [], directory)
-        self.assertEqual(events, ["finalize", "ordinary", "finalize", "recovery"])
+        self.assertEqual(events, ["finalize", "ordinary", "controller-finalize", "recovery"])
         self.assertEqual(objects[run["ordinarySourceUri"]]["generation"], "1")
         self.assertEqual(objects[run["recoverySourceUri"]]["generation"], "8")
         self.assertEqual(objects[run["recoverySourceUri"]]["metadata"]["recovery-source-upload"], run["recoverySourceUpload"])
@@ -311,9 +348,31 @@ class CutoverTest(unittest.TestCase):
         cloud.run = lambda command: writes.append(command)
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(cutover.GateError):
-                cutover.finalize_marker(cloud, "gs://test/raw/recovery/done", directory,
-                    {"recoverySourceGeneration": "7"})
+                cutover.controller_recovery_source(cloud, {"recoverySourceGeneration": "7"}, "7")
         self.assertEqual(writes, [])
+
+    def test_controller_recovery_requires_recorded_generation_and_authorization_metadata(self):
+        cloud = FakeCloud()
+        cloud.gcloud = lambda *_: {"generation": "8", "timeCreated": "2026-11-23T12:00:00Z", "metadata": {}}
+        run = {"recoverySourceGeneration": "7", "recoverySourceUri": "gs://test/raw/recovery/done",
+               "recoverySourceUpload": "dataProviders/test/rawImpressionUploads/source",
+               "approval": {"name": "dataProviders/test/uploadHealingOperations/op"}}
+        with self.assertRaises(cutover.GateError):
+            cutover.controller_recovery_source(cloud, run, "8")
+
+    def test_controller_direct_replay_cannot_replace_actual_watcher_function_evidence(self):
+        cloud = FakeCloud()
+        names = ["workItems/dw-ordinary", "workItems/dw-recovery"]
+        entries = [{"resource": {"labels": {"service_name": "vid-labeling-dispatcher"}},
+                    "textPayload": "xmm.outcome=succeeded xmm.work_item.name=" + name}
+                   for name in names] + [
+                   {"resource": {"labels": {"service_name": "vid-labeling-healing-controller"}},
+                    "textPayload": "Submitted work item to control plane queue: config=vid-labeling-dispatch, queue=vid-labeling-dispatch-queue, workItemId=" + name.split("/")[-1]}
+                   for name in names]
+        cloud.gcloud = lambda *_: entries
+        with mock.patch.object(cutover.time, "monotonic", side_effect=[0, 301]):
+            with self.assertRaises(cutover.GateError):
+                cutover.verify_smoke_outcomes(cloud, {"watcherIdentifier": "vid-labeling-dispatch"}, names)
 
     def test_replaced_finalized_marker_cannot_supply_smoke_identity(self):
         cloud = FakeCloud()

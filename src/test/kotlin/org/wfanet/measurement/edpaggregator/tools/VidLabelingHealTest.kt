@@ -66,6 +66,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
@@ -80,6 +81,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
@@ -660,6 +662,10 @@ class VidLabelingHealTest {
         }
       }
     var approved = false
+    var selectedAction =
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+    var recordedGeneration = 0L
+    var controllerFinalize: (() -> Unit)? = null
     val operations =
       object : UploadHealingOperationServiceCoroutineImplBase() {
         override suspend fun getUploadHealingOperation(
@@ -668,8 +674,20 @@ class VidLabelingHealTest {
           name = operationName
           etag = "etag"
           state =
-            if (approved) UploadHealingOperation.State.REPLAYING
+            if (approved) UploadHealingOperation.State.RECOVERING
             else UploadHealingOperation.State.APPROVAL_REQUIRED
+          planFormatVersion = 2
+          rawImpressionUploadCorrectionCandidates +=
+            "dataProviders/test/rawImpressionUploadCorrectionCandidates/candidate"
+          steps += uploadHealingStep {
+            sourceRawImpressionUpload = "dataProviders/test/rawImpressionUploads/source"
+            recoveryTarget = true
+            recoveryAction = selectedAction
+            state =
+              if (approved) UploadHealingStep.State.RECOVERY_STARTED
+              else UploadHealingStep.State.PENDING_EVICTION
+            recoveryDoneBlobGeneration = recordedGeneration
+          }
         }
 
         override suspend fun approveUploadHealingOperation(
@@ -678,6 +696,7 @@ class VidLabelingHealTest {
           check(request.name == operationName && request.etag == "etag")
           approved = true
           order += "approve"
+          checkNotNull(controllerFinalize).invoke()
           return uploadHealingOperation {
             name = operationName
             state = UploadHealingOperation.State.APPROVED
@@ -883,8 +902,17 @@ class VidLabelingHealTest {
           assertThat(getCalls).isNotEmpty()
           denyIntake.set(false)
           finalizeEvent(false)
+          selectedAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+          assertThat(runProductionMain(*(args + "--phase=ordinary").toTypedArray())).isNotEqualTo(0)
+          assertThat(approved).isFalse()
+          selectedAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          controllerFinalize = {
+            finalizeEvent(true)
+            recordedGeneration = recoverySource.generation
+          }
           assertThat(runProductionMain(*(args + "--phase=ordinary").toTypedArray())).isEqualTo(0)
-          finalizeEvent(true)
           val frame = recovery.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
           val app = frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
           val fresh =
