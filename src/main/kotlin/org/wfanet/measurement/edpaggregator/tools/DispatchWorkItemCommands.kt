@@ -16,31 +16,39 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
+import io.grpc.Status
+import io.grpc.StatusException
 import java.io.File
 import java.time.Duration
-import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
 import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.retryWorkItemRequest
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherConfigValidator
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcherWorkItemIds
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
@@ -250,6 +258,10 @@ class SmokeDispatchCutoverCommand : EdpaApiCommand() {
   private lateinit var controlPlaneApiTarget: String
   @Option(names = ["--control-plane-api-cert-host"])
   private var controlPlaneApiCertHost: String? = null
+  @Option(names = ["--phase"], required = true, description = ["ordinary or recovery"])
+  private lateinit var phase: String
+  @Option(names = ["--watcher-identifier"], required = true)
+  private lateinit var watcherIdentifier: String
   @Option(names = ["--isolated-data-provider"], required = true)
   private lateinit var isolatedDataProvider: String
   @Option(names = ["--live-data-provider"], required = true, split = ",")
@@ -267,6 +279,8 @@ class SmokeDispatchCutoverCommand : EdpaApiCommand() {
   private lateinit var timeout: Duration
 
   override fun run() {
+    require(phase in setOf("ordinary", "recovery")) { "Choose ordinary or recovery phase" }
+    require(watcherIdentifier.isNotBlank())
     require(DataProviderKey.fromName(isolatedDataProvider) != null)
     require(
       liveDataProviders.isNotEmpty() &&
@@ -348,26 +362,54 @@ class SmokeDispatchCutoverCommand : EdpaApiCommand() {
         val items = WorkItemsCoroutineStub(controlPlaneChannel)
         val operations = UploadHealingOperationServiceCoroutineStub(edpaChannel)
         val deadline = System.nanoTime() + timeout.toNanos()
-        suspend fun createAndWait(fixture: WorkItem): WorkItem {
-          val created =
-            items
-              .withDeadlineAfter(30L, TimeUnit.SECONDS)
-              .createWorkItem(
-                createWorkItemRequest {
-                  workItemId = "dispatch-smoke-" + UUID.randomUUID().toString()
-                  workItem = fixture
-                }
-              )
-          check(created.state == WorkItem.State.QUEUED) {
-            "Smoke source was already admitted or superseded; use a fresh isolated ordinary marker"
-          }
-          println("SMOKE_WORK_ITEM=${created.name}")
+        suspend fun awaitIntake(fixture: WorkItem): WorkItem {
+          val frame = fixture.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+          val app = frame.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+          val source =
+            VidLabelingDispatchWorkItems.source(
+              app,
+              frame.dataPathParams.takeIf { frame.hasDataPathParams() },
+            )
+          val id =
+            DataWatcherWorkItemIds.workItemId(
+              DataWatcherWorkItemIds.idempotencyKey(watcherIdentifier, source, app)
+            )
+          val expectedName = "workItems/$id"
+          println("SMOKE_WORK_ITEM=$expectedName")
+          var executionGeneration: Long? = null
           while (System.nanoTime() < deadline) {
             val current =
-              items
-                .withDeadlineAfter(30L, TimeUnit.SECONDS)
-                .getWorkItem(getWorkItemRequest { name = created.name })
-            check(current.generation == created.generation) { "Smoke execution generation changed" }
+              try {
+                items
+                  .withDeadlineAfter(30L, TimeUnit.SECONDS)
+                  .getWorkItem(getWorkItemRequest { name = expectedName })
+              } catch (e: StatusException) {
+                if (e.status.code != Status.Code.NOT_FOUND) throw e
+                delay(2000L)
+                continue
+              }
+            check(current.name == expectedName && current.queue == fixture.queue) {
+              "Unexpected intake identity or queue"
+            }
+            val observed = current.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+            val observedApp =
+              observed.appParams.unpack(VidLabelingDispatchWorkItemParams::class.java)
+            check(
+              observedApp == app &&
+                VidLabelingDispatchWorkItems.source(
+                  observedApp,
+                  observed.dataPathParams.takeIf { observed.hasDataPathParams() },
+                ) == source
+            ) {
+              "DataWatcher persisted different dispatch parameters"
+            }
+            check(
+              current.generation > 0L &&
+                (executionGeneration == null || current.generation == executionGeneration)
+            ) {
+              "Smoke execution generation changed"
+            }
+            executionGeneration = current.generation
             when (current.state) {
               WorkItem.State.SUCCEEDED -> return current
               WorkItem.State.QUEUED,
@@ -375,20 +417,41 @@ class SmokeDispatchCutoverCommand : EdpaApiCommand() {
               else -> error("Smoke WorkItem ${current.name} ended in ${current.state}")
             }
           }
-          error("Timed out waiting for smoke dispatch")
+          error("Timed out waiting for DataWatcher intake and queued dispatch")
         }
-        createAndWait(ordinary)
+        if (phase == "ordinary") {
+          val originalSource = recoveryApp.recovery.source
+          val upload =
+            RawImpressionUploadServiceCoroutineStub(edpaChannel)
+              .withDeadlineAfter(30L, TimeUnit.SECONDS)
+              .getRawImpressionUpload(
+                getRawImpressionUploadRequest { name = recoveryApp.recovery.sourceUpload }
+              )
+          check(
+            upload.name == recoveryApp.recovery.sourceUpload &&
+              upload.doneBlobUri == originalSource.dataPath &&
+              upload.doneBlobGeneration == originalSource.generation
+          ) {
+            "Inspected recovery source does not match its stored upload"
+          }
+          awaitIntake(ordinary)
+        }
         val operation =
           operations
             .withDeadlineAfter(30L, TimeUnit.SECONDS)
             .getUploadHealingOperation(getUploadHealingOperationRequest { name = approval.name })
-        check(
-          operation.state == UploadHealingOperation.State.APPROVAL_REQUIRED &&
-            operation.etag == approval.etag
-        ) {
-          "Inspect a fresh isolated approval-required recovery plan"
+        check(operation.name == approval.name) { "Healing response identity differs" }
+        if (phase == "ordinary") {
+          check(
+            operation.state == UploadHealingOperation.State.APPROVAL_REQUIRED &&
+              operation.etag == approval.etag
+          ) {
+            "Inspect a fresh isolated approval-required recovery plan"
+          }
+          operations
+            .withDeadlineAfter(30L, TimeUnit.SECONDS)
+            .approveUploadHealingOperation(approval)
         }
-        operations.withDeadlineAfter(30L, TimeUnit.SECONDS).approveUploadHealingOperation(approval)
         var replayReady = false
         while (System.nanoTime() < deadline) {
           val current =
@@ -408,7 +471,11 @@ class SmokeDispatchCutoverCommand : EdpaApiCommand() {
           }
         }
         check(replayReady) { "Timed out waiting for an authorized recovery checkpoint" }
-        createAndWait(recovery)
+        if (phase == "ordinary") {
+          println("RECOVERY_READY=${approval.name}")
+          return@runBlocking
+        }
+        awaitIntake(recovery)
         println(
           "PASS: isolated queued dispatch and recovery completed; verify the emitted lifecycle outcomes"
         )
@@ -419,5 +486,71 @@ class SmokeDispatchCutoverCommand : EdpaApiCommand() {
       edpaChannel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
       controlPlaneChannel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
     }
+  }
+}
+
+/** Prepares an isolated queued route while retaining HTTP delivery for live providers. */
+@Command(name = "prepare-dispatch-canary-config", mixinStandardHelpOptions = true)
+class PrepareDispatchCanaryConfigCommand : Runnable {
+  @Option(names = ["--data-watcher-config"], required = true) private lateinit var input: File
+  @Option(names = ["--output"], required = true) private lateinit var output: File
+  @Option(names = ["--isolated-data-provider"], required = true)
+  private lateinit var isolated: String
+  @Option(names = ["--dispatcher-endpoint"], required = true) private lateinit var endpoint: String
+
+  override fun run() {
+    require(DataProviderKey.fromName(isolated) != null)
+    require(endpoint.startsWith("https://"))
+    val builder = DataWatcherConfig.newBuilder()
+    TextFormat.Parser.newBuilder()
+      .setTypeRegistry(DataWatcherConfigTypes.registry)
+      .build()
+      .merge(input.readText(), builder)
+    val config = builder.build()
+    DataWatcherConfigValidator.validate(config)
+    var isolatedRoutes = 0
+    val prepared = config.toBuilder().clearWatchedPaths()
+    for (route in config.watchedPathsList) {
+      if (route.identifier != "vid-labeling-dispatch") {
+        prepared.addWatchedPaths(route)
+        continue
+      }
+      require(
+        route.hasControlPlaneQueueSink() &&
+          route.controlPlaneQueueSink.queue == VidLabelingDispatchWorkItems.QUEUE
+      )
+      val provider =
+        route.controlPlaneQueueSink.appParams
+          .unpack(VidLabelingDispatcherParams::class.java)
+          .dataProvider
+      if (provider == isolated) {
+        isolatedRoutes++
+        prepared.addWatchedPaths(route)
+      } else {
+        val params =
+          com.google.protobuf.Struct.newBuilder()
+            .putFields(
+              "dataProvider",
+              com.google.protobuf.Value.newBuilder().setStringValue(provider).build(),
+            )
+            .build()
+        prepared.addWatchedPaths(
+          route
+            .toBuilder()
+            .setHttpEndpointSink(
+              WatchedPath.HttpEndpointSink.newBuilder()
+                .setEndpointUri(endpoint)
+                .setAppParams(params)
+            )
+        )
+      }
+    }
+    require(isolatedRoutes > 0) { "Isolated provider has no queued route" }
+    DataWatcherConfigValidator.validate(prepared.build())
+    output.writeText(
+      TextFormat.printer()
+        .usingTypeRegistry(DataWatcherConfigTypes.registry)
+        .printToString(prepared.build())
+    )
   }
 }

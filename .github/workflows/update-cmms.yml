@@ -38,6 +38,10 @@ on:
         description: Confirmed UTC pause time for maintenance done markers
         type: string
         default: ""
+      vid-dispatch-smoke-inputs:
+        description: Fresh isolated source URIs, recovery upload and inspected approval JSON for this run
+        type: string
+        default: ""
       run-tests:
         description: "Run tests"
         type: boolean
@@ -65,6 +69,10 @@ on:
         - maintenance
       vid-dispatch-markers-paused-at:
         description: Confirmed UTC done-marker pause time for maintenance (RFC 3339)
+        type: string
+        default: ""
+      vid-dispatch-smoke-inputs:
+        description: Fresh isolated source URIs, recovery upload and inspected approval JSON for this run
         type: string
         default: ""
       run-tests:
@@ -188,7 +196,6 @@ jobs:
         CUTOVER_MODE: ${{ inputs.vid-dispatch-cutover-mode || 'online' }}
         PAUSED_AT: ${{ inputs.vid-dispatch-markers-paused-at }}
         EXISTING_IMAGE_TAG: ${{ inputs.existing-image-tag }}
-        CUTOVER_PROFILE: ${{ secrets.VID_DISPATCH_CUTOVER_PROFILE }}
         CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
       run: |
         set -euo pipefail
@@ -205,15 +212,13 @@ jobs:
         echo "needed=$needed" >> "$GITHUB_OUTPUT"
         if [[ "$needed" == true && "$CUTOVER_MODE" == maintenance ]]; then
           test -n "$PAUSED_AT"
-          test -n "$CUTOVER_PROFILE"
-          umask 077
-          printf '%s\n' "$CUTOVER_PROFILE" > "$RUNNER_TEMP/vid-dispatch-cutover.json"
           python3 .github/workflows/scripts/vid_dispatch_cutover.py preflight \
             --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" --markers-paused-at="$PAUSED_AT" \
-            --profile-file="$RUNNER_TEMP/vid-dispatch-cutover.json" \
+            --profile-file="$GITHUB_WORKSPACE/.github/env-configs/${{ inputs.environment }}/vid-dispatch-cutover.json" \
             --vid-labeling-config="$CONFIG_DIR/vid-labeling-dispatcher-config.textproto" \
             --edpa-target="$METADATA_STORAGE_PUBLIC_API_TARGET" \
             --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+        fi
 
   pause-requisition-fetcher:
     runs-on: ubuntu-24.04
@@ -452,10 +457,10 @@ jobs:
       tee-consumers-enabled: true
       requisition-fetcher-enabled: true
 
-  terraform:
+  terraform-dispatch-canary:
     uses: ./.github/workflows/terraform-cmms-v2.yml
-    needs: [publish-images, update-secure-computation, update-edp-aggregator-service, terraform-prepared-dispatch, validate-direct-dispatch-config]
-    if: ${{ always() && needs.publish-images.result == 'success' && needs.update-secure-computation.result == 'success' && needs.update-edp-aggregator-service.result == 'success' && (needs.terraform-prepared-dispatch.result == 'success' || needs.terraform-prepared-dispatch.result == 'skipped') }}
+    needs: [publish-images, terraform-prepared-dispatch, validate-direct-dispatch-config]
+    if: ${{ inputs.apply && inputs.vid-dispatch-cutover-mode != 'maintenance' && needs.validate-direct-dispatch-config.outputs.dispatch-cutover-needed == 'true' }}
     secrets: inherit
     permissions:
       contents: read
@@ -464,6 +469,25 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      vid-dispatch-config-mode: canary
+      vid-dispatch-legacy-revisions: ${{ needs.terraform-prepared-dispatch.outputs.legacy_revisions || '[]' }}
+      tee-consumers-enabled: true
+      requisition-fetcher-enabled: true
+
+  terraform:
+    uses: ./.github/workflows/terraform-cmms-v2.yml
+    needs: [publish-images, update-secure-computation, update-edp-aggregator-service, terraform-prepared-dispatch, terraform-dispatch-canary, validate-direct-dispatch-config]
+    if: ${{ always() && needs.publish-images.result == 'success' && needs.update-secure-computation.result == 'success' && needs.update-edp-aggregator-service.result == 'success' && (needs.terraform-prepared-dispatch.result == 'success' || needs.terraform-prepared-dispatch.result == 'skipped') && (needs.terraform-dispatch-canary.result == 'success' || needs.terraform-dispatch-canary.result == 'skipped') }}
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      vid-dispatch-smoke-inputs: ${{ inputs.vid-dispatch-smoke-inputs }}
+      vid-dispatch-legacy-revisions: ${{ needs.terraform-dispatch-canary.outputs.legacy_revisions || '[]' }}
       require-vid-dispatch-cutover-checks: ${{ needs.validate-direct-dispatch-config.outputs.dispatch-cutover-needed == 'true' }}
       vid-dispatch-config-mode: ${{ inputs.vid-dispatch-cutover-mode == 'maintenance' && 'maintenance' || 'activate' }}
       tee-consumers-enabled: true

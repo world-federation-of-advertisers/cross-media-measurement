@@ -23,7 +23,9 @@ kt_jvm_library(
     srcs = ["DataWatcherConfigValidator.kt"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/tools:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/datawatcher:__pkg__",
     ],
     deps = [
@@ -75,7 +77,9 @@ kt_jvm_library(
     name = "work_item_ids",
     srcs = ["DataWatcherWorkItemIds.kt"],
     visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator/tools:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/datawatcher:__pkg__",
     ],

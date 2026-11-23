@@ -47,7 +47,9 @@ class FakeCloud:
         return {"name": "projects/test-project/locations/us-central1/functions/" + name,
                 "state": "ACTIVE" if self.active else "DEPLOYING",
                 "serviceConfig": {"serviceAccountEmail": "dispatcher@test-project.iam.gserviceaccount.com",
-                                  "environmentVariables": {"CONFIG_BLOB_KEY": "data-watcher-config.textproto"}},
+                                   "timeoutSeconds": 600, "revision": "ready",
+                                   "environmentVariables": {"CONFIG_BLOB_KEY": "data-watcher-config.textproto"}},
+                "eventTrigger": {"trigger": "projects/test-project/locations/us-central1/triggers/watcher", "triggerRegion": "us-central1"},
                 "buildConfig": {"source": {"storageSource": {"bucket": "source-bucket", "object": "source.zip", "generation": "7"}}}}
 
     def gcloud(self, *command):
@@ -56,6 +58,8 @@ class FakeCloud:
             return {"status": {"latestReadyRevisionName": "ready", "latestCreatedRevisionName": "ready",
                                "conditions": [{"type": "Ready", "status": "True"}],
                                "traffic": [{"revisionName": "ready", "percent": 100}]}}
+        if command[:3] == ("eventarc", "triggers", "describe"):
+            return {"transport": {"pubsub": {"subscription": "projects/test-project/subscriptions/legacy"}}}
         if command[:3] == ("pubsub", "subscriptions", "describe"):
             return copy.deepcopy(self.queue)
         if command[:3] == ("run", "services", "get-iam-policy"):
@@ -181,16 +185,49 @@ class CutoverTest(unittest.TestCase):
             with self.assertRaises(cutover.GateError):
                 cutover.profile_providers(profile, config)
 
-    def test_legacy_observation_requires_fresh_zero_invocations_without_pausing_traffic(self):
+    def test_legacy_scaled_to_zero_needs_no_container_metrics(self):
         cloud = FakeCloud()
-        cutover.observe_legacy(cloud, [{"service": "data-watcher", "revision": "old"}],
-                               dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=3))
+        clock = [0.0]
+        base = dt.datetime.now(dt.timezone.utc)
+        class SimulatedDateTime(dt.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return base + dt.timedelta(seconds=clock[0])
+        def metrics(collection, query):
+            self.assertIn("num_undelivered_messages", query["filter"])
+            now = SimulatedDateTime.now()
+            return [{"points": [{"interval": {"endTime": (now - dt.timedelta(seconds=offset)).isoformat()},
+                                "value": {"int64Value": "0"}} for offset in (30, 90)]}]
+        cloud.monitoring = metrics
+        revision = {"service": "data-watcher", "revision": "old", "timeoutSeconds": 600, "sourceSubscription": "legacy"}
+        with mock.patch.object(cutover.dt, "datetime", SimulatedDateTime), mock.patch.object(cutover.time, "monotonic", side_effect=lambda: clock[0]), mock.patch.object(cutover.time, "sleep", side_effect=lambda seconds: clock.__setitem__(0, clock[0] + seconds)):
+            cutover.observe_legacy(cloud, [revision], base)
+        self.assertGreaterEqual(clock[0], 600)
         self.assertFalse(any("pause" in command or "update" in command for command in cloud.calls))
-        cloud.points[0]["value"]["int64Value"] = "1"
-        with mock.patch.object(cutover.time, "monotonic", side_effect=[0, 1300]):
-            with self.assertRaises(cutover.GateError):
-                cutover.observe_legacy(cloud, [{"service": "data-watcher", "revision": "old"}],
-                                       dt.datetime.now(dt.timezone.utc) - dt.timedelta(minutes=3))
+
+    def test_missing_lifetime_and_renewed_legacy_traffic_fail_closed(self):
+        cloud = FakeCloud()
+        revision = {"service": "data-watcher", "revision": "old", "sourceSubscription": "legacy"}
+        with self.assertRaises(cutover.GateError):
+            cutover.observe_legacy(cloud, [revision], dt.datetime.now(dt.timezone.utc))
+        revision["timeoutSeconds"] = 600
+        calls = [0]
+        original = cloud.gcloud
+        def renewed(*args):
+            result = original(*args)
+            calls[0] += 1
+            if calls[0] > 1:
+                result["status"]["traffic"] = [{"revisionName": "old", "percent": 100}]
+            return result
+        cloud.gcloud = renewed
+        with self.assertRaises(cutover.GateError):
+            cutover.observe_legacy(cloud, [revision], dt.datetime.now(dt.timezone.utc))
+
+    def test_capture_preserves_declared_lifetime_and_source_subscription(self):
+        revisions = cutover.capture_legacy(FakeCloud())
+        self.assertEqual(len(revisions), 2)
+        self.assertEqual(revisions[0]["timeoutSeconds"], 600)
+        self.assertEqual(revisions[0]["sourceSubscription"], "legacy")
 
     def test_v2_key_alone_is_not_evidence_of_queued_dispatch(self):
         cloud = FakeCloud()
@@ -201,34 +238,103 @@ class CutoverTest(unittest.TestCase):
             "DATA_WATCHER_CONFIG_GENERATION": "5",
         }
         cloud.function = lambda _: function
-        cloud.run = lambda command: 'http_endpoint_sink { endpoint_uri: "https://dispatcher" }'
+        cloud.run = lambda command: 'watched_paths { identifier: "vid-labeling-dispatch" http_endpoint_sink { endpoint_uri: "https://dispatcher" } }'
         self.assertFalse(cutover.is_queued(cloud))
-        cloud.run = lambda command: 'control_plane_queue_sink { queue: "vid-labeling-dispatch-queue" }'
+        cloud.run = lambda command: 'watched_paths { identifier: "vid-labeling-dispatch" control_plane_queue_sink { queue: "vid-labeling-dispatch-queue" } }'
         self.assertTrue(cutover.is_queued(cloud))
 
-    def test_source_timestamp_nanoseconds_are_checked_before_smoke_mutations(self):
+    def test_canary_is_not_full_activation_and_malformed_config_fails(self):
         cloud = FakeCloud()
-        called_operator = []
+        cloud.function = lambda _: {"serviceConfig": {"environmentVariables": {
+            "CONFIG_BLOB_KEY": cutover.CONFIG_V2, "DATA_WATCHER_CONFIG_GENERATION": "5",
+            "EDPA_CONFIG_STORAGE_BUCKET": "gs://config"}}}
+        queued = 'watched_paths { identifier: "vid-labeling-dispatch" control_plane_queue_sink { queue: "vid-labeling-dispatch-queue" } }'
+        http = 'watched_paths { identifier: "vid-labeling-dispatch" http_endpoint_sink { endpoint_uri: "https://dispatcher" } }'
+        cloud.run = lambda _: queued + chr(10) + http
+        self.assertFalse(cutover.is_queued(cloud))
+        cloud.run = lambda _: queued[:-1]
+        with self.assertRaises(cutover.GateError):
+            cutover.is_queued(cloud)
+
+    def test_storage_smoke_finalizes_generations_and_waits_for_watcher_intake(self):
+        cloud = FakeCloud()
+        events = []
+        objects = {"gs://test/raw/recovery/done": {"generation": "7", "timeCreated": "2026-11-23T12:00:00Z", "metadata": {}}}
+        def process(command):
+            if command[:3] == ["gcloud", "storage", "cp"]:
+                destination = command[4]
+                if destination.startswith("gs://"):
+                    expected = next(v.split("=", 1)[1] for v in command if v.startswith("--if-generation-match="))
+                    self.assertEqual(expected, objects.get(destination, {}).get("generation", "0"))
+                    metadata_flag = next(v for v in command if v.startswith("--custom-metadata=^|^"))
+                    metadata = dict(part.split("=", 1) for part in metadata_flag.split("^|^", 1)[1].split("|"))
+                    self.assertIn("vid-dispatch-smoke-run", metadata)
+                    objects[destination] = {"generation": str(int(expected) + 1), "timeCreated": "2026-11-23T12:01:00Z", "metadata": metadata}
+                    events.append("finalize")
+                else:
+                    Path(destination).write_bytes(b"")
+                return ""
+            raise AssertionError(command)
         def describe(*command):
-            cloud.calls.append(command)
-            return {"generation": "7", "timeCreated": "2026-11-23T12:00:00.000000001Z"}
-        cloud.gcloud = describe
-        cloud.run = lambda command: called_operator.append(command)
+            if command[:3] == ("storage", "objects", "describe"):
+                return objects[command[3].split("#", 1)[0]].copy()
+            if command[:2] == ("logging", "read"):
+                return [{"textPayload": "xmm.outcome=succeeded xmm.work_item.name=workItems/dw-" + phase}
+                        for phase in ("ordinary", "recovery")]
+            raise AssertionError(command)
+        def operator(command, timeout):
+            phase = next(v.split("=", 1)[1] for v in command if v.startswith("--phase="))
+            events.append(phase)
+            return "SMOKE_WORK_ITEM=workItems/dw-" + phase + chr(10) + ("RECOVERY_READY=dataProviders/test/uploadHealingOperations/op" if phase == "ordinary" else "")
+        cloud.run, cloud.gcloud, cloud.run_operator = process, describe, operator
+        profile = {"isolatedDataProvider": "dataProviders/test", "liveDataProviders": ["dataProviders/live"],
+                   "rawImpressionsPrefix": "gs://test/raw/", "watcherIdentifier": "vid-labeling-dispatch"}
+        run = {"ordinarySourceUri": "gs://test/raw/ordinary/done", "recoverySourceUri": "gs://test/raw/recovery/done",
+               "recoverySourceGeneration": "7",
+               "recoverySourceUpload": "dataProviders/test/rawImpressionUploads/source",
+               "approval": {"name": "dataProviders/test/uploadHealingOperations/op", "etag": "fresh"}}
         with tempfile.TemporaryDirectory() as directory:
-            config = Path(directory) / "vid.textproto"
-            config.write_text('data_provider: "dataProviders/live"' + chr(10) + 'data_provider: "dataProviders/test"')
-            profile = {
-                "isolatedDataProvider": "dataProviders/test", "liveDataProviders": ["dataProviders/live"],
-                "ordinaryWorkItem": {"workItemParams": {
-                    "appParams": {"dataProvider": "dataProviders/test"},
-                    "dataPathParams": {"dataPath": "gs://test/raw/done", "generation": "7",
-                                      "createTime": "2026-11-23T12:00:00.000000002Z"}}},
-                "recoveryWorkItem": {}, "approval": {},
-            }
-            args = type("Args", (), {"vid_labeling_config": str(config), "operator_command": ["operator"]})()
+            config = Path(directory) / "config.textproto"
+            config.write_text('data_provider: "dataProviders/test"' + chr(10) + 'data_provider: "dataProviders/live"')
+            args = type("Args", (), {"vid_labeling_config": str(config), "operator_command": ["operator"], "smoke_inputs": json.dumps(run)})()
+            cutover.smoke(cloud, args, profile, [], directory)
+        self.assertEqual(events, ["finalize", "ordinary", "finalize", "recovery"])
+        self.assertEqual(objects[run["ordinarySourceUri"]]["generation"], "1")
+        self.assertEqual(objects[run["recoverySourceUri"]]["generation"], "8")
+        self.assertEqual(objects[run["recoverySourceUri"]]["metadata"]["recovery-source-upload"], run["recoverySourceUpload"])
+        self.assertEqual(objects[run["recoverySourceUri"]]["metadata"]["upload-healing-operation"], run["approval"]["name"])
+
+    def test_changed_historical_recovery_generation_is_not_rewritten(self):
+        cloud = FakeCloud()
+        cloud.gcloud = lambda *_: {"generation": "8", "timeCreated": "2026-11-23T12:00:00Z"}
+        writes = []
+        cloud.run = lambda command: writes.append(command)
+        with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(cutover.GateError):
-                cutover.smoke(cloud, args, profile, [], directory)
-        self.assertEqual(called_operator, [])
+                cutover.finalize_marker(cloud, "gs://test/raw/recovery/done", directory,
+                    {"recoverySourceGeneration": "7"})
+        self.assertEqual(writes, [])
+
+    def test_replaced_finalized_marker_cannot_supply_smoke_identity(self):
+        cloud = FakeCloud()
+        cloud.run = lambda _: ""
+        cloud.gcloud = lambda *_: {"generation": "11", "timeCreated": "2026-11-23T12:00:00Z", "metadata": {}}
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(cutover.GateError):
+                cutover.finalize_marker(cloud, "gs://test/raw/ordinary/done", directory)
+
+    def test_run_configuration_rejects_live_sources_and_embedded_static_workitems(self):
+        profile = {"isolatedDataProvider": "dataProviders/test", "rawImpressionsPrefix": "gs://test/raw/"}
+        run = {"ordinarySourceUri": "gs://live/raw/done", "recoverySourceUri": "gs://test/raw/recovery/done",
+               "recoverySourceGeneration": "7",
+               "recoverySourceUpload": "dataProviders/test/rawImpressionUploads/source",
+               "approval": {"name": "dataProviders/test/uploadHealingOperations/op", "etag": "fresh"}}
+        with self.assertRaises(cutover.GateError):
+            cutover.smoke_inputs(profile, json.dumps(run))
+        run["ordinarySourceUri"] = "gs://test/raw/ordinary/done"
+        run["ordinaryWorkItem"] = {}
+        with self.assertRaises(cutover.GateError):
+            cutover.smoke_inputs(profile, json.dumps(run))
 
     def test_operator_runner_preserves_partial_ids_on_failure_and_timeout(self):
         cloud = cutover.Cloud("test-project", "us-central1")
