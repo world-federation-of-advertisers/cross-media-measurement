@@ -326,7 +326,7 @@ class SubpoolAssigner(
             )
           }
         if (current.state != PoolAssignmentJob.State.SUCCEEDED) throw e
-        check(current.poolOffsetsCount == 0 || current.hasEncryptedDek()) {
+        check(dek == null || current.hasEncryptedDek()) {
           "Ranked pool assignment has no winning encrypted DEK"
         }
         if (dek != null && current.encryptedDek != dek) {
