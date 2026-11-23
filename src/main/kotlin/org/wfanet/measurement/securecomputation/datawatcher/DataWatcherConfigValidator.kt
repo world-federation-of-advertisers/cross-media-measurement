@@ -42,7 +42,9 @@ object DataWatcherConfigValidator {
         sink.queue == VidLabelingDispatchWorkItems.QUEUE ||
           sink.appParams.`is`(VidLabelingDispatcherParams::class.java)
       ) {
-        require(!sink.allowMissingSourceIdentity) { "VID dispatch requires complete source identity" }
+        require(!sink.allowMissingSourceIdentity) {
+          "VID dispatch requires complete source identity"
+        }
         require(sink.queue == VidLabelingDispatchWorkItems.QUEUE) { "Invalid VID dispatch queue" }
         require(sink.serializationKey.isEmpty()) { "VID dispatch uses model-line sequencing" }
         require(sink.appParams.`is`(VidLabelingDispatcherParams::class.java)) {

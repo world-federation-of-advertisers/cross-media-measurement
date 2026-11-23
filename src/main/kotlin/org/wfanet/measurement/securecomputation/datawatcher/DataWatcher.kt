@@ -214,16 +214,12 @@ class DataWatcher(
         generation = objectGeneration
         createTime = objectCreateTime.toProtoTime()
       }
-      if (!queueConfig.allowMissingSourceIdentity) {
-        eventType = when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
-          FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-          DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-          else -> throw IllegalArgumentException("Missing or invalid storage event type")
-        }
-      }
     }
     val dispatchParams =
       if (isVidDispatchQueue(config)) {
+        require(objectMetadata[EVENT_TYPE_METADATA_KEY] == FINALIZED_EVENT_TYPE) {
+          "VID dispatch requires a finalized storage event"
+        }
         require(queueConfig.queue == VidLabelingDispatchWorkItems.QUEUE) {
           "Invalid VID dispatch queue"
         }
@@ -294,7 +290,8 @@ class DataWatcher(
       if (dispatchParams == null) {
         val identity = objectGeneration?.toString() ?: "event:$sourceEventId"
         "${config.identifier}\u0000$path\u0000$identity"
-      } else DataWatcherWorkItemIds.idempotencyKey(config.identifier, sourceIdentity, dispatchParams)
+      } else
+        DataWatcherWorkItemIds.idempotencyKey(config.identifier, sourceIdentity, dispatchParams)
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
@@ -384,7 +381,8 @@ class DataWatcher(
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val partialSourceIdentity =
-      requestedWorkItem.serializationKey.isEmpty() &&
+      requestedWorkItem.queue != VidLabelingDispatchWorkItems.QUEUE &&
+        requestedWorkItem.serializationKey.isEmpty() &&
         (!existingParams.dataPathParams.hasGeneration() ||
           !existingParams.dataPathParams.hasCreateTime() ||
           !requestedParams.dataPathParams.hasGeneration() ||
