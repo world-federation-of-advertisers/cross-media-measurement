@@ -38,25 +38,43 @@ import org.wfanet.measurement.storage.parquetValue
 
 class ProtoRowProjectorTest {
   @Test
-  fun `resolvePath excludes rejected configuration paths and segments`() {
-    for (path in
-      listOf(
-        PRIVATE_VALUE,
-        "struct_value.$PRIVATE_VALUE",
-        "bool_value.$PRIVATE_VALUE",
-        "struct_value.fields.$PRIVATE_VALUE",
-      )) {
+  fun `resolvePath reports configured path and missing segment without wrapped row values`() {
+    for (path in listOf("CONFIGURED_MISSING_FIELD", "struct_value.CONFIGURED_MISSING_FIELD")) {
       val failure =
         assertFailsWith<IllegalArgumentException> {
           ProtoRowProjector.resolvePath(Value.getDescriptor(), path)
         }
-      assertThat(failure.message).doesNotContain(PRIVATE_VALUE)
+      assertThat(failure.message).contains("configured_path=\"" + path + "\"")
+      assertThat(failure.message).contains("missing_segment=\"CONFIGURED_MISSING_FIELD\"")
       assertThat(failure.message).contains("INVALID_CONFIGURATION")
-      assertThat(ExceptionDiagnostics.summary(failure)).doesNotContain(PRIVATE_VALUE)
+      val wrapped =
+        IllegalStateException(PRIVATE_VALUE, failure).apply {
+          addSuppressed(IllegalArgumentException(PRIVATE_VALUE))
+        }
+      val summary = ExceptionDiagnostics.summary(wrapped)
+      assertThat(summary).contains(path)
+      assertThat(summary).contains("CONFIGURED_MISSING_FIELD")
+      assertThat(summary).doesNotContain(PRIVATE_VALUE)
       val output =
         SimpleFormatter()
-          .format(LogRecord(Level.SEVERE, "Invalid mapping").apply { thrown = failure })
+          .format(
+            LogRecord(Level.SEVERE, "Invalid mapping").apply {
+              thrown = ExceptionDiagnostics.forLogging(wrapped)
+            }
+          )
+      assertThat(output).contains(path)
       assertThat(output).doesNotContain(PRIVATE_VALUE)
+    }
+  }
+
+  @Test
+  fun `resolvePath keeps type failures safe before missing segment lookup`() {
+    for (path in listOf("bool_value.$PRIVATE_VALUE", "struct_value.fields.$PRIVATE_VALUE")) {
+      val failure =
+        assertFailsWith<IllegalArgumentException> {
+          ProtoRowProjector.resolvePath(Value.getDescriptor(), path)
+        }
+      assertThat(ExceptionDiagnostics.summary(failure)).doesNotContain(PRIVATE_VALUE)
     }
   }
 
