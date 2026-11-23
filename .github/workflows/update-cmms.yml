@@ -38,6 +38,10 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
+      vid-labeling-readiness:
+        description: "Verify VID schema/services and consumer templates after deployment"
+        type: boolean
+        default: false
   workflow_dispatch:
     inputs:
       environment:
@@ -54,6 +58,10 @@ on:
         default: true
       apply:
         description: "Apply the new configuration"
+        type: boolean
+        default: false
+      vid-labeling-readiness:
+        description: "Verify VID schema/services and consumer templates after deployment"
         type: boolean
         default: false
       existing-image-tag:
@@ -386,6 +394,40 @@ jobs:
       tee-consumers-enabled: true
       requisition-fetcher-enabled: true
 
+  verify-vid-labeling-readiness:
+    if: inputs.apply && inputs.vid-labeling-readiness
+    needs: [publish-images, terraform]
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
+      with:
+        cluster_name: kingdom
+        location: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
+    - name: Verify schema, metadata services and VID consumer templates
+      env:
+        PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
+        ZONE: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
+        IMAGE_TAG: ${{ needs.publish-images.outputs.image-tag }}
+      run: |
+        python3 .github/workflows/scripts/check_vid_labeling_readiness.py \
+          --project="$PROJECT" --region="${ZONE%-*}" --image-tag="$IMAGE_TAG"
+
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
     needs: [publish-images, terraform]
@@ -641,12 +683,12 @@ jobs:
 
   send-slack-notification:
     uses: ./.github/workflows/slack-nightly-build-notification.yml
-    needs: [ publish-images, run-tests, run-edpa-cloud-test, run-event-group-sync-scale-test, run-edpa-reporting-integration-test, run-dashboard-isolation-test, run-dashboard-compliance-check, update-secure-computation, scan-images ]
+    needs: [ publish-images, run-tests, run-edpa-cloud-test, run-event-group-sync-scale-test, run-edpa-reporting-integration-test, run-dashboard-isolation-test, run-dashboard-compliance-check, update-secure-computation, scan-images, verify-vid-labeling-readiness ]
     secrets: inherit
     if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/nightly/') && github.actor == 'github-actions[bot]' }}
     with:
       nightly-build-tag: ${{ github.ref_name }}
-      successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.run-edpa-cloud-test.result == 'success' && (inputs.environment == 'dev' || needs.run-event-group-sync-scale-test.result == 'success') && needs.run-edpa-reporting-integration-test.result == 'success' && needs.run-dashboard-isolation-test.result == 'success' && needs.run-dashboard-compliance-check.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' }}
+      successfully-deployed: ${{ needs.publish-images.result == 'success' && needs.run-tests.result == 'success' && needs.run-edpa-cloud-test.result == 'success' && (inputs.environment == 'dev' || needs.run-event-group-sync-scale-test.result == 'success') && needs.run-edpa-reporting-integration-test.result == 'success' && needs.run-dashboard-isolation-test.result == 'success' && needs.run-dashboard-compliance-check.result == 'success' && needs.update-secure-computation.result == 'success' && needs.scan-images.result == 'success' && (!inputs.vid-labeling-readiness || needs.verify-vid-labeling-readiness.result == 'success') }}
 
   report-incomplete-rollout:
     if: ${{ always() && inputs.apply && needs.pause-requisition-fetcher.result != 'skipped' && needs.terraform.result != 'success' }}
