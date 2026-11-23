@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.common
 
+import com.google.protobuf.Descriptors.FieldDescriptor
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.util.Collections
@@ -33,24 +34,84 @@ object ExceptionDiagnostics {
     INVALID_CONFIGURATION,
   }
 
-  /**
-   * A validation failure containing schema/configuration field names and type names only.
-   *
-   * @param column the source column name, never its value
-   * @param fieldPath the target schema field path
-   * @param expectedType the expected schema type or kind
-   * @param actualType the actual schema type or kind
-   */
-  class ValidationFailure(
+  enum class Type {
+    UNKNOWN,
+    SCHEMA_FIELD,
+    UNIQUE_FIELD_PATH,
+    COMPOSITE_IDENTITY_COLUMNS,
+    MAPPING_SOURCE,
+    SINGULAR_MESSAGE,
+    SINGULAR_SCALAR_OR_ENUM,
+    REPEATED,
+    NON_NEGATIVE_AGE,
+    UINT32_AGE,
+    INTEGRAL,
+    FLOATING_POINT,
+    ENUM,
+    INT,
+    LONG,
+    FLOAT,
+    DOUBLE,
+    BOOLEAN,
+    STRING,
+    BYTE_STRING,
+    MESSAGE,
+    INT32,
+    INT64,
+    UINT32,
+    UINT64,
+    BOOL,
+    STRING_VALUE,
+    BYTES_VALUE,
+    BOOL_VALUE,
+    INT32_VALUE,
+    INT64_VALUE,
+    UINT32_VALUE,
+    UINT64_VALUE,
+    FLOAT_VALUE,
+    DOUBLE_VALUE,
+    TIMESTAMP_VALUE,
+    KIND_NOT_SET,
+    SOURCE_NOT_SET;
+
+    companion object {
+      /** Maps only closed type identifiers, never arbitrary diagnostic text. */
+      fun fromName(name: String): Type = entries.firstOrNull { it.name == name } ?: UNKNOWN
+    }
+  }
+
+  /** Validation metadata derived from a resolved schema field and closed type identifiers. */
+  class ValidationFailure
+  private constructor(
     val category: Category,
-    val column: String? = null,
-    val fieldPath: String? = null,
-    val expectedType: String? = null,
-    val actualType: String? = null,
-  ) :
-    IllegalArgumentException(
-      validationMetadata(category, column, fieldPath, expectedType, actualType)
-    )
+    val field: FieldDescriptor?,
+    val expectedType: Type?,
+    val actualType: Type?,
+  ) : IllegalArgumentException(validationMetadata(category, field, expectedType, actualType)) {
+    companion object {
+      fun unknownLookup(field: FieldDescriptor? = null): ValidationFailure =
+        ValidationFailure(Category.UNKNOWN_LOOKUP_VALUE, field, null, null)
+
+      fun unknownEnum(field: FieldDescriptor): ValidationFailure =
+        ValidationFailure(Category.UNKNOWN_ENUM_VALUE, field, Type.ENUM, null)
+
+      fun outOfRange(expected: Type, field: FieldDescriptor? = null): ValidationFailure =
+        ValidationFailure(Category.OUT_OF_RANGE, field, expected, null)
+
+      fun incompatibleType(
+        expected: Type,
+        actual: Type,
+        field: FieldDescriptor? = null,
+      ): ValidationFailure = ValidationFailure(Category.INCOMPATIBLE_TYPE, field, expected, actual)
+
+      fun invalidConfiguration(
+        expected: Type? = null,
+        actual: Type? = null,
+        field: FieldDescriptor? = null,
+      ): ValidationFailure =
+        ValidationFailure(Category.INVALID_CONFIGURATION, field, expected, actual)
+    }
+  }
 
   /** A bounded failure description for storage or transmission outside a processing boundary. */
   fun summary(error: Throwable): String {
@@ -58,21 +119,33 @@ object ExceptionDiagnostics {
       val root = forLogging(error)
       val nodes = ArrayDeque<Throwable>()
       nodes.add(root)
-      val details = mutableListOf<String>()
-      var location: StackTraceElement? = null
-      while (nodes.isNotEmpty()) {
+      val retained = mutableListOf<Throwable>()
+      while (nodes.isNotEmpty() && retained.size < MAX_EXCEPTIONS) {
         val node = nodes.removeFirst()
-        val fields = metadata(node)
-        if (node === root || fields.isNotEmpty()) {
-          details += description(typeName(node), fields).take(MAX_SUMMARY_PART_LENGTH)
-          if (node.stackTrace.isNotEmpty()) location = node.stackTrace.first()
-        }
+        retained += node
         node.cause?.let(nodes::addLast)
         node.suppressed.forEach(nodes::addLast)
       }
+      val location = retained.firstNotNullOfOrNull { it.stackTrace.firstOrNull() }
+      val omitted = if (nodes.isNotEmpty()) "; additional exceptions omitted" else ""
+      val capacity = MAX_SUMMARY_LENGTH - MAX_LOCATION_LENGTH - 5 - omitted.length
+      val names = retained.map(::typeName)
+      val types =
+        if (names.joinToString(" <- ").length <= capacity) names
+        else names.map { it.substringAfterLast('.') }
+      val partLimit = (capacity - 4 * (retained.size - 1)) / retained.size
       val descriptions =
-        details.distinct().joinToString(" <- ").take(MAX_SUMMARY_LENGTH - MAX_LOCATION_LENGTH - 5)
-      descriptions + location?.let { "; at ${it.toString().take(MAX_LOCATION_LENGTH)}" }.orEmpty()
+        retained
+          .mapIndexed { index, node ->
+            val type = types[index].take(partLimit)
+            val fields = metadata(node)
+            if (fields.isEmpty() || type.length + 2 >= partLimit) type
+            else type + ": " + fields.take(partLimit - type.length - 2)
+          }
+          .joinToString(" <- ")
+      descriptions +
+        omitted +
+        location?.let { "; at ${it.toString().take(MAX_LOCATION_LENGTH)}" }.orEmpty()
     } catch (_: Throwable) {
       typeName(error).take(MAX_SUMMARY_LENGTH)
     }
@@ -106,9 +179,9 @@ object ExceptionDiagnostics {
           .take(minOf(remainingFrames, MAX_FRAMES_PER_EXCEPTION))
           .map { frame ->
             StackTraceElement(
-              frame.className.take(MAX_FRAME_FIELD_LENGTH),
-              frame.methodName.take(MAX_FRAME_FIELD_LENGTH),
-              frame.fileName?.take(MAX_FRAME_FIELD_LENGTH),
+              escapeText(frame.className, MAX_FRAME_FIELD_LENGTH),
+              escapeText(frame.methodName, MAX_FRAME_FIELD_LENGTH),
+              frame.fileName?.let { escapeText(it, MAX_FRAME_FIELD_LENGTH) },
               frame.lineNumber,
             )
           }
@@ -138,12 +211,14 @@ object ExceptionDiagnostics {
   }
 
   private fun typeName(error: Throwable): String =
-    (when (error) {
+    escapeText(
+      when (error) {
         is DiagnosticException -> error.originalType
         is DiagnosticError -> error.originalType
         else -> error.javaClass.name
-      })
-      .take(MAX_FIELD_LENGTH)
+      },
+      MAX_FIELD_LENGTH,
+    )
 
   private fun description(type: String, fields: String): String =
     if (fields.isEmpty()) type else "$type: $fields"
@@ -153,13 +228,7 @@ object ExceptionDiagnostics {
       is DiagnosticException -> error.fields
       is DiagnosticError -> error.fields
       is ValidationFailure ->
-        validationMetadata(
-          error.category,
-          error.column,
-          error.fieldPath,
-          error.expectedType,
-          error.actualType,
-        )
+        validationMetadata(error.category, error.field, error.expectedType, error.actualType)
       is StatusException -> "grpc.${error.status.code.name}"
       is StatusRuntimeException -> "grpc.${error.status.code.name}"
       else -> ""
@@ -167,19 +236,39 @@ object ExceptionDiagnostics {
 
   private fun validationMetadata(
     category: Category,
-    column: String?,
-    fieldPath: String?,
-    expectedType: String?,
-    actualType: String?,
+    field: FieldDescriptor?,
+    expectedType: Type?,
+    actualType: Type?,
   ): String =
     buildList {
         add(category.name)
-        column?.let { add("column=${it.take(MAX_FIELD_LENGTH)}") }
-        fieldPath?.let { add("field=${it.take(MAX_FIELD_LENGTH)}") }
-        expectedType?.let { add("expected=${it.take(MAX_FIELD_LENGTH)}") }
-        actualType?.let { add("actual=${it.take(MAX_FIELD_LENGTH)}") }
+        field?.let { add("field=" + escapeText(it.fullName, MAX_FIELD_LENGTH)) }
+        expectedType?.let { add("expected=" + it.name) }
+        actualType?.let { add("actual=" + it.name) }
       }
       .joinToString("; ")
+
+  private fun escapeText(text: String, limit: Int): String = buildString {
+    for (character in text) {
+      val escaped =
+        when (character) {
+          '\n' -> "\\n"
+          '\r' -> "\\r"
+          '\t' -> "\\t"
+          else ->
+            if (
+              character.code < 32 ||
+                character.code in 127..159 ||
+                character == '\u2028' ||
+                character == '\u2029'
+            ) {
+              "\\u" + character.code.toString(16).padStart(4, '0')
+            } else character.toString()
+        }
+      if (length + escaped.length > limit) break
+      append(escaped)
+    }
+  }
 
   private const val MAX_SUMMARY_LENGTH = 1024
   private const val MAX_FIELD_LENGTH = 200
@@ -188,6 +277,5 @@ object ExceptionDiagnostics {
   private const val MAX_STACK_FRAMES = 128
   private const val MAX_FRAMES_PER_EXCEPTION = 32
   private const val MAX_FRAME_FIELD_LENGTH = 100
-  private const val MAX_SUMMARY_PART_LENGTH = 300
   private const val MAX_LOCATION_LENGTH = 200
 }
