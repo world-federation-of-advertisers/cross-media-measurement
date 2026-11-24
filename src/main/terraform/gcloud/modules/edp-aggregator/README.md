@@ -106,6 +106,15 @@ for notifications; the queue age threshold is
 Alerts also count deliveries sent to the dead-letter queue, even after those
 deliveries have been acknowledged.
 
+Before applying Terraform, grant its deployment identity
+`roles/monitoring.alertPolicyEditor` and `roles/logging.configWriter` on the
+EDPA project. These are bootstrap permissions granted outside this module.
+Log-based alerts create a Logging notification rule as well as a Monitoring
+alert policy. The Monitoring role alone does not grant
+`logging.notificationRules.create`, so creating the failed-WorkItem alert
+otherwise fails with a 403. A custom role may instead grant the corresponding
+notification-rule create, get, list, update, and delete permissions.
+
 #### Switch cleanup to WorkItems
 
 Uploads and file deletions can continue during these steps:
