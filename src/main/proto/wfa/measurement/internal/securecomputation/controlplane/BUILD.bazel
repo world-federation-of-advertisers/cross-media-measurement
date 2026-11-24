@@ -8,6 +8,8 @@ load("//build:defs.bzl", "proto_lib_prefix")
 
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:__pkg__",
+    "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
 ])
 
 IMPORT_PREFIX = "/src/main/proto"
@@ -74,6 +76,14 @@ proto_library(
 [
     kt_jvm_proto_library(
         name = "{prefix}_kt_jvm_proto".format(prefix = proto_lib_prefix(label_str)),
+        # Availability regressions also exercise messages queued before public WorkItem publication.
+        visibility = [
+            "//src/main/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+            "//src/test/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:__pkg__",
+            "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy:__subpackages__",
+        ] + ([
+            "//src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:__pkg__",
+        ] if label_str == ":work_item_proto" else []),
         deps = [label_str],
     )
     for label_str in MESSAGE_LIBS

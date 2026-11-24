@@ -51,11 +51,17 @@ jobs:
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
+    - name: Load CMMS environment configuration
+      id: cmms-config
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+
     - name: Authenticate to Google Cloud
       uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
       with:
-        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).GKE_CONFIG_SERVICE_ACCOUNT }}
 
     - name: Write auth.bazelrc
       env:
@@ -68,9 +74,6 @@ jobs:
     - name: Write ~/.bazelrc
       env:
         IMAGE_TAG: ${{ inputs.image-tag }}
-        SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
-        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
-        KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
       run: |
         cat << EOF > ~/.bazelrc
         common --config=ci
@@ -92,11 +95,11 @@ jobs:
       uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
       with:
         cluster_name: kingdom
-        location: ${{ vars.GCLOUD_ZONE }}
+        location: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_ZONE }}
 
     - name: Generate archives
       run: >
-        bazelisk build
+        tools/bazel-with-results bazelisk build
         //src/main/k8s/dev:edp_aggregator.tar
         //src/main/k8s/testing/secretfiles:edp_aggregator_tls_files.tar
         //src/main/k8s/testing/secretfiles:edp7_tls_files.tar
@@ -136,23 +139,18 @@ jobs:
         cp src/main/k8s/testing/secretfiles/kingdom_root.pem
         "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/kingdom_root.pem"
 
-    - name: Write sync-event-group-activities config (edp7)
-      env:
-        EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT }}
-      run: |
-        if [ -z "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" ]; then
-          echo "vars.EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
-          exit 1
-        fi
-        printf '%s' "$EVENT_GROUP_ACTIVITY_SYNC_EDP7_CONFIG_CONTENT" > \
-          "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
+    - name: Copy sync-event-group-activities config (edp7)
+      run: >
+        cp
+        src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/event-group-activity-sync-edp7-config.textproto
+        "$KUSTOMIZATION_PATH/src/main/k8s/dev/edp_aggregator_config/event-group-activity-sync-config-edp7.textproto"
 
     - name: Write data availability recovery config (edp7)
       env:
-        DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
+        DATA_AVAILABILITY_SYNC_CONFIG_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}/data-availability-sync-config.textproto
       run: |
-        if [ -z "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" ]; then
-          echo "vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT is empty for environment ${{ inputs.environment }}" >&2
+        if [ ! -f "$DATA_AVAILABILITY_SYNC_CONFIG_FILE" ]; then
+          echo "Missing $DATA_AVAILABILITY_SYNC_CONFIG_FILE" >&2
           exit 1
         fi
         python3 - <<'PY'
@@ -160,7 +158,7 @@ jobs:
         import pathlib
         import re
 
-        source = os.environ["DATA_AVAILABILITY_SYNC_CONFIG_CONTENT"]
+        source = pathlib.Path(os.environ["DATA_AVAILABILITY_SYNC_CONFIG_FILE"]).read_text()
         blocks = []
         offset = 0
         while True:
@@ -211,12 +209,37 @@ jobs:
       run: kubectl diff -k "$KUSTOMIZE_PATH" || (( $? == 1 ))
 
     - name: kubectl apply
+      id: kubectl-apply
       if: ${{ inputs.apply }}
       run: kubectl apply -k "$KUSTOMIZE_PATH" --namespace=default --prune --applyset=configmaps/kubectl-edpa
 
     - name: Wait for rollout
+      id: wait-rollout
       if: ${{ inputs.apply }}
       run: |
-        for deployment in $(kubectl get deployments -l app.kubernetes.io/component=edp-aggregator -o name); do
+        edpa_deployments=$(kubectl get deployments -l app.kubernetes.io/component=edp-aggregator -o name)
+        if [ -z "$edpa_deployments" ]; then
+          echo "No EDP Aggregator deployments found for rollout" >&2
+          exit 1
+        fi
+        for deployment in $edpa_deployments; do
           kubectl rollout status "$deployment" --timeout=5m
         done
+
+    - name: Collect rollout diagnostics
+      if: ${{ failure() && inputs.apply && (steps.kubectl-apply.outcome == 'failure' || steps.wait-rollout.outcome == 'failure') }}
+      continue-on-error: true
+      timeout-minutes: 5
+      run: >
+        python3 .github/workflows/scripts/k8s_rollout_diagnostics.py
+        --selector=app.kubernetes.io/component=edp-aggregator
+        --output-dir="${{ runner.temp }}/edp-aggregator-rollout-diagnostics"
+
+    - name: Upload rollout diagnostics
+      if: ${{ failure() && inputs.apply && (steps.kubectl-apply.outcome == 'failure' || steps.wait-rollout.outcome == 'failure') }}
+      continue-on-error: true
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: edp-aggregator-rollout-diagnostics-${{ github.run_attempt }}
+        path: ${{ runner.temp }}/edp-aggregator-rollout-diagnostics
+        retention-days: 7

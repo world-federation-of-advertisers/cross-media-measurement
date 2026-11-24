@@ -1,0 +1,39 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.edpaggregator;
+
+option java_package = "org.wfanet.measurement.config.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "EventGroupReferenceIdEntityKeyMappingProto";
+
+// Mapping between an event-group reference ID and an entity key.
+message EventGroupReferenceIdEntityKeyMapping {
+  // Entity type whose IDs are equivalent to event-group reference IDs.
+  string entity_type = 1;
+
+  // Optional prefix on event-group reference IDs.
+  //
+  // Conversion removes this prefix when converting from a reference ID and
+  // adds it when converting to one. When empty, reference IDs remain mappable.
+  string event_group_reference_id_prefix = 2;
+
+  // Optional prefix on entity IDs.
+  //
+  // Conversion removes this prefix when converting from an entity ID and adds
+  // it when converting to one. When empty, entity IDs remain mappable.
+  string entity_id_prefix = 3;
+}

@@ -23,6 +23,7 @@ import com.google.protobuf.Duration as ProtoDuration
 import com.google.protobuf.duration
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Durations
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -235,6 +236,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.univariateStatistics
 
 private const val MAX_BATCH_SIZE = 1000
+private const val METRIC_SYNC_LOG_BATCH_SIZE = 50
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -279,6 +281,7 @@ class MetricsService(
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   kingdomMeasurementBatchConcurrency: Int,
+  private val logMeasurementValues: Boolean,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -834,6 +837,9 @@ class MetricsService(
         reportingMetadata = reportingMetadata {
           report = metric.details.containingReport
           basicReport = metric.details.basicReport
+          if (metric.details.hasReportInterval()) {
+            reportInterval = metric.details.reportInterval
+          }
           this.metric =
             MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName()
         }
@@ -2320,6 +2326,24 @@ class MetricsService(
       "TimeInterval endTime is not later than startTime."
     }
     grpcRequire(request.metric.hasMetricSpec()) { "Metric spec in metric is not specified." }
+    if (request.metric.hasReportInterval()) {
+      val reportInterval = request.metric.reportInterval
+      grpcRequire(
+        reportInterval.hasStartTime() &&
+          reportInterval.hasEndTime() &&
+          Timestamps.isValid(reportInterval.startTime) &&
+          Timestamps.isValid(reportInterval.endTime) &&
+          Timestamps.compare(reportInterval.startTime, reportInterval.endTime) < 0
+      ) {
+        "Report interval in metric is invalid."
+      }
+      grpcRequire(
+        Timestamps.compare(request.metric.timeInterval.startTime, reportInterval.startTime) >= 0 &&
+          Timestamps.compare(request.metric.timeInterval.endTime, reportInterval.endTime) <= 0
+      ) {
+        "Metric time interval must be within the Report interval."
+      }
+    }
 
     // Utilizes the property of the set expression compilation result -- If the set expression
     // contains only union operators, the compilation result has to be a single component.
@@ -2362,6 +2386,9 @@ class MetricsService(
           InternalMetricKt.details {
             containingReport = request.metric.containingReport
             basicReport = request.metric.basicReport
+            if (request.metric.hasReportInterval()) {
+              reportInterval = request.metric.reportInterval
+            }
             filters += request.metric.filtersList
           }
       }
@@ -2464,6 +2491,22 @@ class MetricsService(
       throw Exception("Unable to retrieve ReportingSets using the provided names.", e)
     }
   }
+
+  private data class MetricSyncScope(
+    val basicReport: String,
+    val report: String,
+    val state: Metric.State,
+  )
+
+  private fun Metric.State.toSyncOutcome(): String =
+    when (this) {
+      Metric.State.SUCCEEDED -> "succeeded"
+      Metric.State.FAILED,
+      Metric.State.INVALID -> "failed"
+      Metric.State.RUNNING -> "in_progress"
+      Metric.State.STATE_UNSPECIFIED,
+      Metric.State.UNRECOGNIZED -> "unknown"
+    }
 
   /** Converts [InternalMetric]s to public [Metric]s after syncing [Measurement]s. */
   private suspend fun syncAndConvertInternalMetricsToPublicMetrics(
@@ -2587,15 +2630,7 @@ class MetricsService(
           }
         }
         for (metric in publicMetrics) {
-          val outcome =
-            when (metric.state) {
-              Metric.State.SUCCEEDED -> "succeeded"
-              Metric.State.FAILED,
-              Metric.State.INVALID -> "failed"
-              Metric.State.RUNNING -> "in_progress"
-              Metric.State.STATE_UNSPECIFIED,
-              Metric.State.UNRECOGNIZED -> "unknown"
-            }
+          val outcome = metric.state.toSyncOutcome()
           ReportTracing.traceSuspending(
             spanName = "reporting.metric.result_synchronized",
             attributes =
@@ -2614,16 +2649,40 @@ class MetricsService(
                 }
                 .build(),
           ) {}
-          ReportTraceLogging.log(
-            logger,
-            "reporting.metric.result_synchronized",
-            ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
-            ReportTraceAttributes.BASIC_REPORT_NAME_STRING to metric.basicReport,
-            ReportTraceAttributes.REPORT_NAME_STRING to metric.containingReport,
-            ReportTraceAttributes.METRIC_NAME_STRING to metric.name,
-            ReportTraceAttributes.METRIC_STATE_STRING to metric.state.name,
-            ReportTraceAttributes.OUTCOME_STRING to outcome,
-          )
+          if (logger.isLoggable(Level.FINE)) {
+            ReportTraceLogging.log(
+              logger,
+              Level.FINE,
+              null,
+              "reporting.metric.result_synchronized",
+              ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+              ReportTraceAttributes.BASIC_REPORT_NAME_STRING to metric.basicReport,
+              ReportTraceAttributes.REPORT_NAME_STRING to metric.containingReport,
+              ReportTraceAttributes.METRIC_NAME_STRING to metric.name,
+              ReportTraceAttributes.METRIC_STATE_STRING to metric.state.name,
+              ReportTraceAttributes.OUTCOME_STRING to outcome,
+            )
+          }
+        }
+        if (logger.isLoggable(Level.INFO)) {
+          val metricsByScope =
+            publicMetrics.groupBy { MetricSyncScope(it.basicReport, it.containingReport, it.state) }
+          for ((scope, metrics) in metricsByScope) {
+            // Retain exact identities for log-only traces while bounding each summary's size.
+            for (batch in metrics.chunked(METRIC_SYNC_LOG_BATCH_SIZE)) {
+              ReportTraceLogging.log(
+                logger,
+                "reporting.metrics.results_synchronized",
+                ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+                ReportTraceAttributes.BASIC_REPORT_NAME_STRING to scope.basicReport,
+                ReportTraceAttributes.REPORT_NAME_STRING to scope.report,
+                ReportTraceAttributes.METRIC_STATE_STRING to scope.state.name,
+                ReportTraceAttributes.METRIC_COUNT_STRING to batch.size.toString(),
+                ReportTraceAttributes.OUTCOME_STRING to scope.state.toSyncOutcome(),
+                *batch.map { ReportTraceAttributes.METRIC_NAME_STRING to it.name }.toTypedArray(),
+              )
+            }
+          }
         }
         Span.current()
           .setAttribute(
@@ -2769,13 +2828,23 @@ class MetricsService(
       createTime = source.createTime
       containingReport = source.details.containingReport
       basicReport = source.details.basicReport
+      if (source.details.hasReportInterval()) {
+        reportInterval = source.details.reportInterval
+      }
       // The calculations can throw an error, but we still want to return the metric.
       when (state) {
         Metric.State.SUCCEEDED -> {
           try {
             result = buildMetricResult(source, variances)
           } catch (e: Exception) {
-            logger.log(Level.SEVERE, "buildMetricResult exception:", e)
+            if (logMeasurementValues) {
+              logger.log(Level.SEVERE, "buildMetricResult exception:", e)
+            } else {
+              logger.log(
+                Level.SEVERE,
+                "buildMetricResult failed for $name: ${e.javaClass.simpleName}",
+              )
+            }
             state = Metric.State.FAILED
             when (e) {
               is MeasurementVarianceNotComputableException -> {
@@ -3511,10 +3580,9 @@ private fun calculateFrequencyHistogramResults(
         weightedMeasurementVarianceParamsList.size == weightedMeasurements.size &&
           weightedMeasurementVarianceParamsList.size == 1 &&
           weightedMeasurementVarianceParamsList
-            .first()
+            .single()
             .measurementVarianceParams
-            .reachMeasurementVariance >= 0.0 &&
-          weightedMeasurementVarianceParamsList.first().measurementVarianceParams.totalReach > 0.0
+            .reachMeasurementVariance >= 0.0
       ) {
         try {
           variances.computeMetricVariance(

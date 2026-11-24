@@ -693,7 +693,7 @@ class EventGroupsService(
 
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
-    private const val MAX_PAGE_SIZE = 500
+    private const val MAX_PAGE_SIZE = 2_000
     /** Substituted into `entity_type_in` when the caller omits the filter. */
     private const val DEFAULT_ENTITY_TYPE = "campaign"
   }

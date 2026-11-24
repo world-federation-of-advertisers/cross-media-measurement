@@ -117,6 +117,8 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     var.uploaded_config_generation,
     var.timeout_seconds,
     var.retry_on_failure,
+    var.max_instances,
+    var.concurrency,
   ]
 
   provisioner "local-exec" {
@@ -134,6 +136,8 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
       TRIGGER_EVENT_TYPE      = var.trigger_event_type
       TIMEOUT_SECONDS         = var.timeout_seconds == null ? "" : tostring(var.timeout_seconds)
       RETRY_ON_FAILURE        = tostring(var.retry_on_failure)
+      MAX_INSTANCES           = var.max_instances == null ? "" : tostring(var.max_instances)
+      CONCURRENCY             = var.concurrency == null ? "" : tostring(var.concurrency)
     }
     command = <<-EOT
       #!/bin/bash
@@ -172,6 +176,13 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
         args+=("--timeout=$TIMEOUT_SECONDS")
       fi
 
+      if [[ -n "$MAX_INSTANCES" ]]; then
+        args+=("--max-instances=$MAX_INSTANCES")
+      fi
+      if [[ -n "$CONCURRENCY" ]]; then
+        args+=("--concurrency=$CONCURRENCY")
+      fi
+
       gcloud "$${args[@]}"
     EOT
   }
@@ -196,6 +207,9 @@ resource "terraform_data" "attach_dead_letter_policy" {
     var.uploaded_config_generation,
     var.timeout_seconds,
     var.retry_on_failure,
+    google_pubsub_topic.dead_letter_topic.id,
+    var.max_delivery_attempts,
+    var.message_retention_duration,
   ]
 
   provisioner "local-exec" {
@@ -211,15 +225,21 @@ resource "terraform_data" "attach_dead_letter_policy" {
       #!/bin/bash
       set -euo pipefail
 
-      # Find the Eventarc-managed subscription for this function.
-      SUB=$(gcloud pubsub subscriptions list \
-        --filter="name~eventarc.*-$FUNCTION_NAME-" \
-        --format="value(name)" \
-        --limit=1)
+      # Resolve the primary trigger; additional storage triggers may share its name prefix.
+      TRIGGER=$(gcloud functions describe "$FUNCTION_NAME" \
+        --gen2 --region="$CLOUD_REGION" \
+        --format="value(eventTrigger.trigger)")
+      if [[ -z "$TRIGGER" ]]; then
+        echo "Missing primary trigger for $FUNCTION_NAME" >&2
+        exit 1
+      fi
+      SUB=$(gcloud eventarc triggers describe "$TRIGGER" \
+        --location="$CLOUD_REGION" \
+        --format="value(transport.pubsub.subscription)")
 
       if [[ -z "$SUB" ]]; then
-        echo "WARNING: No Eventarc subscription found for $FUNCTION_NAME. Skipping DLQ attachment."
-        exit 0
+        echo "Missing primary trigger subscription for $FUNCTION_NAME" >&2
+        exit 1
       fi
 
       echo "Attaching DLQ to subscription: $SUB"

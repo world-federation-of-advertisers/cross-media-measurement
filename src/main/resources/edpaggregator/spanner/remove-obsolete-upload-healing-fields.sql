@@ -1,0 +1,42 @@
+-- liquibase formatted sql
+
+-- Copyright 2026 The Cross-Media Measurement Authors
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--      http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+
+-- changeset marcopremier:26 dbms:cloudspanner
+-- preconditions onFail:HALT onError:HALT
+-- precondition-sql-check expectedResult:0 SELECT COUNT(*) FROM UploadHealingOperation WHERE (PlanFormatVersion IS NULL OR PlanFormatVersion = 1) AND State <> 2
+-- comment: Remove obsolete client-authored upload-healing fields.
+
+ALTER TABLE UploadHealingOperation
+ADD COLUMN ReconcileRequestId STRING(36);
+
+UPDATE UploadHealingOperation
+SET ReconcileRequestId = CreateRequestId
+WHERE TRUE;
+
+ALTER TABLE UploadHealingOperation
+ALTER COLUMN ReconcileRequestId STRING(36) NOT NULL;
+
+DROP INDEX UploadHealingOperationByCreateRequestId;
+
+ALTER TABLE UploadHealingOperation DROP COLUMN CreateRequestId;
+
+ALTER TABLE UploadHealingOperation
+DROP COLUMN BadRawImpressionUploadResourceIds;
+
+ALTER TABLE UploadHealingOperation DROP COLUMN CutoffTime;
+
+CREATE UNIQUE INDEX UploadHealingOperationByReconcileRequestId
+  ON UploadHealingOperation(DataProviderResourceId, ReconcileRequestId);

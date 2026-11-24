@@ -155,8 +155,40 @@ method name being tested.
     `src/main/` tree, with its Bazel targets marked as `testonly`.
 *   Favor numerous smaller test cases over fewer large ones.
 
+## Spanner proto bundles
+
+The EDP Aggregator schema tests validate proto bundle dependencies in Liquibase
+changelog order. This check runs in process without starting an emulator or
+connecting to Spanner:
+
+```shell
+bazel test //src/test/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:ProtoBundleValidatorTest
+```
+
+Database tests remain necessary to validate DDL execution and data migrations.
+
 ## See Also
 
 *   [Code Style](code-style.md) — general testing guidance, assertion library
     choices, and test double recommendations
 *   [Dev Standards](dev-standards.md) — code review workflow and PR requirements
+
+## CI test results
+
+The `results` Bazel configuration waits for Build Event Service uploads to finish.
+Native uploads allow six retries, with a five-second initial
+backoff and Bazel's 1.6 exponential multiplier. The post-build upload timeout is
+600 seconds. Acknowledged progress resets the retry counter.
+
+CI build and test commands, including deployment artifact builds, use
+`tools/bazel-with-results BAZEL {build|test} [ARGUMENTS...]`. The tool runs Bazel
+once and records its completion verdict in a temporary local Build Event Protocol
+file. It waits for upload completion or the post-build timeout before returning.
+If publishing fails with exit 38, it preserves the recorded
+build/test exit code and emits a workflow warning. Missing or invalid completion
+evidence remains a failure; other Bazel errors are preserved. The temporary event
+file is deleted after the command.
+
+CI test workflows upload testlogs as GitHub artifacts after both successful and
+failed test commands. Use those logs when the BuildBuddy invocation is incomplete.
+Artifact upload is best effort; the build/test verdict remains the correctness gate.

@@ -72,14 +72,11 @@ class SubpoolRetention(
       "Subpool $poolOffset for $modelLine: garbage-collecting ${candidates.size} aged DAY_ONLY blob(s)"
     )
     for (candidate in candidates) {
-      // Soft-delete the row first so a concurrent retry skips it, then delete the bytes. A failure
-      // between the two leaks the bytes (no corruption — the row is gone, so nothing references
-      // them) and they're reclaimed by the monitor
-      // (world-federation-of-advertisers/cross-media-measurement#3958) or the bucket lifecycle.
+      // Keep the row discoverable until its bytes are gone so a failed storage deletion is retried.
+      rankIndexStore.delete(candidate.blobUri)
       rpcThrottlers.metadataWrite.onReady {
         rankIndexBlobsStub.deleteRankIndexBlob(deleteRankIndexBlobRequest { name = candidate.name })
       }
-      rankIndexStore.delete(candidate.blobUri)
     }
   }
 

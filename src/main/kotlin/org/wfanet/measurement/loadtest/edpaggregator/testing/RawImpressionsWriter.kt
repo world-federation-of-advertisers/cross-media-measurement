@@ -80,6 +80,41 @@ object RawImpressionColumns {
 
   /** The entity_type used for the creative-id entity key. */
   const val ENTITY_TYPE_CREATIVE_ID = "creative-id"
+
+  /** The per-impression campaign ID column. */
+  const val CAMPAIGN_ID = "campaign_id"
+
+  /** The entity type used for campaign keys. */
+  const val ENTITY_TYPE_CAMPAIGN = "campaign"
+
+  /** The per-impression ad-set ID column. */
+  const val ADSET_ID = "adset_id"
+
+  /** The entity type used for ad-set keys. */
+  const val ENTITY_TYPE_ADSET_ID = "adset-id"
+
+  /** The per-impression ad ID column. */
+  const val AD_ID = "ad_id"
+
+  /** The entity type used for ad keys. */
+  const val ENTITY_TYPE_AD_ID = "ad-id"
+
+  /** The per-impression account ID column. */
+  const val ACCOUNT_ID = "account_id"
+
+  /** The entity type used for account keys. */
+  const val ENTITY_TYPE_ACCOUNT_ID = "account-id"
+
+  /** Entity type to Parquet column for the reference writer and cloud-test labeler mappings. */
+  val ENTITY_KEY_COLUMNS: Map<String, String> =
+    mapOf(
+      ENTITY_TYPE_PERSON to PERSON_ID,
+      ENTITY_TYPE_CREATIVE_ID to CREATIVE_ID,
+      ENTITY_TYPE_CAMPAIGN to CAMPAIGN_ID,
+      ENTITY_TYPE_ADSET_ID to ADSET_ID,
+      ENTITY_TYPE_AD_ID to AD_ID,
+      ENTITY_TYPE_ACCOUNT_ID to ACCOUNT_ID,
+    )
 }
 
 /**
@@ -139,6 +174,9 @@ class RawImpressionsWriter(
     require(requiredEntityKeyColumns.isNotEmpty()) {
       "at least one required entity-key column mapping must be configured"
     }
+    require(requiredEntityKeyColumns.values.toSet().size == requiredEntityKeyColumns.size) {
+      "each entity type must map to a distinct Parquet column"
+    }
   }
 
   /**
@@ -196,8 +234,8 @@ class RawImpressionsWriter(
   ): Map<String, ParquetValue> =
     requiredEntityKeyColumns.entries.associate { (entityType, column) ->
       val id =
-        requireNotNull(entityKeys.firstOrNull { it.entityType == entityType }?.entityId) {
-          "event group is missing required entity key '$entityType' (columns need it non-empty)"
+        requireNotNull(entityKeys.singleOrNull { it.entityType == entityType }?.entityId) {
+          "each impression must have exactly one entity key of required type '$entityType'"
         }
       require(id.isNotEmpty()) { "required entity key '$entityType' has an empty id" }
       column to parquetValue { stringValue = id }

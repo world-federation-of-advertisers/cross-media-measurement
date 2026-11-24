@@ -232,7 +232,7 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution zeroes only freq-1 bucket when it fails threshold`() {
+  fun `computeFrequencyDistribution preserves higher buckets when populated freq-1 fails min users`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
@@ -242,11 +242,28 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
-    // With fold-down: freq1 (10 users) fails minUsers=11, cannot fold lower.
-    // freq2 (30) and freq3 (70) pass, so only freq1 is suppressed.
-    val totalAfterFold = 30.0 + 70.0
-    val expected = mapOf(1L to 0.0, 2L to 30.0 / totalAfterFold, 3L to 70.0 / totalAfterFold)
-    assertThat(distribution).isEqualTo(expected)
+
+    assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(30.0 / 110.0)
+    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(70.0 / 110.0)
+    assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(100.0 / 110.0)
+  }
+
+  @Test
+  fun `computeFrequencyDistribution preserves higher buckets when empty freq-1 fails threshold`() {
+    val rawHistogram = longArrayOf(0, 30, 70)
+    val distribution =
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
+        rawHistogram,
+        maxFrequency = 3,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
+        vidSamplingIntervalWidth = 1.0,
+      )
+
+    assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.3)
+    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.7)
   }
 
   @Test
@@ -276,9 +293,10 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
         vidSamplingIntervalWidth = 1.0,
       )
-    // With fold-down + noise, outcome is non-deterministic. Either all zeros or sums to 1.
+    // With fold-down + noise, outcome is non-deterministic but cannot gain histogram mass.
     val sum = distribution.values.sum()
-    assertThat(sum == 0.0 || Math.abs(sum - 1.0) < FLOAT_COMPARISON_TOLERANCE).isTrue()
+    assertThat(sum).isAtLeast(-FLOAT_COMPARISON_TOLERANCE)
+    assertThat(sum).isAtMost(1.0 + FLOAT_COMPARISON_TOLERANCE)
   }
 
   @Test
@@ -313,7 +331,7 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution suppresses bins where impression threshold not met`() {
+  fun `computeFrequencyDistribution preserves higher buckets when freq-1 fails min impressions`() {
     // Frequency 1: 5 users * 1 impression = 5 impressions
     // Frequency 2: 10 users * 2 impressions = 20 impressions
     // Frequency 3: 20 users * 3 impressions = 60 impressions
@@ -327,11 +345,10 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 15),
         vidSamplingIntervalWidth = 1.0,
       )
-    // freq1: 5*1=5 < 15 fails impressions, cannot fold lower. Only freq1 is suppressed.
-    // freq2 (10) and freq3 (20) pass, so they remain.
-    val totalAfterFold = 10.0 + 20.0
-    val expected = mapOf(1L to 0.0, 2L to 10.0 / totalAfterFold, 3L to 20.0 / totalAfterFold)
-    assertThat(distribution).isEqualTo(expected)
+
+    assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(10.0 / 35.0)
+    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(20.0 / 35.0)
   }
 
   @Test
@@ -359,7 +376,7 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `computeFrequencyDistribution fold-down with fractional vidSamplingIntervalWidth scales thresholds correctly`() {
+  fun `computeFrequencyDistribution preserves higher buckets using fractional VID width`() {
     // freq1=10, freq2=30, freq3=70
     // At vidSamplingIntervalWidth=0.5, estimated counts are doubled (count / 0.5):
     //   freq3: 70/0.5=140 >= 50 -> passes
@@ -375,11 +392,10 @@ class ReachAndFrequencyComputationsTest {
         resultMinimumThresholds = ResultMinimumThresholds(minUsers = 50, minImpressions = 5),
         vidSamplingIntervalWidth = 0.5,
       )
-    val totalAfterFold = 30.0 + 70.0
+
     assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
-    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(30.0 / totalAfterFold)
-    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(70.0 / totalAfterFold)
-    assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
+    assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(30.0 / 110.0)
+    assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(70.0 / 110.0)
   }
 
   @Test
@@ -489,6 +505,62 @@ class ReachAndFrequencyComputationsTest {
 
     assertThat(reach).isGreaterThan(0)
     assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
+  }
+
+  @Test
+  fun `computeFrequencyDistribution does not imply more impressions than source histogram`() {
+    data class Scenario(
+      val rawHistogram: LongArray,
+      val thresholds: ResultMinimumThresholds,
+      val vidSamplingIntervalWidth: Double,
+    )
+
+    val scenarios =
+      listOf(
+        // Populated 1+ bucket fails while sparse higher buckets pass.
+        Scenario(
+          rawHistogram = longArrayOf(8, 65, 0, 0, 25, 0, 0, 0, 12),
+          thresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 5),
+          vidSamplingIntervalWidth = 1.0,
+        ),
+        // A genuinely empty 1+ bucket does not reduce the displayed histogram mass.
+        Scenario(
+          rawHistogram = longArrayOf(0, 65, 0, 0, 25, 0, 0, 0, 12),
+          thresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 5),
+          vidSamplingIntervalWidth = 1.0,
+        ),
+        // Higher buckets fold down and retain every user.
+        Scenario(
+          rawHistogram = longArrayOf(100, 80, 40, 20, 5),
+          thresholds = ResultMinimumThresholds(minUsers = 30, minImpressions = 10),
+          vidSamplingIntervalWidth = 1.0,
+        ),
+        // The same invariant holds for a sampled multi-publisher histogram.
+        Scenario(
+          rawHistogram = longArrayOf(10, 30, 70),
+          thresholds = ResultMinimumThresholds(minUsers = 50, minImpressions = 5),
+          vidSamplingIntervalWidth = 0.5,
+        ),
+      )
+
+    for (scenario in scenarios) {
+      val distribution =
+        ReachAndFrequencyComputations.computeFrequencyDistribution(
+          rawHistogram = scenario.rawHistogram,
+          maxFrequency = scenario.rawHistogram.size,
+          noiser = NoNoise,
+          resultMinimumThresholds = scenario.thresholds,
+          vidSamplingIntervalWidth = scenario.vidSamplingIntervalWidth,
+        )
+      val scaledReach = scenario.rawHistogram.sum() / scenario.vidSamplingIntervalWidth
+      val impliedImpressions =
+        distribution.entries.sumOf { (frequency, rate) -> frequency * rate * scaledReach }
+      val sourceImpressions =
+        scenario.rawHistogram.withIndex().sumOf { (index, count) -> (index + 1L) * count } /
+          scenario.vidSamplingIntervalWidth
+
+      assertThat(impliedImpressions).isAtMost(sourceImpressions + FLOAT_COMPARISON_TOLERANCE)
+    }
   }
 
   companion object {

@@ -1,0 +1,108 @@
+# proto-file: wfa/measurement/config/edpaggregator/edp_configs.proto
+# proto-message: wfa.measurement.config.edpaggregator.EdpConfigs
+event_data_provider_config: {
+  data_provider: "dataProviders/MPxlwJmFW7A"
+  retention_days: 3650
+
+  kms_config: {
+    kms_type: GCP
+    kek_uri: "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
+    kms_audience: "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider-qa"
+    service_account: "primus-sa@halo-cmm-dev-edp.iam.gserviceaccount.com"
+  }
+
+  tls_config: {
+    tls_key_secret_id: "edp7-tls-key"
+    tls_key_local_path: "/tmp/edp_certs/edp7_tls.key"
+    tls_pem_secret_id: "edp7-tls-pem"
+    tls_pem_local_path: "/tmp/edp_certs/edp7_tls.pem"
+  }
+
+  consent_signaling_config: {
+    cert_der_secret_id: "edp7-cert-der"
+    cert_der_local_path: "/tmp/edp_certs/edp7_cs_cert.der"
+    enc_private_der_secret_id: "edp7-private-der"
+    enc_private_der_local_path: "/tmp/edp_certs/edp7_cs_private.der"
+    enc_private_secret_id: "edp7-enc-private"
+    enc_private_local_path: "/tmp/edp_certs/edp7_enc_private.tink"
+  }
+}
+event_data_provider_config: {
+  data_provider: "dataProviders/WLb7yRONEO4"
+
+  kms_config {
+    kms_type: AWS_CONFIDENTIAL_SPACE
+    aws_role_arn: "arn:aws:iam::010295286036:role/AwsSyntheticDataKmsRole"
+    aws_role_session_name: "edpa-meta-results-fulfiller"
+    aws_region: "us-east-1"
+    aws_audience: "https://halo-cmm.confidential-space"
+  }
+
+  tls_config: {
+    tls_key_secret_id: "edpa_meta-tls-key"
+    tls_key_local_path: "/tmp/edp_certs/edpa_meta_tls.key"
+    tls_pem_secret_id: "edpa_meta-tls-pem"
+    tls_pem_local_path: "/tmp/edp_certs/edpa_meta_tls.pem"
+  }
+
+  consent_signaling_config: {
+    cert_der_secret_id: "edpa_meta-cert-der"
+    cert_der_local_path: "/tmp/edp_certs/edpa_meta_cs_cert.der"
+    enc_private_der_secret_id: "edpa_meta-private-der"
+    enc_private_der_local_path: "/tmp/edp_certs/edpa_meta_cs_private.der"
+    enc_private_secret_id: "edpa_meta-enc-private"
+    enc_private_local_path: "/tmp/edp_certs/edpa_meta_enc_private.tink"
+  }
+}
+event_data_provider_config: {
+  data_provider: "dataProviders/FAROIT4Wkwc"
+
+  kms_config: {
+    kms_type: GCP
+    kek_uri: "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
+    kms_audience: "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider-qa"
+    service_account: "primus-sa@halo-cmm-dev-edp.iam.gserviceaccount.com"
+  }
+
+  tls_config: {
+    tls_key_secret_id: "edpa_video_pub-tls-key"
+    tls_key_local_path: "/tmp/edp_certs/edpa_video_pub_tls.key"
+    tls_pem_secret_id: "edpa_video_pub-tls-pem"
+    tls_pem_local_path: "/tmp/edp_certs/edpa_video_pub_tls.pem"
+  }
+
+  consent_signaling_config: {
+    cert_der_secret_id: "edpa_video_pub-cert-der"
+    cert_der_local_path: "/tmp/edp_certs/edpa_video_pub_cs_cert.der"
+    enc_private_der_secret_id: "edpa_video_pub-private-der"
+    enc_private_der_local_path: "/tmp/edp_certs/edpa_video_pub_cs_private.der"
+    enc_private_secret_id: "edpa_video_pub-enc-private"
+    enc_private_local_path: "/tmp/edp_certs/edpa_video_pub_enc_private.tink"
+  }
+}
+event_data_provider_config: {
+  data_provider: "dataProviders/YxARUD4Wzcg"
+
+  kms_config: {
+    kms_type: GCP
+    kek_uri: "gcp-kms://projects/halo-cmm-dev-edp/locations/global/keyRings/halo-cmm-dev-edp-enc-kr/cryptoKeys/halo-cmm-dev-edp-enc-key-"
+    kms_audience: "//iam.googleapis.com/projects/472172784441/locations/global/workloadIdentityPools/edp-workload-identity-pool/providers/edp-wip-provider-qa"
+    service_account: "primus-sa@halo-cmm-dev-edp.iam.gserviceaccount.com"
+  }
+
+  tls_config: {
+    tls_key_secret_id: "edpa_retail_pub-tls-key"
+    tls_key_local_path: "/tmp/edp_certs/edpa_retail_pub_tls.key"
+    tls_pem_secret_id: "edpa_retail_pub-tls-pem"
+    tls_pem_local_path: "/tmp/edp_certs/edpa_retail_pub_tls.pem"
+  }
+
+  consent_signaling_config: {
+    cert_der_secret_id: "edpa_retail_pub-cert-der"
+    cert_der_local_path: "/tmp/edp_certs/edpa_retail_pub_cs_cert.der"
+    enc_private_der_secret_id: "edpa_retail_pub-private-der"
+    enc_private_der_local_path: "/tmp/edp_certs/edpa_retail_pub_cs_private.der"
+    enc_private_secret_id: "edpa_retail_pub-enc-private"
+    enc_private_local_path: "/tmp/edp_certs/edpa_retail_pub_enc_private.tink"
+  }
+}

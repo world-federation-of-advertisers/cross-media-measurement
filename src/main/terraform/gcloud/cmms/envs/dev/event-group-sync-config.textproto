@@ -1,0 +1,125 @@
+# proto-file: wfa/measurement/config/edpaggregator/event_group_sync_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.EventGroupSyncConfigs
+configs {
+  data_provider: "dataProviders/T5RryPMNong"
+  event_groups_blob_uri: "gs://secure-computation-storage-dev-bucket/edp7/event-groups/edp7-event-group.binpb"
+  event_group_map_blob_uri: "gs://secure-computation-storage-dev-bucket/edp7/event-groups-map/edp7-event-group.binpb"
+  cmms_connection {
+    cert_file_path: "/secrets/cert/edp7_tls.pem"
+    private_key_file_path: "/secrets/key/edp7_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom_root.pem"
+  }
+  event_group_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage"
+    }
+  }
+  event_group_map_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage"
+    }
+  }
+  entity_key_types: "campaign"
+  entity_key_types: "creative-id"
+  entity_key_types: "ad_group"
+}
+configs {
+  data_provider: "dataProviders/J3-pzhqS9Lo"
+  event_groups_blob_uri: "gs://secure-computation-storage-dev-bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb"
+  event_group_map_blob_uri: "gs://secure-computation-storage-dev-bucket/edpa_meta/event-groups-map/edpa_meta-event-group.binpb"
+  cmms_connection {
+    cert_file_path: "/secrets/cert-edp2/edpa_meta_tls.pem"
+    private_key_file_path: "/secrets/key-edp2/edpa_meta_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom_root.pem"
+  }
+  event_group_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage"
+    }
+  }
+  event_group_map_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage"
+    }
+  }
+  entity_key_types: "campaign"
+  entity_key_types: "creative-id"
+  entity_key_types: "ad_group"
+}
+configs {
+  data_provider: "dataProviders/YeaFrRJNBFw"
+  event_groups_blob_uri: "gs://secure-computation-storage-dev-bucket/event_group_scale/event-groups/event-groups.json"
+  event_group_map_blob_uri: "gs://secure-computation-storage-dev-bucket/event_group_scale/event-groups-map/event-groups.binpb"
+  cmms_connection {
+    cert_file_path: "/secrets/cert-scale/event_group_scale_tls.pem"
+    private_key_file_path: "/secrets/key-scale/event_group_scale_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom_root.pem"
+  }
+  event_group_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage-dev-bucket"
+    }
+  }
+  event_group_map_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage-dev-bucket"
+    }
+  }
+  entity_key_types: "campaign"
+}
+configs {
+  data_provider: "dataProviders/KYq_ciWaP94"
+  event_groups_blob_uri: "gs://secure-computation-storage-dev-bucket/edpa_video_pub/event-groups/edpa_video_pub-event-group.binpb"
+  event_group_map_blob_uri: "gs://secure-computation-storage-dev-bucket/edpa_video_pub/event-groups-map/edpa_video_pub-event-group.binpb"
+  cmms_connection {
+    cert_file_path: "/secrets/cert-video/edpa_video_pub_tls.pem"
+    private_key_file_path: "/secrets/key-video/edpa_video_pub_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom_root.pem"
+  }
+  event_group_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage"
+    }
+  }
+  event_group_map_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage"
+    }
+  }
+  entity_key_types: "campaign"
+  entity_key_types: "creative-id"
+  entity_key_types: "ad_group"
+}
+configs {
+  data_provider: "dataProviders/bvIQ5SrPwhk"
+  event_groups_blob_uri: "gs://secure-computation-storage-dev-bucket/edpa_retail_pub/event-groups/edpa_retail_pub-event-group.binpb"
+  event_group_map_blob_uri: "gs://secure-computation-storage-dev-bucket/edpa_retail_pub/event-groups-map/edpa_retail_pub-event-group.binpb"
+  cmms_connection {
+    cert_file_path: "/secrets/cert-retail/edpa_retail_pub_tls.pem"
+    private_key_file_path: "/secrets/key-retail/edpa_retail_pub_tls.key"
+    cert_collection_file_path: "/secrets/ca/kingdom_root.pem"
+  }
+  event_group_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage"
+    }
+  }
+  event_group_map_storage {
+    gcs {
+      project_id: "halo-cmm-dev"
+      bucket_name: "secure-computation-storage"
+    }
+  }
+  entity_key_types: "campaign"
+  entity_key_types: "creative-id"
+  entity_key_types: "ad_group"
+}

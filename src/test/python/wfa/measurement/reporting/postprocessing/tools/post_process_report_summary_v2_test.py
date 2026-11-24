@@ -37,6 +37,49 @@ from tools.potential_direct_result_minimum_thresholds import (
 
 
 class TestPostProcessReportSummaryV2(unittest.TestCase):
+
+
+    def test_validation_only_checks_original_report_quality(self):
+        summary = text_format.Parse(
+            '''
+            population: 1000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              cumulative_results {
+                reach { value: 10 standard_deviation: 0 metric: "cumulative-reach" }
+              }
+              whole_campaign_result {
+                reach { value: 10 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 20 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count { value: 20 standard_deviation: 0 metric: "impressions" }
+              }
+            }
+            ''',
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+        processor = ReportSummaryV2Processor(
+            summary, [], enable_validation=True, enable_correction=False
+        )
+
+        result = processor.process()
+
+        self.assertEqual(
+            result.status.status_code, StatusCode.CORRECTION_SKIPPED
+        )
+        self.assertEqual(result.pre_correction_report_summary_v2, summary)
+        self.assertEqual(
+            result.pre_correction_quality.zero_variance_measurements_status,
+            report_post_processor_result_pb2.ReportQuality.INCONSISTENT,
+        )
+        self.assertTrue(processor.pre_correction_constraint_violations)
+        self.assertFalse(result.HasField("post_correction_quality"))
+        self.assertFalse(result.updated_measurements)
+
     def test_empty_direct_histogram_can_be_corrected_to_match_reach(self):
         report_summary = text_format.Parse(
             """
@@ -74,6 +117,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             data_provider_ids_by_reporting_set_id={
                 "provider-one": {"edp-one"}
             },
+            enable_validation=True,
+            enable_correction=True,
         ).process()
 
         self.assertEqual(
@@ -85,6 +130,68 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             result.updated_measurements["frequency-bin-1"]
             + result.updated_measurements["frequency-bin-2"],
             480,
+        )
+
+    def test_direct_histogram_with_suppressed_one_plus_can_be_corrected(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              whole_campaign_result {
+                reach { value: 110 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 30 standard_deviation: 0 } }
+                  bins { key: 3 value { value: 70 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 280
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
+            enable_validation=True,
+            enable_correction=True,
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertAlmostEqual(
+            result.updated_measurements["frequency-bin-1"],
+            10,
+            delta=NOISE_CORRECTION_TOLERANCE,
+        )
+        self.assertAlmostEqual(
+            result.updated_measurements["frequency-bin-2"],
+            30,
+            delta=NOISE_CORRECTION_TOLERANCE,
+        )
+        self.assertAlmostEqual(
+            result.updated_measurements["frequency-bin-3"],
+            70,
+            delta=NOISE_CORRECTION_TOLERANCE,
         )
 
     def test_zero_direct_cumulative_reach_can_be_corrected(self):
@@ -125,6 +232,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             data_provider_ids_by_reporting_set_id={
                 "provider-one": {"edp-one"}
             },
+            enable_validation=True,
+            enable_correction=True,
         ).process()
 
         self.assertEqual(
@@ -177,6 +286,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                 "provider-one": {"edp-one"},
                 "provider-two": {"edp-two"},
             },
+            enable_validation=True,
+            enable_correction=True,
         ).process()
 
         self.assertEqual(
@@ -222,6 +333,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             data_provider_ids_by_reporting_set_id={
                 "provider-one": {"edp-one"}
             },
+            enable_validation=True,
+            enable_correction=True,
         ).process()
 
         self.assertEqual(
@@ -278,6 +391,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
                 "provider-one-a": {"edp-one"},
                 "provider-one-b": {"edp-one"},
             },
+            enable_validation=True,
+            enable_correction=True,
         ).process()
 
         self.assertEqual(
@@ -325,6 +440,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             data_provider_ids_by_reporting_set_id={
                 "provider-one-two": {"edp-one", "edp-two"}
             },
+            enable_validation=True,
+            enable_correction=True,
         ).process()
 
         self.assertEqual(
@@ -370,6 +487,8 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             data_provider_ids_by_reporting_set_id={
                 "provider-one": {"edp-one"}
             },
+            enable_validation=True,
+            enable_correction=True,
         ).process()
 
         self.assertEqual(
@@ -417,7 +536,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary_v2_pb2.ReportSummaryV2(),
         )
 
-        result = ReportSummaryV2Processor(report_summary, []).process()
+        result = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
 
         self.assertEqual(
             result.status.status_code,
@@ -432,7 +551,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = get_report_summary_v2(
             'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
         )
-        reportSummaryProcessor = ReportSummaryV2Processor(report_summary, [])
+        reportSummaryProcessor = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True)
 
         reportSummaryProcessor._process_union_results()
 
@@ -971,7 +1090,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = get_report_summary_v2(
             'src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto'
         )
-        reportSummaryProcessor = ReportSummaryV2Processor(report_summary, [])
+        reportSummaryProcessor = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True)
 
         edp1 = frozenset({'EDP_ONE'})
         edp2 = frozenset({'EDP_TWO'})
@@ -1889,7 +2008,10 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             "src/test/python/wfa/measurement/reporting/postprocessing/tools/sample_report_summary_v2.textproto"
         )
         report_post_processor_result = ReportSummaryV2Processor(
-            report_summary_v2, []).process()
+            report_summary_v2, [],
+            enable_validation=True,
+            enable_correction=True,
+        ).process()
 
         self.assertEqual(
             report_post_processor_result.pre_correction_report_summary_v2,
@@ -1946,14 +2068,16 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         )
 
         # Case 1: No exemption. AMI should be corrected to 200.
-        result_no_exemption = ReportSummaryV2Processor(report_summary, []).process()
+        result_no_exemption = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
         self.assertEqual(result_no_exemption.updated_measurements["ami_reach"],
                             200)
 
         # Case 2: Exemption for edp1. AMI reach remains 100.
         result_with_exemption = ReportSummaryV2Processor(
             report_summary,
-            ami_mrc_exempted_reporting_set_ids=["reporting_set_id_edp1"]
+            ami_mrc_exempted_reporting_set_ids=["reporting_set_id_edp1"],
+            enable_validation=True,
+            enable_correction=True,
         ).process()
         self.assertEqual(result_with_exemption.updated_measurements["ami_reach"],
                             100)
@@ -2006,7 +2130,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary_v2_pb2.ReportSummaryV2(),
         )
 
-        result = ReportSummaryV2Processor(report_summary, []).process()
+        result = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
 
         # Both metric names present, both equal to the solver's single
         # per-bucket solved value. Without alias propagation, only the
@@ -2082,7 +2206,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             report_summary_v2_pb2.ReportSummaryV2(),
         )
 
-        result = ReportSummaryV2Processor(report_summary, []).process()
+        result = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
 
         for name in ("anchor_dp1_reach", "anchor_dp2_reach",
                      "anchor_dp3_reach"):
@@ -2153,7 +2277,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = text_format.Parse(
             proto, report_summary_v2_pb2.ReportSummaryV2()
         )
-        result = ReportSummaryV2Processor(report_summary, []).process()
+        result = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
         # Every measurement should be present in updated_measurements with its
         # unchanged value (sigma=0 means no correction).
         self.assertEqual(result.updated_measurements["cum_w1_reach"], 1454)
@@ -2220,7 +2344,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = text_format.Parse(
             proto, report_summary_v2_pb2.ReportSummaryV2()
         )
-        result = ReportSummaryV2Processor(report_summary, []).process()
+        result = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
         # With sigma=0 and the partial-per-EDP-cover constraint skipped, every impression
         # value flows through unchanged. Pre-fix, union_impr would be adjusted
         # down to edp1_impr + edp2_impr = 15000 (not 30000).
@@ -2285,7 +2409,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = text_format.Parse(
             proto, report_summary_v2_pb2.ReportSummaryV2()
         )
-        result = ReportSummaryV2Processor(report_summary, []).process()
+        result = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
         # Pre-fix, union_nc_impr would be adjusted down to edp1_nc_impr +
         # edp2_nc_impr = 15000 (not 30000). Post-fix, every impression flows
         # through unchanged.
@@ -2424,7 +2548,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
         report_summary = text_format.Parse(
             proto, report_summary_v2_pb2.ReportSummaryV2()
         )
-        result = ReportSummaryV2Processor(report_summary, []).process()
+        result = ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
 
         # Cumulative reach: exercises _record_measurement_list_aliases. Both
         # a_* and b_* names must be present with equal values.
@@ -2530,7 +2654,7 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             proto, report_summary_v2_pb2.ReportSummaryV2()
         )
         with self.assertRaises(ValueError) as ctx:
-            ReportSummaryV2Processor(report_summary, []).process()
+            ReportSummaryV2Processor(report_summary, [], enable_validation=True, enable_correction=True).process()
         self.assertIn("must agree on cadence length", str(ctx.exception))
 
 

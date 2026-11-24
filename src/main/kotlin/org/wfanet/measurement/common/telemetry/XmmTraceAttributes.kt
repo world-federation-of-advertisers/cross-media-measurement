@@ -25,6 +25,7 @@ object XmmTraceAttributes {
   const val WORK_ITEM_NAME_STRING = "xmm.work_item.name"
   const val WORK_ITEM_ATTEMPT_NAME_STRING = "xmm.work_item_attempt.name"
   const val WORK_ITEM_GENERATION_STRING = "xmm.work_item.generation"
+  const val WORK_ITEM_PUBLICATION_ATTEMPT_STRING = "xmm.work_item.publication_attempt"
   const val LIFECYCLE_STAGE_STRING = "xmm.lifecycle.stage"
   const val OUTCOME_STRING = "xmm.outcome"
   const val ERROR_TYPE_STRING = "xmm.error.type"
@@ -34,6 +35,8 @@ object XmmTraceAttributes {
   val WORK_ITEM_ATTEMPT_NAME: AttributeKey<String> =
     AttributeKey.stringKey(WORK_ITEM_ATTEMPT_NAME_STRING)
   val WORK_ITEM_GENERATION: AttributeKey<Long> = AttributeKey.longKey(WORK_ITEM_GENERATION_STRING)
+  val WORK_ITEM_PUBLICATION_ATTEMPT: AttributeKey<Long> =
+    AttributeKey.longKey(WORK_ITEM_PUBLICATION_ATTEMPT_STRING)
   val LIFECYCLE_STAGE: AttributeKey<String> = AttributeKey.stringKey(LIFECYCLE_STAGE_STRING)
   val OUTCOME: AttributeKey<String> = AttributeKey.stringKey(OUTCOME_STRING)
   val ERROR_TYPE: AttributeKey<String> = AttributeKey.stringKey(ERROR_TYPE_STRING)

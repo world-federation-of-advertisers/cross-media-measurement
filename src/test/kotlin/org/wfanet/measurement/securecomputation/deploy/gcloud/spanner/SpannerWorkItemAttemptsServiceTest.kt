@@ -36,6 +36,7 @@ import org.junit.Test
 import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
@@ -676,8 +677,56 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
         .workItemAttemptsList
 
     assertThat(replacement.generation).isEqualTo(original.generation + 1L)
+    assertThat(originalAttempt.workItemGeneration).isEqualTo(original.generation)
+    assertThat(currentAttempt.workItemGeneration).isEqualTo(replacement.generation)
+    assertThat(attempts.associate { it.workItemAttemptResourceId to it.workItemGeneration })
+      .containsExactly(
+        originalAttempt.workItemAttemptResourceId,
+        original.generation,
+        currentAttempt.workItemAttemptResourceId,
+        replacement.generation,
+      )
     assertThat(currentAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
     assertThat(attempts.count { it.state == WorkItemAttempt.State.ACTIVE }).isEqualTo(1)
+  }
+
+  @Test
+  fun `list migrated attempt without generation reports unknown`() = runBlocking {
+    val services = initServices(TestConfig.QUEUE_MAPPING, IdGenerator.Default, RecordingPublisher())
+    val workItem =
+      services.workItemsService.createWorkItem(
+        createWorkItemRequest {
+          this.workItem = workItem {
+            workItemResourceId = "legacy-attempt-work-item"
+            queueResourceId = QUEUE_RESOURCE_ID
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    services.service.createWorkItemAttempt(
+      createWorkItemAttemptRequest {
+        expectedWorkItemGeneration = workItem.generation
+        workItemAttempt = workItemAttempt {
+          workItemResourceId = workItem.workItemResourceId
+          workItemAttemptResourceId = "legacy-attempt"
+        }
+      }
+    )
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.executeUpdate(
+        statement("UPDATE WorkItemAttempts SET Generation = NULL WHERE TRUE") {}
+      )
+    }
+
+    val listedAttempt =
+      services.service
+        .listWorkItemAttempts(
+          listWorkItemAttemptsRequest { workItemResourceId = workItem.workItemResourceId }
+        )
+        .workItemAttemptsList
+        .single()
+
+    assertThat(listedAttempt.workItemGeneration).isEqualTo(0L)
   }
 
   companion object {
