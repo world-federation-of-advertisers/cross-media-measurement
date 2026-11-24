@@ -347,6 +347,15 @@ class SafeTelemetryText(private val fieldNames: Set<String>) {
     }
   }
 
+  /** Returns every occurrence of an allowlisted field, preserving order. */
+  fun fieldValues(text: String, name: String): List<String> {
+    return pattern
+      .findAll(text)
+      .filter { it.groupValues[1] == name }
+      .map { it.groupValues[2] }
+      .toList()
+  }
+
   companion object {
     fun markdown(value: String): String {
       return value.replace("|", "\\|").replace("`", "'").replace("\r", " ").replace("\n", " ")

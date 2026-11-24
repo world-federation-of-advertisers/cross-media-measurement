@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db
 
-import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
@@ -47,29 +46,32 @@ data class ReportingSetResultResult(
   val reportingSetResult: ReportingSetResult,
 )
 
-suspend fun AsyncDatabaseClient.ReadContext.reportingSetResultExists(
+/** Reads the existing internal ReportingSetResult IDs among [reportingSetResultIds]. */
+suspend fun AsyncDatabaseClient.ReadContext.readExistingReportingSetResultIds(
   measurementConsumerId: Long,
   reportResultId: Long,
-  reportingSetResultId: Long,
-): Boolean {
-  return readRow(
-    "ReportingSetResults",
-    Key.of(measurementConsumerId, reportResultId, reportingSetResultId),
-    listOf("ReportResultId"),
-  ) != null
-}
-
-suspend fun AsyncDatabaseClient.ReadContext.reportingSetResultExistsByExternalId(
-  measurementConsumerId: Long,
-  reportResultId: Long,
-  externalReportingSetResultId: Long,
-): Boolean {
-  return readRowUsingIndex(
-    "ReportingSetResults",
-    "ReportingSetResultsByExternalId",
-    Key.of(measurementConsumerId, reportResultId, externalReportingSetResultId),
-    listOf("ReportResultId"),
-  ) != null
+  reportingSetResultIds: Iterable<Long>,
+): Set<Long> {
+  val query =
+    statement(
+      """
+    SELECT ReportingSetResultId
+    FROM ReportingSetResults
+    WHERE MeasurementConsumerId = @measurementConsumerId
+      AND ReportResultId = @reportResultId
+      AND ReportingSetResultId IN UNNEST(@reportingSetResultIds)
+    """
+        .trimIndent()
+    ) {
+      bind("measurementConsumerId").to(measurementConsumerId)
+      bind("reportResultId").to(reportResultId)
+      bind("reportingSetResultIds").toInt64Array(reportingSetResultIds)
+    }
+  return buildSet {
+    executeQuery(query, Options.tag("action=readExistingReportingSetResultIds")).collect {
+      add(it.getLong("ReportingSetResultId"))
+    }
+  }
 }
 
 /**
