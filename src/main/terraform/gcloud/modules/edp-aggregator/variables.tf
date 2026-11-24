@@ -305,7 +305,13 @@ variable "data_watcher_delete_trigger_service_account_name" {
 }
 
 variable "terraform_service_account" {
-  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  description = "Email of the Terraform deployment service account."
+  type        = string
+  nullable    = false
+}
+
+variable "terraform_logging_notification_rules_role" {
+  description = "Project custom role ID granting the Terraform deployment identity logging.notificationRules create, delete, get, list, and update permissions."
   type        = string
   nullable    = false
 }
