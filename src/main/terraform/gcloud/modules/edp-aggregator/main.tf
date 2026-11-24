@@ -187,10 +187,31 @@ locals {
 }
 
 locals {
-  # Changed protocol/packing settings cannot be applied online to active work.
-  # A successful-cutover receipt binds this identity to verified serving revisions.
+  vid_labeling_repository_root = "${path.module}/../../../../../.."
+  # Wire, persistence and object-layout sources that old readers and new writers
+  # must share: EDPA public/internal protos, Spanner changesets and the code that
+  # names, encrypts, frames and publishes Phase 0/1/2 storage objects.
+  vid_labeling_contract_sources = sort(concat(
+    tolist(fileset(local.vid_labeling_repository_root, "src/main/proto/wfa/measurement/edpaggregator/**/*.proto")),
+    tolist(fileset(local.vid_labeling_repository_root, "src/main/proto/wfa/measurement/internal/edpaggregator/**/*.proto")),
+    tolist(fileset(local.vid_labeling_repository_root, "src/main/resources/edpaggregator/spanner/**")),
+    [
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/EncryptedStorage.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/EncryptedRecordIoStore.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/RankIndexStore.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/SubpoolFingerprintsStore.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/LabeledImpressionsBlobKey.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/VidLabelingSink.kt",
+    ],
+  ))
+  # Any changed contract source or packing/routing configuration requires the
+  # checked maintenance path. A successful-cutover receipt binds this identity
+  # to verified serving revisions.
   vid_labeling_contract_id = sha256(jsonencode({
-    protocol             = "wfa-edpa-vid-immutable-v1"
+    sources = {
+      for source in local.vid_labeling_contract_sources :
+      source => filesha256("${local.vid_labeling_repository_root}/${source}")
+    }
     dispatcher           = filesha256(var.vid_labeling_dispatcher_config.local_path)
     monitor              = filesha256(var.vid_labeling_monitor_config.local_path)
     availability_monitor = filesha256(var.data_availability_monitor_config.local_path)
@@ -198,8 +219,20 @@ locals {
     data_watcher_delete  = filesha256(var.data_watcher_delete_config.local_path)
     availability         = filesha256(var.data_availability_sync_config.local_path)
   }))
+  # Exactly the functions that terraform_data.vid_labeling_reader_readiness
+  # depends on; unrelated functions must not enter the reader gate.
+  vid_labeling_rollout_roles = [
+    "data_availability_cleanup",
+    "data_availability_monitor",
+    "data_availability_sync",
+    "data_watcher",
+    "data_watcher_delete",
+    "vid_labeling_dispatcher",
+    "vid_labeling_healing_controller",
+    "vid_labeling_monitor",
+  ]
   vid_labeling_rollout_functions = [
-    for role in sort(keys(var.cloud_function_configs)) : {
+    for role in local.vid_labeling_rollout_roles : {
       role            = role
       name            = var.cloud_function_configs[role].function_name
       artifact_sha256 = filesha256(var.cloud_function_configs[role].uber_jar_path)
@@ -389,7 +422,7 @@ module "requisition_fetcher_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars                           = join(",", compact([var.cloud_function_configs.requisition_fetcher.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
+  extra_env_vars                           = var.cloud_function_configs.requisition_fetcher.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
   secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
@@ -425,7 +458,7 @@ module "event_group_sync_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.event_group_sync.function_name
   entry_point                              = var.cloud_function_configs.event_group_sync.entry_point
-  extra_env_vars                           = join(",", compact([var.cloud_function_configs.event_group_sync.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
+  extra_env_vars                           = var.cloud_function_configs.event_group_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.event_group_sync.uber_jar_path
   secrets_to_access = concat(

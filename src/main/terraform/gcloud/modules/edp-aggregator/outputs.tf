@@ -25,13 +25,11 @@ output "work_item_tee_mig_names" {
 output "vid_labeling_rollout_manifest" {
   description = "Terraform-owned function, worker and protocol/config identity for checked VID cutover."
   value = {
-    schema_version   = 1
-    project          = data.google_project.project.id
-    region           = data.google_client_config.default.region
-    spanner_instance = var.spanner_instance_name
-    spanner_database = var.spanner_database_name
-    contract_id      = local.vid_labeling_contract_id
-    functions        = local.vid_labeling_rollout_functions
+    schema_version = 1
+    project        = data.google_project.project.id
+    region         = data.google_client_config.default.region
+    contract_id    = local.vid_labeling_contract_id
+    functions      = local.vid_labeling_rollout_functions
     queues = concat(
       [for key in sort(keys(var.vid_labeling_workers)) : "queues/${var.vid_labeling_workers[key].queue.topic_name}"],
       ["queues/data-availability-sync-queue"]

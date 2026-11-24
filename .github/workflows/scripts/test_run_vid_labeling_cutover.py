@@ -227,50 +227,153 @@ class CutoverTest(unittest.TestCase):
         self.assertEqual(result["status"], "READY")
         self.assertEqual(result["request_id"], journal["request_id"])
 
-    def test_missing_shared_schema_api_or_deployment_input_changes_identity(self):
-        from run_vid_labeling_cutover import shared_platform_inputs
-        paths = ["src/main/proto/wfa/measurement/internal/securecomputation/controlplane/work_item.proto",
-                 "src/main/proto/wfa/measurement/internal/kingdom/job.proto",
-                 "src/main/resources/securecomputation/spanner/schema.sql",
-                 "src/main/k8s/dev/kingdom.cue", "src/main/terraform/gcloud/cmms/envs/dev.tfvars",
-                 "src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/Services.kt",
-                 "MODULE.bazel", ".github/workflows/configure-secure-computation-control-plane.yml"]
-        for path in paths:
-            with self.subTest(path=path):
-                first = "100644 blob " + "a"*40 + "\t" + path
-                second = "100644 blob " + "b"*40 + "\t" + path
-                self.assertNotEqual(shared_platform_inputs(first), shared_platform_inputs(second))
-
-
-    def test_shared_build_modification_addition_and_deletion_change_identity(self):
+    @staticmethod
+    def identity(tree, labels):
         import hashlib
         from run_vid_labeling_cutover import shared_platform_inputs
-        def identity(tree):
-            return hashlib.sha256("\n".join(shared_platform_inputs(tree)).encode()).hexdigest()
-        baseline = "100644 blob " + "a"*40 + "\tsrc/main/kotlin/org/wfanet/measurement/kingdom/App.kt"
-        paths = ["build/defs.bzl", "imports/java/com/google/BUILD.bazel",
-                 "third_party/rbe_configs/cc/cc_toolchain_config.bzl", "BUILD.bazel",
-                 ".bazelversion", "maven_install.json", "container.bazelrc",
-                 "maven.bazelrc", "remote.bazelrc", "results.bazelrc",
-                 "future/shared-build-input.toml"]
+        return hashlib.sha256("\n".join(shared_platform_inputs(tree, labels)).encode()).hexdigest()
+
+    @staticmethod
+    def tree(entries):
+        return "\n".join("100644 blob " + blob * 40 + "\t" + path for path, blob in entries)
+
+    def test_unrelated_repository_changes_do_not_change_shared_identity(self):
+        shared = "src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/Services.kt"
+        labels = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:Services.kt",
+                  "@maven//:com_google_guava_guava"]
+        baseline = [(shared, "a"), ("MODULE.bazel.lock", "a")]
+        for path in ["docs/edpaggregator/deployment-guide.md",
+                     "src/test/kotlin/org/wfanet/measurement/kingdom/AppTest.kt",
+                     "src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha/Reports.kt",
+                     "src/main/k8s/testing/secretfiles/fixture.pem"]:
+            with self.subTest(path=path):
+                self.assertEqual(self.identity(self.tree(baseline), labels),
+                                 self.identity(self.tree(baseline + [(path, "b")]), labels))
+
+    def test_deployed_shared_source_build_and_lock_changes_change_identity(self):
+        labels = ["//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:Services.kt",
+                  "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item.proto",
+                  "//build:defs.bzl", "//src/main/kotlin/org/wfanet/measurement/common:BUILD.bazel"]
+        paths = ["src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/Services.kt",
+                 "src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha/work_item.proto",
+                 "build/defs.bzl", "src/main/kotlin/org/wfanet/measurement/common/BUILD.bazel",
+                 "MODULE.bazel", "MODULE.bazel.lock", "maven_install.json"]
         for path in paths:
             with self.subTest(path=path):
-                original = baseline + "\n100644 blob " + "b"*40 + "\t" + path
-                changed = baseline + "\n100644 blob " + "c"*40 + "\t" + path
-                self.assertNotEqual(identity(original), identity(changed))
-                self.assertNotEqual(identity(baseline), identity(original))  # Addition.
-                self.assertNotEqual(identity(original), identity(baseline))  # Deletion.
+                self.assertNotEqual(self.identity(self.tree([(path, "a")]), labels),
+                                    self.identity(self.tree([(path, "b")]), labels))
+                self.assertNotEqual(self.identity(self.tree([]), labels),
+                                    self.identity(self.tree([(path, "a")]), labels))
 
-    def test_only_explicit_edpa_directories_are_excluded_from_shared_inputs(self):
+    def test_edpa_inputs_are_left_to_the_contract_identity(self):
         from run_vid_labeling_cutover import shared_platform_inputs
-        for path in ["src/main/kotlin/org/wfanet/measurement/edpaggregator/App.kt",
-                     "src/main/proto/wfa/measurement/edpaggregator/job.proto",
-                     "src/main/proto/wfa/measurement/internal/edpaggregator/job.proto",
-                     "src/main/resources/edpaggregator/spanner/schema.sql"]:
+        paths = ["src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/VidLabelingSink.kt",
+                 "src/main/proto/wfa/measurement/edpaggregator/v1alpha/vid_labeling_job.proto",
+                 "src/main/proto/wfa/measurement/internal/edpaggregator/vid_labeling_job.proto",
+                 "src/main/resources/edpaggregator/spanner/changelog.yaml"]
+        labels = ["//" + path.rsplit("/", 1)[0] + ":" + path.rsplit("/", 1)[1] for path in paths]
+        for path in paths:
             with self.subTest(path=path):
-                self.assertEqual(shared_platform_inputs("100644 blob "+"a"*40+"\t"+path), [])
-        path = "src/main/kotlin/org/wfanet/measurement/edpaggregator_shared/App.kt"
-        self.assertTrue(shared_platform_inputs("100644 blob "+"a"*40+"\t"+path))
+                self.assertEqual(shared_platform_inputs(self.tree([(path, "a")]), labels), [])
+
+    def test_shared_inputs_come_from_the_deployed_target_query(self):
+        from run_vid_labeling_cutover import deployed_input_labels, DEPLOYED_TARGETS
+        calls = []
+        class Result:
+            stdout = "//a:b.kt\n@x//:y\n"
+        def execute(argv, **kwargs):
+            calls.append(argv)
+            return Result()
+        self.assertEqual(deployed_input_labels(execute), ["//a:b.kt", "@x//:y"])
+        self.assertEqual(calls[0][:2], ["bazelisk", "query"])
+        for target in DEPLOYED_TARGETS:
+            self.assertIn(target, calls[0][2])
+        self.assertIn("buildfiles(deps(", calls[0][2])
+
+    def reserved(self, mode, previous):
+        from run_vid_labeling_cutover import claim_receipt
+        state = {}
+        def write(value, expected):
+            state.update(value=value, generation=expected + 1)
+            return expected + 1
+        owner, generation = claim_receipt(mode, self.manifest, previous, 10 if previous else 0,
+                                          write, ready=lambda *_: None)
+        return owner, generation, state["value"]
+
+    def test_abort_after_crash_releases_intake_and_restores_preceding_receipt(self):
+        from run_vid_labeling_cutover import abort, claim_receipt
+        previous = dict(self.manifest, status="READY", scope_id=scope_id(self.manifest))
+        # Crash immediately after reservation, and crash after the publisher pause.
+        for paused in (False, True):
+            with self.subTest(paused=paused):
+                owner, generation, receipt = self.reserved("maintenance", previous)
+                publisher = {"paused_by": owner if paused else None}
+                def release():
+                    publisher["paused_by"] = owner  # Idempotent replay of the owner's pause.
+                    publisher["paused_by"] = None   # Owner-matched resume.
+                restored = []
+                abort(receipt, generation, owner, release,
+                      lambda value, expected: restored.append((value, expected)),
+                      lambda expected: self.fail("first-receipt removal"))
+                self.assertIsNone(publisher["paused_by"])
+                self.assertEqual(restored, [(previous, generation)])
+                # The restored READY receipt admits the next begin.
+                claim_receipt("maintenance", self.manifest, restored[0][0], generation + 1,
+                              lambda value, expected: expected + 1)
+
+    def test_abort_removes_a_first_receipt_and_skips_intake_for_online(self):
+        from run_vid_labeling_cutover import abort
+        owner, generation, receipt = self.reserved("maintenance", None)
+        removed = []
+        abort(receipt, generation, owner, lambda: None,
+              lambda *_: self.fail("restore"), removed.append)
+        self.assertEqual(removed, [generation])
+        previous = dict(self.manifest, status="READY", scope_id=scope_id(self.manifest))
+        owner, generation, receipt = self.reserved("online", previous)
+        abort(receipt, generation, owner, lambda: self.fail("online never paused"),
+              lambda *_: None, lambda _: self.fail("remove"))
+
+    def test_abort_rejects_foreign_owner_or_later_state(self):
+        from run_vid_labeling_cutover import abort
+        previous = dict(self.manifest, status="READY", scope_id=scope_id(self.manifest))
+        owner, generation, receipt = self.reserved("maintenance", previous)
+        cases = [(receipt, "other")] + [(dict(receipt, status=status), owner)
+                                        for status in ("IN_PROGRESS", "VERIFIED", "READY")]
+        for value, requester in cases:
+            with self.subTest(status=value["status"], owner=requester), self.assertRaises(RuntimeError):
+                abort(value, generation, requester, lambda: self.fail("foreign release"),
+                      lambda *_: self.fail("foreign restore"), lambda _: self.fail("foreign remove"))
+
+    def test_failed_begin_releases_ownership_then_reraises(self):
+        from run_vid_labeling_cutover import guarded_begin
+        events = []
+        def failing_preflight():
+            events.append("pause")
+            raise RuntimeError("preflight failed")
+        with self.assertRaises(RuntimeError):
+            guarded_begin(failing_preflight, lambda: events.append("release"))
+        self.assertEqual(events, ["pause", "release"])
+        self.assertEqual(guarded_begin(lambda: "journal", lambda: self.fail("release")), "journal")
+
+    def test_conditional_delete_targets_the_exact_generation(self):
+        from run_vid_labeling_cutover import delete_object
+        requests = []
+        class Result:
+            stdout = "token"
+        class Response:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+        def opener(request, timeout):
+            requests.append(request)
+            return Response()
+        delete_object("gs://b/rollout/env/vid-cutover.json", 11, lambda *a, **k: Result(), opener)
+        self.assertEqual(requests[0].get_method(), "DELETE")
+        self.assertIn("ifGenerationMatch=11", requests[0].full_url)
+        self.assertIn("/o/rollout%2Fenv%2Fvid-cutover.json?", requests[0].full_url)
+        with self.assertRaises(RuntimeError):
+            delete_object("gs://b/rollout/env/vid-cutover.json", 0, lambda *a, **k: Result(), opener)
 
     def test_manifest_output_round_trips_through_github_output(self):
         from pathlib import Path
@@ -289,9 +392,40 @@ class CutoverTest(unittest.TestCase):
         from pathlib import Path
         root = Path(__file__).resolve().parents[3]
         text = (root/"src/main/terraform/gcloud/modules/edp-aggregator/main.tf").read_text()
-        identity = text[text.index("vid_labeling_contract_id"):text.index("vid_labeling_rollout_functions")]
+        identity = text[text.index("vid_labeling_contract_sources"):text.index("vid_labeling_rollout_roles")]
         self.assertIn("filesha256(var.vid_labeling_monitor_config.local_path)",identity)
         self.assertIn("filesha256(var.data_availability_monitor_config.local_path)",identity)
+
+    def test_storage_sources_include_their_encryption_and_container_libraries(self):
+        import re
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[3]
+        text = (root/"src/main/terraform/gcloud/modules/edp-aggregator/main.tf").read_text()
+        identity = text[text.index("vid_labeling_contract_sources"):text.index("vid_labeling_rollout_roles")]
+        listed = set(re.findall(r'"(src/main/kotlin/[^"]+\.kt)"', identity))
+        edpa = root/"src/main/kotlin/org/wfanet/measurement/edpaggregator"
+        # Every in-repo Encrypted* library used by a listed storage source shares its format.
+        for source in sorted(listed):
+            for name in set(re.findall(r"\b(Encrypted[A-Za-z]+)\b", (root/source).read_text())):
+                for match in edpa.glob("**/" + name + ".kt"):
+                    with self.subTest(source=source, dependency=name):
+                        self.assertIn(str(match.relative_to(root)), listed)
+
+    def test_contract_identity_hashes_wire_schema_and_storage_sources(self):
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[3]
+        text = (root/"src/main/terraform/gcloud/modules/edp-aggregator/main.tf").read_text()
+        identity = text[text.index("vid_labeling_contract_sources"):text.index("vid_labeling_rollout_roles")]
+        for pattern in ['"src/main/proto/wfa/measurement/edpaggregator/**/*.proto"',
+                        '"src/main/proto/wfa/measurement/internal/edpaggregator/**/*.proto"',
+                        '"src/main/resources/edpaggregator/spanner/**"']:
+            self.assertIn(pattern, identity)
+        for source in ["EncryptedStorage.kt", "EncryptedRecordIoStore.kt", "RankIndexStore.kt",
+                       "SubpoolFingerprintsStore.kt", "LabeledImpressionsBlobKey.kt",
+                       "VidLabelingSink.kt"]:
+            path = next(root.glob("src/main/kotlin/org/wfanet/measurement/edpaggregator/**/" + source))
+            self.assertIn(str(path.relative_to(root)), identity)
+        self.assertNotIn("protocol", identity.split("vid_labeling_contract_id", 1)[1])
 
 
 class WorkflowWiringTest(unittest.TestCase):
@@ -328,6 +462,20 @@ class WorkflowWiringTest(unittest.TestCase):
         gate = source[source.index('resource "terraform_data" "vid_labeling_reader_readiness"'):start]
         self.assertIn("--functions-only", gate)
         self.assertIn("module.vid_labeling_healing_controller_cloud_function", gate)
+
+    def test_reader_gate_function_set_equals_its_dependencies(self):
+        import re
+        root = __import__("pathlib").Path(__file__).resolve().parents[3]
+        source = (root / "src/main/terraform/gcloud/modules/edp-aggregator/main.tf").read_text()
+        roles_block = source[source.index("vid_labeling_rollout_roles = ["):]
+        roles = set(re.findall(r'"([a-z_]+)"', roles_block[:roles_block.index("]")]))
+        gate = source[source.index('resource "terraform_data" "vid_labeling_reader_readiness"'):]
+        depends = gate[gate.index("depends_on = ["):]
+        modules = set(re.findall(r"module\.([a-z_]+)_cloud_function", depends[:depends.index("]")]))
+        self.assertEqual(roles, modules)
+        self.assertEqual(roles, set(REQUIRED_FUNCTIONS))
+        functions = source[source.index("vid_labeling_rollout_functions = ["):]
+        self.assertIn("for role in local.vid_labeling_rollout_roles", functions[:200])
 
     def test_future_or_expired_boundary_never_resumes(self):
         helper = CutoverTest()

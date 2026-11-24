@@ -767,11 +767,16 @@ for a compatible upgrade. This mode requests neither an EDP pause nor a manual
 queue drain. It requires a preceding successful receipt with the same storage/API
 and configuration contract, and checks actual serving consumer versions before
 normal deployment. Changed shared platform/control-plane code cannot bypass its
-ordinary quiescence. Missing evidence does not certify a legacy upgrade.
+ordinary quiescence: the shared identity hashes the tracked non-EDPA source and build
+inputs of the deployed VID functions and TEE images, plus the Bazel dependency locks.
+Unrelated documentation, tests and other components do not change it. Missing evidence
+does not certify a legacy upgrade.
 
 Terraform exports **vid_labeling_rollout_manifest** with expected function hashes,
-protocol/config identity, queues and MIGs. Its identity includes dispatcher packing
-settings and storage routing. A Terraform-managed read-only reader gate checks
+contract identity, queues and MIGs. The contract identity hashes every EDPA public and
+internal proto, every EDPA Spanner changeset, the Phase 0/1/2 storage-layout sources and
+the dispatcher packing and storage routing configuration, so any change to them requires
+maintenance. A Terraform-managed read-only reader gate checks
 each relevant function's actual ready Cloud Run revision and traffic before new
 VID MIG templates roll. Final checks cover schema-init success, metadata images,
 every MIG instance and all serving function revisions; desired templates alone
@@ -831,9 +836,10 @@ For maintenance, select **vid-labeling-cutover-mode=maintenance**:
 2. The workflow invokes that control and automatically runs **VidLabelingRolloutCheck
    --mode=MAINTENANCE**. Providers and all phase/availability queues come from
    committed configuration and the deployment manifest. Existing workers finish
-   naturally: the checker never deletes, retries or edits WorkItems. It checks
-   complete pagination, upload/healing states and authoritative unexpired sync
-   leases against the Spanner server clock. Known active work can be polled
+   naturally: the checker never deletes, retries or edits WorkItems. It reads only
+   unfinished WorkItems, uploads, model lines and healing operations through service
+   APIs, waits one maximum synchronization-lease lifetime plus margin, then repeats
+   those checks, so any abandoned lease has expired. Known active work can be polled
    within the deadline; unknown or missing evidence fails closed.
 3. Run the normal final-stack deployment once. The schema updater applies
    migrations 27/28/29 in changelog order; metadata services, sidecar-aware readers,
@@ -844,21 +850,27 @@ For maintenance, select **vid-labeling-cutover-mode=maintenance**:
    Failed checks leave intake paused. A failed resume/receipt update requires
    diagnosis. Retry completion with the same cutover ID after a failed resume;
    readiness and smoke run again. RESERVED, VERIFIED and IN_PROGRESS records
-   never authorize another begin or an online rollout. If reservation/pause
-   failed, diagnose the publisher state and exact owner before recovery; do not
-   bypass an occupied receipt by choosing another URI for the same deployment.
+   never authorize another begin or an online rollout. A begin that fails after
+   reservation releases itself: it resumes maintenance intake and restores the
+   preceding READY receipt (or removes a first receipt) under a generation
+   precondition. After a crash during begin, release the recorded owner with
+   **run_vid_labeling_cutover.py --phase=abort --receipt-uri=URI
+   --cutover-id=REQUEST_ID --intake-control-url=URL**. Abort accepts only a
+   RESERVED record from that exact owner; it replays the owner's idempotent pause,
+   resumes intake, then restores the receipt. Do not bypass an occupied receipt by
+   choosing another URI for the same deployment.
 
-The workflow identity needs existing read access to deployment state, EDPA operator
-TLS secrets and sync leases, plus write/delete confined to receipt and synthetic
-rollout prefixes. Publisher control must accept its OIDC identity/audience.
+The workflow identity needs existing read access to deployment state and EDPA
+operator TLS secrets, plus write/delete confined to receipt and synthetic rollout
+prefixes. The preflight needs no database access. Publisher control must accept its OIDC identity/audience.
 These are explicit prerequisites, not a claim that an external EDP already
 implements the hook. For the first maintenance receipt only, use
 **vid-labeling-new-receipt=true**; generation zero prevents overwriting an existing
 receipt.
 
-DRAINED remains a read-only diagnostic mode. Full maintenance uses MAINTENANCE,
-with **--spanner-project**, **--spanner-instance** and **--spanner-database** plus
-EDPA/control-plane mTLS. ZERO_MEMBERSHIP remains the separate normal-publisher
+DRAINED remains a read-only diagnostic mode. Full maintenance uses MAINTENANCE
+with EDPA/control-plane mTLS; **--max-sync-lease-lifetime** and
+**--sync-lease-margin** set the lease wait. ZERO_MEMBERSHIP remains the separate normal-publisher
 verifier for exact done URI/generation, empty assignment, no rank work, successful
 labeling and complete registered-file coverage.
 
