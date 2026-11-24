@@ -75,8 +75,41 @@ def claim_receipt(mode, manifest, previous, generation, write, ready=check_compa
         ready(manifest["project"], manifest["region"], manifest, previous)
     owner_id = str(uuid.uuid4())
     reserved = dict(manifest, status="RESERVED", request_id=owner_id,
-                    scope_id=scope_id(manifest), mode=mode, started_at=int(time.time()))
+                    scope_id=scope_id(manifest), mode=mode, started_at=int(time.time()),
+                    previous_receipt=previous)
     return owner_id, write(reserved, generation)
+
+
+def abort(receipt, generation, owner_id, release_intake, restore, remove):
+    """Release a begin that crashed or failed while it held RESERVED ownership.
+
+    Only the exact owner may abort. Maintenance intake is released first; then the
+    preceding READY receipt is restored (or a first receipt removed) with a
+    generation precondition, so a concurrent writer cannot be overwritten.
+    """
+    require(isinstance(receipt, dict) and receipt.get("status") == "RESERVED",
+            "Only a RESERVED begin can be aborted; complete or diagnose later states")
+    require(bool(owner_id) and receipt.get("request_id") == owner_id,
+            "Abort requires the exact cutover owner")
+    require(receipt.get("mode") in ("online", "maintenance"), "Unknown cutover mode")
+    previous = receipt.get("previous_receipt")
+    require(previous is None or (isinstance(previous, dict) and previous.get("status") == "READY"),
+            "Preceding receipt is not READY")
+    if receipt["mode"] == "maintenance":
+        release_intake()
+    if previous is None:
+        remove(generation)
+    else:
+        restore(previous, generation)
+
+
+def guarded_begin(start, release):
+    """Run the begin boundary; on any failure release ownership before re-raising."""
+    try:
+        return start()
+    except BaseException:
+        release()
+        raise
 
 
 def resume_owned(manifest, journal, generation, read_generation, read, publish):
@@ -181,23 +214,81 @@ def put_object(uri, value, expected_generation, execute=subprocess.run, opener=u
     return generation
 
 
-def shared_platform_inputs(tree):
-    """Complete source/build/API/schema/config/deployment boundary for shared quiescence."""
-    # Only explicitly EDPA-specific implementation/schema directories may be excluded.
-    # Shared APIs, internal protos, all deployment/configuration and dependency inputs remain.
-    isolated = (
-        "src/main/kotlin/org/wfanet/measurement/edpaggregator/",
-        "src/main/proto/wfa/measurement/edpaggregator/",
-        "src/main/proto/wfa/measurement/internal/edpaggregator/",
-        "src/main/resources/edpaggregator/",
-    )
+# Deployed VID artifacts: Cloud Run function uber JARs and Phase 0/1/2 TEE images.
+DEPLOYED_TARGETS = (
+    "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:DataWatcherFunction",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilitySyncFunction",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilityCleanupFunction",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:DataAvailabilityMonitorFunction",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:VidLabelingDispatcherFunction",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:VidLabelingMonitorFunction",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:VidLabelingHealingControllerFunction",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/subpoolassigner:subpool_assigner_image",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder:vid_rank_builder_image",
+    "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeler_image",
+)
+# External dependency resolution shared by every deployed artifact.
+DEPENDENCY_LOCKS = ("MODULE.bazel", "MODULE.bazel.lock", "maven_install.json")
+# EDPA implementation may roll online; its wire/storage contract is contract_id.
+EDPA_PREFIXES = (
+    "src/main/kotlin/org/wfanet/measurement/edpaggregator/",
+    "src/main/proto/wfa/measurement/edpaggregator/",
+    "src/main/proto/wfa/measurement/internal/edpaggregator/",
+    "src/main/resources/edpaggregator/",
+)
+
+
+def label_path(label):
+    """Main-repository file label to repository path; external labels are None."""
+    if not label.startswith("//"):
+        return None
+    package, _, name = label[2:].partition(":")
+    return (package + "/" + name) if package else name
+
+
+def delete_object(uri, expected_generation, execute=subprocess.run,
+                  opener=urllib.request.urlopen):
+    """Delete exactly the observed generation; a concurrent writer makes this fail."""
+    parsed = urllib.parse.urlparse(uri)
+    require(parsed.scheme == "gs" and parsed.netloc and "/rollout/" in uri and
+            not parsed.fragment and not parsed.query, "Unsafe receipt namespace")
+    require(isinstance(expected_generation, int) and expected_generation > 0,
+            "Precise receipt generation required")
+    token = execute(["gcloud", "auth", "print-access-token"], check=True,
+                    capture_output=True, text=True, timeout=30).stdout.strip()
+    require(token, "Storage identity unavailable")
+    url = ("https://storage.googleapis.com/storage/v1/b/" +
+           urllib.parse.quote(parsed.netloc, safe="") + "/o/" +
+           urllib.parse.quote(parsed.path.lstrip("/"), safe="") + "?" +
+           urllib.parse.urlencode({"ifGenerationMatch": expected_generation}))
+    request = urllib.request.Request(url, method="DELETE",
+                                     headers={"Authorization": "Bearer " + token})
+    with opener(request, timeout=30):
+        pass
+
+
+def shared_platform_inputs(tree, labels):
+    """Tracked shared (non-EDPA) source and build inputs of the deployed artifacts."""
+    paths = {label_path(label) for label in labels}
+    paths.discard(None)
+    paths.update(DEPENDENCY_LOCKS)
     output = []
     for line in tree.splitlines():
         path = line.split("\t", 1)[1]
-        # Include every tracked input by default: new build/config inputs fail closed.
-        if not path.startswith(isolated):
+        if path in paths and not path.startswith(EDPA_PREFIXES):
             output.append(line)
-    return output
+    return sorted(output)
+
+
+def deployed_input_labels(execute=subprocess.run):
+    targets = "set(" + " ".join(DEPLOYED_TARGETS) + ")"
+    query = f'kind("source file", deps({targets})) union buildfiles(deps({targets}))'
+    result = execute(["bazelisk", "query", query, "--output=label"], check=True,
+                     capture_output=True, text=True, timeout=900)
+    labels = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    require(labels, "Deployed artifact inputs unavailable")
+    return labels
+
 
 def prepare_manifest(manifest, config_file, execute=subprocess.run):
     require(config_file, "Committed provider config is required")
@@ -208,7 +299,8 @@ def prepare_manifest(manifest, config_file, execute=subprocess.run):
     value = dict(manifest, **json.loads(result.stdout.splitlines()[-1]))
     tree = execute(["git", "ls-tree", "-r", "HEAD"], check=True, capture_output=True,
                    text=True, timeout=30).stdout
-    selected = shared_platform_inputs(tree)
+    selected = shared_platform_inputs(tree, deployed_input_labels(execute))
+    require(selected, "Shared deployed inputs unavailable")
     value["shared_code_id"] = hashlib.sha256("\n".join(selected).encode()).hexdigest()
     scope_id(value)
     return value
@@ -223,9 +315,7 @@ def preflight_argv(manifest, folder, execute=subprocess.run):
             execute(["gcloud", "secrets", "versions", "access", "latest", "--secret=" + secret,
                      "--project=" + manifest["project"]], check=True, stdout=output, timeout=30)
         (Path(folder) / filename).chmod(0o600)
-    result = ["--mode=MAINTENANCE", "--spanner-project=" + manifest["project"],
-              "--spanner-instance=" + manifest["spanner_instance"],
-              "--spanner-database=" + manifest["spanner_database"],
+    result = ["--mode=MAINTENANCE",
               "--edpa-public-api-target=" + __import__("os").environ["METADATA_STORAGE_PUBLIC_API_TARGET"],
               "--control-plane-target=" + __import__("os").environ["SECURE_COMPUTATION_PUBLIC_API_TARGET"]]
     result += ["--data-provider=" + p for p in manifest["providers"]]
@@ -237,13 +327,20 @@ def preflight_argv(manifest, folder, execute=subprocess.run):
         result += [flag + "=" + str(Path(folder) / filename)]
     return result
 
+def release_intake(url, manifest, owner_id):
+    """Replay the owner's idempotent pause, then resume, so release works whether or not
+    the crash preceded the original pause."""
+    control(url, "pause", manifest, owner_id)
+    control(url, "resume", manifest, owner_id)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--phase", choices=["begin", "complete"], required=True)
-    parser.add_argument("--mode", choices=["online", "maintenance"], required=True)
-    parser.add_argument("--manifest", required=True)
+    parser.add_argument("--phase", choices=["begin", "complete", "abort"], required=True)
+    parser.add_argument("--mode", choices=["online", "maintenance"])
+    parser.add_argument("--manifest")
     parser.add_argument("--receipt-uri", required=True)
-    parser.add_argument("--image-tag", required=True)
+    parser.add_argument("--image-tag")
     parser.add_argument("--intake-control-url", default="")
     parser.add_argument("--preflight-arguments", help="JSON argv for the existing read-only CLI")
     parser.add_argument("--smoke-arguments", help="JSON argv for the final-stack production-sink smoke")
@@ -251,6 +348,19 @@ def main():
     parser.add_argument("--new-receipt", action="store_true", help="First maintenance cutover only")
     parser.add_argument("--cutover-id", help="Exact checked begin request ID")
     args = parser.parse_args()
+    if args.phase == "abort":
+        # Releases a RESERVED begin left by a crash: resume intake, restore the receipt.
+        require(args.cutover_id, "Abort requires --cutover-id")
+        generation = object_generation(args.receipt_uri)
+        receipt = get_object(args.receipt_uri, generation)
+        abort(receipt, generation, args.cutover_id,
+              lambda: release_intake(args.intake_control_url, receipt, args.cutover_id),
+              lambda previous, expected: put_object(args.receipt_uri, previous, expected),
+              lambda expected: delete_object(args.receipt_uri, expected))
+        print(json.dumps({"status": "ABORTED", "request_id": args.cutover_id}))
+        return
+    require(args.mode and args.manifest and args.image_tag,
+            "--mode, --manifest and --image-tag are required")
     manifest = json.loads(Path(args.manifest).read_text())
     if args.phase == "begin":
         manifest = prepare_manifest(manifest, args.vid_labeling_config)
@@ -260,8 +370,9 @@ def main():
         require(file, "Required checked CLI arguments are missing")
         argv = json.loads(Path(file).read_text())
         require(isinstance(argv, list) and all(isinstance(a, str) for a in argv), "Invalid CLI argv")
+        # Covers a cold build plus the checker's own deadline, which includes the lease wait.
         result = subprocess.run(["bazelisk", "run", target, "--", *argv], check=True,
-                                capture_output=True, text=True, timeout=900)
+                                capture_output=True, text=True, timeout=2700)
         # Tools may emit normal logging before their final machine-readable result.
         return json.loads(result.stdout.splitlines()[-1])
 
@@ -280,9 +391,16 @@ def main():
                 argv_file.write_text(json.dumps(preflight_argv(manifest, folder)))
                 return command(str(argv_file),
                   "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingRolloutCheck")
-            journal = begin(args.mode, manifest, receipt,
-                            lambda: control(args.intake_control_url, "pause", manifest, owner_id), preflight,
-                            ready=lambda *_: None)
+            reserved = {"status": "RESERVED", "request_id": owner_id, "mode": args.mode,
+                        "previous_receipt": receipt}
+            journal = guarded_begin(
+                lambda: begin(args.mode, manifest, receipt,
+                              lambda: control(args.intake_control_url, "pause", manifest, owner_id),
+                              preflight, ready=lambda *_: None),
+                lambda: abort(reserved, generation, owner_id,
+                              lambda: release_intake(args.intake_control_url, manifest, owner_id),
+                              lambda previous, expected: put_object(args.receipt_uri, previous, expected),
+                              lambda expected: delete_object(args.receipt_uri, expected)))
         journal["request_id"] = owner_id
         put_object(args.receipt_uri, journal, generation)
         print(json.dumps(dict(journal, manifest=manifest)))
