@@ -268,7 +268,6 @@ kt_jvm_test(
     name = "CommittedPopulationSpecsTest",
     srcs = ["CommittedPopulationSpecsTest.kt"],
     data = [
-        "//src/main/k8s/testing/data:synthetic_generation_specs_us",
         "//src/main/k8s/testing/data:synthetic_population_spec_large.textproto",
         "//src/main/k8s/testing/data:synthetic_population_spec_small.textproto",
         "//src/main/proto/wfa/measurement/api/v2alpha:360m_population_spec_us",

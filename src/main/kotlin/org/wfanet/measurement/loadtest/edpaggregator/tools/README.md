@@ -5,6 +5,12 @@ The population spec is committed at
 and is read directly by tests and seeding. `GenerateHighOverlapSpecs` generates
 the impression specs and config through the genrule in that package.
 
+All four high-overlap EDPs use this population and `HIGH_OVERLAP_MODEL_LINE`.
+The separate cloud-simulator tests (EDPs 1–6) use
+`synthetic_population_spec_large.textproto` and `MODEL_LINE_NAME`. EDPs
+combined in a measurement must share the same model population and VID attribute
+mapping.
+
 ## If you change the fixture
 
 The dataset is seeded into an environment once, not per test run, by
