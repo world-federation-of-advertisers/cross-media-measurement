@@ -223,104 +223,22 @@ class ReportingUserSimulator(
     qualificationFilters: Iterable<ReportingImpressionQualificationFilter>,
     buildResultGroupSpecs: (eventGroups: List<EventGroup>) -> List<ResultGroupSpec>,
   ): BasicReport {
+    val measurementConsumerKey =
+      checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
     val eventGroups: List<EventGroup> =
       getEventGroups(eventGroupReferenceIds, eventGroupEntityTypes)
 
     val campaignGroup = createCampaignGroup(eventGroups, runId, campaignGroupDisplayName)
-    return createBasicReportAndWait(
-      runId,
-      reportTitle,
-      campaignGroup.name,
-      campaignGroup.displayName,
-      reportStart,
-      reportEnd,
-      qualificationFilters,
-      buildResultGroupSpecs(eventGroups),
-    )
-  }
-
-  /**
-   * Creates a report over primitive ReportingSets with event-level CEL filters.
-   *
-   * Device, media, and signed-in fields belong in ReportingSet filters: BasicReport dimensions
-   * accept only population attributes. Each group has one component per DataProvider, and groups
-   * sharing a predicate reuse the same primitives. An empty predicate includes all impressions.
-   */
-  suspend fun createBasicReportOverFilteredEventGroups(
-    runId: String,
-    reportTitle: String,
-    campaignGroupDisplayName: String,
-    eventGroupReferenceIds: Set<String>,
-    eventGroupEntityTypes: Set<String>,
-    reportStart: LocalDate,
-    reportEnd: LocalDate,
-    qualificationFilters: Iterable<ReportingImpressionQualificationFilter>,
-    componentFiltersByGroupTitle: Map<String, String>,
-    buildResultGroupSpecs:
-      (eventGroups: List<EventGroup>, componentsByGroupTitle: Map<String, List<String>>) -> List<
-          ResultGroupSpec
-        >,
-  ): BasicReport {
-    val eventGroups = getEventGroups(eventGroupReferenceIds, eventGroupEntityTypes)
-    val groupsByProvider = eventGroups.groupBy { it.cmmsDataProvider }.toSortedMap()
-    val componentsByFilter = mutableMapOf<String, List<String>>()
-    for ((filterIndex, predicate) in componentFiltersByGroupTitle.values.distinct().withIndex()) {
-      componentsByFilter[predicate] =
-        groupsByProvider.entries.mapIndexed { componentIndex, (provider, groups) ->
-          reportingSetsClient
-            .createReportingSet(
-              createReportingSetRequest {
-                parent = measurementConsumerName
-                // Retain provider order when the internal API normalizes component names.
-                reportingSetId = "a-$runId-$filterIndex-$componentIndex"
-                reportingSet = reportingSet {
-                  displayName = "$reportTitle $provider $predicate"
-                  filter = predicate
-                  primitive =
-                    ReportingSetKt.primitive { cmmsEventGroups += groups.map { it.cmmsEventGroup } }
-                }
-              }
-            )
-            .name
-        }
-    }
-    val componentsByGroupTitle =
-      componentFiltersByGroupTitle.mapValues { (_, predicate) ->
-        componentsByFilter.getValue(predicate)
-      }
-    return createBasicReportAndWait(
-      runId,
-      reportTitle,
-      "",
-      campaignGroupDisplayName,
-      reportStart,
-      reportEnd,
-      qualificationFilters,
-      buildResultGroupSpecs(eventGroups, componentsByGroupTitle),
-    )
-  }
-
-  private suspend fun createBasicReportAndWait(
-    runId: String,
-    reportTitle: String,
-    campaignGroupName: String,
-    campaignGroupDisplayName: String,
-    reportStart: LocalDate,
-    reportEnd: LocalDate,
-    qualificationFilters: Iterable<ReportingImpressionQualificationFilter>,
-    resultGroupSpecs: List<ResultGroupSpec>,
-  ): BasicReport {
-    val measurementConsumerKey =
-      checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
     val basicReportKey =
       BasicReportKey(
         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
         basicReportId = "basic-report-$runId",
       )
+
     val basicReport = basicReport {
       title = reportTitle
-      campaignGroup = campaignGroupName
-      this.campaignGroupDisplayName = campaignGroupDisplayName
+      this.campaignGroup = campaignGroup.name
+      this.campaignGroupDisplayName = campaignGroup.displayName
       modelLine = modelLineName
       reportingInterval = reportingInterval {
         this.reportStart = dateTime {
@@ -335,25 +253,15 @@ class ReportingUserSimulator(
           day = reportEnd.dayOfMonth
         }
       }
+
       impressionQualificationFilters += qualificationFilters
-      this.resultGroupSpecs += resultGroupSpecs
+      resultGroupSpecs += buildResultGroupSpecs(eventGroups)
     }
 
-    val createStartedAt = System.nanoTime()
     createBasicReport(basicReportKey, basicReport)
-    logger.info {
-      "Created BasicReport ${basicReportKey.toName()} " +
-        "creation_ms=${(System.nanoTime() - createStartedAt) / 1_000_000}. Polling for completion."
-    }
+    logger.info { "Created BasicReport ${basicReportKey.toName()}. Polling for completion." }
 
-    val pollStartedAt = System.nanoTime()
-    val completed = pollForCompletedBasicReport(buildGetBasicReportRequest(basicReportKey))
-    logger.info {
-      "Finished BasicReport ${basicReportKey.toName()} state=${completed.state} " +
-        "completion_wait_ms=${(System.nanoTime() - pollStartedAt) / 1_000_000} " +
-        "response_proto_bytes=${completed.serializedSize}"
-    }
-    return completed
+    return pollForCompletedBasicReport(buildGetBasicReportRequest(basicReportKey))
   }
 
   /** Creates a [BasicReport] resource via the HTTP gateway. */
@@ -612,7 +520,8 @@ class ReportingUserSimulator(
 
     /** Returns the impression qualification filters that break results down by media type. */
     fun mediaTypeQualificationFilters(): List<ReportingImpressionQualificationFilter> =
-      // Include AMI, MRC, and one custom video filter to exercise standard and custom filters.
+      // Media type is neither groupable nor filterable, and at most one custom filter is permitted
+      // per report, so this is the only split available.
       listOf(
         reportingImpressionQualificationFilter {
           impressionQualificationFilter = ImpressionQualificationFilterKey(AMI_FILTER_ID).toName()

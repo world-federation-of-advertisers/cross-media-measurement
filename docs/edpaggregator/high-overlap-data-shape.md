@@ -523,7 +523,7 @@ population resources from these updated files as part of test setup.
 | `common.device_type` | Desktop, mobile, tablet, TV, and other |
 | `common.parental_status` | Parent and not parent, fixed per VID |
 | `common.media_type` | Video and display on every device within each normal entity key |
-| `common.signed_in` | Both values, with separate filtered report panels |
+| `common.signed_in` | Both signed-in and signed-out impressions |
 
 `EdpAggregatorMetadataScaleTest` checks the deployed metadata service using its
 normal 4 MiB response limit. It filters by all 10,000 extra keys for each EDP,
@@ -543,75 +543,14 @@ receive limit. The production provider succeeds by requesting BASIC and recovers
 all 80,000 keys from the sidecars. The deployed cloud audit uses smaller pages;
 those pages do not themselves reproduce the oversized FULL response.
 
-### Full report scale test
-
-The reporting workflow accepts `stress-report=true` to include a single large
-BasicReport. It reports over every seeded entity and all four aggregator EDPs
-from 2026-04-01 to 2026-06-30, exclusive: 90 days across 13 weekly windows.
-The final window is six days. The seed data still covers 91 days; expectations
-exclude the final day and retain the source timestamp distribution.
+### Population setup memory
 
 The dev Kingdom public API uses a 256 MiB JVM heap and a 640 MiB container
 allocation. Its former 64 MiB heap exhausted memory while creating the expanded
-population, before the seeder began writing impressions.
-The local Kubernetes internal reporting server also uses a 256 MiB heap; its
-former 64 MiB heap exhausted memory during correctness-test startup.
+population, before the seeder began writing impressions. The local Kubernetes
+internal reporting server also uses a 256 MiB heap; its former 64 MiB heap
+exhausted memory during correctness-test startup.
 
-| Result group family | Population grouping or event cut | Periods | Filters |
-| --- | --- | --- | --- |
-| Geography and demographics, weekly | 51 state/DC values × 2 genders × 3 ages × 2 parental statuses | 13 | AMI, MRC |
-| Geography and demographics, total | Same 612 cells | 1 | AMI, MRC |
-| Device and media, weekly | 20 filtered groups: 5 devices × 4 media enum values | 13 | AMI, MRC |
-| Device and media, total | 20 groups with the same device/media cuts | 1 | AMI, MRC |
-| Signed-in device and media | 20 groups with a signed-in event filter | 1 | AMI, MRC |
-| Signed-out device and media | 20 groups with a signed-out event filter | 1 | AMI, MRC |
-
-There are 82 result groups in one BasicReport. OTHER and NATIVE media have no
-seeded impressions and serve as zero-reach controls. Only the two population groups
-use `DimensionSpec.grouping`. Device, media, and signed-in fields are event
-attributes, so their cuts use CEL filters on primitive ReportingSet components.
-For example, a DESKTOP/VIDEO component uses
-`common.device_type == 1 && common.media_type == 1`. Weekly and total groups
-reuse the same filtered primitives. The report omits `campaign_group`, allowing
-the server to synthesize it from the ReportingSet components; the environment
-must enable ReportingSet reporting-unit components.
-
-Weekly groups request cumulative reach and non-cumulative reach, K+ reach,
-impressions, average frequency, and per-EDP reach. The total demographic group
-also requests ordered incremental contributions. The API permits those
-contributions only for total-period groups. Only person-attribute groups request
-population denominators.
-
-The test checks every cell, period, filter, and demographic population
-denominator. Across the complete matrix, it checks the presence of requested
-cumulative/non-cumulative metric messages, K+ vector lengths, four total
-demographic incremental contributions, and each component's requested metrics.
-Scalar zero values are valid and have no protobuf presence. Average frequency
-and percent reach are also checked against the returned counts and denominator.
-
-Source-derived numerical checks replay seven demographic reference cells,
-including DC's zero-impression control. They cover every requested weekly and
-total metric, including impressions, average frequency, percent reach, and
-component reach. Impressions are clipped separately per EDP, as required by the
-metric configuration. Counts allow the configured noise; sparse cells use the
-derived ratio check when a truth-based average frequency would be unstable.
-
-Three device/media references (`DESKTOP/VIDEO`, `TV/DISPLAY`, `OTHER/DISPLAY`)
-cover earlier weekly values, K+ reach, impressions, average frequency, component
-reach, and signed-in/out totals. They include populated AMI/display results and
-MRC video zero controls. Full-flight union reach is additionally checked for
-every device/media cell and signed-in filter by merging source VID intervals;
-this also checks the last cumulative week without replaying the entire dataset.
-The test records the report resource, result count, serialized response size,
-and comparison results for later tracing. Focused regressions reject missing
-metrics and corrupt earlier weeks, component values, total counts, and ratios.
-
-To retry only the scale report, set the workflow's `test-filter` to
-`z scaled.*` along with `stress-report=true`. Leave the filter empty for the
-complete reporting suite. The metadata audit runs in either case.
-
-The test is opt-in because creation, response size, and fulfillment at this scale
-remain benchmark targets. Ordinary cloud runs keep the two existing smaller
-reports. The test does not raise service deadlines or message limits. The device
-and media panels are separate from the full demographic Cartesian product;
-combining every event dimension with every demographic and week is a larger test.
+The reporting workflow retains the two existing reports: media and impression
+qualification filters, and weekly age/gender results. The metadata audit checks
+the expanded keys separately, without creating a full geographic report.

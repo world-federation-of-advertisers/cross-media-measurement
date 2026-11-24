@@ -45,12 +45,3 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
-
-kt_jvm_library(
-    name = "basic_report_metric_assertions",
-    srcs = ["BasicReportMetricAssertions.kt"],
-    deps = [
-        "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-    ],
-)

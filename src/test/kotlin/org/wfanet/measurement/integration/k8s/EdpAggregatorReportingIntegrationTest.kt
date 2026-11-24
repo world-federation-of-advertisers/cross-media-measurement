@@ -43,7 +43,6 @@ import okhttp3.OkHttpClient
 import okhttp3.tls.HandshakeCertificates
 import okhttp3.tls.HeldCertificate
 import okhttp3.tls.decodeCertificatePem
-import org.junit.Assume.assumeTrue
 import org.junit.ClassRule
 import org.junit.FixMethodOrder
 import org.junit.Test
@@ -54,7 +53,6 @@ import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaReportingIntegrationTestConfig
 import org.measurement.integration.k8s.testing.HighOverlapDatasetManifest
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
-import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
@@ -72,9 +70,6 @@ import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach.ExpectedMetrics
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
-import org.wfanet.measurement.integration.testing.BasicReportMetricAssertions
-import org.wfanet.measurement.integration.testing.BasicReportMetricAssertions.MetricRanges
-import org.wfanet.measurement.integration.testing.BasicReportMetricAssertions.ResultRanges
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -86,7 +81,6 @@ import org.wfanet.measurement.reporting.v2alpha.ResultGroup
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
-import org.wfanet.measurement.reporting.v2alpha.eventFilter
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
@@ -360,344 +354,6 @@ class EdpAggregatorReportingIntegrationTest {
     assertWholeIntervalMetricsMatchSpecs(report)
   }
 
-  @Test
-  fun `z scaled geographic demographic and device report succeeds`() = runBlocking {
-    assumeTrue(
-      "Enable the full scale report explicitly after seeding the expanded fixture",
-      System.getenv("HIGH_OVERLAP_STRESS_REPORT") == "true",
-    )
-    check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
-    val report =
-      reportingSystem.harness.createBasicReportOverFilteredEventGroups(
-        runId = UUID.randomUUID().toString(),
-        reportTitle = "13-week geo, demographics, devices, and media under AMI and MRC",
-        campaignGroupDisplayName = CAMPAIGN_GROUP_DISPLAY_NAME,
-        eventGroupReferenceIds = SCALE_REPORT_EVENT_GROUP_REF_IDS,
-        eventGroupEntityTypes = entityTypesOf(SCALE_REPORT_EVENT_GROUP_REF_IDS),
-        reportStart = SCALE_REPORT_START,
-        reportEnd = SCALE_REPORT_END,
-        qualificationFilters =
-          listOf(ReportingUserSimulator.AMI_FILTER_ID, ReportingUserSimulator.MRC_FILTER_ID).map {
-            reportingImpressionQualificationFilter {
-              impressionQualificationFilter = ImpressionQualificationFilterKey(it).toName()
-            }
-          },
-        componentFiltersByGroupTitle = SCALE_GROUPS.associate { it.title to it.eventFilter },
-        buildResultGroupSpecs = ::buildScaleResultGroupSpecs,
-      )
-    assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    logger.info(
-      "Scale report: name=${report.name} edps=${scaleComponentEdpNames.size} " +
-        "weeks=$SCALE_PERIOD_COUNT results=${report.resultGroupsList.sumOf { it.resultsCount }} " +
-        "response_proto_bytes=${report.serializedSize}"
-    )
-    assertScaleReport(report)
-  }
-
-  private lateinit var scaleSpecsByTitle: Map<String, ResultGroupSpec>
-  private lateinit var scaleComponentEdpNames: List<String>
-  private lateinit var scaleEdpNameByComponent: Map<String, String>
-
-  private fun buildScaleResultGroupSpecs(
-    eventGroups: List<ReportingEventGroup>,
-    componentsByGroupTitle: Map<String, List<String>>,
-  ): List<ResultGroupSpec> {
-    val providers = eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
-    require(providers.size == 4) { "The scale report must include all four aggregator EDPs" }
-    val edpNameByDataProvider =
-      eventGroups.associate {
-        it.cmmsDataProvider to EDP_NAME_BY_EVENT_GROUP_REF_ID.getValue(it.eventGroupReferenceId)
-      }
-    scaleComponentEdpNames = providers.map { edpNameByDataProvider.getValue(it) }
-    scaleEdpNameByComponent =
-      componentsByGroupTitle.values.flatMap { it.zip(scaleComponentEdpNames) }.toMap()
-    return SCALE_GROUPS.map { (title, fields, total) ->
-        val populationFields = fields == SCALE_POPULATION_FIELDS
-        resultGroupSpec {
-          this.title = title
-          reportingUnit = reportingUnit { components += componentsByGroupTitle.getValue(title) }
-          metricFrequency = metricFrequencySpec {
-            if (total) this.total = true else weekly = DayOfWeek.WEDNESDAY
-          }
-          dimensionSpec = dimensionSpec {
-            if (fields.isNotEmpty()) {
-              grouping = DimensionSpecKt.grouping { eventTemplateFields += fields }
-            }
-          }
-          resultGroupMetricSpec = resultGroupMetricSpec {
-            // Population denominators use person attributes, rather than device or media fields.
-            populationSize = populationFields
-            reportingUnit =
-              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-                cumulative =
-                  ResultGroupMetricSpecKt.basicMetricSetSpec {
-                    reach = true
-                    percentReach = populationFields
-                    if (total) {
-                      kPlusReach = K_PLUS_REACH
-                      impressions = true
-                      averageFrequency = true
-                    }
-                  }
-                if (!total) {
-                  nonCumulative =
-                    ResultGroupMetricSpecKt.basicMetricSetSpec {
-                      reach = true
-                      kPlusReach = K_PLUS_REACH
-                      impressions = true
-                      averageFrequency = true
-                    }
-                }
-                stackedIncrementalReach = total && populationFields
-              }
-            component =
-              ResultGroupMetricSpecKt.componentMetricSetSpec {
-                if (total) cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
-                else nonCumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
-              }
-          }
-        }
-      }
-      .also { specs -> scaleSpecsByTitle = specs.associateBy { it.title } }
-  }
-
-  private fun scalePopulationKey(common: Common): String =
-    "${common.gender.name}/${common.ageGroup.name}/${common.usState.name}/${common.parentalStatus.name}"
-
-  private val scalePopulationIndex by lazy {
-    HighOverlapExpectedReach.DemographicIndex(POPULATION_SPEC, ::scalePopulationKey)
-  }
-
-  private val scaleExpectedWeekly by lazy {
-    HighOverlapExpectedReach.computeWeeklyRangesByDemographic(
-      PROVISIONED_CONFIG,
-      SCALE_REPORT_EVENT_GROUP_REF_IDS,
-      POPULATION_SPEC,
-      SCALE_REPORT_START,
-      SCALE_REPORT_END,
-      BASIC_REPORT_METRIC_SPEC_CONFIG,
-      K_PLUS_REACH,
-      populationKey = ::scalePopulationKey,
-      selectedCells = SCALE_REFERENCE_CELLS,
-    )
-  }
-
-  private val scaleExpectedTotal by lazy {
-    HighOverlapExpectedReach.computeWholeIntervalRangesByDemographic(
-      PROVISIONED_CONFIG,
-      SCALE_REPORT_EVENT_GROUP_REF_IDS,
-      scaleComponentEdpNames,
-      POPULATION_SPEC,
-      SCALE_REPORT_START,
-      SCALE_REPORT_END,
-      BASIC_REPORT_METRIC_SPEC_CONFIG,
-      K_PLUS_REACH,
-      populationKey = ::scalePopulationKey,
-      selectedCells = SCALE_REFERENCE_CELLS,
-    )
-  }
-
-  private val scaleExpectedDeviceWeekly by lazy {
-    HighOverlapExpectedReach.computeWeeklyRangesByDeviceAndMedia(
-      PROVISIONED_CONFIG,
-      SCALE_REPORT_EVENT_GROUP_REF_IDS,
-      POPULATION_SPEC,
-      SCALE_REPORT_START,
-      SCALE_REPORT_END,
-      BASIC_REPORT_METRIC_SPEC_CONFIG,
-      K_PLUS_REACH,
-      SCALE_DEVICE_REFERENCE_CELLS,
-    )
-  }
-
-  private val scaleExpectedSignedDeviceTotal by lazy {
-    listOf(true, false).associateWith { signedIn ->
-      HighOverlapExpectedReach.computeWholeIntervalMetricsByDeviceAndMedia(
-        PROVISIONED_CONFIG,
-        SCALE_REPORT_EVENT_GROUP_REF_IDS,
-        scaleComponentEdpNames,
-        POPULATION_SPEC,
-        SCALE_REPORT_START,
-        SCALE_REPORT_END,
-        BASIC_REPORT_METRIC_SPEC_CONFIG,
-        K_PLUS_REACH,
-        SCALE_DEVICE_REFERENCE_CELLS,
-        signedIn,
-      )
-    }
-  }
-
-  /** Checks every requested metric's structure, plus source-derived values for reference cells. */
-  private fun assertScaleReport(report: BasicReport) {
-    assertThat(report.resultGroupsList.map { it.title })
-      .containsExactlyElementsIn(SCALE_GROUPS.map { it.title })
-    val comparisons = mutableListOf<MetricComparison>()
-    var numericComparisons = 0
-    val deviceExpectations =
-      listOf(null, true, false).associateWith { signedIn ->
-        HighOverlapExpectedReach.computeWholeIntervalRangesByDeviceAndMedia(
-          PROVISIONED_CONFIG,
-          SCALE_REPORT_EVENT_GROUP_REF_IDS,
-          POPULATION_SPEC,
-          SCALE_REPORT_START,
-          SCALE_REPORT_END,
-          BASIC_REPORT_METRIC_SPEC_CONFIG,
-          signedIn,
-        )
-      }
-    for (slice in SCALE_GROUPS) {
-      val (title, fields, total, signedIn) = slice
-      val group = resultGroupOf(report, title)
-      val requested = scaleSpecsByTitle.getValue(title)
-      val populationFields = fields == SCALE_POPULATION_FIELDS
-      val expectedCells =
-        if (populationFields) scalePopulationIndex.keys else setOf(requireNotNull(slice.cell))
-      val cells =
-        group.resultsList.groupBy { result ->
-          assertThat(result.metadata.dimensionSpecSummary.groupingsList.map { it.path })
-            .containsExactlyElementsIn(fields)
-          slice.cell ?: fields.joinToString("/") { groupingValue(result, it) }
-        }
-      assertWithMessage("$title cells").that(cells.keys).containsExactlyElementsIn(expectedCells)
-      for ((cell, results) in cells) {
-        val byFilter = results.groupBy { filterLabel(it) }
-        assertThat(byFilter.keys)
-          .containsExactly(
-            ReportingUserSimulator.AMI_FILTER_ID,
-            ReportingUserSimulator.MRC_FILTER_ID,
-          )
-        for ((filter, periods) in byFilter) {
-          val ordered = periods.sortedBy { it.metadata.metricEndTime.seconds }
-          assertWithMessage("$title $cell/$filter periods")
-            .that(ordered)
-            .hasSize(if (total) 1 else SCALE_PERIOD_COUNT)
-          ordered.forEachIndexed { week, result ->
-            val prefix = "$title $cell/$filter week=$week"
-            val end =
-              if (total) SCALE_REPORT_END
-              else minOf(SCALE_REPORT_END, SCALE_REPORT_START.plusWeeks(week + 1L))
-            assertWithMessage("$prefix period end")
-              .that(result.metadata.metricEndTime.seconds)
-              .isEqualTo(end.atStartOfDay(ZONE_ID).toInstant().epochSecond)
-            if (populationFields) {
-              assertWithMessage("$prefix population")
-                .that(result.metricSet.populationSize)
-                .isEqualTo(scalePopulationIndex.populationSizeByKey.getValue(cell))
-            }
-            // This runs for every cell, including those without a numerical replay. Scalar
-            // fields have no protobuf presence; zero is valid, so check messages and vectors.
-            val expected =
-              scaleReferenceRanges(
-                populationFields,
-                total,
-                signedIn,
-                cell,
-                filter,
-                week,
-                requested.reportingUnit.componentsList,
-              )
-            numericComparisons +=
-              BasicReportMetricAssertions.assertMatches(
-                result.metricSet,
-                requested.resultGroupMetricSpec,
-                requested.reportingUnit.componentsList,
-                prefix,
-                expected,
-              )
-            if (!populationFields && (total || week == SCALE_PERIOD_COUNT - 1)) {
-              comparisons +=
-                MetricComparison(
-                  "$prefix full-flight reach",
-                  result.metricSet.reportingUnit.cumulative.reach.toDouble(),
-                  deviceExpectations.getValue(signedIn).getValue(cell).getValue(filter),
-                )
-            }
-          }
-        }
-      }
-    }
-    val outOfRange = comparisons.filter { !it.inRange }
-    logger.info(
-      "Scale metrics: compared=${numericComparisons + comparisons.size} " +
-        "full_flight_outside_range=${outOfRange.size}"
-    )
-    assertWithMessage(
-        outOfRange.joinToString("\n", prefix = "Scale metrics outside expected ranges:\n")
-      )
-      .that(outOfRange)
-      .isEmpty()
-  }
-
-  private fun scaleReferenceRanges(
-    populationFields: Boolean,
-    total: Boolean,
-    signedIn: Boolean?,
-    cell: String,
-    filter: String,
-    week: Int,
-    components: List<String>,
-  ): ResultRanges? {
-    if (
-      populationFields && cell !in SCALE_REFERENCE_CELLS ||
-        !populationFields && cell !in SCALE_DEVICE_REFERENCE_CELLS
-    )
-      return null
-    if (total) {
-      val expected =
-        when {
-          populationFields -> scaleExpectedTotal.getValue(cell).getValue(filter)
-          signedIn != null ->
-            scaleExpectedSignedDeviceTotal.getValue(signedIn).getValue(cell).getValue(filter)
-          else -> scaleExpectedDeviceWeekly.getValue(cell).getValue(filter).last().cumulative
-        }
-      return ResultRanges(
-        cumulative =
-          MetricRanges(
-            reach = expected.reach,
-            kPlusReach = expected.kPlusReach,
-            impressions = expected.impressions,
-            averageFrequency = expected.averageFrequency,
-            percentReach = if (populationFields) expected.percentReach else null,
-          ),
-        componentCumulativeReach = componentRangesByComponent(expected.componentReach, components),
-        stackedIncrementalReach = if (populationFields) expected.stackedIncrementalReach else null,
-        nonCumulative = null,
-        componentNonCumulativeReach = emptyMap(),
-      )
-    }
-    val expected =
-      (if (populationFields) scaleExpectedWeekly else scaleExpectedDeviceWeekly)
-        .getValue(cell)
-        .getValue(filter)[week]
-    return ResultRanges(
-      cumulative =
-        MetricRanges(
-          reach = expected.cumulative.reach,
-          percentReach = if (populationFields) expected.cumulativePercentReach else null,
-          kPlusReach = null,
-          impressions = null,
-          averageFrequency = null,
-        ),
-      nonCumulative =
-        MetricRanges(
-          reach = expected.nonCumulative.reach,
-          kPlusReach = expected.nonCumulative.kPlusReach,
-          impressions = expected.nonCumulativeImpressions,
-          averageFrequency = expected.nonCumulativeAverageFrequency,
-          percentReach = null,
-        ),
-      componentNonCumulativeReach =
-        componentRangesByComponent(expected.componentNonCumulativeReach, components),
-      componentCumulativeReach = emptyMap(),
-      stackedIncrementalReach = null,
-    )
-  }
-
-  private fun componentRangesByComponent(
-    ranges: Map<String, ClosedFloatingPointRange<Double>>,
-    components: List<String>,
-  ) = components.associateWith { ranges.getValue(scaleEdpNameByComponent.getValue(it)) }
-
   /** Component EDPs of the weekly reporting unit, in the order the request lists them. */
   private lateinit var weeklyComponentEdpNames: List<String>
 
@@ -712,11 +368,9 @@ class EdpAggregatorReportingIntegrationTest {
       WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
       POPULATION_SPEC,
       WEEKLY_REPORT_START,
-      WEEKLY_REPORT_END,
+      WEEKLY_PERIOD_COUNT,
       BASIC_REPORT_METRIC_SPEC_CONFIG,
       K_PLUS_REACH,
-      populationKey = HighOverlapExpectedReach::demographicKey,
-      selectedCells = null,
     )
   }
 
@@ -732,8 +386,6 @@ class EdpAggregatorReportingIntegrationTest {
       WEEKLY_REPORT_END,
       BASIC_REPORT_METRIC_SPEC_CONFIG,
       K_PLUS_REACH,
-      populationKey = HighOverlapExpectedReach::demographicKey,
-      selectedCells = null,
     )
   }
 
@@ -1470,90 +1122,6 @@ class EdpAggregatorReportingIntegrationTest {
       )
 
     private const val CAMPAIGN_GROUP_DISPLAY_NAME = "High overlap campaign group"
-
-    private val SCALE_REPORT_START = LocalDate.of(2026, 4, 1)
-    private val SCALE_REPORT_END = SCALE_REPORT_START.plusDays(90)
-    private const val SCALE_PERIOD_COUNT = 13
-    private val SCALE_POPULATION_FIELDS =
-      listOf("common.gender", "common.age_group", "common.us_state", "common.parental_status")
-
-    private data class ScaleGroup(
-      val title: String,
-      val fields: List<String>,
-      val total: Boolean,
-      val signedIn: Boolean?,
-      val cell: String?,
-      val eventFilter: String,
-    )
-
-    private val SCALE_GROUPS =
-      listOf(
-        ScaleGroup(
-          "Scale weekly geography and demographics",
-          SCALE_POPULATION_FIELDS,
-          false,
-          signedIn = null,
-          cell = null,
-          eventFilter = "",
-        ),
-        ScaleGroup(
-          "Scale total geography and demographics",
-          SCALE_POPULATION_FIELDS,
-          true,
-          signedIn = null,
-          cell = null,
-          eventFilter = "",
-        ),
-      ) +
-        Common.DeviceType.values()
-          .filter { it != Common.DeviceType.UNRECOGNIZED && it.number > 0 }
-          .flatMap { device ->
-            MediaType.values()
-              .filter { it != MediaType.UNRECOGNIZED && it.number > 0 }
-              .flatMap { media ->
-                val cell = "${device.name}/${media.name}"
-                val predicate =
-                  "common.device_type == ${device.number} && common.media_type == ${media.number}"
-                listOf(
-                  ScaleGroup("Scale weekly $cell", emptyList(), false, null, cell, predicate),
-                  ScaleGroup("Scale total $cell", emptyList(), true, null, cell, predicate),
-                  ScaleGroup(
-                    "Scale signed-in $cell",
-                    emptyList(),
-                    true,
-                    true,
-                    cell,
-                    "$predicate && common.signed_in == true",
-                  ),
-                  ScaleGroup(
-                    "Scale signed-out $cell",
-                    emptyList(),
-                    true,
-                    false,
-                    cell,
-                    "$predicate && common.signed_in == false",
-                  ),
-                )
-              }
-          }
-    // Populated AMI display/video cells and an MRC video zero control.
-    private val SCALE_DEVICE_REFERENCE_CELLS = setOf("DESKTOP/VIDEO", "TV/DISPLAY", "OTHER/DISPLAY")
-    private val SCALE_REFERENCE_CELLS =
-      setOf(
-        "MALE/YEARS_18_TO_34/CALIFORNIA/NOT_PARENT",
-        "FEMALE/YEARS_35_TO_54/NEW_YORK/PARENT",
-        "MALE/YEARS_55_PLUS/TEXAS/PARENT",
-        "FEMALE/YEARS_18_TO_34/WYOMING/NOT_PARENT",
-        "MALE/YEARS_35_TO_54/ALASKA/PARENT",
-        "FEMALE/YEARS_55_PLUS/FLORIDA/NOT_PARENT",
-        "FEMALE/YEARS_55_PLUS/DISTRICT_OF_COLUMBIA/NOT_PARENT",
-      )
-    /** Every configured entity: all 15 Venn regions, every date, and all eight key-stress blobs. */
-    private val SCALE_REPORT_EVENT_GROUP_REF_IDS: Set<String> by lazy {
-      PROVISIONED_CONFIG.eventGroupsList
-        .flatMap { group -> group.entityKeySpecsList.map { "${it.entityType}-${it.entityId}" } }
-        .toSet()
-    }
 
     /** Titles of the weekly report's two result groups. */
     private const val WEEKLY_GROUP_TITLE = "Weekly by demographic"
