@@ -46,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataReques
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Checks compact metadata listing over real, seeded blobs with thousands of entity keys. */
 @RunWith(JUnit4::class)
