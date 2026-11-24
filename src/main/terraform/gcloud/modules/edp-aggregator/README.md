@@ -106,9 +106,11 @@ for notifications; the queue age threshold is
 Alerts also count deliveries sent to the dead-letter queue, even after those
 deliveries have been acknowledged.
 
-Before applying Terraform, grant its deployment identity
-`roles/monitoring.alertPolicyEditor` and `roles/logging.configWriter` on the
-EDPA project. These are bootstrap permissions granted outside this module.
+Before applying Terraform, ensure its deployment identity has Monitoring
+alert-policy and Logging notification-rule permissions on the EDPA project.
+`roles/monitoring.alertPolicyEditor` and `roles/logging.configWriter` provide
+these permissions; equivalent roles are also sufficient. These bootstrap
+permissions are granted outside this module.
 Log-based alerts create a Logging notification rule as well as a Monitoring
 alert policy. The Monitoring role alone does not grant
 `logging.notificationRules.create`, so creating the failed-WorkItem alert
