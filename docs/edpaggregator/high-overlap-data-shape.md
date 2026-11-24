@@ -563,9 +563,14 @@ those pages do not themselves reproduce the oversized FULL response.
 
 ### Population setup memory
 
-The dev Kingdom public API uses a 256 MiB JVM heap and a 640 MiB container
-allocation. Its former 64 MiB heap exhausted memory while creating the expanded
-population, before the seeder began writing impressions. The local Kubernetes
+The shared cloud Kingdom public API configuration uses a 256 MiB JVM heap and
+a 640 MiB container allocation. Its former 64 MiB heap exhausted memory while
+creating the expanded population, before the seeder began writing impressions.
+Dev, head, and qa all render `//src/main/k8s/dev:kingdom.tar` through the same
+`configure-kingdom.yml` workflow; the folder name does not restrict these settings
+to dev. Each environment receives them when it deploys this change.
+
+The local Kubernetes
 internal reporting server also uses a 256 MiB heap; its former 64 MiB heap
 exhausted memory during correctness-test startup.
 
