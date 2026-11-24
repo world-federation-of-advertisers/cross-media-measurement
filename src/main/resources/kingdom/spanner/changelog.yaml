@@ -126,5 +126,5 @@ databaseChangeLog:
     file: create-unlinked-client-accounts-table.sql
     relativeToChangeLogFile: true
 - include:
-    file: allow-multiple-requisitions-per-data-provider.sql
+    file: add-requisition-vector-index.sql
     relativeToChangeLogFile: true

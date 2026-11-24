@@ -470,6 +470,9 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State").toInt64(initialRequisitionState)
       fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
+      if (details.hasVectorIndex()) {
+        set("VectorIndex" to details.vectorIndex.toLong())
+      }
       set("RequisitionDetails").to(details)
     }
   }

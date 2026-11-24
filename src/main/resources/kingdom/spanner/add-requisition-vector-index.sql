@@ -15,9 +15,19 @@
 -- limitations under the License.
 
 -- changeset raimundoltdf:37 dbms:cloudspanner
--- comment: Allow a DataProvider to hold several Requisitions in one Measurement.
+-- comment: Add VectorIndex to Requisitions, so that a multimeasurement may hold one Requisition per vector.
+
+START BATCH DDL;
+
+-- The index of the multimeasurement base vector the Requisition fulfills, or NULL for any other
+-- Measurement.
+ALTER TABLE Requisitions ADD COLUMN VectorIndex INT64;
+
+-- Not NULL_FILTERED, so that NULL VectorIndex values collide and a Measurement that is not a
+-- multimeasurement still has at most one Requisition per DataProvider.
+CREATE UNIQUE INDEX RequisitionsByDataProviderIdAndVectorIndex
+  ON Requisitions(MeasurementConsumerId, MeasurementId, DataProviderId, VectorIndex);
 
 DROP INDEX RequisitionsByDataProviderId;
 
-CREATE INDEX RequisitionsByDataProviderId
-  ON Requisitions(MeasurementConsumerId, MeasurementId, DataProviderId);
+RUN BATCH;
