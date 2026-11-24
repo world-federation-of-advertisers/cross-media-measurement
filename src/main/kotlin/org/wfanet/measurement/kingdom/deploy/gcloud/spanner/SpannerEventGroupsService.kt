@@ -212,6 +212,7 @@ class SpannerEventGroupsService(
     }
     val externalDataProviderId = request.externalDataProviderId
 
+    val eventGroupIds = mutableSetOf<Long>()
     request.requestsList.forEachIndexed { index, subRequest ->
       val subRequestExternalDataProviderId = subRequest.eventGroup.externalDataProviderId
 
@@ -227,8 +228,15 @@ class SpannerEventGroupsService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-      if (subRequest.eventGroup.externalEventGroupId == 0L) {
+      val eventGroupId = subRequest.eventGroup.externalEventGroupId
+      if (eventGroupId == 0L) {
         throw RequiredFieldNotSetException("requests.$index.event_group.external_event_group_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!eventGroupIds.add(eventGroupId)) {
+        throw InvalidFieldValueException("requests.$index.event_group.external_event_group_id") {
+            "$it is repeated in the batch."
+          }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }

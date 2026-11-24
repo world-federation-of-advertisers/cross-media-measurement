@@ -2994,49 +2994,81 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
-  fun `batchCreateEventGroups rejects reuse of an ordinary ancestor and leaves it unchanged`() =
-    runBlocking {
-      val descendant = newHierarchicalCreateRequest()
-      val externalDataProviderId = descendant.eventGroup.externalDataProviderId
-      val ordinaryRequest =
-        descendant.copy {
-          eventGroup =
-            eventGroup.copy {
-              providedEventGroupId = "ordinary-campaign-X"
-              entityKey = entityKey {
-                entityType = "campaign"
-                entityId = "X"
-              }
-              entityMetadata = struct {
-                fields["campaign_id"] = value { stringValue = "X" }
-                fields["campaign_name"] = value { stringValue = "Campaign X" }
-              }
+  fun `batchCreateEventGroups demotes an ordinary ancestor in place`() = runBlocking {
+    val descendant =
+      newHierarchicalCreateRequest().copy {
+        eventGroup =
+          eventGroup.copy {
+            dataAvailabilityInterval = interval {
+              startTime = Instant.ofEpochSecond(100).toProtoTime()
+              endTime = Instant.ofEpochSecond(200).toProtoTime()
             }
-        }
-      val ordinary = eventGroupsService.createEventGroup(ordinaryRequest)
-      val existingPaths = readStoredEntityPaths(externalDataProviderId)
-      val unrelatedLeaf =
-        descendant.withCreativePath(campaignId = "X2", lineItemId = "L2", creativeId = "C2")
-      val request = hierarchyBatch(unrelatedLeaf, descendant)
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          eventGroupsService.batchCreateEventGroups(request)
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(readStoredEntityPaths(externalDataProviderId))
-        .containsExactlyEntriesIn(existingPaths)
-      assertThat(
-          eventGroupsService.getEventGroup(
-            getEventGroupRequest {
-              this.externalDataProviderId = externalDataProviderId
-              externalEventGroupId = ordinary.externalEventGroupId
+          }
+      }
+    val externalDataProviderId = descendant.eventGroup.externalDataProviderId
+    val ordinaryRequest =
+      descendant.copy {
+        eventGroup =
+          eventGroup.copy {
+            providedEventGroupId = "ordinary-campaign-X"
+            entityKey = entityKey {
+              entityType = "campaign"
+              entityId = "X"
             }
-          )
+            mediaTypes.clear()
+            mediaTypes += MediaType.DISPLAY
+            dataAvailabilityInterval = interval {
+              startTime = Instant.ofEpochSecond(50).toProtoTime()
+              endTime = Instant.ofEpochSecond(300).toProtoTime()
+            }
+            entityMetadata = struct {
+              fields["campaign_id"] = value { stringValue = "X" }
+              fields["campaign_name"] = value { stringValue = "Campaign X" }
+              fields["leaf_only"] = value { stringValue = "old leaf metadata" }
+            }
+          }
+      }
+    val ordinary = eventGroupsService.createEventGroup(ordinaryRequest)
+    val unrelatedLeaf =
+      descendant.withCreativePath(campaignId = "X2", lineItemId = "L2", creativeId = "C2")
+    val response =
+      eventGroupsService.batchCreateEventGroups(hierarchyBatch(unrelatedLeaf, descendant))
+
+    val child = response.eventGroupsList.last()
+    val ancestor =
+      eventGroupsService.getEventGroup(
+        getEventGroupRequest {
+          this.externalDataProviderId = externalDataProviderId
+          externalEventGroupId = ordinary.externalEventGroupId
+        }
+      )
+    assertThat(ancestor.externalEventGroupId).isEqualTo(ordinary.externalEventGroupId)
+    assertThat(ancestor.externalDataProviderId).isEqualTo(ordinary.externalDataProviderId)
+    assertThat(ancestor.providedEventGroupId).isEqualTo(ordinary.providedEventGroupId)
+    assertThat(ancestor.createTime).isEqualTo(ordinary.createTime)
+    assertThat(ancestor.mediaTypesList).containsExactlyElementsIn(child.mediaTypesList)
+    assertThat(ancestor.dataAvailabilityInterval).isEqualTo(child.dataAvailabilityInterval)
+    assertThat(ancestor.entityMetadata.fieldsMap.keys)
+      .containsExactly("campaign_id", "campaign_name")
+    assertThat(ancestor.entityMetadata.fieldsMap.getValue("campaign_name").stringValue)
+      .isEqualTo("Campaign X")
+
+    val updateException =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.updateEventGroup(updateEventGroupRequest { eventGroup = ancestor })
+      }
+    assertThat(updateException.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val deleteException =
+      assertFailsWith<StatusRuntimeException> {
+        eventGroupsService.deleteEventGroup(
+          deleteEventGroupRequest {
+            this.externalDataProviderId = externalDataProviderId
+            externalEventGroupId = ordinary.externalEventGroupId
+          }
         )
-        .isEqualTo(ordinary)
-    }
+      }
+    assertThat(deleteException.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
 
   private fun hierarchyBatch(
     first: CreateEventGroupRequest,

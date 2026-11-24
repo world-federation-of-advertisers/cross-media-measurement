@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
+import com.google.cloud.spanner.TimestampBound
 import com.google.cloud.spanner.Value as SpannerValue
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
@@ -39,6 +40,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -47,6 +49,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyState
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.entityKey
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MediaType
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.FilterKt.after
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest
@@ -65,6 +68,7 @@ import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.EventGroupMetadataStore
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.MetadataWriteGuard
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.kingdom.service.internal.testing.Population
 
@@ -172,6 +176,65 @@ class SpannerEventGroupMetadataServiceTest {
           .toList()
       assertThat(rest).hasSize(2)
       assertThat(rest.map { it.externalEventGroupId }).doesNotContain(first.externalEventGroupId)
+    }
+
+  @Test
+  fun `list and search continue on their snapshot across a 51 leaf publication`() =
+    runBlocking<Unit> {
+      val fixture = fixture()
+      service.batchCreateEventGroups(
+        batchCreateEventGroupsRequest {
+          externalDataProviderId = fixture.leaf.externalDataProviderId
+          requests +=
+            (2..51).map { index ->
+              createEventGroupRequest { eventGroup = fixture.leaf.withCreativeId("leaf-$index") }
+            }
+        }
+      )
+      val work = start(fixture)
+      assertThat(store.stageNextBatch(work, 50))
+        .isEqualTo(EventGroupMetadataStore.Progress(50, complete = false))
+      assertThat(get(fixture.leaf).entityMetadata).isEqualTo(fixture.leaf.entityMetadata)
+      assertThat(list(fixture, "renamed")).isEmpty()
+      val originalIds = list(fixture).map { it.externalEventGroupId }
+      assertThat(originalIds).hasSize(53)
+
+      val queries = listOf("", "original")
+      val (firstPages, snapshotBound) =
+        database.databaseClient.readOnlyTransaction().use { snapshot ->
+          val pages = queries.associateWith { snapshotPage(snapshot, fixture, it, limit = 25) }
+          pages to TimestampBound.ofReadTimestamp(snapshot.readTimestamp)
+        }
+      assertThat(store.stageNextBatch(work, 50))
+        .isEqualTo(EventGroupMetadataStore.Progress(53, complete = true))
+
+      // Discard the publish response and retry using the same operation.
+      store.publish(work)
+      val operation = store.getOperation(work.operationId)
+      assertThat(operation.state).isEqualTo(EventGroupMetadataStore.State.SUCCEEDED)
+      assertThat(store.publish(work)).isEqualTo(operation.publicationSequence)
+
+      database.databaseClient.readOnlyTransaction(snapshotBound).use { snapshot ->
+        for ((query, firstPage) in firstPages) {
+          assertThat(firstPage).hasSize(25)
+          val continuation =
+            snapshotPage(snapshot, fixture, query, previousPageEnd = firstPage.last())
+          val results = firstPage + continuation
+          assertThat(results.map { it.externalEventGroupId })
+            .containsExactlyElementsIn(originalIds)
+            .inOrder()
+          assertThat(
+              results.map { it.entityMetadata.fieldsMap.getValue("account_name").stringValue }
+            )
+            .containsExactlyElementsIn(List(53) { "original account" })
+        }
+      }
+      assertThat(get(fixture.leaf).entityMetadata.fieldsMap.getValue("account_name").stringValue)
+        .isEqualTo("renamed account")
+      assertThat(list(fixture, "original")).isEmpty()
+      assertThat(list(fixture, "renamed").map { it.externalEventGroupId })
+        .containsExactlyElementsIn(originalIds)
+        .inOrder()
     }
 
   @Test
@@ -288,17 +351,31 @@ class SpannerEventGroupMetadataServiceTest {
   fun `move and delete recompute both ancestor chains without changing resource identity`() =
     runBlocking<Unit> {
       val fixture = fixture()
-      create(
-        fixture.leaf.copy {
-          mediaTypes.clear()
-          mediaTypes += MediaType.DISPLAY
-          dataAvailabilityInterval = interval {
-            startTime = Instant.ofEpochSecond(20).toProtoTime()
-            endTime = Instant.ofEpochSecond(30).toProtoTime()
-          }
-        },
-        "sibling",
-      )
+      val sourceSibling =
+        create(
+          fixture.leaf.copy {
+            mediaTypes.clear()
+            mediaTypes += MediaType.DISPLAY
+            dataAvailabilityInterval = interval {
+              startTime = Instant.ofEpochSecond(20).toProtoTime()
+              endTime = Instant.ofEpochSecond(30).toProtoTime()
+            }
+          },
+          "source-sibling",
+        )
+      val destinationSibling =
+        create(
+          fixture.leaf.withMetadata("account_id" to "X2", "campaign_id" to "C2").copy {
+            mediaTypes.clear()
+            mediaTypes += MediaType.DISPLAY
+            dataAvailabilityInterval = interval {
+              startTime = Instant.ofEpochSecond(25).toProtoTime()
+              endTime = Instant.ofEpochSecond(50).toProtoTime()
+            }
+          },
+          "destination-sibling",
+        )
+      val before = list(fixture)
       val moved =
         service.updateEventGroup(
           updateEventGroupRequest {
@@ -306,21 +383,154 @@ class SpannerEventGroupMetadataServiceTest {
           }
         )
       assertThat(moved.externalEventGroupId).isEqualTo(fixture.leaf.externalEventGroupId)
-      val groups = list(fixture)
-      val oldParent =
-        groups.single { it.entityKey.entityType == "campaign" && it.entityKey.entityId == "C" }
-      val newParent =
-        groups.single { it.entityKey.entityType == "campaign" && it.entityKey.entityId == "C2" }
-      assertThat(oldParent.mediaTypesList).containsExactly(MediaType.DISPLAY)
-      assertThat(oldParent.dataAvailabilityInterval.startTime)
-        .isEqualTo(Instant.ofEpochSecond(20).toProtoTime())
-      assertThat(newParent.mediaTypesList).containsExactly(MediaType.VIDEO)
+      val sourceAncestors = before.filter { it.entityKey.entityId in setOf("X", "C") }
+      val destinationAncestors = before.filter { it.entityKey.entityId in setOf("X2", "C2") }
+      assertThat(sourceAncestors).hasSize(2)
+      assertThat(destinationAncestors).hasSize(2)
+      for (ancestor in sourceAncestors) {
+        val current = get(ancestor)
+        assertThat(current.mediaTypesList).containsExactly(MediaType.DISPLAY)
+        assertThat(current.dataAvailabilityInterval)
+          .isEqualTo(sourceSibling.dataAvailabilityInterval)
+      }
+      for (ancestor in destinationAncestors) {
+        val current = get(ancestor)
+        assertThat(current.mediaTypesList).containsExactly(MediaType.VIDEO, MediaType.DISPLAY)
+        assertThat(current.dataAvailabilityInterval)
+          .isEqualTo(
+            interval {
+              startTime = fixture.leaf.dataAvailabilityInterval.startTime
+              endTime = destinationSibling.dataAvailabilityInterval.endTime
+            }
+          )
+      }
+      val newParent = destinationAncestors.single { it.entityKey.entityType == "campaign" }
       assertStatus(Status.Code.FAILED_PRECONDITION) { delete(newParent) }
       delete(moved)
+      for (ancestor in destinationAncestors) {
+        val current = get(ancestor)
+        assertThat(current.mediaTypesList).containsExactly(MediaType.DISPLAY)
+        assertThat(current.dataAvailabilityInterval)
+          .isEqualTo(destinationSibling.dataAvailabilityInterval)
+      }
+
+      delete(destinationSibling)
       // The former parent retains its last derived fields and becomes ordinary.
       service.updateEventGroup(updateEventGroupRequest { eventGroup = get(newParent) })
-      assertThat(get(newParent).mediaTypesList).containsExactly(MediaType.VIDEO)
+      assertThat(get(newParent).mediaTypesList).containsExactly(MediaType.DISPLAY)
       assertThat(list(fixture, "leafvalue")).hasSize(1)
+    }
+
+  @Test
+  fun `move demotes an ordinary destination and replaces its ancestor contribution`() =
+    runBlocking<Unit> {
+      val fixture = fixture()
+      val destination = createOrdinaryCampaign(fixture, accountId = "X2")
+      val destinationAccount = list(fixture).single { it.entityKey.entityId == "X2" }
+      assertThat(destinationAccount.dataAvailabilityInterval)
+        .isEqualTo(destination.dataAvailabilityInterval)
+
+      val moved =
+        service.updateEventGroup(
+          updateEventGroupRequest {
+            eventGroup = fixture.leaf.withMetadata("account_id" to "X2", "campaign_id" to "C2")
+          }
+        )
+
+      val derivedDestination = get(destination)
+      assertThat(derivedDestination.createTime).isEqualTo(destination.createTime)
+      assertThat(derivedDestination.entityMetadata.fieldsMap).doesNotContainKey("ordinary_only")
+      assertStatus(Status.Code.FAILED_PRECONDITION) { delete(derivedDestination) }
+      for (ancestor in listOf(derivedDestination, get(destinationAccount))) {
+        assertThat(ancestor.mediaTypesList).containsExactly(MediaType.VIDEO)
+        assertThat(ancestor.dataAvailabilityInterval).isEqualTo(moved.dataAvailabilityInterval)
+      }
+    }
+
+  @Test
+  fun `batchCreateEventGroups rolls up demotion and additions below the same ancestor`() =
+    runBlocking<Unit> {
+      val fixture = fixture()
+      val ordinary = createOrdinaryCampaign(fixture, accountId = "X")
+      val account = list(fixture).single { it.entityKey.entityType == "account" }
+      val newAvailability = interval {
+        startTime = Instant.ofEpochSecond(20).toProtoTime()
+        endTime = Instant.ofEpochSecond(60).toProtoTime()
+      }
+      service.batchCreateEventGroups(
+        batchCreateEventGroupsRequest {
+          externalDataProviderId = fixture.leaf.externalDataProviderId
+          requests += createEventGroupRequest {
+            eventGroup = fixture.leaf.withMetadata("campaign_id" to "C2").withCreativeId("second")
+          }
+          requests += createEventGroupRequest {
+            eventGroup =
+              fixture.leaf.withCreativeId("third").copy {
+                mediaTypes.clear()
+                mediaTypes += MediaType.DISPLAY
+                dataAvailabilityInterval = newAvailability
+              }
+          }
+        }
+      )
+
+      assertThat(get(ordinary).dataAvailabilityInterval)
+        .isEqualTo(fixture.leaf.dataAvailabilityInterval)
+      val rolledUpAccount = get(account)
+      assertThat(rolledUpAccount.mediaTypesList).containsExactly(MediaType.VIDEO, MediaType.DISPLAY)
+      assertThat(rolledUpAccount.dataAvailabilityInterval)
+        .isEqualTo(
+          interval {
+            startTime = fixture.leaf.dataAvailabilityInterval.startTime
+            endTime = newAvailability.endTime
+          }
+        )
+    }
+
+  @Test
+  fun `batch updates reject repeated leaf IDs without demoting either destination`() =
+    runBlocking<Unit> {
+      val fixture = fixture()
+      val ordinary = createOrdinaryCampaign(fixture, accountId = "X2")
+      val before = list(fixture)
+
+      assertStatus(Status.Code.INVALID_ARGUMENT) {
+        service.batchUpdateEventGroup(
+          batchUpdateEventGroupsRequest {
+            externalDataProviderId = fixture.leaf.externalDataProviderId
+            requests += updateEventGroupRequest {
+              eventGroup = fixture.leaf.withMetadata("account_id" to "X2", "campaign_id" to "C2")
+            }
+            requests += updateEventGroupRequest {
+              eventGroup = fixture.leaf.withMetadata("account_id" to "X3", "campaign_id" to "C3")
+            }
+          }
+        )
+      }
+
+      assertThat(list(fixture)).containsExactlyElementsIn(before).inOrder()
+      service.updateEventGroup(updateEventGroupRequest { eventGroup = ordinary })
+    }
+
+  @Test
+  fun `update rejects moving an ordinary EventGroup below its own path`() =
+    runBlocking<Unit> {
+      val fixture = fixture()
+      val parent = list(fixture).single { it.entityKey.entityType == "campaign" }
+      delete(fixture.leaf)
+      val ordinary = get(parent)
+
+      assertStatus(Status.Code.FAILED_PRECONDITION) {
+        service.updateEventGroup(
+          updateEventGroupRequest {
+            eventGroup =
+              fixture.leaf.withCreativeId("new-child").copy {
+                externalEventGroupId = ordinary.externalEventGroupId
+              }
+          }
+        )
+      }
+      assertThat(get(parent)).isEqualTo(ordinary)
     }
 
   @Test
@@ -460,6 +670,33 @@ class SpannerEventGroupMetadataServiceTest {
   private suspend fun create(source: EventGroup, id: String) =
     service.createEventGroup(createEventGroupRequest { eventGroup = source.withCreativeId(id) })
 
+  private suspend fun createOrdinaryCampaign(fixture: Fixture, accountId: String): EventGroup =
+    service.createEventGroup(
+      createEventGroupRequest {
+        eventGroup =
+          fixture.leaf.copy {
+            entityKey = entityKey {
+              entityType = "campaign"
+              entityId = "C2"
+            }
+            entityMetadata = struct {
+              fields["account_id"] = value { stringValue = accountId }
+              fields["account_name"] = value { stringValue = "original account" }
+              fields["campaign_id"] = value { stringValue = "C2" }
+              fields["campaign_name"] = value { stringValue = "shared campaign" }
+              fields["ordinary_only"] = value { stringValue = "removed on demotion" }
+            }
+            mediaTypes.clear()
+            mediaTypes += MediaType.DISPLAY
+            dataAvailabilityInterval = interval {
+              startTime = Instant.ofEpochSecond(5).toProtoTime()
+              endTime = Instant.ofEpochSecond(50).toProtoTime()
+            }
+            clearExternalEventGroupId()
+          }
+      }
+    )
+
   private suspend fun get(source: EventGroup) =
     service.getEventGroup(
       getEventGroupRequest {
@@ -487,6 +724,38 @@ class SpannerEventGroupMetadataServiceTest {
         }
       )
       .toList()
+
+  private suspend fun snapshotPage(
+    snapshot: AsyncDatabaseClient.ReadContext,
+    fixture: Fixture,
+    query: String,
+    limit: Int = 0,
+    previousPageEnd: EventGroup? = null,
+  ): List<EventGroup> =
+    StreamEventGroups(
+        requestFilter =
+          filter {
+            externalDataProviderId = fixture.leaf.externalDataProviderId
+            metadataSearchQuery = query
+            if (previousPageEnd != null) {
+              after = after {
+                eventGroupKey = eventGroupKey {
+                  externalDataProviderId = previousPageEnd.externalDataProviderId
+                  externalEventGroupId = previousPageEnd.externalEventGroupId
+                }
+              }
+            }
+          },
+        orderBy = StreamEventGroupsRequest.OrderBy.getDefaultInstance(),
+        view = EventGroup.View.BASIC,
+        internalDataProviderId = null,
+        internalMeasurementConsumerId = null,
+        limit = limit,
+        enableEntityMetadataSearch = true,
+      )
+      .execute(snapshot)
+      .toList()
+      .map { it.eventGroup }
 
   private fun EventGroup.withCreativeId(id: String) =
     withMetadata("creative_id" to id).copy {
