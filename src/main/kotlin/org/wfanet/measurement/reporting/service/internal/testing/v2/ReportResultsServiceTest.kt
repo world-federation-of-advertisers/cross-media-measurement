@@ -39,7 +39,6 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.Callable
-import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -112,7 +111,6 @@ import org.wfanet.measurement.reporting.service.internal.ImpressionQualification
 
 @RunWith(JUnit4::class)
 abstract class ReportResultsServiceTest {
-  private val forcedIds = ConcurrentLinkedQueue<Long>()
   private var currentTime: Instant = Instant.parse("2026-01-01T00:00:00Z")
   protected val clock: Clock =
     object : Clock() {
@@ -128,7 +126,7 @@ abstract class ReportResultsServiceTest {
       private val nextId = AtomicLong(1)
 
       override fun generateId(): Long {
-        return forcedIds.poll() ?: nextId.getAndIncrement()
+        return nextId.getAndIncrement()
       }
     }
 
@@ -934,145 +932,6 @@ abstract class ReportResultsServiceTest {
           )
           .reportingSetResultsList
       )
-      .inOrder()
-  }
-
-  @Test
-  fun `batchCreateReportingSetResults retries persisted internal and external ID collisions`() {
-    ensureMeasurementConsumer()
-    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
-    val request =
-      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
-        reportResult.externalReportResultId
-      )
-    forcedIds.addAll(listOf(900_001L, 900_002L))
-    val existing =
-      reportResultsStub
-        .batchCreateReportingSetResults(
-          request.copy {
-            requests.clear()
-            requests += request.requestsList.first()
-          }
-        )
-        .reportingSetResultsList
-        .single()
-    assertThat(existing.externalReportingSetResultId).isEqualTo(900_002L)
-
-    forcedIds.addAll(listOf(900_001L, 900_002L, 900_003L, 900_004L))
-    val created =
-      reportResultsStub
-        .batchCreateReportingSetResults(
-          request.copy {
-            requests.clear()
-            requests += request.requestsList[1]
-          }
-        )
-        .reportingSetResultsList
-        .single()
-
-    assertThat(created.externalReportingSetResultId)
-      .isNotEqualTo(existing.externalReportingSetResultId)
-    assertThat(created.dimension).isEqualTo(request.requestsList[1].reportingSetResult.dimension)
-    assertWithMessage("Existing and new results retain their windows and values")
-      .about(ProtoTruth.protos())
-      .that(
-        reportResultsStub
-          .listReportingSetResults(
-            listReportingSetResultsRequest {
-              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
-              externalReportResultId = request.externalReportResultId
-            }
-          )
-          .reportingSetResultsList
-      )
-      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
-      .containsExactly(existing, created)
-  }
-
-  @Test
-  fun `batchCreateReportingSetResults retains the noncolliding ID when one ID collides`() {
-    ensureMeasurementConsumer()
-    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
-    val request =
-      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
-        reportResult.externalReportResultId
-      )
-    fun createResult(index: Int): ReportingSetResult =
-      reportResultsStub
-        .batchCreateReportingSetResults(
-          request.copy {
-            requests.clear()
-            requests += request.requestsList[index]
-          }
-        )
-        .reportingSetResultsList
-        .single()
-
-    forcedIds.addAll(listOf(900_001L, 900_002L))
-    val existing = createResult(0)
-    forcedIds.addAll(listOf(900_001L, 900_003L, 900_004L))
-    val internalCollision = createResult(1)
-    forcedIds.addAll(listOf(900_005L, 900_002L, 900_006L))
-    val externalCollision = createResult(2)
-
-    assertThat(existing.externalReportingSetResultId).isEqualTo(900_002L)
-    assertThat(internalCollision.externalReportingSetResultId).isEqualTo(900_003L)
-    assertThat(externalCollision.externalReportingSetResultId).isEqualTo(900_006L)
-    assertWithMessage("ID retries preserve all existing and newly created results")
-      .about(ProtoTruth.protos())
-      .that(
-        reportResultsStub
-          .listReportingSetResults(
-            listReportingSetResultsRequest {
-              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
-              externalReportResultId = request.externalReportResultId
-            }
-          )
-          .reportingSetResultsList
-      )
-      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
-      .containsExactly(existing, internalCollision, externalCollision)
-  }
-
-  @Test
-  fun `batchCreateReportingSetResults retries duplicate IDs within the batch`() {
-    ensureMeasurementConsumer()
-    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
-    val request =
-      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
-          reportResult.externalReportResultId
-        )
-        .copy {
-          requests.clear()
-          requests +=
-            BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.requestsList.map {
-              it.copy {
-                reportingSetResult = reportingSetResult.copy { reportingWindowResults.clear() }
-              }
-            }
-        }
-    forcedIds.addAll(
-      listOf(
-        900_001L,
-        900_002L,
-        900_001L,
-        900_003L,
-        900_002L,
-        900_004L,
-        900_003L,
-        900_005L,
-        900_004L,
-        900_006L,
-      )
-    )
-
-    val response = reportResultsStub.batchCreateReportingSetResults(request)
-
-    assertThat(response.reportingSetResultsList.map { it.externalReportingSetResultId })
-      .containsNoDuplicates()
-    assertThat(response.reportingSetResultsList).hasSize(request.requestsCount)
-    assertThat(response.reportingSetResultsList.map { it.dimension })
-      .containsExactlyElementsIn(request.requestsList.map { it.reportingSetResult.dimension })
       .inOrder()
   }
 

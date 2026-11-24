@@ -2491,22 +2491,6 @@ class MetricsService(
     }
   }
 
-  private data class MetricSyncScope(
-    val basicReport: String,
-    val report: String,
-    val state: Metric.State,
-  )
-
-  private fun Metric.State.toSyncOutcome(): String =
-    when (this) {
-      Metric.State.SUCCEEDED -> "succeeded"
-      Metric.State.FAILED,
-      Metric.State.INVALID -> "failed"
-      Metric.State.RUNNING -> "in_progress"
-      Metric.State.STATE_UNSPECIFIED,
-      Metric.State.UNRECOGNIZED -> "unknown"
-    }
-
   /** Converts [InternalMetric]s to public [Metric]s after syncing [Measurement]s. */
   private suspend fun syncAndConvertInternalMetricsToPublicMetrics(
     metricsByState: Map<InternalMetric.State, List<InternalMetric>>,
@@ -2629,7 +2613,15 @@ class MetricsService(
           }
         }
         for (metric in publicMetrics) {
-          val outcome = metric.state.toSyncOutcome()
+          val outcome =
+            when (metric.state) {
+              Metric.State.SUCCEEDED -> "succeeded"
+              Metric.State.FAILED,
+              Metric.State.INVALID -> "failed"
+              Metric.State.RUNNING -> "in_progress"
+              Metric.State.STATE_UNSPECIFIED,
+              Metric.State.UNRECOGNIZED -> "unknown"
+            }
           ReportTracing.traceSuspending(
             spanName = "reporting.metric.result_synchronized",
             attributes =
@@ -2648,38 +2640,16 @@ class MetricsService(
                 }
                 .build(),
           ) {}
-          if (logger.isLoggable(Level.FINE)) {
-            ReportTraceLogging.log(
-              logger,
-              Level.FINE,
-              null,
-              "reporting.metric.result_synchronized",
-              ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
-              ReportTraceAttributes.BASIC_REPORT_NAME_STRING to metric.basicReport,
-              ReportTraceAttributes.REPORT_NAME_STRING to metric.containingReport,
-              ReportTraceAttributes.METRIC_NAME_STRING to metric.name,
-              ReportTraceAttributes.METRIC_STATE_STRING to metric.state.name,
-              ReportTraceAttributes.OUTCOME_STRING to outcome,
-            )
-          }
-        }
-        if (logger.isLoggable(Level.INFO)) {
-          val metricCounts =
-            publicMetrics
-              .groupingBy { MetricSyncScope(it.basicReport, it.containingReport, it.state) }
-              .eachCount()
-          for ((scope, count) in metricCounts) {
-            ReportTraceLogging.log(
-              logger,
-              "reporting.metrics.results_synchronized",
-              ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
-              ReportTraceAttributes.BASIC_REPORT_NAME_STRING to scope.basicReport,
-              ReportTraceAttributes.REPORT_NAME_STRING to scope.report,
-              ReportTraceAttributes.METRIC_STATE_STRING to scope.state.name,
-              ReportTraceAttributes.METRIC_COUNT_STRING to count.toString(),
-              ReportTraceAttributes.OUTCOME_STRING to scope.state.toSyncOutcome(),
-            )
-          }
+          ReportTraceLogging.log(
+            logger,
+            "reporting.metric.result_synchronized",
+            ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+            ReportTraceAttributes.BASIC_REPORT_NAME_STRING to metric.basicReport,
+            ReportTraceAttributes.REPORT_NAME_STRING to metric.containingReport,
+            ReportTraceAttributes.METRIC_NAME_STRING to metric.name,
+            ReportTraceAttributes.METRIC_STATE_STRING to metric.state.name,
+            ReportTraceAttributes.OUTCOME_STRING to outcome,
+          )
         }
         Span.current()
           .setAttribute(
