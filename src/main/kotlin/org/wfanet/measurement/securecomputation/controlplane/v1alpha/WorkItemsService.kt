@@ -25,7 +25,9 @@ import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest as InternalListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequestKt as InternalListWorkItemsRequestKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse as InternalListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
@@ -39,6 +41,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkI
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
+import org.wfanet.measurement.securecomputation.service.QueueKey
 import org.wfanet.measurement.securecomputation.service.QueueNotFoundException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
@@ -237,16 +240,33 @@ class WorkItemsService(
         }
       }
 
-    if (request.filter.queueInList.any { it.isEmpty() }) {
-      throw InvalidFieldValueException("filter.queue_in")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+    val queueIds: List<String> =
+      request.filter.queueInList.map { queue ->
+        QueueKey.fromName(queue)?.queueId
+          ?: throw InvalidFieldValueException("filter.queue_in") { fieldName ->
+              "$fieldName must contain Queue resource names"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     if (
       request.filter.stateInList.any {
         it == WorkItem.State.STATE_UNSPECIFIED || it == WorkItem.State.UNRECOGNIZED
       }
     ) {
       throw InvalidFieldValueException("filter.state_in")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val internalFilter =
+      InternalListWorkItemsRequestKt.filter {
+        queueResourceIds += queueIds.distinct().sorted()
+        states +=
+          request.filter.stateInList.map { it.toInternalState() }.distinct().sortedBy { it.number }
+      }
+    // A page token continues only the listing that issued it.
+    if (internalPageToken != null && internalPageToken.filter != internalFilter) {
+      throw InvalidFieldValueException("page_token") { fieldName ->
+          "$fieldName does not match filter"
+        }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
@@ -258,20 +278,20 @@ class WorkItemsService(
             if (internalPageToken != null) {
               pageToken = internalPageToken
             }
-            if (request.hasFilter()) {
-              filter =
-                InternalListWorkItemsRequestKt.filter {
-                  queueResourceIds += request.filter.queueInList
-                  states += request.filter.stateInList.map { it.toInternalState() }
-                }
+            if (internalFilter != InternalListWorkItemsRequest.Filter.getDefaultInstance()) {
+              filter = internalFilter
             }
           }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
-          InternalErrors.Reason.QUEUE_NOT_FOUND ->
-            QueueNotFoundException.fromInternal(e)
+          InternalErrors.Reason.QUEUE_NOT_FOUND -> {
+            val queueId: String =
+              InternalErrors.parseMetadata(requireNotNull(e.errorInfo))
+                .getValue(InternalErrors.Metadata.QUEUE_RESOURCE_ID)
+            QueueNotFoundException(QueueKey(queueId).toName(), e)
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
