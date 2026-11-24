@@ -23,10 +23,10 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 
 
 POD_READ_FAILURE_LIMIT = 3
-LOG_BYTE_LIMIT = 16384
 
 
 class _Interrupted(Exception):
@@ -42,33 +42,35 @@ def _kubectl(namespace, arguments):
 
 
 def _stop(process):
-    if process.poll() is not None:
-        return
+    process.poll()
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
-        pass
-    try:
-        process.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
         process.wait()
-
-
-def _check_pod_uid(namespace, name, uid):
-    result = _kubectl(namespace, ["get", "pods", name, "--ignore-not-found", "-o", "json"])
-    if result.returncode:
-        raise RuntimeError(result.stderr.strip()[:2000])
-    response = json.loads(result.stdout) if result.stdout.strip() else {"kind": "List", "items": []}
-    pods = response.get("items", []) if response.get("kind") == "List" else [response]
-    current_uid = next(
-        (pod["metadata"]["uid"] for pod in pods if pod["metadata"]["name"] == name), None,
-    )
-    if current_uid != uid:
-        raise RuntimeError(f"Pod {name} UID {uid} is unavailable; current UID is {current_uid or 'none'}.")
+        return
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        # The wrapper can exit while its Bazel client is still cancelling.
+        process.poll()
+        try:
+            os.killpg(process.pid, 0)
+        except ProcessLookupError:
+            return
+        time.sleep(0.2)
+    try:
+        os.killpg(process.pid, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    process.wait()
 
 
 def _capture(args, pods, observed, message):
+    text = (
+        f"## Kubernetes test dependency failure\n\n{message}\n\n"
+        f"Last-observed pod status: `{args.output_dir}/status.json`. "
+        "Container logs are collected by rollout diagnostics.\n"
+    )
+    print(text, file=sys.stderr)
     args.output_dir.mkdir(parents=True, exist_ok=True)
     # Pod specs can contain credentials; retain only identity and runtime status.
     snapshots = [
@@ -80,33 +82,6 @@ def _capture(args, pods, observed, message):
     (args.output_dir / "status.json").write_text(
         json.dumps({"failure": message, "pods": snapshots}, indent=2) + "\n"
     )
-    errors = []
-    for pod in snapshots:
-        for container in pod["status"].get("containerStatuses", []):
-            arguments = [
-                "logs", pod["name"], "--container", container["name"],
-                "--tail=80", f"--limit-bytes={LOG_BYTE_LIMIT}",
-            ]
-            variants = [arguments]
-            if container.get("restartCount", 0):
-                variants.append(arguments + ["--previous"])
-            for command in variants:
-                try:
-                    # Log requests use names; verify identity on both sides of the read.
-                    _check_pod_uid(args.namespace, pod["name"], pod["uid"])
-                    result = _kubectl(args.namespace, command)
-                    if result.returncode:
-                        raise RuntimeError(result.stderr.strip()[:2000])
-                    _check_pod_uid(args.namespace, pod["name"], pod["uid"])
-                    suffix = "-previous" if "--previous" in command else ""
-                    path = args.output_dir / f"{pod['name']}-{pod['uid']}-{container['name']}{suffix}.log"
-                    path.write_bytes(result.stdout.encode("utf-8")[-LOG_BYTE_LIMIT:])
-                except (OSError, RuntimeError, subprocess.TimeoutExpired, json.JSONDecodeError,
-                        KeyError, TypeError, AttributeError) as error:
-                    errors.append({"command": command, "uid": pod["uid"], "error": str(error)[:2000]})
-    (args.output_dir / "errors.json").write_text(json.dumps(errors, indent=2) + "\n")
-    text = f"## Kubernetes test dependency failure\n\n{message}\n\nStatus and bounded logs: `{args.output_dir}`.\n"
-    print(text, file=sys.stderr)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as output:
             output.write(text)
@@ -156,7 +131,11 @@ def main(argv):
     previous_handler = signal.signal(signal.SIGTERM, interrupt)
     process = None
     try:
-        process = subprocess.Popen(command, start_new_session=True)
+        try:
+            process = subprocess.Popen(command, start_new_session=True)
+        except OSError as error:
+            print(f"Unable to start test command: {error}", file=sys.stderr)
+            return 127
         while process.poll() is None:
             message = None
             try:
@@ -185,13 +164,18 @@ def main(argv):
             except (OSError, RuntimeError, subprocess.TimeoutExpired, json.JSONDecodeError,
                     KeyError, TypeError, AttributeError) as error:
                 failures += 1
-                if failures >= POD_READ_FAILURE_LIMIT:
-                    message = f"Cannot monitor database pods after {failures} reads: {str(error)[:2000]}"
+                if failures == POD_READ_FAILURE_LIMIT:
+                    print(
+                        f"::warning::Cannot monitor database pods after {failures} reads: {str(error)[:2000]}",
+                        file=sys.stderr,
+                    )
             if process.poll() is not None:
                 break
             if message:
-                _stop(process)
-                _capture(args, snapshots, observed, message)
+                try:
+                    _capture(args, snapshots, observed, message)
+                except OSError as error:
+                    print(f"::warning::Unable to save dependency status: {str(error)[:2000]}", file=sys.stderr)
                 return 1
             try:
                 process.wait(timeout=args.poll_interval_seconds)
@@ -203,9 +187,6 @@ def main(argv):
         return 128 + error.signum
     except KeyboardInterrupt:
         return 130
-    except OSError as error:
-        print(f"Unable to start test command: {error}", file=sys.stderr)
-        return 127
     finally:
         if process is not None:
             _stop(process)

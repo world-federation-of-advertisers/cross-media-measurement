@@ -28,11 +28,14 @@ The CI correctness tests stop if a Spanner or PostgreSQL emulator exits,
 restarts, disappears, or is replaced. Their in-memory database cannot safely
 be recovered by restarting the pod. Check the job summary and the
 `correctness-emulators` or `panelmatch-emulators` directory in the cluster-log
-artifact for the last-observed pod status and bounded logs. After a pod replacement,
-status snapshots retain both UIDs and identify the replacement. Log filenames
-include the pod UID; unavailable logs are recorded in `errors.json`.
+artifact for the last-observed pod status. After a pod replacement, status
+snapshots retain both UIDs and identify the replacement. Temporary status-read
+failures produce a warning while the test continues under its own deadlines.
 
-The rollout diagnostics also include these standalone pods. For other
+The `rollout` directory contains bounded current and previous container logs for
+pods available when diagnostics run. Log filenames include the pod UID so they
+can be matched to the original or replacement status snapshot; unavailable logs
+are recorded in `errors.json`. For other
 standalone dependencies, pass `--pod=<name>` to the collector above to include
 that pod's status, events, and bounded main-container logs.
 

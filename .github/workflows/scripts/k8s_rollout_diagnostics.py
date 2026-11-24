@@ -109,7 +109,7 @@ def main():
                 "logs", pod["metadata"]["name"], "--container", container["name"],
                 "--tail=80", "--limit-bytes=16384",
             ]
-            prefix = pod["metadata"]["name"] + "-" + container["name"]
+            prefix = pod["metadata"]["name"] + "-" + pod["metadata"]["uid"] + "-" + container["name"]
             key = (pod["metadata"]["uid"], container["name"])
             if key not in collected_logs:
                 collected_logs.add(key)
