@@ -45,6 +45,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.data.SpanData
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -74,6 +75,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -461,7 +463,7 @@ class ResultsFulfillerTest {
       whenever(requisitionsServiceMock.getRequisition(any())).thenAnswer {
         val request = it.arguments[0] as org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
         if (request.name == DIRECT_RNF_REQUISITION.name) {
-          throw Status.UNAVAILABLE.asRuntimeException()
+          throw Status.UNAVAILABLE.withDescription("SYNTHETIC_PRIVATE_VALUE").asRuntimeException()
         }
         requisition { state = Requisition.State.UNFULFILLED }
       }
@@ -522,6 +524,8 @@ class ResultsFulfillerTest {
         }
       assertThat(failureLog.level).isEqualTo(Level.SEVERE)
       assertThat(failureLog.thrown).isNotNull()
+      assertThat(java.util.logging.SimpleFormatter().format(failureLog))
+        .doesNotContain("SYNTHETIC_PRIVATE_VALUE")
       assertThat(failureLog.message).contains("xmm.report.name=report-name")
       assertThat(failureLog.message).contains("xmm.edpa.group_id=preflight-group")
       assertThat(failureLog.message).contains("xmm.lifecycle.stage=results_fulfillment")
@@ -2737,7 +2741,7 @@ class ResultsFulfillerTest {
     whenever(requisitionsServiceMock.getRequisition(any()))
       .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
     whenever(requisitionsServiceMock.refuseRequisition(any()))
-      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      .thenThrow(Status.UNAVAILABLE.withDescription("SYNTHETIC_PRIVATE_VALUE").asRuntimeException())
     whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
       .thenReturn(requisitionMetadata {})
 
@@ -2830,6 +2834,289 @@ class ResultsFulfillerTest {
       .isEqualTo("StatusException")
     assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
       .isEqualTo("grpc.UNAVAILABLE")
+    assertThat(refusalSpan.toString()).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+  }
+
+  @Test
+  fun `refusal boundaries stay safe with measurement value logging disabled`() = runBlocking {
+    assertSafeRefusal(logMeasurementValues = false)
+  }
+
+  @Test
+  fun `refusal boundaries stay safe with measurement value logging enabled`() = runBlocking {
+    assertSafeRefusal(logMeasurementValues = true)
+  }
+
+  private suspend fun assertSafeRefusal(logMeasurementValues: Boolean) {
+    val metadataName =
+      REQUISITION_NAME.substringBefore("/requisitions/") + "/requisitionMetadata/refusal-test"
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = metadataName
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.refuseRequisition(any())).thenReturn(requisition {})
+    whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
+      .thenReturn(requisitionMetadata {})
+    whenever(requisitionMetadataServiceMock.startProcessingRequisitionMetadata(any()))
+      .thenReturn(
+        requisitionMetadata {
+          name = metadataName
+          state = RequisitionMetadata.State.PROCESSING
+          cmmsRequisition = REQUISITION_NAME
+          cmmsCreateTime = timestamp { seconds = 12345 }
+          groupId = "an-existing-group-id"
+          report = "report-name"
+          etag = "processing"
+        }
+      )
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_RNF_REQUISITION),
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val cause =
+      IOException("SYNTHETIC_PRIVATE_CAUSE").apply {
+        stackTrace =
+          arrayOf(StackTraceElement("org.wfanet.fixture.Cause", "read", "CauseFixture.kt", 41))
+      }
+    val failure =
+      RequisitionRefusalException.Default(
+          Requisition.Refusal.Justification.UNFULFILLABLE,
+          "SYNTHETIC_PRIVATE_VALUE",
+          cause,
+        )
+        .apply {
+          stackTrace =
+            arrayOf(
+              StackTraceElement("org.wfanet.fixture.Refusal", "refuse", "RefusalFixture.kt", 27)
+            )
+          addSuppressed(
+            IllegalArgumentException("SYNTHETIC_PRIVATE_SUPPRESSED").apply {
+              stackTrace =
+                arrayOf(
+                  StackTraceElement(
+                    "org.wfanet.fixture.Suppressed",
+                    "close",
+                    "SuppressedFixture.kt",
+                    63,
+                  )
+                )
+            }
+          )
+        }
+    val fulfillmentClient = mock<RequisitionsCoroutineStub>()
+    whenever(fulfillmentClient.getRequisition(any(), any<io.grpc.Metadata>()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(fulfillmentClient.fulfillDirectRequisition(any(), any<io.grpc.Metadata>()))
+      .thenAnswer { throw failure }
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = fulfillmentClient,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig = null,
+        kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = logMeasurementValues,
+      )
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
+        metrics = metrics,
+      )
+
+    val output = java.util.concurrent.CopyOnWriteArrayList<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          output += java.util.logging.SimpleFormatter().format(record)
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger("")
+    logger.addHandler(handler)
+    try {
+      resultsFulfiller.fulfillRequisitions()
+    } finally {
+      logger.removeHandler(handler)
+    }
+    val metadataRequest =
+      argumentCaptor<
+        org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
+      >()
+    verifyBlocking(requisitionMetadataServiceMock) {
+      refuseRequisitionMetadata(metadataRequest.capture())
+    }
+    assertThat(metadataRequest.firstValue.name).isEqualTo(metadataName)
+    val kingdomRequest =
+      argumentCaptor<org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest>()
+    verifyBlocking(requisitionsServiceMock) { refuseRequisition(kingdomRequest.capture()) }
+    for (description in
+      listOf(
+        metadataRequest.firstValue.refusalMessage,
+        kingdomRequest.firstValue.refusal.message,
+      )) {
+      assertThat(description).contains("justification=UNFULFILLABLE")
+      assertThat(description).contains("category=REQUISITION_REFUSAL")
+      assertThat(description).contains("code=FULFILLMENT_FAILED")
+      for (privateText in
+        listOf(
+          "SYNTHETIC_PRIVATE_VALUE",
+          "SYNTHETIC_PRIVATE_CAUSE",
+          "SYNTHETIC_PRIVATE_SUPPRESSED",
+          "RequisitionRefusalException",
+          "IOException",
+          "IllegalArgumentException",
+          "RefusalFixture.kt",
+          "CauseFixture.kt",
+          "SuppressedFixture.kt",
+          "; at ",
+          "org.wfanet",
+        )) assertThat(description).doesNotContain(privateText)
+    }
+    assertThat(metadataRequest.firstValue.refusalMessage)
+      .isEqualTo(kingdomRequest.firstValue.refusal.message)
+    assertThat(kingdomRequest.firstValue.refusal.justification).isEqualTo(failure.justification)
+    val formattedLogs = output.joinToString("\n")
+    assertThat(formattedLogs).contains(failure.javaClass.name)
+    assertThat(formattedLogs).contains("java.io.IOException")
+    assertThat(formattedLogs).contains("java.lang.IllegalArgumentException")
+    assertThat(formattedLogs).contains("RefusalFixture.kt:27")
+    assertThat(formattedLogs).contains("CauseFixture.kt:41")
+    assertThat(formattedLogs).contains("SuppressedFixture.kt:63")
+    assertThat(formattedLogs).contains(REQUISITION_NAME)
+    assertThat(formattedLogs).contains("justification=UNFULFILLABLE")
+    assertThat(formattedLogs).contains("category=REQUISITION_REFUSAL")
+    assertThat(formattedLogs).contains("code=FULFILLMENT_FAILED")
+    // The real direct fulfiller proves logMeasurementValues is wired, independent of refusal
+    // sanitization.
+    assertThat(formattedLogs.contains("Direct MeasurementResult:")).isEqualTo(logMeasurementValues)
+    val spans = collectSpans()
+    val refusalSpan = spans.single { it.name == "requisition_fulfillment" }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.justification")
+        )
+      )
+      .isEqualTo("UNFULFILLABLE")
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.category")
+        )
+      )
+      .isEqualTo("REQUISITION_REFUSAL")
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.code")
+        )
+      )
+      .isEqualTo("FULFILLMENT_FAILED")
+    val exceptionEvent = refusalSpan.events.single { it.name == "exception" }
+    val exceptionEvidence = exceptionEvent.attributes.asMap().toString()
+    assertThat(exceptionEvidence).contains(failure.javaClass.name)
+    assertThat(exceptionEvidence).contains("IOException")
+    assertThat(exceptionEvidence).contains("CauseFixture.kt:41")
+    assertThat(exceptionEvidence).contains("RefusalFixture.kt:27")
+    assertThat(exceptionEvidence).contains("java.lang.IllegalArgumentException")
+    assertThat(exceptionEvidence).contains("SuppressedFixture.kt:63")
+    val internalSpans =
+      spans.joinToString { span ->
+        span.toString() + span.events.joinToString { it.attributes.asMap().toString() }
+      }
+    assertThat(internalSpans).contains("IOException")
+    assertThat(internalSpans).contains("CauseFixture.kt")
+    assertThat(internalSpans).contains(REQUISITION_NAME)
+    assertThat(internalSpans).contains("FULFILLMENT_FAILED")
+    for (privateText in
+      listOf(
+        "SYNTHETIC_PRIVATE_VALUE",
+        "SYNTHETIC_PRIVATE_CAUSE",
+        "SYNTHETIC_PRIVATE_SUPPRESSED",
+      )) {
+      assertThat(formattedLogs).doesNotContain(privateText)
+      assertThat(internalSpans).doesNotContain(privateText)
+    }
+    verifyBlocking(fulfillmentClient) { fulfillDirectRequisition(any(), any<io.grpc.Metadata>()) }
+    verifyBlocking(requisitionMetadataServiceMock) { startProcessingRequisitionMetadata(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(0)) { fulfillRequisitionMetadata(any()) }
+    assertThat(failure.message).isEqualTo("SYNTHETIC_PRIVATE_VALUE")
   }
 
   @Test

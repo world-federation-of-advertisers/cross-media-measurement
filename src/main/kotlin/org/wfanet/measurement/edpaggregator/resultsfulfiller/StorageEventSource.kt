@@ -28,6 +28,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.type.Interval
 import java.io.IOException
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -375,9 +377,9 @@ class StorageEventSource(
         if (emitted || attempt >= readMaxAttempts || !isRetryableReadFailure(e)) {
           throw e
         }
-        logger.warning {
+        logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
           "Transient failure opening ${resolvedReader.blobUri} on attempt $attempt of " +
-            "$readMaxAttempts (${e.message}); retrying"
+            "$readMaxAttempts; retrying"
         }
         delay(readRetryBackoff.durationForAttempt(attempt).toMillis())
       }
