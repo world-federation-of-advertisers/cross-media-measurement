@@ -18,3 +18,10 @@ Only the internal Reporting server, public Reporting server, Reporting gateway,
 BasicReportsReports job, and Python post-processor images are rebuilt. The
 Python receiver allows 64 MiB. The optional scale test has a four-hour ceiling. The impression metadata audit and
 its loopback regression keep the normal 4 MiB receive limit.
+
+The same isolated experiment also applies #4831's bounded SQL statements to the
+legacy PostgreSQL report and metric writers. All statements still execute inside
+the original transaction. The unbounded writer failed with PostgreSQL 08P01
+(invalid message format) after the transport and memory limits were raised.
+These legacy-report changes are not part of PR #5013 or a recommendation for the
+future multi-measurement writer.
