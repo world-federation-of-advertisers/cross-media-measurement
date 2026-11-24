@@ -15,5 +15,6 @@ receives up to 64 MiB; the test allows a ten-minute HTTP response deadline.
 These are experiment ceilings, not proposed API requirements.
 
 Only the internal Reporting server, public Reporting server, Reporting gateway,
-and BasicReportsReports job image are rebuilt. The impression metadata audit and
+BasicReportsReports job, and Python post-processor images are rebuilt. The
+Python receiver allows 64 MiB. The optional scale test has a four-hour ceiling. The impression metadata audit and
 its loopback regression keep the normal 4 MiB receive limit.

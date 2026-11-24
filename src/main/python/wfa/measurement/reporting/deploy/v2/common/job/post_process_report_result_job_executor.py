@@ -198,7 +198,7 @@ def _get_secure_credentials(
 def _create_secure_channel(
     target: str,
     credentials: grpc.ChannelCredentials,
-    channel_options: list[tuple[str, str]] | None = None,
+    channel_options: list[tuple[str, str | int]] | None = None,
 ) -> grpc.Channel:
     """Creates a secure gRPC channel."""
     return grpc.secure_channel(target, credentials, options=channel_options)
@@ -228,7 +228,7 @@ def main(argv):
         raise ValueError(
             f"The cert collection file not found at {cert_collection_file}")
 
-    channel_options = []
+    channel_options = [("grpc.max_receive_message_length", 64 * 1024 * 1024)]
     internal_api_cert_host = _INTERNAL_API_CERT_HOST.value
     if internal_api_cert_host:
         channel_options.append(

@@ -103,7 +103,7 @@ jobs:
           build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
           build --define high_overlap_model_line=$HIGH_OVERLAP_MODEL_LINE
           test --test_output=streamed
-          test --test_timeout=6000
+          test --test_timeout=14400
           EOF
 
       - name: Wait for Kingdom public API

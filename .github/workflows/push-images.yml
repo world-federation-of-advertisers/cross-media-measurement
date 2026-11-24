@@ -74,14 +74,8 @@ jobs:
       - name: Build experiment images
         run: >
           tools/bazel-with-results bazelisk build
-          //src/main/docker:push_gcloud_reporting_v2_internal_server_image
-          //src/main/docker:push_reporting_v2alpha_public_api_server_image
-          //src/main/docker:push_basic_reports_reports_image
-          //src/main/docker:push_reporting_grpc_gateway_image
+          //src/main/docker:push_report_result_post_processor_image
 
       - name: Push experiment images
         run: |
-          bazelisk run //src/main/docker:push_gcloud_reporting_v2_internal_server_image
-          bazelisk run //src/main/docker:push_reporting_v2alpha_public_api_server_image
-          bazelisk run //src/main/docker:push_basic_reports_reports_image
-          bazelisk run //src/main/docker:push_reporting_grpc_gateway_image
+          bazelisk run //src/main/docker:push_report_result_post_processor_image
