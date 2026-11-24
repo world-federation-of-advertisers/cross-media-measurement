@@ -306,6 +306,18 @@ class LabelerInputMapperTest {
   }
 
   @Test
+  fun `rejects a non-string age bucket value with its target field`() {
+    val mapper = ageBucketMapper()
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        mapper.project(mapOf("bucket" to parquetValue { int64Value = 9876543210L }))
+      }
+    assertThat(failure).hasMessageThat().doesNotContain("9876543210")
+    assertThat(failure).hasMessageThat().contains("INCOMPATIBLE_TYPE")
+    assertThat(failure).hasMessageThat().contains("field=wfa_virtual_people.DemoBucket.age")
+  }
+
+  @Test
   fun `rejects numeric ages without exposing the value`() {
     val mapper =
       mapperOf(
