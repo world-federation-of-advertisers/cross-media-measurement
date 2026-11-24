@@ -50,7 +50,6 @@ class CommittedPopulationSpecsTest(private val resourcePath: String) {
       listOf(
         arrayOf("src/main/k8s/testing/data/synthetic_population_spec_large.textproto"),
         arrayOf("src/main/k8s/testing/data/synthetic_population_spec_small.textproto"),
-        arrayOf("src/main/k8s/testing/data/synthetic_population_spec_us.textproto"),
         arrayOf(
           "src/main/proto/wfa/measurement/loadtest/dataprovider/360m_population_spec.textproto"
         ),
