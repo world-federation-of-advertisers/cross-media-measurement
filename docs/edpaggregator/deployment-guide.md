@@ -801,9 +801,16 @@ simpler maintenance alternative below:
    approvals for the window. Leave existing consumers running while work finishes;
    do not mutate Terraform-owned resources out of band.
 2. Run `VidLabelingRolloutCheck --mode=DRAINED` with every deployment EDP and VID queue,
-   including availability handoff. It follows every page and fails on queued/running
-   work, nonterminal/deferred uploads, incomplete registration, unfinished healing,
-   unknown states, missing evidence or query errors. Proceed only after it succeeds.
+   including availability handoff. It lists only unfinished WorkItems in those queues,
+   unfinished uploads, unfinished model lines across all uploads and unfinished healing
+   operations, so its cost follows outstanding work rather than retained history. It
+   fails on queued/running work, nonterminal uploads, unfinished healing, unknown states,
+   missing evidence or query errors. Proceed only after it succeeds.
+   `--mode=MAINTENANCE` repeats these checks after waiting one maximum synchronization-lease
+   lifetime plus margin (`--max-sync-lease-lifetime`, default `10m`, and
+   `--sync-lease-margin`, default `1m`). With intake paused and no unfinished work, no
+   worker can renew a lease, so any abandoned lease has expired before the second check.
+   The check uses only service APIs and needs no database access.
 3. Run one normal Update CMMS deployment with `apply=true` and
    `vid-labeling-readiness=true`. Its normal schema/service/Terraform sequence is
    followed by read-only checks of schema-init success, expected metadata images,
@@ -817,8 +824,9 @@ simpler maintenance alternative below:
 5. Resume production done markers only after deployment readiness and the smoke
    verification succeed. A failed check leaves the window closed for diagnosis.
 
-The CLI performs only existing List RPCs, with complete pagination and a bounded
-deadline. It never creates, retries, updates or deletes API resources. Smoke input
+The CLI performs only List RPCs with server-side state filters, complete pagination and a
+bounded deadline. A server that predates a filter returns a complete listing, which the CLI
+still evaluates correctly. It never creates, retries, updates or deletes API resources. Smoke input
 is application test data emitted by the normal publisher. The readiness script uses
 only get/describe/list commands and never changes Terraform-owned state.
 

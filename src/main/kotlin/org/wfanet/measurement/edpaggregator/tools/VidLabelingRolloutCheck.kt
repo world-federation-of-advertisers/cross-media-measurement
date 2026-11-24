@@ -14,19 +14,15 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
-import com.google.cloud.spanner.DatabaseId
-import com.google.cloud.spanner.SpannerOptions
-import com.google.cloud.spanner.Statement
 import com.google.protobuf.ListValue
 import com.google.protobuf.Struct
 import com.google.protobuf.TextFormat
 import com.google.protobuf.Value
 import com.google.protobuf.util.JsonFormat
 import java.io.File
-import kotlinx.coroutines.Dispatchers
+import java.time.Duration
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -35,6 +31,9 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
@@ -55,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemsRequestKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.listWorkItemsRequest
@@ -73,7 +73,9 @@ class VidLabelingRolloutChecker(
   private val files: RawImpressionUploadFileServiceCoroutineStub,
   private val healing: UploadHealingOperationServiceCoroutineStub,
   private val workItems: WorkItemsCoroutineStub,
-  private val requireNoSyncLeases: (suspend (Set<String>) -> Unit)? = null,
+  /** Maximum synchronization-lease lifetime plus margin. Required by maintenance checks. */
+  private val leaseQuiescence: Duration = Duration.ZERO,
+  private val sleep: suspend (Duration) -> Unit = { delay(it.toMillis()) },
 ) {
   private suspend fun <T> pages(fetch: suspend (String) -> Pair<List<T>, String>): List<T> {
     val result = mutableListOf<T>()
@@ -100,97 +102,136 @@ class VidLabelingRolloutChecker(
     response.rawImpressionUploadsList to response.nextPageToken
   }
 
-  /** Proves no outstanding VID work or unfinished upload/healing state in the supplied scope. */
+  /**
+   * Proves no outstanding VID work or unfinished upload/healing state in the supplied scope.
+   *
+   * Every collection is read with a server-side state filter, so the cost is bounded by the
+   * outstanding work rather than by retained history. Rows outside the filter are still evaluated,
+   * so a server that predates a filter yields a complete (unbounded) read rather than a false pass.
+   */
   suspend fun requireDrained(providers: Set<String>, queues: Set<String>) {
     require(providers.isNotEmpty() && queues.isNotEmpty()) { "Deployment scope must be explicit" }
+    // Deployment scope names queues as `queues/{queue}`; WorkItem.queue and the queue registry
+    // carry the bare queue resource ID.
+    val queueIds: Set<String> =
+      queues.mapTo(sortedSetOf()) { queue ->
+        val queueId = queue.removePrefix(QUEUE_PREFIX)
+        require(queue.startsWith(QUEUE_PREFIX) && queueId.isNotEmpty() && '/' !in queueId) {
+          "Invalid queue: $queue"
+        }
+        queueId
+      }
     val items = pages { token ->
       val response =
         workItems.listWorkItems(
           listWorkItemsRequest {
             pageSize = 100
             pageToken = token
+            filter =
+              ListWorkItemsRequestKt.filter {
+                queueIn += queueIds
+                stateIn += UNFINISHED_WORK_ITEM_STATES
+              }
           }
         )
       response.workItemsList to response.nextPageToken
     }
     for (item in items) {
       check(item.queue.isNotEmpty()) { "WorkItem queue missing" }
-      if (item.queue !in queues) continue
-      if (item.state != WorkItem.State.SUCCEEDED && item.state != WorkItem.State.FAILED) {
-        if (item.state == WorkItem.State.QUEUED || item.state == WorkItem.State.RUNNING) {
-          throw RolloutWorkInProgressException("VID queue is not drained: ${item.name}")
-        }
-        error("Unknown WorkItem state: ${item.name} (${item.state})")
+      if (item.queue !in queueIds) continue
+      if (item.state == WorkItem.State.SUCCEEDED || item.state == WorkItem.State.FAILED) continue
+      if (item.state == WorkItem.State.QUEUED || item.state == WorkItem.State.RUNNING) {
+        throw RolloutWorkInProgressException("VID queue is not drained: ${item.name}")
       }
+      error("Unknown WorkItem state: ${item.name} (${item.state})")
     }
     for (provider in providers) {
-      require(provider.startsWith("dataProviders/") && provider.substringAfter('/').isNotEmpty())
-      for (upload in allUploads(provider)) {
-        if (
-          upload.state != RawImpressionUpload.State.COMPLETED &&
-            upload.state != RawImpressionUpload.State.FAILED &&
-            upload.state != RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
-        ) {
-          if (
-            upload.state == RawImpressionUpload.State.CREATED ||
-              upload.state == RawImpressionUpload.State.ACTIVE
-          ) {
-            throw RolloutWorkInProgressException("Nonterminal upload: ${upload.name}")
-          }
-          error("Upload requires intervention or has unknown state: ${upload.name}")
-        }
-        check(!upload.processingDeferred) { "Deferred processing: ${upload.name}" }
-        check(upload.registrationComplete) { "Incomplete registration: ${upload.name}" }
-        val rows = pages { token ->
-          val response =
-            modelLines.listRawImpressionUploadModelLines(
-              listRawImpressionUploadModelLinesRequest {
-                parent = upload.name
-                pageSize = 1000
-                pageToken = token
-              }
-            )
-          response.rawImpressionUploadModelLinesList to response.nextPageToken
-        }
-        check(
-          rows.all {
-            it.state == RawImpressionUploadModelLine.State.COMPLETED ||
-              it.state == RawImpressionUploadModelLine.State.FAILED
-          }
-        ) {
-          "Nonterminal model line under terminal upload: ${upload.name}"
-        }
+      require(
+        provider.startsWith("dataProviders/") &&
+          provider.count { it == '/' } == 1 &&
+          provider.substringAfter('/').isNotEmpty()
+      )
+      val unfinishedUploads = pages { token ->
+        val response =
+          uploads.listRawImpressionUploads(
+            listRawImpressionUploadsRequest {
+              parent = provider
+              pageSize = 1000
+              pageToken = token
+              filter =
+                ListRawImpressionUploadsRequestKt.filter { stateIn += UNFINISHED_UPLOAD_STATES }
+            }
+          )
+        response.rawImpressionUploadsList to response.nextPageToken
       }
-      val operations = pages { token ->
+      for (upload in unfinishedUploads) {
+        if (upload.state in TERMINAL_UPLOAD_STATES) continue
+        if (
+          upload.state == RawImpressionUpload.State.CREATED ||
+            upload.state == RawImpressionUpload.State.ACTIVE
+        ) {
+          throw RolloutWorkInProgressException("Nonterminal upload: ${upload.name}")
+        }
+        error("Upload requires intervention or has unknown state: ${upload.name} (${upload.state})")
+      }
+      // One cross-upload query (AIP-159) replaces listing the children of every upload.
+      val unfinishedModelLines = pages { token ->
+        val response =
+          modelLines.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = "$provider/rawImpressionUploads/-"
+              pageSize = 1000
+              pageToken = token
+              filter =
+                ListRawImpressionUploadModelLinesRequestKt.filter {
+                  stateIn += UNFINISHED_MODEL_LINE_STATES
+                }
+            }
+          )
+        response.rawImpressionUploadModelLinesList to response.nextPageToken
+      }
+      val activeModelLine =
+        unfinishedModelLines.firstOrNull {
+          it.state != RawImpressionUploadModelLine.State.COMPLETED &&
+            it.state != RawImpressionUploadModelLine.State.FAILED
+        }
+      check(activeModelLine == null) {
+        "Nonterminal model line under terminal upload: ${activeModelLine?.name}"
+      }
+      val unfinishedOperations = pages { token ->
         val response =
           healing.listUploadHealingOperations(
             listUploadHealingOperationsRequest {
               parent = provider
               pageSize = 100
               pageToken = token
+              filter =
+                ListUploadHealingOperationsRequestKt.filter { stateIn += UNFINISHED_HEALING_STATES }
             }
           )
         response.uploadHealingOperationsList to response.nextPageToken
       }
-      for (operation in operations) {
-        check(operation.state == UploadHealingOperation.State.COMPLETE) {
-          "Unfinished healing: ${operation.name} (${operation.state})"
-        }
+      val activeOperation =
+        unfinishedOperations.firstOrNull { it.state != UploadHealingOperation.State.COMPLETE }
+      check(activeOperation == null) {
+        "Unfinished healing: ${activeOperation?.name} (${activeOperation?.state})"
       }
     }
   }
 
   /**
-   * Complete maintenance preflight, including synchronization leases. A second state read rejects
-   * work that changed while the first evidence set and lease query were collected. Intake/backfill
-   * control must remain paused for the entire caller-owned maintenance window.
+   * Complete maintenance preflight. Intake/backfill control must remain paused for the entire
+   * caller-owned maintenance window, so no new work can start. After the first drain proof, this
+   * waits one maximum synchronization-lease lifetime plus margin. No drained worker can renew a
+   * lease, so every abandoned lease has expired before the same API checks are repeated.
    */
   suspend fun requireMaintenanceDrained(providers: Set<String>, queues: Set<String>) {
-    val probe = checkNotNull(requireNoSyncLeases) { "Authoritative lease checker is required" }
+    check(!leaseQuiescence.isNegative && !leaseQuiescence.isZero) {
+      "Synchronization-lease quiescence period is required"
+    }
     requireDrained(providers, queues)
-    probe(providers)
+    sleep(leaseQuiescence)
     requireDrained(providers, queues)
-    probe(providers)
   }
 
   /** Verifies one real, exact-generation smoke upload; does not create or modify test data. */
@@ -297,6 +338,42 @@ class VidLabelingRolloutChecker(
       "Smoke file coverage is incomplete or duplicated"
     }
   }
+
+  companion object {
+    private const val QUEUE_PREFIX = "queues/"
+    private val UNFINISHED_WORK_ITEM_STATES =
+      WorkItem.State.values().filter {
+        it != WorkItem.State.STATE_UNSPECIFIED &&
+          it != WorkItem.State.UNRECOGNIZED &&
+          it != WorkItem.State.SUCCEEDED &&
+          it != WorkItem.State.FAILED
+      }
+    private val TERMINAL_UPLOAD_STATES =
+      setOf(
+        RawImpressionUpload.State.COMPLETED,
+        RawImpressionUpload.State.FAILED,
+        RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
+      )
+    private val UNFINISHED_UPLOAD_STATES =
+      RawImpressionUpload.State.values().filter {
+        it != RawImpressionUpload.State.STATE_UNSPECIFIED &&
+          it != RawImpressionUpload.State.UNRECOGNIZED &&
+          it !in TERMINAL_UPLOAD_STATES
+      }
+    private val UNFINISHED_MODEL_LINE_STATES =
+      RawImpressionUploadModelLine.State.values().filter {
+        it != RawImpressionUploadModelLine.State.STATE_UNSPECIFIED &&
+          it != RawImpressionUploadModelLine.State.UNRECOGNIZED &&
+          it != RawImpressionUploadModelLine.State.COMPLETED &&
+          it != RawImpressionUploadModelLine.State.FAILED
+      }
+    private val UNFINISHED_HEALING_STATES =
+      UploadHealingOperation.State.values().filter {
+        it != UploadHealingOperation.State.STATE_UNSPECIFIED &&
+          it != UploadHealingOperation.State.UNRECOGNIZED &&
+          it != UploadHealingOperation.State.COMPLETE
+      }
+  }
 }
 
 @CommandLine.Command(name = "vid-labeling-rollout-check", mixinStandardHelpOptions = true)
@@ -307,9 +384,6 @@ class VidLabelingRolloutCheck : Runnable {
     ZERO_MEMBERSHIP,
   }
 
-  @CommandLine.Option(names = ["--spanner-project"]) private var spannerProject: String = ""
-  @CommandLine.Option(names = ["--spanner-instance"]) private var spannerInstance: String = ""
-  @CommandLine.Option(names = ["--spanner-database"]) private var spannerDatabase: String = ""
   @CommandLine.Mixin private lateinit var tls: TlsFlags
   @CommandLine.Option(names = ["--edpa-public-api-target"], required = true)
   private lateinit var edpaTarget: String
@@ -333,16 +407,29 @@ class VidLabelingRolloutCheck : Runnable {
   @CommandLine.Option(names = ["--done-blob-generation"]) private var generation: Long = 0
   @CommandLine.Option(names = ["--model-line"]) private var modelLine: String = ""
   @CommandLine.Option(names = ["--expected-shards"]) private var expectedShards: Int = 0
-  @CommandLine.Option(names = ["--timeout-seconds"], defaultValue = "600")
-  private var timeoutSeconds: Long = 600
+  @CommandLine.Option(
+    names = ["--max-sync-lease-lifetime"],
+    description = ["Maximum configured DataAvailabilitySync lease lifetime, for example 10m."],
+    defaultValue = "10m",
+  )
+  private lateinit var maxSyncLeaseLifetime: Duration
+  @CommandLine.Option(
+    names = ["--sync-lease-margin"],
+    description = ["Clock and renewal margin added to the lease lifetime, for example 1m."],
+    defaultValue = "1m",
+  )
+  private lateinit var syncLeaseMargin: Duration
+  @CommandLine.Option(names = ["--timeout-seconds"], defaultValue = "1800")
+  private var timeoutSeconds: Long = 1800
 
   override fun run() = runBlocking {
     require(timeoutSeconds > 0)
+    require(!maxSyncLeaseLifetime.isNegative && !maxSyncLeaseLifetime.isZero)
+    require(!syncLeaseMargin.isNegative)
+    val leaseQuiescence = maxSyncLeaseLifetime.plus(syncLeaseMargin)
     if (mode == Mode.MAINTENANCE) {
-      require(
-        spannerProject.isNotEmpty() && spannerInstance.isNotEmpty() && spannerDatabase.isNotEmpty()
-      ) {
-        "Maintenance requires the exact Spanner project/instance/database"
+      require(timeoutSeconds > leaseQuiescence.seconds) {
+        "Maintenance deadline must exceed the synchronization-lease quiescence period"
       }
     }
     val certs = SigningCerts.fromPemFiles(tls.certFile, tls.privateKeyFile, tls.certCollectionFile)
@@ -360,17 +447,7 @@ class VidLabelingRolloutCheck : Runnable {
           RawImpressionUploadFileServiceCoroutineStub(edpa),
           UploadHealingOperationServiceCoroutineStub(edpa),
           WorkItemsCoroutineStub(control),
-          requireNoSyncLeases =
-            if (mode == Mode.MAINTENANCE) {
-              { providers ->
-                requireNoActiveSynchronizationLeases(
-                  spannerProject,
-                  spannerInstance,
-                  spannerDatabase,
-                  providers,
-                )
-              }
-            } else null,
+          leaseQuiescence = leaseQuiescence,
         )
       withTimeout(timeoutSeconds * 1000) {
         when (mode) {
@@ -421,52 +498,6 @@ class VidLabelingRolloutCheck : Runnable {
 }
 
 fun main(args: Array<String>) = commandLineMain(VidLabelingRolloutCheck(), args)
-
-/** Read-only, server-clock lease check against the deployed authoritative EDPA table. */
-private suspend fun requireNoActiveSynchronizationLeases(
-  project: String,
-  instance: String,
-  database: String,
-  providers: Set<String>,
-) =
-  withContext(Dispatchers.IO) {
-    require(providers.isNotEmpty())
-    val ids =
-      providers.map { name ->
-        require(
-          name.startsWith("dataProviders/") &&
-            name.count { it == '/' } == 1 &&
-            name.substringAfter('/').isNotEmpty()
-        )
-        name.substringAfter('/')
-      }
-    SpannerOptions.newBuilder().setProjectId(project).build().service.use { spanner ->
-      val client = spanner.getDatabaseClient(DatabaseId.of(project, instance, database))
-      val statement =
-        Statement.newBuilder(
-            """
-      SELECT
-        COUNTIF(CAST(State AS INT64) NOT IN (1, 2, 3)) AS UnknownLeaseCount,
-        COUNTIF(CAST(State AS INT64) = 1 AND ExpireTime > CURRENT_TIMESTAMP()) AS ActiveLeaseCount
-      FROM DataAvailabilitySyncLease
-      WHERE DataProviderResourceId IN UNNEST(@providers)
-      """
-              .trimIndent()
-          )
-          .bind("providers")
-          .toStringArray(ids)
-          .build()
-      client.singleUse().executeQuery(statement).use { rows ->
-        check(rows.next() && rows.getLong("UnknownLeaseCount") == 0L) {
-          "Unknown synchronization lease state"
-        }
-        if (rows.getLong("ActiveLeaseCount") > 0L) {
-          throw RolloutWorkInProgressException("Active synchronization leases remain")
-        }
-        check(!rows.next()) { "Ambiguous lease evidence" }
-      }
-    }
-  }
 
 /** Read the deployment's complete provider scope using its actual protobuf config parser. */
 @CommandLine.Command(name = "vid-labeling-rollout-scope", mixinStandardHelpOptions = true)

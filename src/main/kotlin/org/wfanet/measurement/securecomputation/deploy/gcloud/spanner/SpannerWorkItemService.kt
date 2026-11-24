@@ -298,9 +298,24 @@ class SpannerWorkItemsService(
         request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
       }
     val after = if (request.hasPageToken()) request.pageToken.after else null
+    if (
+      request.filter.statesList.any {
+        it == WorkItem.State.STATE_UNSPECIFIED || it == WorkItem.State.UNRECOGNIZED
+      }
+    ) {
+      throw InvalidFieldValueException("filter.states")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val queueIds: List<Long> =
+      try {
+        request.filter.queueResourceIdsList.distinct().map { getQueueByResourceId(it).queueId }
+      } catch (e: QueueNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
+    val states = request.filter.statesList.distinct()
     return databaseClient.singleUse().use { txn ->
       val workItems: Flow<WorkItem> =
-        txn.readWorkItems(queueMapping, pageSize + 1, after).map { it.workItem }
+        txn.readWorkItems(queueMapping, pageSize + 1, after, queueIds, states).map { it.workItem }
       listWorkItemsResponse {
         workItems.collectIndexed { index, workItem ->
           if (index == pageSize) {
