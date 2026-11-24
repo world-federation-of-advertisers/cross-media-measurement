@@ -81,14 +81,12 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventGroup as ReportingEventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ResultGroup
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.eventFilter
-import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
@@ -370,7 +368,7 @@ class EdpAggregatorReportingIntegrationTest {
     )
     check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
     val report =
-      reportingSystem.harness.createBasicReportOverEventGroups(
+      reportingSystem.harness.createBasicReportOverFilteredEventGroups(
         runId = UUID.randomUUID().toString(),
         reportTitle = "13-week geo, demographics, devices, and media under AMI and MRC",
         campaignGroupDisplayName = CAMPAIGN_GROUP_DISPLAY_NAME,
@@ -384,6 +382,7 @@ class EdpAggregatorReportingIntegrationTest {
               impressionQualificationFilter = ImpressionQualificationFilterKey(it).toName()
             }
           },
+        componentFiltersByGroupTitle = SCALE_GROUPS.associate { it.title to it.eventFilter },
         buildResultGroupSpecs = ::buildScaleResultGroupSpecs,
       )
     assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
@@ -397,35 +396,32 @@ class EdpAggregatorReportingIntegrationTest {
 
   private lateinit var scaleSpecsByTitle: Map<String, ResultGroupSpec>
   private lateinit var scaleComponentEdpNames: List<String>
-  private lateinit var scaleEdpNameByDataProvider: Map<String, String>
+  private lateinit var scaleEdpNameByComponent: Map<String, String>
 
   private fun buildScaleResultGroupSpecs(
-    eventGroups: List<ReportingEventGroup>
+    eventGroups: List<ReportingEventGroup>,
+    componentsByGroupTitle: Map<String, List<String>>,
   ): List<ResultGroupSpec> {
     val providers = eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
     require(providers.size == 4) { "The scale report must include all four aggregator EDPs" }
-    scaleEdpNameByDataProvider =
+    val edpNameByDataProvider =
       eventGroups.associate {
         it.cmmsDataProvider to EDP_NAME_BY_EVENT_GROUP_REF_ID.getValue(it.eventGroupReferenceId)
       }
-    scaleComponentEdpNames = providers.map { scaleEdpNameByDataProvider.getValue(it) }
-    return SCALE_GROUPS.map { (title, fields, total, signedIn) ->
+    scaleComponentEdpNames = providers.map { edpNameByDataProvider.getValue(it) }
+    scaleEdpNameByComponent =
+      componentsByGroupTitle.values.flatMap { it.zip(scaleComponentEdpNames) }.toMap()
+    return SCALE_GROUPS.map { (title, fields, total) ->
         val populationFields = fields == SCALE_POPULATION_FIELDS
         resultGroupSpec {
           this.title = title
-          reportingUnit = reportingUnit { components += providers }
+          reportingUnit = reportingUnit { components += componentsByGroupTitle.getValue(title) }
           metricFrequency = metricFrequencySpec {
             if (total) this.total = true else weekly = DayOfWeek.WEDNESDAY
           }
           dimensionSpec = dimensionSpec {
-            grouping = DimensionSpecKt.grouping { eventTemplateFields += fields }
-            if (signedIn != null) {
-              filters += eventFilter {
-                terms += eventTemplateField {
-                  path = "common.signed_in"
-                  value = EventTemplateFieldKt.fieldValue { boolValue = signedIn }
-                }
-              }
+            if (fields.isNotEmpty()) {
+              grouping = DimensionSpecKt.grouping { eventTemplateFields += fields }
             }
           }
           resultGroupMetricSpec = resultGroupMetricSpec {
@@ -549,26 +545,18 @@ class EdpAggregatorReportingIntegrationTest {
           signedIn,
         )
       }
-    for ((title, fields, total, signedIn) in SCALE_GROUPS) {
+    for (slice in SCALE_GROUPS) {
+      val (title, fields, total, signedIn) = slice
       val group = resultGroupOf(report, title)
       val requested = scaleSpecsByTitle.getValue(title)
       val populationFields = fields == SCALE_POPULATION_FIELDS
       val expectedCells =
-        if (populationFields) scalePopulationIndex.keys
-        else
-          Common.DeviceType.values()
-            .filter { it != Common.DeviceType.UNRECOGNIZED && it.number > 0 }
-            .flatMap { device ->
-              MediaType.values()
-                .filter { it != MediaType.UNRECOGNIZED && it.number > 0 }
-                .map { media -> "${device.name}/${media.name}" }
-            }
-            .toSet()
+        if (populationFields) scalePopulationIndex.keys else setOf(requireNotNull(slice.cell))
       val cells =
         group.resultsList.groupBy { result ->
           assertThat(result.metadata.dimensionSpecSummary.groupingsList.map { it.path })
             .containsExactlyElementsIn(fields)
-          fields.joinToString("/") { groupingValue(result, it) }
+          slice.cell ?: fields.joinToString("/") { groupingValue(result, it) }
         }
       assertWithMessage("$title cells").that(cells.keys).containsExactlyElementsIn(expectedCells)
       for ((cell, results) in cells) {
@@ -599,7 +587,15 @@ class EdpAggregatorReportingIntegrationTest {
             // This runs for every cell, including those without a numerical replay. Scalar
             // fields have no protobuf presence; zero is valid, so check messages and vectors.
             val expected =
-              scaleReferenceRanges(populationFields, total, signedIn, cell, filter, week)
+              scaleReferenceRanges(
+                populationFields,
+                total,
+                signedIn,
+                cell,
+                filter,
+                week,
+                requested.reportingUnit.componentsList,
+              )
             numericComparisons +=
               BasicReportMetricAssertions.assertMatches(
                 result.metricSet,
@@ -639,6 +635,7 @@ class EdpAggregatorReportingIntegrationTest {
     cell: String,
     filter: String,
     week: Int,
+    components: List<String>,
   ): ResultRanges? {
     if (
       populationFields && cell !in SCALE_REFERENCE_CELLS ||
@@ -662,7 +659,7 @@ class EdpAggregatorReportingIntegrationTest {
             averageFrequency = expected.averageFrequency,
             percentReach = if (populationFields) expected.percentReach else null,
           ),
-        componentCumulativeReach = componentRangesByProvider(expected.componentReach),
+        componentCumulativeReach = componentRangesByComponent(expected.componentReach, components),
         stackedIncrementalReach = if (populationFields) expected.stackedIncrementalReach else null,
         nonCumulative = null,
         componentNonCumulativeReach = emptyMap(),
@@ -689,14 +686,17 @@ class EdpAggregatorReportingIntegrationTest {
           averageFrequency = expected.nonCumulativeAverageFrequency,
           percentReach = null,
         ),
-      componentNonCumulativeReach = componentRangesByProvider(expected.componentNonCumulativeReach),
+      componentNonCumulativeReach =
+        componentRangesByComponent(expected.componentNonCumulativeReach, components),
       componentCumulativeReach = emptyMap(),
       stackedIncrementalReach = null,
     )
   }
 
-  private fun componentRangesByProvider(ranges: Map<String, ClosedFloatingPointRange<Double>>) =
-    scaleEdpNameByDataProvider.mapValues { (_, edp) -> ranges.getValue(edp) }
+  private fun componentRangesByComponent(
+    ranges: Map<String, ClosedFloatingPointRange<Double>>,
+    components: List<String>,
+  ) = components.associateWith { ranges.getValue(scaleEdpNameByComponent.getValue(it)) }
 
   /** Component EDPs of the weekly reporting unit, in the order the request lists them. */
   private lateinit var weeklyComponentEdpNames: List<String>
@@ -1476,13 +1476,14 @@ class EdpAggregatorReportingIntegrationTest {
     private const val SCALE_PERIOD_COUNT = 13
     private val SCALE_POPULATION_FIELDS =
       listOf("common.gender", "common.age_group", "common.us_state", "common.parental_status")
-    private val SCALE_EVENT_FIELDS = listOf("common.device_type", "common.media_type")
 
     private data class ScaleGroup(
       val title: String,
       val fields: List<String>,
       val total: Boolean,
       val signedIn: Boolean?,
+      val cell: String?,
+      val eventFilter: String,
     )
 
     private val SCALE_GROUPS =
@@ -1492,18 +1493,49 @@ class EdpAggregatorReportingIntegrationTest {
           SCALE_POPULATION_FIELDS,
           false,
           signedIn = null,
+          cell = null,
+          eventFilter = "",
         ),
         ScaleGroup(
           "Scale total geography and demographics",
           SCALE_POPULATION_FIELDS,
           true,
           signedIn = null,
+          cell = null,
+          eventFilter = "",
         ),
-        ScaleGroup("Scale weekly device and media", SCALE_EVENT_FIELDS, false, signedIn = null),
-        ScaleGroup("Scale total device and media", SCALE_EVENT_FIELDS, true, signedIn = null),
-        ScaleGroup("Scale signed-in device and media", SCALE_EVENT_FIELDS, true, signedIn = true),
-        ScaleGroup("Scale signed-out device and media", SCALE_EVENT_FIELDS, true, signedIn = false),
-      )
+      ) +
+        Common.DeviceType.values()
+          .filter { it != Common.DeviceType.UNRECOGNIZED && it.number > 0 }
+          .flatMap { device ->
+            MediaType.values()
+              .filter { it != MediaType.UNRECOGNIZED && it.number > 0 }
+              .flatMap { media ->
+                val cell = "${device.name}/${media.name}"
+                val predicate =
+                  "common.device_type == ${device.number} && common.media_type == ${media.number}"
+                listOf(
+                  ScaleGroup("Scale weekly $cell", emptyList(), false, null, cell, predicate),
+                  ScaleGroup("Scale total $cell", emptyList(), true, null, cell, predicate),
+                  ScaleGroup(
+                    "Scale signed-in $cell",
+                    emptyList(),
+                    true,
+                    true,
+                    cell,
+                    "$predicate && common.signed_in == true",
+                  ),
+                  ScaleGroup(
+                    "Scale signed-out $cell",
+                    emptyList(),
+                    true,
+                    false,
+                    cell,
+                    "$predicate && common.signed_in == false",
+                  ),
+                )
+              }
+          }
     // Populated AMI display/video cells and an MRC video zero control.
     private val SCALE_DEVICE_REFERENCE_CELLS = setOf("DESKTOP/VIDEO", "TV/DISPLAY", "OTHER/DISPLAY")
     private val SCALE_REFERENCE_CELLS =

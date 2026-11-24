@@ -557,14 +557,24 @@ population, before the seeder began writing impressions.
 The local Kubernetes internal reporting server also uses a 256 MiB heap; its
 former 64 MiB heap exhausted memory during correctness-test startup.
 
-| Result group | Dimensions | Periods | Filters |
+| Result group family | Population grouping or event cut | Periods | Filters |
 | --- | --- | --- | --- |
 | Geography and demographics, weekly | 51 state/DC values × 2 genders × 3 ages × 2 parental statuses | 13 | AMI, MRC |
 | Geography and demographics, total | Same 612 cells | 1 | AMI, MRC |
-| Device and media, weekly | All 5 devices × all supported media enum values | 13 | AMI, MRC |
-| Device and media, total | Same device/media cells | 1 | AMI, MRC |
-| Signed-in device and media | Same cells, signed-in filter | 1 | AMI, MRC |
-| Signed-out device and media | Same cells, signed-out filter | 1 | AMI, MRC |
+| Device and media, weekly | 20 filtered groups: 5 devices × 4 media enum values | 13 | AMI, MRC |
+| Device and media, total | 20 groups with the same device/media cuts | 1 | AMI, MRC |
+| Signed-in device and media | 20 groups with a signed-in event filter | 1 | AMI, MRC |
+| Signed-out device and media | 20 groups with a signed-out event filter | 1 | AMI, MRC |
+
+There are 82 result groups in one BasicReport. OTHER and NATIVE media have no
+seeded impressions and serve as zero-reach controls. Only the two population groups
+use `DimensionSpec.grouping`. Device, media, and signed-in fields are event
+attributes, so their cuts use CEL filters on primitive ReportingSet components.
+For example, a DESKTOP/VIDEO component uses
+`common.device_type == 1 && common.media_type == 1`. Weekly and total groups
+reuse the same filtered primitives. The report omits `campaign_group`, allowing
+the server to synthesize it from the ReportingSet components; the environment
+must enable ReportingSet reporting-unit components.
 
 Weekly groups request cumulative reach and non-cumulative reach, K+ reach,
 impressions, average frequency, and per-EDP reach. The total demographic group
@@ -595,6 +605,10 @@ this also checks the last cumulative week without replaying the entire dataset.
 The test records the report resource, result count, serialized response size,
 and comparison results for later tracing. Focused regressions reject missing
 metrics and corrupt earlier weeks, component values, total counts, and ratios.
+
+To retry only the scale report, set the workflow's `test-filter` to
+`z scaled.*` along with `stress-report=true`. Leave the filter empty for the
+complete reporting suite. The metadata audit runs in either case.
 
 The test is opt-in because creation, response size, and fulfillment at this scale
 remain benchmark targets. Ordinary cloud runs keep the two existing smaller
