@@ -743,9 +743,24 @@ One variable per function/worker service account:
 `data_availability_sync_service_account_name`,
 `data_availability_cleanup_service_account_name`,
 `data_availability_monitor_service_account_name`,
-`vid_labeling_healing_controller_service_account_name`, plus `terraform_service_account`
-(used to attach MIG service accounts to VMs) and `pubsub_iam_service_account_member`
-(the Secure Computation control-plane SA granted publisher on the queues).
+`vid_labeling_healing_controller_service_account_name`, plus
+`pubsub_iam_service_account_member` (the Secure Computation control-plane SA granted
+publisher on the queues).
+
+Set `terraform_service_account` to the email of the service account running
+Terraform. This deployment identity must already have permission to manage
+project IAM bindings and Monitoring alert policies; for example,
+`roles/resourcemanager.projectIamAdmin` and `roles/monitoring.alertPolicyEditor`,
+or equivalent permissions. The module lets it attach MIG service accounts to VMs
+and grants a custom role containing only `logging.notificationRules.create`,
+`delete`, `get`, `list`, and `update`. These permissions are required by the
+failed-cleanup log-based alert in addition to the Monitoring role.
+
+CMMS creates this custom role after its existing role-admin bootstrap, with a
+120-second IAM propagation wait. EDPA waits another 120 seconds after granting
+the custom role before creating the alert. The waits repeat if their IAM bindings
+change; a normal deployment handles this ordering. See the
+[module's cleanup alert prerequisites](../../src/main/terraform/gcloud/modules/edp-aggregator/README.md#workitem-delivery).
 
 The module also requires the deployed **function names** for the functions the
 DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):

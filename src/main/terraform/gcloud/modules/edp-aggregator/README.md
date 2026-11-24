@@ -106,10 +106,17 @@ for notifications; the queue age threshold is
 Alerts also count deliveries sent to the dead-letter queue, even after those
 deliveries have been acknowledged.
 
-This module grants `roles/logging.configWriter` on the EDPA project to
-`terraform_service_account` before creating the failed-WorkItem alert. Log-based
-alerts also create Logging notification rules, whose permissions are not included
-in `roles/monitoring.alertPolicyEditor`.
+CMMS creates a project custom role containing only
+`logging.notificationRules.create`, `delete`, `get`, `list`, and `update`, using
+its existing Terraform role-admin bootstrap. This module grants that role to
+`terraform_service_account` and waits 120 seconds for IAM propagation before
+creating the failed-WorkItem alert. The wait runs again if the IAM binding changes.
+Log-based alerts create Logging notification rules, whose permissions are not
+included in `roles/monitoring.alertPolicyEditor`.
+
+When using this module outside CMMS, supply the project custom role ID as
+`terraform_logging_notification_rules_role`. Create the role before the module
+runs; CMMS handles that ordering and a 120-second role-admin propagation wait.
 
 Set `terraform_service_account` to the deployment service account's email. The
 deployment identity must already have permission to manage project IAM bindings

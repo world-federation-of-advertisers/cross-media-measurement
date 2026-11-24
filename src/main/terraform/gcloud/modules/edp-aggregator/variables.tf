@@ -310,6 +310,12 @@ variable "terraform_service_account" {
   nullable    = false
 }
 
+variable "terraform_logging_notification_rules_role" {
+  description = "Project custom role ID granting the Terraform deployment identity logging.notificationRules create, delete, get, list, and update permissions."
+  type        = string
+  nullable    = false
+}
+
 variable "requisition_fetcher_service_account_name" {
   description = "Name of the RequisitionFetcher service account."
   type        = string
