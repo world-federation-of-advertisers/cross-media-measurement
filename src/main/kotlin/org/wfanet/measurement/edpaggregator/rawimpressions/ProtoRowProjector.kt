@@ -20,6 +20,8 @@ import com.google.protobuf.Descriptors.Descriptor
 import com.google.protobuf.Descriptors.FieldDescriptor
 import com.google.protobuf.Descriptors.FieldDescriptor.JavaType
 import com.google.protobuf.Message
+import org.wfanet.measurement.common.ExceptionDiagnostics.Type
+import org.wfanet.measurement.common.ExceptionDiagnostics.ValidationFailure
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.ParquetValue.KindCase
 
@@ -119,28 +121,41 @@ object ProtoRowProjector {
     fieldPath: String,
     allowMessageLeaf: Boolean = false,
   ): List<FieldDescriptor> {
-    require(fieldPath.isNotEmpty()) { "Empty field path" }
+    if (fieldPath.isEmpty()) {
+      throw ValidationFailure.missingConfiguredField(fieldPath, "")
+    }
     val segments = fieldPath.split('.')
     val path = ArrayList<FieldDescriptor>(segments.size)
     var current: Descriptor = root
     for ((index, name) in segments.withIndex()) {
       val field =
-        requireNotNull(current.findFieldByName(name)) {
-          "Unknown field '$name' in field path '$fieldPath'"
-        }
+        current.findFieldByName(name)
+          ?: throw ValidationFailure.missingConfiguredField(fieldPath, name)
       val isLast = index == segments.size - 1
       if (!isLast) {
-        require(field.javaType == JavaType.MESSAGE && !field.isRepeated) {
-          "Intermediate segment '$name' in '$fieldPath' must be a singular message field"
+        if (field.javaType != JavaType.MESSAGE || field.isRepeated) {
+          throw ValidationFailure.invalidConfiguration(
+            expected = Type.SINGULAR_MESSAGE,
+            actual = Type.fromName(if (field.isRepeated) "REPEATED" else field.javaType.name),
+            field = field,
+          )
         }
         current = field.messageType
       } else if (allowMessageLeaf) {
-        require(field.javaType == JavaType.MESSAGE && !field.isRepeated) {
-          "Leaf segment '$name' in '$fieldPath' must be a singular message field"
+        if (field.javaType != JavaType.MESSAGE || field.isRepeated) {
+          throw ValidationFailure.invalidConfiguration(
+            expected = Type.SINGULAR_MESSAGE,
+            actual = Type.fromName(if (field.isRepeated) "REPEATED" else field.javaType.name),
+            field = field,
+          )
         }
       } else {
-        require(!field.isRepeated && field.javaType != JavaType.MESSAGE) {
-          "Leaf segment '$name' in '$fieldPath' must be a singular scalar or enum field"
+        if (field.isRepeated || field.javaType == JavaType.MESSAGE) {
+          throw ValidationFailure.invalidConfiguration(
+            expected = Type.SINGULAR_SCALAR_OR_ENUM,
+            actual = Type.fromName(if (field.isRepeated) "REPEATED" else field.javaType.name),
+            field = field,
+          )
         }
       }
       path.add(field)
@@ -154,53 +169,51 @@ object ProtoRowProjector {
   fun convert(value: ParquetValue, fd: FieldDescriptor, column: String): Any {
     return when (fd.javaType) {
       JavaType.INT -> {
-        val longValue = asLong(value, column)
+        val longValue = asLong(value, column, fd)
         // Unsigned 32-bit proto fields are stored as a two's-complement Java `int`, so values in
         // [2^31, 2^32) are valid and must be bit-truncated rather than range-rejected.
         if (fd.type == FieldDescriptor.Type.UINT32 || fd.type == FieldDescriptor.Type.FIXED32) {
-          require(longValue in 0L..0xFFFFFFFFL) {
-            "Column '$column' value $longValue is out of range for unsigned 32-bit field " +
-              fd.fullName
+          if (longValue !in 0L..0xFFFFFFFFL) {
+            throw ValidationFailure.outOfRange(Type.UINT32, fd)
           }
           longValue.toInt()
         } else {
-          longValue.toIntExact(column)
+          longValue.toIntExact(fd)
         }
       }
-      JavaType.LONG -> asLong(value, column)
-      JavaType.FLOAT -> asDouble(value, column).toFloat()
-      JavaType.DOUBLE -> asDouble(value, column)
-      JavaType.BOOLEAN -> requireKind(value, column, KindCase.BOOL_VALUE) { it.boolValue }
-      JavaType.STRING -> requireKind(value, column, KindCase.STRING_VALUE) { it.stringValue }
-      JavaType.BYTE_STRING -> requireKind(value, column, KindCase.BYTES_VALUE) { it.bytesValue }
+      JavaType.LONG -> asLong(value, column, fd)
+      JavaType.FLOAT -> asDouble(value, fd).toFloat()
+      JavaType.DOUBLE -> asDouble(value, fd)
+      JavaType.BOOLEAN -> requireKind(value, fd, KindCase.BOOL_VALUE) { it.boolValue }
+      JavaType.STRING -> requireKind(value, fd, KindCase.STRING_VALUE) { it.stringValue }
+      JavaType.BYTE_STRING -> requireKind(value, fd, KindCase.BYTES_VALUE) { it.bytesValue }
       JavaType.ENUM -> {
         when (value.kindCase) {
           KindCase.STRING_VALUE ->
-            requireNotNull(fd.enumType.findValueByName(value.stringValue)) {
-              "Column '$column' value '${value.stringValue}' is not a ${fd.enumType.name} enum name"
-            }
+            fd.enumType.findValueByName(value.stringValue)
+              ?: throw ValidationFailure.unknownEnum(fd)
           KindCase.INT32_VALUE,
           KindCase.UINT32_VALUE ->
-            requireNotNull(
-              fd.enumType.findValueByNumber(asLong(value, column).toIntExact(column))
-            ) {
-              "Column '$column' has no ${fd.enumType.name} enum value for number"
-            }
+            fd.enumType.findValueByNumber(asLong(value, column, fd).toIntExact(fd))
+              ?: throw ValidationFailure.unknownEnum(fd)
           else ->
-            throw IllegalArgumentException(
-              "Column '$column' (${value.kindCase}) cannot map to enum field ${fd.fullName}"
+            throw ValidationFailure.incompatibleType(
+              Type.ENUM,
+              Type.fromName(value.kindCase.name),
+              fd,
             )
         }
       }
       else ->
-        throw IllegalArgumentException(
-          "Unsupported leaf field type ${fd.javaType} for ${fd.fullName} (column '$column')"
+        throw ValidationFailure.invalidConfiguration(
+          actual = Type.fromName(fd.javaType.name),
+          field = fd,
         )
     }
   }
 
   /** Coerces an integral / timestamp [ParquetValue] to a [Long]. */
-  fun asLong(value: ParquetValue, column: String): Long =
+  fun asLong(value: ParquetValue, column: String, field: FieldDescriptor? = null): Long =
     when (value.kindCase) {
       KindCase.INT32_VALUE -> value.int32Value.toLong()
       KindCase.INT64_VALUE -> value.int64Value
@@ -210,38 +223,46 @@ object ProtoRowProjector {
       KindCase.TIMESTAMP_VALUE ->
         value.timestampValue.seconds * 1_000_000L + value.timestampValue.nanos / 1_000L
       else ->
-        throw IllegalArgumentException(
-          "Column '$column' (${value.kindCase}) is not an integral value"
+        throw ValidationFailure.incompatibleType(
+          Type.INTEGRAL,
+          Type.fromName(value.kindCase.name),
+          field,
         )
     }
 
-  private fun asDouble(value: ParquetValue, column: String): Double =
+  private fun asDouble(value: ParquetValue, field: FieldDescriptor): Double =
     when (value.kindCase) {
       KindCase.FLOAT_VALUE -> value.floatValue.toDouble()
       KindCase.DOUBLE_VALUE -> value.doubleValue
       KindCase.INT32_VALUE -> value.int32Value.toDouble()
       KindCase.INT64_VALUE -> value.int64Value.toDouble()
       else ->
-        throw IllegalArgumentException(
-          "Column '$column' (${value.kindCase}) is not a floating-point value"
+        throw ValidationFailure.incompatibleType(
+          Type.FLOATING_POINT,
+          Type.fromName(value.kindCase.name),
+          field,
         )
     }
 
   private inline fun <T> requireKind(
     value: ParquetValue,
-    column: String,
+    field: FieldDescriptor,
     expected: KindCase,
     extract: (ParquetValue) -> T,
   ): T {
-    require(value.kindCase == expected) {
-      "Column '$column' (${value.kindCase}) does not match expected $expected"
+    if (value.kindCase != expected) {
+      throw ValidationFailure.incompatibleType(
+        Type.fromName(expected.name),
+        Type.fromName(value.kindCase.name),
+        field,
+      )
     }
     return extract(value)
   }
 
-  private fun Long.toIntExact(column: String): Int {
-    require(this in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
-      "Column '$column' value $this overflows a 32-bit int field"
+  private fun Long.toIntExact(field: FieldDescriptor): Int {
+    if (this !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong()) {
+      throw ValidationFailure.outOfRange(Type.INT32, field)
     }
     return toInt()
   }

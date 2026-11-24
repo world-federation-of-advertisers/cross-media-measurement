@@ -131,6 +131,21 @@ system's interface.
     necessarily an encryption key. It is commonly a shared secret such as the
     output of a Diffie-Hellman key exchange.
 
+## Impression Processing Diagnostics
+
+Raw impression column values must not appear in logs, exception messages, span
+descriptions, or failure reports. This includes malformed input, numeric values,
+bytes, and values embedded in dependency errors, causes, or suppressed exceptions.
+
+Use `ExceptionDiagnostics` at processing error boundaries to emit exception types,
+code locations, status codes, and approved schema metadata. Keep original errors
+inside processing for classification and cancellation. Validation failures may
+contain column names, field paths, and type names, but never the rejected value.
+Do not filter values with PII patterns or include their encoded forms or hashes.
+
+Regression tests must check fully formatted logging output, including Throwable
+rendering, and the transmitted failure text using synthetic values.
+
 ## See Also
 
 *   [Code Style](code-style.md) — general style rules and language conventions
