@@ -101,6 +101,8 @@ class SpannerMeasurementsService(
       "measurement_spec unspecified"
     }
     if (request.measurement.details.protocolConfig.hasTrusTeeV2()) {
+      // A multimeasurement's MeasurementSpec is unsigned and its RequisitionSpecs are plaintext, so
+      // the signature and per-DataProvider checks below do not apply.
       validateMultimeasurement(request.measurement)
       return
     }

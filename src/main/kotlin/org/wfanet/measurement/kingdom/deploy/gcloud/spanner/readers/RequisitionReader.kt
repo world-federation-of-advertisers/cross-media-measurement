@@ -53,7 +53,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         SELECT
           $COMMON_COLUMNS
           $COMPUTATION_PARTICIPANTS_COLUMN
-          $MEASUREMENT_REQUISITIONS_COUNT_COLUMN
+          $MEASUREMENT_DATA_PROVIDERS_COUNT_COLUMN
         FROM
           Measurements
           JOIN MeasurementConsumers USING (MeasurementConsumerId)
@@ -92,7 +92,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         SELECT
           $COMMON_COLUMNS
           ComputationParticipants,
-          $MEASUREMENT_REQUISITIONS_COUNT_COLUMN
+          $MEASUREMENT_DATA_PROVIDERS_COUNT_COLUMN
         FROM
           FilteredRequisitions AS Requisitions
           JOIN Measurements USING (MeasurementConsumerId, MeasurementId)
@@ -113,7 +113,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         SELECT
           $COMMON_COLUMNS
           $COMPUTATION_PARTICIPANTS_COLUMN
-          $MEASUREMENT_REQUISITIONS_COUNT_COLUMN
+          $MEASUREMENT_DATA_PROVIDERS_COUNT_COLUMN
         FROM
           Requisitions
           JOIN DataProviders USING (DataProviderId)
@@ -218,7 +218,9 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
       """
         .trimIndent()
 
-    private val MEASUREMENT_REQUISITIONS_COUNT_COLUMN =
+    // Counts DataProviders rather than Requisitions, as a multimeasurement may have several
+    // Requisitions per DataProvider.
+    private val MEASUREMENT_DATA_PROVIDERS_COUNT_COLUMN =
       """
       (
         SELECT
@@ -228,7 +230,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
         WHERE
           Requisitions.MeasurementConsumerId = Measurements.MeasurementConsumerId
           AND Requisitions.MeasurementId = Measurements.MeasurementId
-      ) AS MeasurementRequisitionCount,
+      ) AS MeasurementDataProviderCount,
       """
         .trimIndent()
 
@@ -288,7 +290,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
             "Duchy with internal ID $duchyId not found"
           }
         }
-      val dataProvidersCount = struct.getLong("MeasurementRequisitionCount")
+      val dataProvidersCount = struct.getLong("MeasurementDataProviderCount")
 
       return buildRequisition(struct, struct, participantStructs, dataProvidersCount.toInt())
     }

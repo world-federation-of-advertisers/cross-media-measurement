@@ -518,6 +518,7 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
   fillMeasurementCommon(struct)
 
   val measurementSucceeded = state == Measurement.State.SUCCEEDED
+  val vectors = mutableListOf<Measurement.MultimeasurementVector>()
   for (requisitionStruct in struct.getStructList("Requisitions")) {
     val requisitionDetails =
       requisitionStruct.getProtoMessage(
@@ -528,7 +529,7 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
     val externalDataProviderCertificateId =
       requisitionStruct.getLong("ExternalDataProviderCertificateId")
     if (details.protocolConfig.hasTrusTeeV2()) {
-      multimeasurementVectors += multimeasurementVector {
+      vectors += multimeasurementVector {
         this.externalDataProviderId = externalDataProviderId
         index = requisitionDetails.vectorIndex
         requisitionSpec = requisitionDetails.requisitionSpec
@@ -562,6 +563,7 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
       }
     }
   }
+  multimeasurementVectors += vectors.sortedBy { it.index }
 }
 
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {

@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.multimeasurementVector
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
@@ -170,6 +171,15 @@ private val TRUS_TEE_V2_MEASUREMENT = measurement {
     queries += ByteString.copyFromUtf8("Query")
   }
 }
+
+private const val EXTERNAL_DATA_PROVIDER_ID = 3L
+
+/** A TrusTEE v2 [Measurement] with placeholder IDs, for requests rejected before any lookup. */
+private val UNCHECKED_TRUS_TEE_V2_MEASUREMENT =
+  TRUS_TEE_V2_MEASUREMENT.copy {
+    externalMeasurementConsumerId = 1L
+    externalMeasurementConsumerCertificateId = 2L
+  }
 
 private val INVALID_WORKER_DUCHY =
   DuchyIds.Entry(4, "worker3", Instant.now().minusSeconds(100L)..Instant.now().minusSeconds(50L))
@@ -722,8 +732,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
               externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
               externalMeasurementConsumerCertificateId =
                 measurementConsumer.certificate.externalCertificateId
-              multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 0)
               multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 1)
+              multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 0)
             }
         }
       )
@@ -737,6 +747,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       )
 
     assertThat(measurement).ignoringRepeatedFieldOrder().isEqualTo(createdMeasurement)
+    assertThat(measurement.multimeasurementVectorsList.map { it.index })
+      .containsExactly(0, 1)
+      .inOrder()
   }
 
   @Test
@@ -762,6 +775,60 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when multimeasurement vector indexes skip one`() =
+    runBlocking {
+      val measurement =
+        UNCHECKED_TRUS_TEE_V2_MEASUREMENT.copy {
+          multimeasurementVectors += testVector(EXTERNAL_DATA_PROVIDER_ID, index = 0)
+          multimeasurementVectors += testVector(EXTERNAL_DATA_PROVIDER_ID, index = 2)
+        }
+
+      assertCreateMeasurementFailsWithInvalidArgument(measurement)
+    }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when multimeasurement has no queries`() =
+    runBlocking {
+      val measurement =
+        UNCHECKED_TRUS_TEE_V2_MEASUREMENT.copy {
+          details = details.copy { queries.clear() }
+          multimeasurementVectors += testVector(EXTERNAL_DATA_PROVIDER_ID, index = 0)
+        }
+
+      assertCreateMeasurementFailsWithInvalidArgument(measurement)
+    }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when multimeasurement sets data_providers`() =
+    runBlocking {
+      val measurement =
+        UNCHECKED_TRUS_TEE_V2_MEASUREMENT.copy {
+          multimeasurementVectors += testVector(EXTERNAL_DATA_PROVIDER_ID, index = 0)
+          dataProviders[EXTERNAL_DATA_PROVIDER_ID] = dataProviderValue {
+            externalDataProviderCertificateId = 1L
+            dataProviderPublicKey = ByteString.copyFromUtf8("public key")
+            encryptedRequisitionSpec = ByteString.copyFromUtf8("RequisitionSpec")
+            nonceHash = ByteString.copyFromUtf8("nonce hash")
+          }
+        }
+
+      assertCreateMeasurementFailsWithInvalidArgument(measurement)
+    }
+
+  @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when vectors are set without TrusTEE v2`() =
+    runBlocking {
+      val measurement =
+        TRUS_TEE_MEASUREMENT.copy {
+          externalMeasurementConsumerId = 1L
+          externalMeasurementConsumerCertificateId = 1L
+          multimeasurementVectors += testVector(EXTERNAL_DATA_PROVIDER_ID, index = 0)
+        }
+
+      assertCreateMeasurementFailsWithInvalidArgument(measurement)
     }
 
   @Test
@@ -3327,6 +3394,17 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  private suspend fun assertCreateMeasurementFailsWithInvalidArgument(measurement: Measurement) {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.createMeasurement(
+          createMeasurementRequest { this.measurement = measurement }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   companion object {

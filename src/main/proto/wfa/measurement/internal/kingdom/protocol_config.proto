@@ -192,7 +192,8 @@ message ProtocolConfig {
 
     // TrusTEE multimeasurement protocol.
     //
-    // Must only be set when the measurement type is MULTI.
+    // Must only be set when the measurement type is MULTI. Callers are
+    // responsible for this, as this service does not read the MeasurementSpec.
     TrusTeeV2 trus_tee_v2 = 8;
   }
 }

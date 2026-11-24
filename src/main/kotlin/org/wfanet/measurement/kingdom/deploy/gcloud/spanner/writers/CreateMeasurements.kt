@@ -431,6 +431,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         measurementId = measurementId,
         dataProviderId = InternalId(dataProviderReaderResult.dataProviderId),
         details = details,
+        // Nothing in a multimeasurement Requisition is signed or encrypted for the DataProvider, so
+        // this only records the DataProvider's current Certificate.
         dataProviderCertificateId = InternalId(dataProviderReaderResult.certificateId),
         initialRequisitionState = Requisition.State.PENDING_PARAMS,
         fulfillingDuchies = listOf(fulfillingDuchy),
