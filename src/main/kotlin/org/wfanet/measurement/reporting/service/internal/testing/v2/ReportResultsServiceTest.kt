@@ -1077,6 +1077,42 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
+  fun `batchCreateReportingSetResults retries duplicate window IDs for a new parent`() {
+    ensureMeasurementConsumer()
+    val reportResult = reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val request =
+      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+          reportResult.externalReportResultId
+        )
+        .copy {
+          requests.clear()
+          requests += BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.requestsList.first()
+        }
+    forcedIds.addAll(listOf(900_001L, 900_002L, 900_003L, 900_003L, 900_004L))
+
+    val response = reportResultsStub.batchCreateReportingSetResults(request)
+
+    assertThat(response.reportingSetResultsList.single().reportingWindowResultsList)
+      .containsExactlyElementsIn(
+        request.requestsList.single().reportingSetResult.reportingWindowResultsList
+      )
+    assertWithMessage("Both windows survive an ID retry")
+      .about(ProtoTruth.protos())
+      .that(
+        reportResultsStub
+          .listReportingSetResults(
+            listReportingSetResultsRequest {
+              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+              externalReportResultId = request.externalReportResultId
+            }
+          )
+          .reportingSetResultsList
+      )
+      .ignoringRepeatedFieldOrderOfFieldDescriptors(UNORDERED_FIELDS)
+      .containsExactlyElementsIn(response.reportingSetResultsList)
+  }
+
+  @Test
   fun `batchCreateReportingSetResults updates BasicReport state`() {
     val basicReport: BasicReport = ensureMeasurementConsumer()
     val externalReportId = "report-1"

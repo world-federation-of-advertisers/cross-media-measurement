@@ -12930,6 +12930,71 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `batchGetMetrics INFO summaries retain every metric identity in bounded groups`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+      val consumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      val basicReport = BasicReportKey(consumerId, "report-a").toName()
+      val report = ReportKey(consumerId, "report-a").toName()
+      val internalMetrics =
+        List(101) { index ->
+          INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+            externalMetricId = "metric-$index"
+            details =
+              details.copy {
+                this.basicReport = basicReport
+                containingReport = report
+              }
+          }
+        }
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(internalBatchGetMetricsResponse { metrics += internalMetrics })
+      val logger = Logger.getLogger(MetricsService::class.java.name)
+      val previousLevel = logger.level
+      val previousHandlerLevel = traceLogHandler.level
+      try {
+        logger.level = Level.INFO
+        traceLogHandler.level = Level.INFO
+        val result =
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            runBlocking {
+              service.batchGetMetrics(
+                batchGetMetricsRequest {
+                  parent = MEASUREMENT_CONSUMERS.values.first().name
+                  names +=
+                    internalMetrics.map {
+                      MetricKey(it.cmmsMeasurementConsumerId, it.externalMetricId).toName()
+                    }
+                }
+              )
+            }
+          }
+        val summaries = reportTraceLogMessages("reporting.metrics.results_synchronized")
+        assertThat(summaries).hasSize(3)
+        val loggedNames =
+          summaries.flatMap { summary ->
+            summary
+              .split(' ')
+              .filter { it.startsWith("xmm.metric.name=") }
+              .map { it.removePrefix("xmm.metric.name=") }
+          }
+        assertThat(loggedNames).containsExactlyElementsIn(result.metricsList.map { it.name })
+        assertThat(
+            summaries.map { summary ->
+              summary.split(' ').single { it.startsWith("xmm.metric.count=") }
+            }
+          )
+          .containsExactly("xmm.metric.count=50", "xmm.metric.count=50", "xmm.metric.count=1")
+        assertThat(reportTraceLogMessages("reporting.metric.result_synchronized")).isEmpty()
+      } finally {
+        logger.level = previousLevel
+        traceLogHandler.level = previousHandlerLevel
+      }
+    }
+
+  @Test
   fun `batchGetMetrics returns metrics with RUNNING when measurements are pending`() = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))

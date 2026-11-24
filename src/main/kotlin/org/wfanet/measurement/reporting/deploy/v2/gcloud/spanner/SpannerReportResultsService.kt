@@ -84,7 +84,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readUnproces
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.renewReportResultAssembly
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExistsWithExternalId
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToUnprocessedResultsReady
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
@@ -506,12 +505,14 @@ class SpannerReportResultsService(
               }
             }
 
+          val allocatedWindowIds = mutableSetOf<Long>()
           for (windowEntry in value.reportingWindowResultsList) {
             addUnprocessedWindowResults(
               txn,
               measurementConsumerId,
               reportResultId,
               reportingSetResultId,
+              allocatedWindowIds,
               windowEntry,
             )
           }
@@ -721,17 +722,11 @@ class SpannerReportResultsService(
     measurementConsumerId: Long,
     reportResultId: Long,
     reportingSetResultId: Long,
+    allocatedWindowIds: MutableSet<Long>,
     windowEntry: ReportingSetResult.ReportingWindowEntry,
   ) {
-    val reportingWindowResultId =
-      idGenerator.generateNewId {
-        txn.reportingWindowResultExists(
-          measurementConsumerId,
-          reportResultId,
-          reportingSetResultId,
-          it,
-        )
-      }
+    // The parent is new, so only buffered siblings can have a colliding window ID.
+    val reportingWindowResultId = idGenerator.generateNewId { !allocatedWindowIds.add(it) }
     txn.insertReportingWindowResult(
       measurementConsumerId,
       reportResultId,
