@@ -201,7 +201,13 @@ jobs:
         set -euo pipefail
         case "$CUTOVER_MODE" in online|maintenance) ;; *) exit 1 ;; esac
         needed=false
-        if [[ "$APPLY" == true ]] && grep -q 'vid-labeling-dispatch-queue' "$CONFIG_DIR/data-watcher-config.textproto"; then
+        declared=false
+        if [[ "$APPLY" == true ]]; then
+          declared=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py declares-queue \
+            --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+            --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto")
+        fi
+        if [[ "$declared" == true ]]; then
           active=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py is-queued \
             --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION")
           if [[ "$active" == false ]]; then needed=true; fi
