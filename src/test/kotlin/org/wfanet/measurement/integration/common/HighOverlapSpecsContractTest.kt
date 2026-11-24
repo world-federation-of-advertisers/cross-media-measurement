@@ -25,6 +25,7 @@ import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
@@ -249,24 +250,21 @@ class HighOverlapSpecsContractTest {
     val firstFrequency = firstDate.frequencySpecsList.first()
     val samples =
       firstFrequency.vidRangeSpecsList.take(20).map { range ->
-        range
-          .toBuilder()
-          .setVidRange(range.vidRange.toBuilder().setEndExclusive(range.vidRange.start + 1))
-          .build()
+        range.copy { vidRange = range.vidRange.copy { endExclusive = range.vidRange.start + 1 } }
       }
     val sampleSpec =
-      source
-        .toBuilder()
-        .clearDateSpecs()
-        .addDateSpecs(
-          firstDate
-            .toBuilder()
-            .clearFrequencySpecs()
-            .addFrequencySpecs(
-              firstFrequency.toBuilder().clearVidRangeSpecs().addAllVidRangeSpecs(samples)
-            )
-        )
-        .build()
+      source.copy {
+        dateSpecs.clear()
+        dateSpecs +=
+          firstDate.copy {
+            frequencySpecs.clear()
+            frequencySpecs +=
+              firstFrequency.copy {
+                vidRangeSpecs.clear()
+                vidRangeSpecs += samples
+              }
+          }
+      }
     val events =
       SyntheticDataGeneration.generateEvents(
           TestEvent.getDefaultInstance(),

@@ -117,7 +117,7 @@ jobs:
       - name: Set TCP keepalive
         run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
-      - name: Audit seeded metadata and compact listing
+      - name: Verify metadata API views and key indexing
         id: metadata-scale
         env:
           CMMS_ENVIRONMENT: ${{ inputs.environment }}

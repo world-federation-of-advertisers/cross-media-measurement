@@ -79,7 +79,7 @@ and the aggregator EDPs' true reach was in the low tens of thousands, so every
 reach measurement was noise-dominated and the post-processor zeroed it. Two
 levers close that gap — more reach, and less noise — and this dataset uses both,
 because automated tests report over a nine-week window rather than the full
-90-day flight, which cuts the reach available to any single report.
+seed flight, which cuts the reach available to any single report.
 
 Note this file is shared across dev, qa and head. There is no environment-scoped
 override.
@@ -112,12 +112,24 @@ through the 600 `(gender × age_group × us_state × parental_status)` tuples of
 *   us_state — all 50 states, excluding DC
 *   parental_status — `NOT_PARENT`, `PARENT`
 
+Parental status is an enum: `PARENT` means the person has children under 18 in
+their household; `NOT_PARENT` means they do not. The population has 180M VIDs of
+each status, with 5.305M reached VIDs of each. For example, VIDs 1–500 are
+`NOT_PARENT`, and VIDs 501–1,000 are `PARENT`. Older test populations keep only
+`NOT_PARENT`; this high-overlap population exercises both.
+
 Striping exists so demographics stay **orthogonal to the Venn structure**.
 Demographics partition reach — a VID has exactly one gender, one age band, one
 state and one parental status — whereas Venn membership comes only from which EDPs carry a segment. One
 full cycle is `600 × 500 = 300,000` VIDs, which fits inside the *smallest*
 Venn region, so every region carries the full demographic mix and any region can
 be broken down by gender, age, state or parental status.
+
+The former reached mix had 30 cohorts (two genders, three ages, five states),
+so 10,000-VID stripes also made a 300,000-VID cycle. Expanding to 600 cohorts
+with the old stripe size would make a 6M-VID cycle and leave smaller overlap
+regions without many cohorts. Reducing the stripe to 500 preserves the complete
+demographic mix in every main region.
 
 A coarse spec would defeat this. The pre-existing `360m_population_spec` has 12
 subpopulations of 30M each, so all of VIDs 1–10.6M fall inside a single
@@ -188,16 +200,17 @@ noise-dominated, and the guard it exists to exercise would stop firing.
 
 ## Time Shape and Frequency
 
-The window is **static**: 2026-04-01 → 2026-06-30. It does not roll. A frozen
+The seed window is **static**: 2026-04-01 inclusive → 2026-07-01 exclusive,
+**91 days**. It does not roll. A frozen
 window keeps expected values hardcodable; the cost is that the data ages and the
 window needs re-pinning eventually.
 
-Segments run on one of three flights, so the mix changes over the 90 days and
+Segments run on one of three flights, so the mix changes over the 91 seeded days and
 whole-campaign and per-week identities differ:
 
-*   spring — Apr 1 – May 15
-*   summer — May 15 – Jun 30
-*   always-on — Apr 1 – Jun 30
+*   spring — Apr 1 inclusive – May 15 exclusive
+*   summer — May 15 inclusive – Jul 1 exclusive
+*   always-on — Apr 1 inclusive – Jul 1 exclusive
 
 Within a flight, each segment's VID range is split into **6 tranches** whose date
 ranges start progressively later but all run to the end of the flight. This
@@ -533,8 +546,13 @@ impressions, and completion-marker generations. The BASIC view (the API name
 for compact listing) omits keys while the FULL view
 matches the sidecars, including all 5,000 additional keys and version-pinning
 fields. The reporting cloud tests then verify fulfillment over these same blobs.
-Run `Seed High Overlap Dataset` with force refresh before
-`Run EDPA Reporting Integration Test`; do not reseed during another cloud test.
+Dataset preparation checks whether the manifest matches the current specs and
+EDPs; matching data is reused, while changed inputs trigger reseeding. This
+metadata test does not rewrite data. It checks API behavior and persisted blob
+references that a matching manifest alone cannot establish: key-index lookups,
+pagination, BASIC/FULL views, missing or stale rows, and live blob generations.
+For a direct reporting run, prepare the dataset with the normal seeding workflow
+first; force refresh is optional. Do not reseed during another cloud test.
 
 The in-process `ImpressionDataSourceProviderTest` regression uses 16 blobs with
 5,000 additional keys each, served over a real loopback gRPC transport. The FULL

@@ -53,6 +53,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
  */
 object GenerateHighOverlapSpecs {
 
+  // A complete 600-cohort cycle must fit inside the smallest 300,000-VID Venn region.
   private const val STRIPE_SIZE = 500
 
   // TODO(world-federation-of-advertisers/cross-media-measurement#4563): Move the EDP
