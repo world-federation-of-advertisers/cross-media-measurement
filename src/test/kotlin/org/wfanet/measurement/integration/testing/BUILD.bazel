@@ -71,3 +71,16 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
     ],
 )
+
+kt_jvm_test(
+    name = "BasicReportMetricAssertionsTest",
+    srcs = ["BasicReportMetricAssertionsTest.kt"],
+    test_class = "org.wfanet.measurement.integration.testing.BasicReportMetricAssertionsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/testing:basic_report_metric_assertions",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)

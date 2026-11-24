@@ -554,3 +554,6 @@ exhausted memory during correctness-test startup.
 The reporting workflow retains the two existing reports: media and impression
 qualification filters, and weekly age/gender results. The metadata audit checks
 the expanded keys separately, without creating a full geographic report.
+
+See [Full report scale test](reporting-scale-test.md) for the opt-in large-report
+profile and its pipeline prerequisites.

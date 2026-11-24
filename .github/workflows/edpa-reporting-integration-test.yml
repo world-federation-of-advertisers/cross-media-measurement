@@ -22,6 +22,14 @@ on:
       environment:
         type: string
         required: true
+      stress-report:
+        description: "Include the full geographic and demographic scale report"
+        type: boolean
+        default: false
+      test-filter:
+        description: "JUnit method filter; empty runs all reporting tests"
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       environment:
@@ -32,6 +40,14 @@ on:
           - dev
           - qa
           - head
+      stress-report:
+        description: "Include the full geographic and demographic scale report"
+        type: boolean
+        default: false
+      test-filter:
+        description: "JUnit method filter; empty runs all reporting tests"
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -118,10 +134,15 @@ jobs:
 
       - name: Run tests
         id: run-tests
+        env:
+          HIGH_OVERLAP_STRESS_REPORT: ${{ inputs.stress-report }}
+          REPORTING_TEST_FILTER: ${{ inputs.test-filter }}
         run: |
           tools/bazel-with-results bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
+          --test_env=HIGH_OVERLAP_STRESS_REPORT \
+          --test_filter="$REPORTING_TEST_FILTER" \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorReportingIntegrationTest
 
       - name: Upload Bazel testlogs
