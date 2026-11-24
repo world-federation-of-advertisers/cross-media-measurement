@@ -188,20 +188,33 @@ locals {
 
 locals {
   vid_labeling_repository_root = "${path.module}/../../../../../.."
-  # Wire, persistence and object-layout sources that old readers and new writers
-  # must share: EDPA public/internal protos, Spanner changesets and the code that
-  # names, encrypts, frames and publishes Phase 0/1/2 storage objects.
+  # Wire, persistence and object-layout sources that old and new workers must
+  # share during a mixed-version rollout: EDPA public/internal protos, Spanner
+  # changesets, the code that names, encrypts, frames and publishes Phase 0/1/2
+  # storage objects, the Phase-0 complete-write client, deterministic Phase-2
+  # bin-packing and dispatch, deterministic WorkItem/request IDs, and the event
+  # fingerprint and rank-index byte formats.
   vid_labeling_contract_sources = sort(concat(
     tolist(fileset(local.vid_labeling_repository_root, "src/main/proto/wfa/measurement/edpaggregator/**/*.proto")),
     tolist(fileset(local.vid_labeling_repository_root, "src/main/proto/wfa/measurement/internal/edpaggregator/**/*.proto")),
     tolist(fileset(local.vid_labeling_repository_root, "src/main/resources/edpaggregator/spanner/**")),
     [
       "src/main/kotlin/org/wfanet/measurement/edpaggregator/EncryptedStorage.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/CompleteGcsStorageClient.kt",
       "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/EncryptedRecordIoStore.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/EventIdDigest.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/EventIdDigestExtractor.kt",
       "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/RankIndexStore.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/RawImpressionFileBinPacker.kt",
       "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/SubpoolFingerprintsStore.kt",
       "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/LabeledImpressionsBlobKey.kt",
       "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/VidLabelingSink.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/MemoizedVidLabelingJobDispatcher.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/RequestIds.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/VidLabelingDispatchSequencer.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/WorkItemIds.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder/EventIdDigestBytes.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder/LastSeenDayBytes.kt",
     ],
   ))
   # Any changed contract source or packing/routing configuration requires the

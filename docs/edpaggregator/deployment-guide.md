@@ -789,9 +789,11 @@ does not certify a legacy upgrade.
 
 Terraform exports **vid_labeling_rollout_manifest** with expected function hashes,
 contract identity, queues and MIGs. The contract identity hashes every EDPA public and
-internal proto, every EDPA Spanner changeset, the Phase 0/1/2 storage-layout sources and
-the dispatcher packing and storage routing configuration, so any change to them requires
-maintenance. A Terraform-managed read-only reader gate checks
+internal proto, every EDPA Spanner changeset, the Phase 0/1/2 storage-layout sources, the
+Phase-0 complete-write client, the deterministic Phase-2 bin-packing and dispatch sources,
+the deterministic WorkItem and request IDs, the event fingerprint and rank-index byte
+formats, and the dispatcher packing and storage routing configuration, so any change to
+them requires maintenance. A Terraform-managed read-only reader gate checks
 each relevant function's actual ready Cloud Run revision and traffic before new
 VID MIG templates roll. Final checks cover schema-init success, metadata images,
 every MIG instance and all serving function revisions; desired templates alone

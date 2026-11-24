@@ -427,6 +427,37 @@ class CutoverTest(unittest.TestCase):
             self.assertIn(str(path.relative_to(root)), identity)
         self.assertNotIn("protocol", identity.split("vid_labeling_contract_id", 1)[1])
 
+    def test_contract_identity_hashes_mixed_version_coordination_sources(self):
+        import re
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[3]
+        text = (root/"src/main/terraform/gcloud/modules/edp-aggregator/main.tf").read_text()
+        identity = text[text.index("vid_labeling_contract_sources"):text.index("vid_labeling_rollout_roles")]
+        # A commented-out entry is not hashed, so strip HCL comments first.
+        code = "\n".join(re.sub(r"(^|\s)(#|//).*$", "", line) for line in identity.splitlines())
+        listed = set(re.findall(r'"(src/main/kotlin/[^"]+\.kt)"', code))
+        edpa = "src/main/kotlin/org/wfanet/measurement/edpaggregator/"
+        # Old and new workers must agree on each: partial-publication behavior,
+        # Phase-2 file membership and job creation, dedup identities, and the
+        # fingerprint/rank-index byte formats.
+        for source in ["rawimpressions/CompleteGcsStorageClient.kt",
+                       "rawimpressions/RawImpressionFileBinPacker.kt",
+                       "vidlabeling/MemoizedVidLabelingJobDispatcher.kt",
+                       "vidlabeling/VidLabelingDispatchSequencer.kt",
+                       "vidlabeling/WorkItemIds.kt",
+                       "vidlabeling/RequestIds.kt",
+                       "rawimpressions/EventIdDigest.kt",
+                       "rawimpressions/EventIdDigestExtractor.kt",
+                       "vidrankbuilder/EventIdDigestBytes.kt",
+                       "vidrankbuilder/LastSeenDayBytes.kt"]:
+            with self.subTest(source=source):
+                self.assertTrue((root/(edpa + source)).is_file())
+                self.assertIn(edpa + source, listed)
+        # Every listed source exists, so a rename cannot silently drop it.
+        for source in sorted(listed):
+            with self.subTest(listed=source):
+                self.assertTrue((root/source).is_file())
+
 
 class WorkflowWiringTest(unittest.TestCase):
     def test_checked_boundary_precedes_every_component_change(self):
