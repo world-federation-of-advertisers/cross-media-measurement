@@ -36,7 +36,9 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -776,7 +778,7 @@ class WorkItemServiceTest {
   }
 
   @Test
-  fun `listWorkItems forwards queue and state filter`() = runBlocking {
+  fun `listWorkItems translates queue names and normalizes the filter`() = runBlocking {
     internalServiceMock.stub {
       onBlocking { listWorkItems(any()) } doReturn
         InternalListWorkItemsResponse.getDefaultInstance()
@@ -786,9 +788,11 @@ class WorkItemServiceTest {
       listWorkItemsRequest {
         filter =
           ListWorkItemsRequestKt.filter {
+            queueIn += "queues/vid-rank-builder-queue"
             queueIn += "queues/vid-labeler-queue"
-            stateIn += WorkItem.State.QUEUED
+            queueIn += "queues/vid-labeler-queue"
             stateIn += WorkItem.State.RUNNING
+            stateIn += WorkItem.State.QUEUED
           }
       }
     )
@@ -802,12 +806,74 @@ class WorkItemServiceTest {
           pageSize = 50
           filter =
             InternalListWorkItemsRequestKt.filter {
-              queueResourceIds += "queues/vid-labeler-queue"
+              queueResourceIds += "vid-labeler-queue"
+              queueResourceIds += "vid-rank-builder-queue"
               states += InternalWorkItem.State.QUEUED
               states += InternalWorkItem.State.RUNNING
             }
         }
       )
+  }
+
+  @Test
+  fun `listWorkItems rejects a queue that is not a Queue resource name`() = runBlocking {
+    for (queue in listOf("vid-labeler-queue", "queues/", "queues/a/b")) {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listWorkItems(
+            listWorkItemsRequest { filter = ListWorkItemsRequestKt.filter { queueIn += queue } }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo?.metadata?.get(Errors.Metadata.FIELD_NAME.key))
+        .isEqualTo("filter.queue_in")
+    }
+    verifyBlocking(internalServiceMock, never()) { listWorkItems(any()) }
+  }
+
+  @Test
+  fun `listWorkItems rejects a page token issued for another filter`() = runBlocking {
+    val pageToken =
+      internalListWorkItemsPageToken {
+          after =
+            InternalListWorkItemsPageTokenKt.after {
+              createdAfter = timestamp { seconds = 123L }
+              workItemResourceId = "work-item-1"
+            }
+          filter =
+            InternalListWorkItemsRequestKt.filter {
+              queueResourceIds += "vid-labeler-queue"
+              states += InternalWorkItem.State.QUEUED
+            }
+        }
+        .toByteString()
+        .base64UrlEncode()
+
+    for (changedFilter in
+      listOf(
+        ListWorkItemsRequestKt.filter { queueIn += "queues/vid-rank-builder-queue" },
+        ListWorkItemsRequestKt.filter {
+          queueIn += "queues/vid-labeler-queue"
+          stateIn += WorkItem.State.RUNNING
+        },
+        ListWorkItemsRequest.Filter.getDefaultInstance(),
+      )) {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listWorkItems(
+            listWorkItemsRequest {
+              this.pageToken = pageToken
+              filter = changedFilter
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo?.metadata?.get(Errors.Metadata.FIELD_NAME.key))
+        .isEqualTo("page_token")
+    }
+    verifyBlocking(internalServiceMock, never()) { listWorkItems(any()) }
   }
 
   @Test
@@ -828,7 +894,7 @@ class WorkItemServiceTest {
   fun `listWorkItems maps unknown filter queue to INVALID_ARGUMENT`() = runBlocking {
     internalServiceMock.stub {
       onBlocking { listWorkItems(any()) } doThrow
-        InternalQueueNotFoundException("queues/missing")
+        InternalQueueNotFoundException("missing")
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     }
 
@@ -843,6 +909,8 @@ class WorkItemServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.QUEUE_NOT_FOUND.name)
+    assertThat(exception.errorInfo?.metadata?.get(Errors.Metadata.QUEUE.key))
+      .isEqualTo("queues/missing")
   }
 
   @Test

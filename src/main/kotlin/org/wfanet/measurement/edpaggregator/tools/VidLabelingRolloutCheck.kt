@@ -111,8 +111,8 @@ class VidLabelingRolloutChecker(
    */
   suspend fun requireDrained(providers: Set<String>, queues: Set<String>) {
     require(providers.isNotEmpty() && queues.isNotEmpty()) { "Deployment scope must be explicit" }
-    // Deployment scope names queues as `queues/{queue}`; WorkItem.queue and the queue registry
-    // carry the bare queue resource ID.
+    // Deployment scope and the ListWorkItems filter name queues as `queues/{queue}`;
+    // WorkItem.queue carries the bare queue resource ID.
     val queueIds: Set<String> =
       queues.mapTo(sortedSetOf()) { queue ->
         val queueId = queue.removePrefix(QUEUE_PREFIX)
@@ -129,7 +129,7 @@ class VidLabelingRolloutChecker(
             pageToken = token
             filter =
               ListWorkItemsRequestKt.filter {
-                queueIn += queueIds
+                queueIn += queueIds.map { QUEUE_PREFIX + it }
                 stateIn += UNFINISHED_WORK_ITEM_STATES
               }
           }

@@ -129,9 +129,10 @@ message ListWorkItemsRequest {
   // Structured filter for narrowing results.
   // All fields are combined with `AND` logic.
   message Filter {
-    // Filter to `WorkItem`s whose `queue` value is in this set. Values have the
-    // same form as `WorkItem.queue`. Empty matches all queues. Each value must
-    // be a configured queue.
+    // Filter to `WorkItem`s in any of these `Queue`s. Empty matches all queues.
+    // Each value must name a configured `Queue`.
+    //
+    // Format: `queues/{queue}`
     // (-- api-linter: core::0140::prepositions=disabled
     //     aip.dev/not-precedent: `_in` is the established repo convention
     //     for set-membership filter fields. --)

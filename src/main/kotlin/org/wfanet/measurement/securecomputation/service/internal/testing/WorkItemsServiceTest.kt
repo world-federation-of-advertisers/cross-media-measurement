@@ -1397,7 +1397,7 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `listWorkItems returns only matching queues and states across pages`() = runBlocking {
+  fun `listWorkItems pages within the filter that issued the token`() = runBlocking {
     val services =
       initServices(
         TestConfig.TWO_QUEUE_MAPPING,
@@ -1450,14 +1450,35 @@ abstract class WorkItemsServiceTest {
         listWorkItemsRequest {
           pageSize = 1
           pageToken = firstPage.nextPageToken
-          this.filter = filter
+          // Duplicates normalize to the filter that issued the token.
+          this.filter = filter.copy { states += WorkItem.State.QUEUED }
         }
       )
 
     assertThat(firstPage.workItemsList).containsExactly(queuedA1)
-    assertThat(firstPage.hasNextPageToken()).isTrue()
+    assertThat(firstPage.nextPageToken.filter).isEqualTo(filter)
     assertThat(secondPage.workItemsList).containsExactly(queuedA2)
     assertThat(secondPage.hasNextPageToken()).isFalse()
+    for (changedFilter in
+      listOf(
+        filter.copy { queueResourceIds += "test-queue-b" },
+        filter.copy { states += WorkItem.State.FAILED },
+        ListWorkItemsRequest.Filter.getDefaultInstance(),
+      )) {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          services.service.listWorkItems(
+            listWorkItemsRequest {
+              pageSize = 1
+              pageToken = firstPage.nextPageToken
+              this.filter = changedFilter
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo?.metadata?.get(Errors.Metadata.FIELD_NAME.key))
+        .isEqualTo("page_token")
+    }
   }
 
   @Test

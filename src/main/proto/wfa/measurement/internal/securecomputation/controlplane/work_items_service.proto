@@ -104,6 +104,11 @@ message ListWorkItemsPageToken {
     string work_item_resource_id = 2;
   }
   After after = 1;
+
+  // Normalized filter of the listing that issued this token: distinct values,
+  // with queues sorted by resource ID and states by number. A subsequent
+  // request must specify the same normalized filter.
+  ListWorkItemsRequest.Filter filter = 2;
 }
 
 message FailWorkItemRequest {

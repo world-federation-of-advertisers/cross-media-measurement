@@ -36,6 +36,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequestKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.ProcessWorkItemDeadLetterRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.RetryWorkItemRequest
@@ -297,7 +298,6 @@ class SpannerWorkItemsService(
       } else {
         request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
       }
-    val after = if (request.hasPageToken()) request.pageToken.after else null
     if (
       request.filter.statesList.any {
         it == WorkItem.State.STATE_UNSPECIFIED || it == WorkItem.State.UNRECOGNIZED
@@ -306,13 +306,26 @@ class SpannerWorkItemsService(
       throw InvalidFieldValueException("filter.states")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val filter =
+      ListWorkItemsRequestKt.filter {
+        queueResourceIds += request.filter.queueResourceIdsList.distinct().sorted()
+        states += request.filter.statesList.distinct().sortedBy { it.number }
+      }
+    // A page token continues only the listing that issued it.
+    if (request.hasPageToken() && request.pageToken.filter != filter) {
+      throw InvalidFieldValueException("page_token") { fieldName ->
+          "$fieldName does not match filter"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val after = if (request.hasPageToken()) request.pageToken.after else null
     val queueIds: List<Long> =
       try {
-        request.filter.queueResourceIdsList.distinct().map { getQueueByResourceId(it).queueId }
+        filter.queueResourceIdsList.map { getQueueByResourceId(it).queueId }
       } catch (e: QueueNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
-    val states = request.filter.statesList.distinct()
+    val states = filter.statesList
     return databaseClient.singleUse().use { txn ->
       val workItems: Flow<WorkItem> =
         txn.readWorkItems(queueMapping, pageSize + 1, after, queueIds, states).map { it.workItem }
@@ -326,6 +339,9 @@ class SpannerWorkItemsService(
                     this@listWorkItemsResponse.workItems.last().workItemResourceId
                   createdAfter = this@listWorkItemsResponse.workItems.last().createTime
                 }
+              if (filter != ListWorkItemsRequest.Filter.getDefaultInstance()) {
+                this.filter = filter
+              }
             }
           } else {
             this.workItems += workItem

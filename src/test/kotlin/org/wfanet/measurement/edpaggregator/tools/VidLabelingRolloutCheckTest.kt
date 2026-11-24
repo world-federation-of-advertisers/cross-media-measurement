@@ -145,7 +145,8 @@ class VidLabelingRolloutCheckTest {
         override suspend fun listWorkItems(request: ListWorkItemsRequest) = listWorkItemsResponse {
           workItemReads++
           workItemRequests += request
-          val queues = request.filter.queueInList
+          // The real service accepts Queue resource names; WorkItem.queue is the bare ID.
+          val queues = request.filter.queueInList.map { it.removePrefix("queues/") }
           val states = request.filter.stateInList
           val matching =
             if (ignoreWorkItemFilter) items
@@ -329,7 +330,7 @@ class VidLabelingRolloutCheckTest {
       assertThat(modelLineReads).isEqualTo(1)
       assertThat(healingReads).isEqualTo(1)
       val workItemFilter = workItemRequests.single().filter
-      assertThat(workItemFilter.queueInList).containsExactly(QUEUE_ID)
+      assertThat(workItemFilter.queueInList).containsExactly(QUEUE)
       assertThat(workItemFilter.stateInList)
         .containsExactly(WorkItem.State.QUEUED, WorkItem.State.RUNNING)
       assertThat(uploadRequests.single().filter.stateInList)
@@ -350,7 +351,7 @@ class VidLabelingRolloutCheckTest {
     }
 
   @Test
-  fun `deployment queue names are translated to WorkItem queue IDs`() =
+  fun `deployment queue names filter by name and match WorkItem queue IDs`() =
     runBlocking<Unit> {
       for (ignoreFilter in listOf(false, true)) {
         ignoreWorkItemFilter = ignoreFilter
@@ -364,7 +365,7 @@ class VidLabelingRolloutCheckTest {
             }
           )
         assertFailsWith<RolloutWorkInProgressException> { drained() }
-        assertThat(workItemRequests.single().filter.queueInList).containsExactly(QUEUE_ID)
+        assertThat(workItemRequests.single().filter.queueInList).containsExactly(QUEUE)
       }
     }
 
