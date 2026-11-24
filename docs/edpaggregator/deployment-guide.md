@@ -195,6 +195,13 @@ material.
 * `<edp-id>-tls-key` / `<edp-id>-tls-pem` — the EDP's TLS keypair for authenticating
   to the CMMS.
 
+**Meta impression-query credentials** (only when the
+[Meta impression-query function](#optional-meta-impression-query-function) is deployed):
+
+* `meta-access-token` — the Meta system-user access token the function sends to the Marketing API.
+* `meta-app-secret` — the secret of the Meta app that issued that token, used to sign each call.
+  Both must come from the same Meta app.
+
 These names must match the references inside the DataWatcher, RequisitionFetcher, and
 `event_data_provider_configs` files. In Terraform they are supplied through the
 `edps_certs` map (see [Secrets](#secrets)).
@@ -571,7 +578,9 @@ edps_certs = {
 
 ### Cloud Functions
 
-All ten functions are configured through a single `cloud_function_configs` map.
+These ten functions are configured through a single `cloud_function_configs` map. The optional
+Meta impression-query function is configured separately; see
+[Optional: Meta impression-query function](#optional-meta-impression-query-function).
 Each entry provides:
 
 | Field | Meaning |
@@ -891,6 +900,35 @@ The TEE worker applications accept the corresponding command-line flags
 `--metadata-write-rpc-min-interval`, and `--control-plane-rpc-min-interval`. The Secure Computation
 internal API server uses the latter three flags for its dead-letter listeners. Values are complete
 human-readable durations such as `500ms` or `1000ms` and must be positive.
+
+### Optional: Meta impression-query function
+
+The Meta impression-query function is Meta's `DataProviderImpressionQuery` adapter, built and
+published by [edp-components](https://github.com/world-federation-of-advertisers/edp-components).
+The ResultsFulfiller calls it to compare its impression count with the count Meta reports.
+
+* **Artifact.** The function is deployed only when `meta_impression_query_uber_jar_path` is set.
+  Halo's `terraform-cmms-v2.yml` downloads
+  `org.wfanet.measurement.edpcomponents.meta:meta-impression-query` from edp-components' GitHub
+  Packages at the version named by `META_IMPRESSION_QUERY_ARTIFACT_VERSION` in the environment's
+  `.github/env-configs/<environment>/cmms.json`, and passes the downloaded path to Terraform. Pin
+  an immutable version: a release such as `0.2.0`, or `0.0.0-<12-character commit>`. Clearing the
+  path removes the function.
+* **Secrets.** Create `meta-access-token` and `meta-app-secret` in Secret Manager before deploying.
+  They are created outside Terraform, so the credentials never pass through Terraform state, and
+  the function reads their `latest` versions as the `META_ACCESS_TOKEN` and `META_APP_SECRET`
+  environment variables.
+* **Invoker.** Terraform grants `roles/run.invoker` on this function to the ResultsFulfiller's
+  service account, the caller it is deployed for.
+* **Deployed test.** Update CMMS runs `meta-impression-query-test.yml` after an apply with tests
+  enabled. It runs edp-components' `DeployedFunctionTest`, checked out at the tag or commit of the
+  pinned version, against the deployed function as the ResultsFulfiller. Terraform grants its own
+  service account `roles/iam.serviceAccountOpenIdTokenCreator` on the ResultsFulfiller's service
+  account so the test can mint that identity's ID token. The test target comes from the
+  `META_IMPRESSION_QUERY_CONFIG_CONTENT` GitHub environment secret, whose `test` object sets
+  `entity_id`, `entity_type`, `start_epoch_seconds`, `end_epoch_seconds`, and
+  `expected_impressions`. It is a secret because it names a real campaign and its impression
+  count.
 
 ---
 

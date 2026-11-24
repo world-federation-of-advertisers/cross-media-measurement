@@ -57,4 +57,3 @@ vid_labeling_healing_labeled_output_object_prefixes = [
 ]
 
 data_watcher_delete_work_item_config_file_path = "envs/dev/data-watcher-delete-work-items-config.textproto"
-meta_impression_query_artifact_version         = "0.2.0"

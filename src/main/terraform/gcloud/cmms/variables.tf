@@ -670,15 +670,8 @@ variable "data_availability_publication_status_storage_roots" {
   }
 }
 
-variable "meta_impression_query_artifact_version" {
-  description = "Maven version of edp-components' meta-impression-query function jar. terraform-cmms-v2.yml reads it to download the jar; unset means the function is not deployed."
-  type        = string
-  nullable    = true
-  default     = null
-}
-
 variable "meta_impression_query_uber_jar_path" {
-  description = "Path to the downloaded Meta impression-query Cloud Function uber jar. When unset, the function is not deployed."
+  description = "Path to the downloaded Meta impression-query Cloud Function uber jar. terraform-cmms-v2.yml downloads the version named by META_IMPRESSION_QUERY_ARTIFACT_VERSION in the environment's cmms.json. When unset, the function is not deployed."
   type        = string
   nullable    = true
   default     = null

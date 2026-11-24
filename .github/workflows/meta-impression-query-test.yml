@@ -16,10 +16,17 @@ name: Meta impression-query test
 run-name: Meta impression-query test [${{ inputs.environment }}]
 
 # Calls the deployed Meta impression-query function with edp-components' DeployedFunctionTest,
-# checked out at the commit the pinned artifact version was built from. Run by hand after a deploy;
-# it queries live Meta, so it is not part of Update CMMS. Skipped when the environment does not pin
-# a version, i.e. the function is not deployed there.
+# checked out at the commit the pinned artifact version was built from. Update CMMS runs it after
+# every apply with tests enabled; it can also be run by hand. The version, identity provider,
+# service account, project and region come from the environment's committed cmms.json, the same
+# file the deployment reads. Skipped when cmms.json pins no version, i.e. the function is not
+# deployed there.
 on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
   workflow_dispatch:
     inputs:
       environment:
@@ -43,18 +50,24 @@ jobs:
       packages: read
     environment: ${{ inputs.environment }}
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Load CMMS environment configuration
+        id: cmms-config
+        uses: ./.github/actions/load-cmms-environment
+        with:
+          environment: ${{ inputs.environment }}
 
       - name: Resolve test target
         id: target
         env:
-          TFVARS_FILE: src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars
+          META_IMPRESSION_QUERY_ARTIFACT_VERSION: ${{ fromJSON(steps.cmms-config.outputs.config).META_IMPRESSION_QUERY_ARTIFACT_VERSION }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          version="$(sed -nE 's/^meta_impression_query_artifact_version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$TFVARS_FILE")"
+          version="${META_IMPRESSION_QUERY_ARTIFACT_VERSION:-}"
           if [[ -z "$version" ]]; then
-            echo "meta_impression_query_artifact_version is not set; the function is not deployed"
+            echo "META_IMPRESSION_QUERY_ARTIFACT_VERSION is not set in cmms.json; the function is not deployed"
             echo "skip=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -65,7 +78,7 @@ jobs:
           elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             ref="v$version"
           else
-            echo "Cannot map meta_impression_query_artifact_version '$version' to a source revision" >&2
+            echo "Cannot map META_IMPRESSION_QUERY_ARTIFACT_VERSION '$version' to a source revision" >&2
             exit 1
           fi
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
@@ -91,14 +104,14 @@ jobs:
 
       - name: Set up Bazel
         if: steps.target.outputs.skip == 'false'
-        uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
       - name: Authenticate to Google Cloud
         if: steps.target.outputs.skip == 'false'
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
-          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
 
       # Calls as the Results Fulfiller, the only identity bound as invoker, so the test proves the
       # production caller can reach the function.
@@ -106,8 +119,8 @@ jobs:
         if: steps.target.outputs.skip == 'false'
         working-directory: edp-components
         env:
-          GCLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
-          GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+          GCLOUD_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
+          GCLOUD_REGION: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_REGION }}
           # One JSON source for the Meta function's per-environment settings; the test target is
           # its "test" object. A secret rather than a variable: it names a real campaign and its
           # impression count. Its fields are read and masked only in this step and never written to

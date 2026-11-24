@@ -214,14 +214,14 @@ jobs:
       id: download-meta-impression-query
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       env:
-        TFVARS_FILE: envs/${{ inputs.environment }}.tfvars
+        # Pinned in the environment's committed cmms.json, which the Meta impression-query test also
+        # reads, so the deployed and tested versions cannot drift apart.
+        META_IMPRESSION_QUERY_ARTIFACT_VERSION: ${{ fromJSON(steps.cmms-config.outputs.config).META_IMPRESSION_QUERY_ARTIFACT_VERSION }}
       run: |
         set -euo pipefail
-        # The version is pinned in the reviewed tfvars rather than a GitHub variable, so each
-        # environment records exactly which adapter revision it runs. Unset skips the deployment.
-        version="$(sed -nE 's/^meta_impression_query_artifact_version[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' "$TFVARS_FILE")"
+        version="${META_IMPRESSION_QUERY_ARTIFACT_VERSION:-}"
         if [[ -z "$version" ]]; then
-          echo "meta_impression_query_artifact_version is not set in $TFVARS_FILE; skipping"
+          echo "META_IMPRESSION_QUERY_ARTIFACT_VERSION is not set in cmms.json; skipping"
           echo "jar_path=" >> "$GITHUB_OUTPUT"
           exit 0
         fi
