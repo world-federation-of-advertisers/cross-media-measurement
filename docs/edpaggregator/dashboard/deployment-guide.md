@@ -22,8 +22,8 @@ The dashboard creates the following resources:
 | `requisition_overview` | Shared (row-filtered) | Requisition status, fulfillment times, report state |
 | `mc_details` | Platform only | Event group details with cross-EDP coverage metrics |
 | `mc_details_edp` | Per-EDP | Event group details (own data only) |
-| `report_detail` | Platform only | Per-report event group associations with EDP count and report state |
-| `report_detail_edp` | Per-EDP | Per-report event group associations and report state (own data only) |
+| `report_detail` | Platform only | Per-report event group associations with EDP count, report state, and create and EDP fulfilled times |
+| `report_detail_edp` | Per-EDP | Per-report event group associations, report state, and create and fulfilled times (own data only) |
 | `unlinked_accounts` | Shared (row-filtered) | Advertiser client accounts observed with no MeasurementConsumer linkage; often empty |
 
 ### Security Model

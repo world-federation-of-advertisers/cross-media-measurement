@@ -44,11 +44,15 @@ class ReportDetailFixtureQuery(private val project: String, private val region: 
         """
         SELECT * FROM UNNEST([
           STRUCT<CmmsMeasurementConsumerId STRING, ExternalReportId STRING,
-                 ExternalCampaignGroupId STRING, State INT64>
-          ('$MC_ALPHA', '$REPORT_SHARED', '$CAMPAIGN_GROUP_SHARED', 4),
-          ('$MC_ALPHA', '$REPORT_RIGHT_NESTED', 'cg-right-nested', 4),
-          ('$MC_ALPHA', '$REPORT_INTERSECTION', 'cg-intersection', 5),
-          ('$MC_BETA', '$REPORT_SHARED', '$CAMPAIGN_GROUP_SHARED', 4)])
+                 ExternalCampaignGroupId STRING, State INT64, CreateTime TIMESTAMP>
+          ('$MC_ALPHA', '$REPORT_SHARED', '$CAMPAIGN_GROUP_SHARED', 4,
+           TIMESTAMP '$ALPHA_SHARED_CREATED'),
+          ('$MC_ALPHA', '$REPORT_RIGHT_NESTED', 'cg-right-nested', 4,
+           TIMESTAMP '2026-01-02 00:00:00+00'),
+          ('$MC_ALPHA', '$REPORT_INTERSECTION', 'cg-intersection', 5,
+           TIMESTAMP '2026-01-03 00:00:00+00'),
+          ('$MC_BETA', '$REPORT_SHARED', '$CAMPAIGN_GROUP_SHARED', 4,
+           TIMESTAMP '$BETA_SHARED_CREATED')])
         """,
       // Reporting Postgres: campaign group -> (DataProvider, EventGroup), as resolved by the
       // composite walk. cg-right-nested and cg-intersection reach both providers.
@@ -84,6 +88,20 @@ class ReportDetailFixtureQuery(private val project: String, private val region: 
         SELECT * FROM UNNEST([
           STRUCT<DataProviderId INT64, ExternalDataProviderId INT64>
           (1, $META_DP), (2, $OTHER_DP)])
+        """,
+      // EDP Aggregator Requisitions, one row per Requisition with its fulfilled time. For
+      // REPORT_SHARED the providers fulfil at different times, and MC_BETA's copy still has an
+      // unfulfilled Requisition.
+      "RequisitionMetadata" to
+        """
+        SELECT * FROM UNNEST([
+          STRUCT<DataProviderResourceId STRING, CmmsMeasurementConsumer STRING,
+                 ExternalReportId STRING, State INT64, FulfilledTime TIMESTAMP>
+          ($udf($META_DP), '$MC_ALPHA', '$REPORT_SHARED', 4, TIMESTAMP '2026-01-01 01:00:00+00'),
+          ($udf($META_DP), '$MC_ALPHA', '$REPORT_SHARED', 4, TIMESTAMP '$META_SHARED_FULFILLED'),
+          ($udf($OTHER_DP), '$MC_ALPHA', '$REPORT_SHARED', 4, TIMESTAMP '$OTHER_SHARED_FULFILLED'),
+          ($udf($OTHER_DP), '$MC_BETA', '$REPORT_SHARED', 4, TIMESTAMP '2026-01-05 01:00:00+00'),
+          ($udf($OTHER_DP), '$MC_BETA', '$REPORT_SHARED', 3, NULL)])
         """,
     )
 
@@ -144,6 +162,10 @@ class ReportDetailFixtureQuery(private val project: String, private val region: 
     const val REPORT_RIGHT_NESTED = "r-right-nested"
     const val REPORT_INTERSECTION = "r-intersection"
     private const val CAMPAIGN_GROUP_SHARED = "cg-shared"
+    const val ALPHA_SHARED_CREATED = "2026-01-01 00:00:00+00"
+    const val BETA_SHARED_CREATED = "2026-01-05 00:00:00+00"
+    const val META_SHARED_FULFILLED = "2026-01-01 02:00:00+00"
+    const val OTHER_SHARED_FULFILLED = "2026-01-01 03:00:00+00"
 
     private const val META_DP = 1001L
     private const val OTHER_DP = 1002L

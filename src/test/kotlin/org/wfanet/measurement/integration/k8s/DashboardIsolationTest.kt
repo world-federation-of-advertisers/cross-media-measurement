@@ -30,8 +30,12 @@ import org.junit.BeforeClass
 import org.junit.Test
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.DashboardIsolationChecks.EdpConfig
+import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.ALPHA_SHARED_CREATED
+import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.BETA_SHARED_CREATED
 import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.MC_ALPHA
 import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.MC_BETA
+import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.META_SHARED_FULFILLED
+import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.OTHER_SHARED_FULFILLED
 import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.REPORT_INTERSECTION
 import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.REPORT_RIGHT_NESTED
 import org.wfanet.measurement.integration.k8s.ReportDetailFixtureQuery.Companion.REPORT_SHARED
@@ -202,6 +206,37 @@ class DashboardIsolationTest {
         .associate { it["CmmsMeasurementConsumer"].stringValue to it["EdpCount"].longValue }
 
     assertThat(edpCounts).containsExactly(MC_ALPHA, 2L, MC_BETA, 1L)
+  }
+
+  @Test
+  fun reportDetailEdpTimesAreScopedByDataProviderAndMeasurementConsumer() {
+    // Both providers fulfil REPORT_SHARED at different times, and MC_BETA reuses the report ID with
+    // an unfulfilled Requisition. Each row must carry only its own report's creation time and its
+    // own provider's fulfilled time.
+    val ids = fixtureApiIds()
+    val times =
+      runFixtureQuery(
+          "SELECT CmmsMeasurementConsumer, CmmsDataProvider, " +
+            "FORMAT_TIMESTAMP('%F %T+00', ReportCreateTime, 'UTC') AS created, " +
+            "FORMAT_TIMESTAMP('%F %T+00', EdpFulfilledTime, 'UTC') AS fulfilled " +
+            "FROM (${fixture.sourceQuery(platform = false)}) " +
+            "WHERE ExternalReportId = '$REPORT_SHARED'"
+        )
+        .associate {
+          (it["CmmsMeasurementConsumer"].stringValue to it["CmmsDataProvider"].stringValue) to
+            (it["created"].stringValue to
+              if (it["fulfilled"].isNull) null else it["fulfilled"].stringValue)
+        }
+
+    assertThat(times)
+      .containsExactly(
+        MC_ALPHA to ids.getValue("meta_dp"),
+        ALPHA_SHARED_CREATED to META_SHARED_FULFILLED,
+        MC_ALPHA to ids.getValue("other_dp"),
+        ALPHA_SHARED_CREATED to OTHER_SHARED_FULFILLED,
+        MC_BETA to ids.getValue("other_dp"),
+        BETA_SHARED_CREATED to null,
+      )
   }
 
   /** Rows of [edpView] visible to [dataProvider], filtered as its row access policy does. */

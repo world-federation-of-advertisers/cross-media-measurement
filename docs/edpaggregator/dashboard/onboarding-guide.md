@@ -401,6 +401,8 @@ reuse a report or SA across EDPs.
 | `EntityTypes` | ARRAY\<STRING\> | Entity types for your event groups in this report |
 | `EntityIds` | ARRAY\<STRING\> | Entity IDs for your event groups in this report |
 | `CmmsMeasurementConsumer` | STRING | Advertiser's API resource ID |
+| `ReportCreateTime` | TIMESTAMP | When the report was created |
+| `EdpFulfilledTime` | TIMESTAMP | When you fulfilled your last requisition for this report. NULL until all of them are fulfilled. Not the report completion time |
 
 #### `unlinked_accounts`
 
