@@ -100,6 +100,10 @@ class FakeCloud:
         raise AssertionError(collection)
 
 
+def inspection(**facts):
+    return "INFO: unrelated tool output" + chr(10) + cutover.INSPECTION_PREFIX + json.dumps(facts) + chr(10)
+
+
 class CutoverTest(unittest.TestCase):
     def jar(self, directory):
         path = Path(directory) / "prepared.jar"
@@ -176,14 +180,40 @@ class CutoverTest(unittest.TestCase):
             cutover.legacy_preflight(FakeCloud(), None)
 
     def test_profile_must_cover_all_live_providers_and_a_distinct_test_provider(self):
+        cloud = FakeCloud()
+        commands = []
+        def operator(command, timeout):
+            commands.append(command)
+            return inspection(dataProviders=["dataProviders/live", "dataProviders/test"])
+        cloud.run_operator = operator
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.textproto"
-            config.write_text('data_provider: "dataProviders/live"\ndata_provider: "dataProviders/test"')
+            # The script never reads the textproto itself; the protobuf loader reports providers.
+            config.write_text('configs { data_provider: "dataProviders/live" } configs { data_provider : "dataProviders/test" }')
             profile = {"isolatedDataProvider": "dataProviders/test", "liveDataProviders": ["dataProviders/live"]}
-            self.assertEqual(cutover.profile_providers(profile, config)[0], "dataProviders/test")
+            isolated, live, configured = cutover.profile_providers(cloud, ["operator"], profile, config)
+            self.assertEqual((isolated, live, configured),
+                             ("dataProviders/test", {"dataProviders/live"}, {"dataProviders/live", "dataProviders/test"}))
+            self.assertEqual(commands[0], ["operator", "inspect-dispatch-cutover-config",
+                                           "--vid-labeling-config=" + str(config.resolve())])
             profile["liveDataProviders"].append("dataProviders/test")
             with self.assertRaises(cutover.GateError):
-                cutover.profile_providers(profile, config)
+                cutover.profile_providers(cloud, ["operator"], profile, config)
+
+    def test_profile_omitting_a_parsed_provider_fails_before_preflight(self):
+        cloud = FakeCloud()
+        cloud.run_operator = lambda command, timeout: inspection(
+            dataProviders=["dataProviders/live", "dataProviders/other", "dataProviders/test"])
+        profile = {"isolatedDataProvider": "dataProviders/test", "liveDataProviders": ["dataProviders/live"]}
+        with self.assertRaises(cutover.GateError):
+            cutover.profile_providers(cloud, ["operator"], profile, "config.textproto")
+
+    def test_missing_or_ambiguous_inspection_result_fails_closed(self):
+        cloud = FakeCloud()
+        for output in ("no structured result", inspection(dataProviders=[]) + inspection(dataProviders=[])):
+            cloud.run_operator = lambda command, timeout, output=output: output
+            with self.assertRaises(cutover.GateError):
+                cutover.inspect_config(cloud, ["operator"], vid_labeling_config="config.textproto")
 
     def test_legacy_scaled_to_zero_needs_no_container_metrics(self):
         cloud = FakeCloud()
@@ -238,10 +268,22 @@ class CutoverTest(unittest.TestCase):
             "DATA_WATCHER_CONFIG_GENERATION": "5",
         }
         cloud.function = lambda _: function
-        cloud.run = lambda command: 'watched_paths { identifier: "vid-labeling-dispatch" http_endpoint_sink { endpoint_uri: "https://dispatcher" } }'
-        self.assertFalse(cutover.is_queued(cloud))
-        cloud.run = lambda command: 'watched_paths { identifier: "vid-labeling-dispatch" control_plane_queue_sink { queue: "vid-labeling-dispatch-queue" } }'
-        self.assertTrue(cutover.is_queued(cloud))
+        cloud.run = lambda command: "active pinned configuration"
+        inspected = []
+        def operator(facts):
+            def run(command, timeout):
+                path = Path(command[-1].split("=", 1)[1])
+                inspected.append((command[:2], command[-1].split("=", 1)[0], path.read_text()))
+                return inspection(**facts)
+            return run
+        cloud.run_operator = operator({"hasDispatchRoutes": True, "anyDispatchRouteQueued": False,
+                                       "allDispatchRoutesQueued": False})
+        self.assertFalse(cutover.is_queued(cloud, ["operator"]))
+        cloud.run_operator = operator({"hasDispatchRoutes": True, "anyDispatchRouteQueued": True,
+                                       "allDispatchRoutesQueued": True})
+        self.assertTrue(cutover.is_queued(cloud, ["operator"]))
+        self.assertEqual(inspected[-1], (["operator", "inspect-dispatch-cutover-config"],
+                                         "--data-watcher-config", "active pinned configuration"))
 
     def test_snapshot_main_uses_workflow_arguments_without_api_or_profile(self):
         cloud = FakeCloud()
@@ -257,13 +299,18 @@ class CutoverTest(unittest.TestCase):
     def test_canary_main_uses_workflow_arguments_without_api_targets(self):
         cloud = FakeCloud()
         called = []
-        cloud.run_operator = lambda command, timeout: called.append(command)
+        def operator(command, timeout):
+            if "inspect-dispatch-cutover-config" in command:
+                return inspection(dataProviders=["dataProviders/live", "dataProviders/test"])
+            called.append(command)
+            return ""
+        cloud.run_operator = operator
         with tempfile.TemporaryDirectory() as directory:
             profile = Path(directory) / "profile.json"
             config = Path(directory) / "vid.textproto"
             profile.write_text(json.dumps({"isolatedDataProvider": "dataProviders/test",
                 "liveDataProviders": ["dataProviders/live"]}))
-            config.write_text('data_provider: "dataProviders/test"' + chr(10) + 'data_provider: "dataProviders/live"')
+            config.write_text("")
             with mock.patch.object(cutover, "Cloud", return_value=cloud):
                 cutover.main(["canary-config", "--project=test-project", "--region=us-central1",
                     "--profile-file=" + str(profile), "--vid-labeling-config=" + str(config),
@@ -276,13 +323,32 @@ class CutoverTest(unittest.TestCase):
         cloud.function = lambda _: {"serviceConfig": {"environmentVariables": {
             "CONFIG_BLOB_KEY": cutover.CONFIG_V2, "DATA_WATCHER_CONFIG_GENERATION": "5",
             "EDPA_CONFIG_STORAGE_BUCKET": "gs://config"}}}
-        queued = 'watched_paths { identifier: "vid-labeling-dispatch" control_plane_queue_sink { queue: "vid-labeling-dispatch-queue" } }'
-        http = 'watched_paths { identifier: "vid-labeling-dispatch" http_endpoint_sink { endpoint_uri: "https://dispatcher" } }'
-        cloud.run = lambda _: queued + chr(10) + http
-        self.assertFalse(cutover.is_queued(cloud))
-        cloud.run = lambda _: queued[:-1]
+        cloud.run = lambda _: "canary configuration"
+        cloud.run_operator = lambda command, timeout: inspection(
+            hasDispatchRoutes=True, anyDispatchRouteQueued=True, allDispatchRoutesQueued=False)
+        self.assertFalse(cutover.is_queued(cloud, ["operator"]))
+        cloud.run_operator = lambda command, timeout: inspection(
+            hasDispatchRoutes=False, anyDispatchRouteQueued=False, allDispatchRoutesQueued=False)
         with self.assertRaises(cutover.GateError):
-            cutover.is_queued(cloud)
+            cutover.is_queued(cloud, ["operator"])
+        def malformed(command, timeout):
+            raise cutover.GateError("Operator command failed; unparseable configuration")
+        cloud.run_operator = malformed
+        with self.assertRaises(cutover.GateError):
+            cutover.is_queued(cloud, ["operator"])
+
+    def test_declares_queue_main_reports_parsed_committed_routing(self):
+        for facts, expected in (({"anyDispatchRouteQueued": True}, "true"), ({"anyDispatchRouteQueued": False}, "false")):
+            cloud = FakeCloud()
+            commands = []
+            cloud.run_operator = lambda command, timeout, facts=facts: commands.append(command) or inspection(**facts)
+            output = io.StringIO()
+            with mock.patch.object(cutover, "Cloud", return_value=cloud), mock.patch("sys.stdout", output):
+                cutover.main(["declares-queue", "--project=test-project", "--region=us-central1",
+                              "--data-watcher-config=/committed/data-watcher-config.textproto"])
+            self.assertEqual(output.getvalue().strip(), expected)
+            self.assertEqual(commands, [cutover.OPERATOR + ["inspect-dispatch-cutover-config",
+                "--data-watcher-config=/committed/data-watcher-config.textproto"]])
 
     def test_storage_smoke_finalizes_generations_and_waits_for_watcher_intake(self):
         cloud = FakeCloud()
@@ -315,6 +381,8 @@ class CutoverTest(unittest.TestCase):
                         for phase in ("ordinary", "recovery")]
             raise AssertionError(command)
         def operator(command, timeout):
+            if "inspect-dispatch-cutover-config" in command:
+                return inspection(dataProviders=["dataProviders/live", "dataProviders/test"])
             phase = next(v.split("=", 1)[1] for v in command if v.startswith("--phase="))
             events.append(phase)
             if phase == "ordinary":
@@ -332,7 +400,7 @@ class CutoverTest(unittest.TestCase):
                "approval": {"name": "dataProviders/test/uploadHealingOperations/op", "etag": "fresh"}}
         with tempfile.TemporaryDirectory() as directory:
             config = Path(directory) / "config.textproto"
-            config.write_text('data_provider: "dataProviders/test"' + chr(10) + 'data_provider: "dataProviders/live"')
+            config.write_text("")
             args = type("Args", (), {"vid_labeling_config": str(config), "operator_command": ["operator"], "smoke_inputs": json.dumps(run)})()
             cutover.smoke(cloud, args, profile, [], directory)
         self.assertEqual(events, ["finalize", "ordinary", "controller-finalize", "recovery"])

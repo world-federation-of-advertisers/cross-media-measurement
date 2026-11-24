@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.Any
+import com.google.protobuf.Struct
 import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
@@ -112,6 +113,7 @@ class VidLabelingHealTest {
         "preflight-dispatch-cutover",
         "smoke-dispatch-cutover",
         "prepare-dispatch-canary-config",
+        "inspect-dispatch-cutover-config",
         "mark-failed",
         "retry-failed",
         "backfill-model-line",
@@ -978,5 +980,227 @@ class VidLabelingHealTest {
         )
         .isEqualTo(0)
     }
+  }
+
+  private fun inspect(vararg args: String): Pair<Int, Struct?> {
+    val captured =
+      CommandLineTesting.capturingOutput(arrayOf("inspect-dispatch-cutover-config", *args), ::main)
+    val line =
+      captured.out.lineSequence().singleOrNull {
+        it.startsWith(InspectDispatchCutoverConfigCommand.INSPECTION_PREFIX)
+      }
+    val facts =
+      line?.let {
+        Struct.newBuilder()
+          .apply {
+            JsonFormat.parser()
+              .merge(it.removePrefix(InspectDispatchCutoverConfigCommand.INSPECTION_PREFIX), this)
+          }
+          .build()
+      }
+    return captured.status to facts
+  }
+
+  @Test
+  fun `inspect reports every provider from valid textproto layouts a line regex misses`() {
+    val config = Files.createTempFile("vid-labeling-config", ".textproto")
+    try {
+      Files.writeString(
+        config,
+        """
+        # proto-message: wfa.measurement.config.edpaggregator.VidLabelingConfigs
+        configs { data_provider: "dataProviders/live" }
+        configs {
+          data_provider : "dataProviders/test"
+        }
+        """
+          .trimIndent(),
+      )
+      val (status, facts) = inspect("--vid-labeling-config=$config")
+      assertThat(status).isEqualTo(0)
+      assertThat(
+          checkNotNull(facts).fieldsMap.getValue("dataProviders").listValue.valuesList.map {
+            it.stringValue
+          }
+        )
+        .containsExactly("dataProviders/live", "dataProviders/test")
+        .inOrder()
+    } finally {
+      Files.deleteIfExists(config)
+    }
+  }
+
+  @Test
+  fun `inspect distinguishes canary routing from fully queued dispatch and rejects malformed config`() {
+    val directory = Files.createTempDirectory("dispatch-routing-inspection")
+    val finalPath = directory.resolve("final.textproto")
+    val canaryPath = directory.resolve("canary.textproto")
+    val malformedPath = directory.resolve("malformed.textproto")
+    val finalConfig = dataWatcherConfig {
+      for (provider in listOf("dataProviders/test", "dataProviders/live")) {
+        watchedPaths += watchedPath {
+          identifier = "vid-labeling-dispatch"
+          sourcePathRegex = "^gs://${provider.substringAfter('/')}/raw/.+/done$"
+          controlPlaneQueueSink = controlPlaneQueueSink {
+            queue = "vid-labeling-dispatch-queue"
+            appParams = Any.pack(vidLabelingDispatcherParams { dataProvider = provider })
+          }
+        }
+      }
+    }
+    val printed =
+      TextFormat.printer()
+        .usingTypeRegistry(DataWatcherConfigTypes.registry)
+        .printToString(finalConfig)
+    // A comment naming the legacy sink must not change the parsed routing.
+    Files.writeString(
+      finalPath,
+      printed + "\n# http_endpoint_sink { endpoint_uri: \"https://legacy\" }\n",
+    )
+    Files.writeString(malformedPath, printed.dropLast(2))
+    try {
+      assertThat(
+          runProductionMain(
+            "prepare-dispatch-canary-config",
+            "--data-watcher-config=$finalPath",
+            "--output=$canaryPath",
+            "--isolated-data-provider=dataProviders/test",
+            "--dispatcher-endpoint=https://dispatcher.test",
+          )
+        )
+        .isEqualTo(0)
+
+      val (finalStatus, finalFacts) = inspect("--data-watcher-config=$finalPath")
+      assertThat(finalStatus).isEqualTo(0)
+      assertThat(checkNotNull(finalFacts).fieldsMap.mapValues { it.value.boolValue })
+        .containsExactly(
+          "hasDispatchRoutes",
+          true,
+          "anyDispatchRouteQueued",
+          true,
+          "allDispatchRoutesQueued",
+          true,
+        )
+      val (canaryStatus, canaryFacts) = inspect("--data-watcher-config=$canaryPath")
+      assertThat(canaryStatus).isEqualTo(0)
+      assertThat(checkNotNull(canaryFacts).fieldsMap.mapValues { it.value.boolValue })
+        .containsExactly(
+          "hasDispatchRoutes",
+          true,
+          "anyDispatchRouteQueued",
+          true,
+          "allDispatchRoutesQueued",
+          false,
+        )
+      val (malformedStatus, malformedFacts) = inspect("--data-watcher-config=$malformedPath")
+      assertThat(malformedStatus).isNotEqualTo(0)
+      assertThat(malformedFacts).isNull()
+    } finally {
+      for (file in listOf(finalPath, canaryPath, malformedPath)) Files.deleteIfExists(file)
+      Files.deleteIfExists(directory)
+    }
+  }
+
+  /** Simulates durable history that grows without bound unless the preflight filters by state. */
+  private class HistoryServices(private val activeHealing: Boolean = false) {
+    val uploadRequests = mutableListOf<ListRawImpressionUploadsRequest>()
+    val healingRequests = mutableListOf<ListUploadHealingOperationsRequest>()
+
+    val uploads =
+      object : RawImpressionUploadServiceCoroutineImplBase() {
+        override suspend fun listRawImpressionUploads(request: ListRawImpressionUploadsRequest) =
+          listRawImpressionUploadsResponse {
+            uploadRequests += request
+            if (request.filter.stateInList.isNotEmpty()) {
+              if (RawImpressionUpload.State.CREATED in request.filter.stateInList) {
+                rawImpressionUploads += rawImpressionUpload {
+                  state = RawImpressionUpload.State.CREATED
+                  registrationComplete = true
+                }
+              }
+              return@listRawImpressionUploadsResponse
+            }
+            // Legacy terminal rows keep registration_complete false; there are many pages.
+            repeat(1000) {
+              rawImpressionUploads += rawImpressionUpload {
+                state = RawImpressionUpload.State.COMPLETED
+                registrationComplete = false
+              }
+            }
+            val page = request.pageToken.toIntOrNull() ?: 0
+            if (page < HISTORY_PAGES) nextPageToken = "${page + 1}"
+          }
+      }
+
+    val operations =
+      object : UploadHealingOperationServiceCoroutineImplBase() {
+        override suspend fun listUploadHealingOperations(
+          request: ListUploadHealingOperationsRequest
+        ) = listUploadHealingOperationsResponse {
+          healingRequests += request
+          val states = request.filter.stateInList
+          if (states.isNotEmpty()) {
+            if (activeHealing && UploadHealingOperation.State.APPROVED in states) {
+              uploadHealingOperations += uploadHealingOperation {
+                state = UploadHealingOperation.State.APPROVED
+              }
+            }
+            return@listUploadHealingOperationsResponse
+          }
+          repeat(1000) {
+            uploadHealingOperations += uploadHealingOperation {
+              state = UploadHealingOperation.State.COMPLETE
+            }
+          }
+          val page = request.pageToken.toIntOrNull() ?: 0
+          if (page < HISTORY_PAGES) nextPageToken = "${page + 1}"
+        }
+      }
+
+    companion object {
+      const val HISTORY_PAGES = 5
+    }
+  }
+
+  @Test
+  fun `preflight pages only potentially unfinished registrations and active healing`() {
+    val history = HistoryServices()
+    withOperatorServer(listOf(history.uploads, history.operations)) { _, flags ->
+      assertThat(
+          runProductionMain(
+            *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
+              .toTypedArray()
+          )
+        )
+        .isEqualTo(0)
+    }
+    assertThat(history.uploadRequests).hasSize(1)
+    assertThat(history.uploadRequests.single().filter.stateInList)
+      .containsExactly(RawImpressionUpload.State.CREATED)
+    assertThat(history.healingRequests).hasSize(1)
+    assertThat(history.healingRequests.single().filter.stateInList)
+      .containsExactlyElementsIn(
+        UploadHealingOperation.State.values().filter {
+          it != UploadHealingOperation.State.STATE_UNSPECIFIED &&
+            it != UploadHealingOperation.State.UNRECOGNIZED &&
+            it != UploadHealingOperation.State.COMPLETE &&
+            it != UploadHealingOperation.State.APPROVAL_REQUIRED
+        }
+      )
+  }
+
+  @Test
+  fun `filtered preflight still rejects active healing amid unrelated history`() {
+    val history = HistoryServices(activeHealing = true)
+    withOperatorServer(listOf(history.uploads, history.operations)) { _, flags ->
+      assertThat(
+          runProductionMain(
+            *(listOf("preflight-dispatch-cutover", "--data-provider=dataProviders/dp") + flags)
+              .toTypedArray()
+          )
+        )
+        .isNotEqualTo(0)
+    }
+    assertThat(history.healingRequests).hasSize(1)
   }
 }

@@ -163,12 +163,14 @@ jobs:
           queued=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py is-queued \
             --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION")
         fi
+        declared=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py declares-queue \
+          --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto")
         needed=false
-        if [[ "$queued" == false && "$APPLY" == true ]] && \
-          grep -q 'vid-labeling-dispatch-queue' "$CONFIG_DIR/data-watcher-config.textproto"; then
+        if [[ "$queued" == false && "$APPLY" == true && "$declared" == true ]]; then
           needed=true
         fi
-        if ! grep -q 'vid-labeling-dispatch-queue' "$CONFIG_DIR/data-watcher-config.textproto"; then
+        if [[ "$declared" == false ]]; then
           activate="$current"
         fi
         if [[ "$APPLY" == true && "$REQUIRE_CUTOVER_CHECKS" == true && "$DISPATCH_MODE" != preserve ]]; then

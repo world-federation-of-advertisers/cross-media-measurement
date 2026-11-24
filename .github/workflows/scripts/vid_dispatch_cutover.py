@@ -326,10 +326,26 @@ def operator_flags(cloud, profile, directory, edpa_target, control_target):
     return flags
 
 
-def profile_providers(profile, config_path):
+INSPECTION_PREFIX = "DISPATCH_CUTOVER_CONFIG="
+
+
+def inspect_config(cloud, operator_command, vid_labeling_config=None, data_watcher_config=None):
+    """Parses configuration with the repository's protobuf loaders and validators."""
+    command = operator_command + ["inspect-dispatch-cutover-config"]
+    if vid_labeling_config:
+        command.append("--vid-labeling-config=" + str(Path(vid_labeling_config).resolve()))
+    if data_watcher_config:
+        command.append("--data-watcher-config=" + str(Path(data_watcher_config).resolve()))
+    output = cloud.run_operator(command, timeout=1800)
+    facts = [line[len(INSPECTION_PREFIX):] for line in output.splitlines() if line.startswith(INSPECTION_PREFIX)]
+    require(len(facts) == 1, "Configuration inspection did not report exactly one result")
+    return json.loads(facts[0])
+
+
+def profile_providers(cloud, operator_command, profile, config_path):
     isolated = profile["isolatedDataProvider"]
     live = set(profile["liveDataProviders"])
-    configured = set(re.findall(r'(?m)^\s*data_provider:\s*"([^"]+)"', Path(config_path).read_text()))
+    configured = set(inspect_config(cloud, operator_command, vid_labeling_config=config_path).get("dataProviders", []))
     require(configured and isolated in configured and live == configured - {isolated},
             "Profile must isolate one dedicated test provider and list every other configured provider")
     return isolated, live, configured
@@ -359,37 +375,7 @@ def active_config(cloud):
     return cloud.run(["gcloud", "storage", "cat", uri])
 
 
-def dispatch_routes(content):
-    routes = []
-    for match in re.finditer(r"(?m)^\s*watched_paths\s*\{", content):
-        start = match.end()
-        depth, quoted, escaped = 1, False, False
-        for index in range(start, len(content)):
-            char = content[index]
-            if quoted:
-                if escaped:
-                    escaped = False
-                elif char == chr(92):
-                    escaped = True
-                elif char == '"':
-                    quoted = False
-            elif char == '"':
-                quoted = True
-            elif char == "{":
-                depth += 1
-            elif char == "}":
-                depth -= 1
-                if depth == 0:
-                    block = content[start:index]
-                    if re.search(r'identifier:\s*"vid-labeling-dispatch"', block):
-                        routes.append(block)
-                    break
-        require(depth == 0, "Malformed watched-path configuration")
-    require(routes, "No VID dispatcher routes in active configuration")
-    return routes
-
-
-def is_queued(cloud):
+def is_queued(cloud, operator_command):
     try:
         watcher = cloud.function("data-watcher")
         if watcher["serviceConfig"]["environmentVariables"]["CONFIG_BLOB_KEY"] != CONFIG_V2:
@@ -399,9 +385,17 @@ def is_queued(cloud):
         if "NOT_FOUND" in str(error):
             return False
         raise
-    return all("http_endpoint_sink" not in route and "control_plane_queue_sink" in route
-               and re.search(r'queue:\s*"vid-labeling-dispatch-queue"', route)
-               for route in dispatch_routes(content))
+    with tempfile.TemporaryDirectory(prefix="vid-dispatch-active-config-") as directory:
+        path = Path(directory) / "data-watcher-config.textproto"
+        path.write_text(content)
+        facts = inspect_config(cloud, operator_command, data_watcher_config=path)
+    require(facts.get("hasDispatchRoutes") is True, "No VID dispatcher routes in active configuration")
+    return facts.get("allDispatchRoutesQueued") is True
+
+
+def declares_queue(cloud, operator_command, config_path):
+    """Reports whether a committed DataWatcher configuration routes any dispatch to the queue."""
+    return inspect_config(cloud, operator_command, data_watcher_config=config_path).get("anyDispatchRouteQueued") is True
 
 
 def smoke_inputs(profile, raw):
@@ -478,7 +472,7 @@ def expected_item(profile, source, recovery=None):
 
 
 def smoke(cloud, args, profile, tls_flags, directory):
-    isolated, live, _ = profile_providers(profile, args.vid_labeling_config)
+    isolated, live, _ = profile_providers(cloud, args.operator_command, profile, args.vid_labeling_config)
     run = smoke_inputs(profile, args.smoke_inputs)
     # Read and validate the historical recovery identity before finalizing the ordinary marker.
     historical = source_from_object(run["recoverySourceUri"],
@@ -542,7 +536,7 @@ def verify_smoke_outcomes(cloud, profile, names):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("mode", choices=("select-config", "is-queued", "capture-legacy", "observe-legacy", "preflight", "ready", "smoke", "canary-config", "snapshot-config"))
+    parser.add_argument("mode", choices=("select-config", "is-queued", "declares-queue", "capture-legacy", "observe-legacy", "preflight", "ready", "smoke", "canary-config", "snapshot-config"))
     parser.add_argument("--project", required=True)
     parser.add_argument("--region", required=True)
     parser.add_argument("--profile-file")
@@ -560,7 +554,11 @@ def main(argv=None):
     args = parser.parse_args(argv)
     cloud = Cloud(args.project, args.region)
     if args.mode == "is-queued":
-        print(str(is_queued(cloud)).lower())
+        print(str(is_queued(cloud, args.operator_command)).lower())
+        return
+    if args.mode == "declares-queue":
+        require(args.data_watcher_config, "Provide the committed DataWatcher configuration")
+        print(str(declares_queue(cloud, args.operator_command, args.data_watcher_config)).lower())
         return
     if args.mode == "capture-legacy":
         print(json.dumps(capture_legacy(cloud)))
@@ -585,7 +583,7 @@ def main(argv=None):
     require(args.profile_file and args.vid_labeling_config,
             "Provide the committed operator profile and full provider config")
     profile = json.loads(Path(args.profile_file).read_text())
-    _, _, configured = profile_providers(profile, args.vid_labeling_config)
+    _, _, configured = profile_providers(cloud, args.operator_command, profile, args.vid_labeling_config)
     if args.mode == "canary-config":
         require(args.data_watcher_config and args.output, "Supply input/output canary configuration paths")
         endpoint = "https://" + cloud.region + "-" + cloud.project + ".cloudfunctions.net/vid-labeling-dispatcher"

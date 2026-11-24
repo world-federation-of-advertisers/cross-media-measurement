@@ -16,8 +16,11 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.ListValue
+import com.google.protobuf.Struct
 import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
+import com.google.protobuf.Value
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Status
 import io.grpc.StatusException
@@ -30,10 +33,15 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
 import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
@@ -168,7 +176,14 @@ class RetryDispatchWorkItemCommand : DispatchWorkItemCommand() {
   }
 }
 
-/** Reads all registration and healing pages without advancing either workflow. */
+/**
+ * Reads only potentially unfinished registration and healing pages without advancing either
+ * workflow.
+ *
+ * Registration can only be unfinished while an upload is CREATED; legacy non-CREATED rows keep
+ * `registration_complete` false but are registered. Every healing state other than COMPLETE and
+ * APPROVAL_REQUIRED is listed, so a newly added state fails closed.
+ */
 @Command(
   name = "preflight-dispatch-cutover",
   mixinStandardHelpOptions = true,
@@ -203,6 +218,10 @@ class PreflightDispatchCutoverCommand : EdpaApiCommand() {
                     parent = provider
                     pageSize = 1000
                     this.pageToken = pageToken
+                    filter =
+                      ListRawImpressionUploadsRequestKt.filter {
+                        stateIn += RawImpressionUpload.State.CREATED
+                      }
                   }
                 )
             check(response.rawImpressionUploadsList.all { it.registrationComplete }) {
@@ -223,14 +242,11 @@ class PreflightDispatchCutoverCommand : EdpaApiCommand() {
                     parent = provider
                     pageSize = 1000
                     this.pageToken = pageToken
+                    filter =
+                      ListUploadHealingOperationsRequestKt.filter { stateIn += ACTIVE_HEALING }
                   }
                 )
-            check(
-              response.uploadHealingOperationsList.all {
-                it.state == UploadHealingOperation.State.COMPLETE ||
-                  it.state == UploadHealingOperation.State.APPROVAL_REQUIRED
-              }
-            ) {
+            check(response.uploadHealingOperationsList.all { it.state in INACTIVE_HEALING }) {
               "Active or unresolved healing operation for $provider"
             }
             pageToken = response.nextPageToken
@@ -245,6 +261,17 @@ class PreflightDispatchCutoverCommand : EdpaApiCommand() {
       channel.shutdown()
       channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
     }
+  }
+
+  companion object {
+    private val INACTIVE_HEALING =
+      setOf(UploadHealingOperation.State.COMPLETE, UploadHealingOperation.State.APPROVAL_REQUIRED)
+    private val ACTIVE_HEALING =
+      UploadHealingOperation.State.values().filter {
+        it != UploadHealingOperation.State.STATE_UNSPECIFIED &&
+          it != UploadHealingOperation.State.UNRECOGNIZED &&
+          it !in INACTIVE_HEALING
+      }
   }
 }
 
@@ -549,17 +576,11 @@ class PrepareDispatchCanaryConfigCommand : Runnable {
   override fun run() {
     require(DataProviderKey.fromName(isolated) != null)
     require(endpoint.startsWith("https://"))
-    val builder = DataWatcherConfig.newBuilder()
-    TextFormat.Parser.newBuilder()
-      .setTypeRegistry(DataWatcherConfigTypes.registry)
-      .build()
-      .merge(input.readText(), builder)
-    val config = builder.build()
-    DataWatcherConfigValidator.validate(config)
+    val config = readDataWatcherConfig(input)
     var isolatedRoutes = 0
     val prepared = config.toBuilder().clearWatchedPaths()
     for (route in config.watchedPathsList) {
-      if (route.identifier != "vid-labeling-dispatch") {
+      if (route.identifier != DISPATCH_ROUTE_IDENTIFIER) {
         prepared.addWatchedPaths(route)
         continue
       }
@@ -576,11 +597,8 @@ class PrepareDispatchCanaryConfigCommand : Runnable {
         prepared.addWatchedPaths(route)
       } else {
         val params =
-          com.google.protobuf.Struct.newBuilder()
-            .putFields(
-              "dataProvider",
-              com.google.protobuf.Value.newBuilder().setStringValue(provider).build(),
-            )
+          Struct.newBuilder()
+            .putFields("dataProvider", Value.newBuilder().setStringValue(provider).build())
             .build()
         prepared.addWatchedPaths(
           route
@@ -601,4 +619,80 @@ class PrepareDispatchCanaryConfigCommand : Runnable {
         .printToString(prepared.build())
     )
   }
+}
+
+/**
+ * Prints dispatch-cutover facts parsed with the repository's protobuf loaders, so workflow scripts
+ * never interpret structured textproto themselves.
+ */
+@Command(
+  name = "inspect-dispatch-cutover-config",
+  mixinStandardHelpOptions = true,
+  description = ["Prints configured VID labeling providers and DataWatcher dispatch routing."],
+)
+class InspectDispatchCutoverConfigCommand : Runnable {
+  @Option(names = ["--vid-labeling-config"]) private var vidLabelingConfig: File? = null
+  @Option(names = ["--data-watcher-config"]) private var dataWatcherConfig: File? = null
+
+  override fun run() {
+    require(vidLabelingConfig != null || dataWatcherConfig != null) {
+      "Supply a configuration to inspect"
+    }
+    val facts = Struct.newBuilder()
+    vidLabelingConfig?.let { file ->
+      val providers =
+        parseTextProto(file, VidLabelingConfigs.getDefaultInstance())
+          .configsList
+          .map { it.dataProvider }
+          .toSortedSet()
+      require(providers.isNotEmpty() && providers.all { DataProviderKey.fromName(it) != null }) {
+        "VID labeling configuration must name valid DataProviders"
+      }
+      facts.putFields(
+        "dataProviders",
+        Value.newBuilder()
+          .setListValue(
+            ListValue.newBuilder()
+              .addAllValues(providers.map { Value.newBuilder().setStringValue(it).build() })
+          )
+          .build(),
+      )
+    }
+    dataWatcherConfig?.let { file ->
+      val routes =
+        readDataWatcherConfig(file).watchedPathsList.filter {
+          it.identifier == DISPATCH_ROUTE_IDENTIFIER
+        }
+      val queued =
+        routes.count {
+          it.hasControlPlaneQueueSink() &&
+            it.controlPlaneQueueSink.queue == VidLabelingDispatchWorkItems.QUEUE
+        }
+      facts.putFields("hasDispatchRoutes", boolValue(routes.isNotEmpty()))
+      facts.putFields("anyDispatchRouteQueued", boolValue(queued > 0))
+      facts.putFields(
+        "allDispatchRoutesQueued",
+        boolValue(routes.isNotEmpty() && queued == routes.size),
+      )
+    }
+    println(INSPECTION_PREFIX + JsonFormat.printer().omittingInsignificantWhitespace().print(facts))
+  }
+
+  private fun boolValue(value: Boolean): Value = Value.newBuilder().setBoolValue(value).build()
+
+  companion object {
+    /** Prefix of the single JSON line read by the cutover workflow script. */
+    const val INSPECTION_PREFIX = "DISPATCH_CUTOVER_CONFIG="
+  }
+}
+
+private const val DISPATCH_ROUTE_IDENTIFIER = "vid-labeling-dispatch"
+
+private fun readDataWatcherConfig(file: File): DataWatcherConfig {
+  val builder = DataWatcherConfig.newBuilder()
+  TextFormat.Parser.newBuilder()
+    .setTypeRegistry(DataWatcherConfigTypes.registry)
+    .build()
+    .merge(file.readText(), builder)
+  return builder.build().also { DataWatcherConfigValidator.validate(it) }
 }
