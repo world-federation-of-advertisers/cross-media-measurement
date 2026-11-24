@@ -298,13 +298,26 @@ fun AsyncDatabaseClient.ReadContext.readWorkItems(
   queueMapping: QueueMapping,
   limit: Int,
   after: ListWorkItemsPageToken.After? = null,
+  queueIds: Collection<Long> = emptyList(),
+  states: Collection<WorkItem.State> = emptyList(),
 ): Flow<WorkItemResult> {
+  val conditions = buildList {
+    if (after != null) {
+      add(
+        "((CreateTime > @createTime) OR (CreateTime = @createTime AND WorkItemResourceId > @afterWorkItemResourceId))"
+      )
+    }
+    if (queueIds.isNotEmpty()) {
+      add("QueueId IN UNNEST(@queueIds)")
+    }
+    if (states.isNotEmpty()) {
+      add("State IN UNNEST(@states)")
+    }
+  }
   val sql = buildString {
     appendLine(WorkItems.BASE_SQL)
-    if (after != null) {
-      appendLine(
-        "WHERE (CreateTime > @createTime) OR (CreateTime = @createTime AND WorkItemResourceId > @afterWorkItemResourceId)"
-      )
+    if (conditions.isNotEmpty()) {
+      appendLine("WHERE " + conditions.joinToString(" AND "))
     }
     appendLine("ORDER BY CreateTime ASC, WorkItemResourceId ASC")
     appendLine("LIMIT @limit")
@@ -314,6 +327,12 @@ fun AsyncDatabaseClient.ReadContext.readWorkItems(
       if (after != null) {
         bind("afterWorkItemResourceId").to(after.workItemResourceId)
         bind("createTime").to(after.createdAfter.toGcloudTimestamp())
+      }
+      if (queueIds.isNotEmpty()) {
+        bind("queueIds").toInt64Array(queueIds.toList())
+      }
+      if (states.isNotEmpty()) {
+        bind("states").toInt64Array(states.map { it.number.toLong() })
       }
       bind("limit").to(limit.toLong())
     }

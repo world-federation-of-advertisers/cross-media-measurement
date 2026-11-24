@@ -26,6 +26,7 @@ import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageToken
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequestKt as InternalListWorkItemsRequestKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse as InternalListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
@@ -236,15 +237,55 @@ class WorkItemsService(
         }
       }
 
+    if (request.filter.queueInList.any { it.isEmpty() }) {
+      throw InvalidFieldValueException("filter.queue_in")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (
+      request.filter.stateInList.any {
+        it == WorkItem.State.STATE_UNSPECIFIED || it == WorkItem.State.UNRECOGNIZED
+      }
+    ) {
+      throw InvalidFieldValueException("filter.state_in")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val internalResponse: InternalListWorkItemsResponse =
-      internalWorkItemsStub.listWorkItems(
-        internalListWorkItemsRequest {
-          this.pageSize = pageSize
-          if (internalPageToken != null) {
-            pageToken = internalPageToken
+      try {
+        internalWorkItemsStub.listWorkItems(
+          internalListWorkItemsRequest {
+            this.pageSize = pageSize
+            if (internalPageToken != null) {
+              pageToken = internalPageToken
+            }
+            if (request.hasFilter()) {
+              filter =
+                InternalListWorkItemsRequestKt.filter {
+                  queueResourceIds += request.filter.queueInList
+                  states += request.filter.stateInList.map { it.toInternalState() }
+                }
+            }
           }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.QUEUE_NOT_FOUND ->
+            QueueNotFoundException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
+          null -> backendError(e)
         }
-      )
+      }
 
     return listWorkItemsResponse {
       workItems += internalResponse.workItemsList.map { it.toWorkItem() }
@@ -372,3 +413,13 @@ class WorkItemsService(
     private const val MAX_PAGE_SIZE = 100
   }
 }
+
+private fun WorkItem.State.toInternalState(): InternalWorkItem.State =
+  when (this) {
+    WorkItem.State.QUEUED -> InternalWorkItem.State.QUEUED
+    WorkItem.State.RUNNING -> InternalWorkItem.State.RUNNING
+    WorkItem.State.SUCCEEDED -> InternalWorkItem.State.SUCCEEDED
+    WorkItem.State.FAILED -> InternalWorkItem.State.FAILED
+    WorkItem.State.STATE_UNSPECIFIED,
+    WorkItem.State.UNRECOGNIZED -> error("Unsupported state filter: $this")
+  }
