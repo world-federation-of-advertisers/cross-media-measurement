@@ -547,7 +547,9 @@ those pages do not themselves reproduce the oversized FULL response.
 
 The reporting workflow accepts `stress-report=true` to include a single large
 BasicReport. It reports over every seeded entity and all four aggregator EDPs
-from 2026-04-01 to 2026-07-01: exactly 13 weeks (91 days).
+from 2026-04-01 to 2026-06-30, exclusive: 90 days across 13 weekly windows.
+The final window is six days. The seed data still covers 91 days; expectations
+exclude the final day and retain the source timestamp distribution.
 
 | Result group | Dimensions | Periods | Filters |
 | --- | --- | --- | --- |

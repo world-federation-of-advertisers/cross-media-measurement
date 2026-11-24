@@ -40,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataView
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt.filter
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.integration.common.HighOverlapDataset
@@ -149,7 +150,7 @@ class EdpAggregatorMetadataScaleTest {
             val response =
               stub
                 .withDeadlineAfter(30, TimeUnit.SECONDS)
-                .listImpressionMetadata(request.toBuilder().setPageToken(token).build())
+                .listImpressionMetadata(request.copy { pageToken = token })
             basicBytes += response.serializedSize
             assertThat(response.impressionMetadataList).hasSize(1)
             for (metadata in response.impressionMetadataList) {
@@ -201,8 +202,7 @@ class EdpAggregatorMetadataScaleTest {
             fullBytes += full.serializedSize
             assertThat(metadata.entityKeysList.filter { it.entityType == "ad-unit" })
               .containsExactlyElementsIn(expectedKeys)
-            assertThat(metadata.toBuilder().clearEntityKeys().build())
-              .isEqualTo(basicByUri.getValue(uri))
+            assertThat(metadata.copy { entityKeys.clear() }).isEqualTo(basicByUri.getValue(uri))
             assertThat(metadata.metadataBlobGeneration).isGreaterThan(0L)
             assertThat(metadata.impressionsBlobGeneration).isGreaterThan(0L)
             assertThat(metadata.outputDoneBlobGeneration).isGreaterThan(0L)

@@ -478,7 +478,7 @@ class EdpAggregatorReportingIntegrationTest {
       SCALE_REPORT_EVENT_GROUP_REF_IDS,
       POPULATION_SPEC,
       SCALE_REPORT_START,
-      SCALE_PERIOD_COUNT,
+      SCALE_REPORT_END,
       BASIC_REPORT_METRIC_SPEC_CONFIG,
       K_PLUS_REACH,
       populationKey = ::scalePopulationKey,
@@ -507,7 +507,7 @@ class EdpAggregatorReportingIntegrationTest {
       SCALE_REPORT_EVENT_GROUP_REF_IDS,
       POPULATION_SPEC,
       SCALE_REPORT_START,
-      SCALE_PERIOD_COUNT,
+      SCALE_REPORT_END,
       BASIC_REPORT_METRIC_SPEC_CONFIG,
       K_PLUS_REACH,
       SCALE_DEVICE_REFERENCE_CELLS,
@@ -542,6 +542,7 @@ class EdpAggregatorReportingIntegrationTest {
         HighOverlapExpectedReach.computeWholeIntervalRangesByDeviceAndMedia(
           PROVISIONED_CONFIG,
           SCALE_REPORT_EVENT_GROUP_REF_IDS,
+          POPULATION_SPEC,
           SCALE_REPORT_START,
           SCALE_REPORT_END,
           BASIC_REPORT_METRIC_SPEC_CONFIG,
@@ -584,7 +585,9 @@ class EdpAggregatorReportingIntegrationTest {
             .hasSize(if (total) 1 else SCALE_PERIOD_COUNT)
           ordered.forEachIndexed { week, result ->
             val prefix = "$title $cell/$filter week=$week"
-            val end = if (total) SCALE_REPORT_END else SCALE_REPORT_START.plusWeeks(week + 1L)
+            val end =
+              if (total) SCALE_REPORT_END
+              else minOf(SCALE_REPORT_END, SCALE_REPORT_START.plusWeeks(week + 1L))
             assertWithMessage("$prefix period end")
               .that(result.metadata.metricEndTime.seconds)
               .isEqualTo(end.atStartOfDay(ZONE_ID).toInstant().epochSecond)
@@ -709,7 +712,7 @@ class EdpAggregatorReportingIntegrationTest {
       WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
       POPULATION_SPEC,
       WEEKLY_REPORT_START,
-      WEEKLY_PERIOD_COUNT,
+      WEEKLY_REPORT_END,
       BASIC_REPORT_METRIC_SPEC_CONFIG,
       K_PLUS_REACH,
       populationKey = HighOverlapExpectedReach::demographicKey,
@@ -1469,7 +1472,7 @@ class EdpAggregatorReportingIntegrationTest {
     private const val CAMPAIGN_GROUP_DISPLAY_NAME = "High overlap campaign group"
 
     private val SCALE_REPORT_START = LocalDate.of(2026, 4, 1)
-    private val SCALE_REPORT_END = LocalDate.of(2026, 7, 1)
+    private val SCALE_REPORT_END = SCALE_REPORT_START.plusDays(90)
     private const val SCALE_PERIOD_COUNT = 13
     private val SCALE_POPULATION_FIELDS =
       listOf("common.gender", "common.age_group", "common.us_state", "common.parental_status")

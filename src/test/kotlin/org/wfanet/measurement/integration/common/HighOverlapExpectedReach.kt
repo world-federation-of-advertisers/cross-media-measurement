@@ -18,14 +18,19 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
+import java.util.BitSet
 import kotlin.math.ln
 import kotlin.math.sqrt
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.display
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.video
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
@@ -361,19 +366,20 @@ object HighOverlapExpectedReach {
   /**
    * Expected metrics per week, keyed by demographic cell and filter.
    *
-   * Weeks partition `[reportStart, reportStart + 7 * weekCount)`.
+   * Weeks partition `[reportStart, reportEnd)`, including a partial final week.
    */
   fun computeWeeklyRangesByDemographic(
     config: ImpressionTestDataConfig,
     eventGroupReferenceIds: Set<String>,
     populationSpec: PopulationSpec,
     reportStart: LocalDate,
-    weekCount: Int,
+    reportEnd: LocalDate,
     metricSpecConfig: MetricSpecConfig,
     maxFrequency: Int,
     populationKey: (Common) -> String,
     selectedCells: Set<String>?,
   ): Map<String, Map<String, List<ExpectedWeeklyMetrics>>> {
+    val weekCount = weeklyPeriodCount(reportStart, reportEnd)
     val demographics = DemographicIndex(populationSpec, populationKey)
     require(selectedCells == null || demographics.keys.containsAll(selectedCells)) {
       "Requested expectation cells are absent from the population spec: $selectedCells"
@@ -384,7 +390,7 @@ object HighOverlapExpectedReach {
         eventGroupReferenceIds,
         populationSpec,
         reportStart,
-        weekCount,
+        reportEnd,
         selectedCells?.let { cells -> { vid: Long -> demographics.keyOf(vid) in cells } },
         keepEventRange = null,
       )
@@ -546,21 +552,27 @@ object HighOverlapExpectedReach {
     return byCell
   }
 
+  private fun weeklyPeriodCount(reportStart: LocalDate, reportEnd: LocalDate): Int {
+    require(reportEnd > reportStart)
+    return ((ChronoUnit.DAYS.between(reportStart, reportEnd) + DAYS_PER_WEEK - 1) / DAYS_PER_WEEK)
+      .toInt()
+  }
+
   /**
    * Returns the impression count per VID per week matching each filter, by EDP.
    *
-   * Events outside `[reportStart, reportStart + 7 * weekCount)` are dropped.
+   * Events outside `[reportStart, reportEnd)` are dropped.
    */
   private fun weeklyFrequenciesByEdpAndFilter(
     config: ImpressionTestDataConfig,
     eventGroupReferenceIds: Set<String>,
     populationSpec: PopulationSpec,
     reportStart: LocalDate,
-    weekCount: Int,
+    reportEnd: LocalDate,
     keepVidRange: ((Long) -> Boolean)?,
     keepEventRange: ((SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean)?,
   ): Map<String, Map<String, MutableMap<Long, IntArray>>> {
-    val reportEnd = reportStart.plusWeeks(weekCount.toLong())
+    val weekCount = weeklyPeriodCount(reportStart, reportEnd)
     val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
     val endExclusive = reportEnd.atStartOfDay().toInstant(ZoneOffset.UTC)
     val timeRange: OpenEndRange<Instant> = start..<endExclusive
@@ -616,23 +628,28 @@ object HighOverlapExpectedReach {
     source: SyntheticEventGroupSpec,
     keepVidRange: (SyntheticEventGroupSpec.FrequencySpec.VidRangeSpec) -> Boolean,
   ): SyntheticEventGroupSpec =
-    source
-      .toBuilder()
-      .clearDateSpecs()
-      .addAllDateSpecs(
+    source.copy {
+      dateSpecs.clear()
+      dateSpecs +=
         source.dateSpecsList.mapNotNull { dateSpec ->
           val frequencies =
             dateSpec.frequencySpecsList.mapNotNull { frequencySpec ->
               val ranges = frequencySpec.vidRangeSpecsList.filter(keepVidRange)
               if (ranges.isEmpty()) null
               else
-                frequencySpec.toBuilder().clearVidRangeSpecs().addAllVidRangeSpecs(ranges).build()
+                frequencySpec.copy {
+                  vidRangeSpecs.clear()
+                  vidRangeSpecs += ranges
+                }
             }
           if (frequencies.isEmpty()) null
-          else dateSpec.toBuilder().clearFrequencySpecs().addAllFrequencySpecs(frequencies).build()
+          else
+            dateSpec.copy {
+              frequencySpecs.clear()
+              frequencySpecs += frequencies
+            }
         }
-      )
-      .build()
+    }
 
   /**
    * Expected reach as a percentage of [populationSize], which is how the report reports it.
@@ -684,19 +701,20 @@ object HighOverlapExpectedReach {
     eventGroupReferenceIds: Set<String>,
     populationSpec: PopulationSpec,
     reportStart: LocalDate,
-    weekCount: Int,
+    reportEnd: LocalDate,
     metricSpecConfig: MetricSpecConfig,
     maxFrequency: Int,
     selectedCells: Set<String>,
   ): Map<String, Map<String, List<ExpectedWeeklyMetrics>>> =
     selectedCells.associateWith { cell ->
+      val weekCount = weeklyPeriodCount(reportStart, reportEnd)
       val frequencies =
         weeklyFrequenciesByEdpAndFilter(
           config,
           eventGroupReferenceIds,
           populationSpec,
           reportStart,
-          weekCount,
+          reportEnd,
           keepEventRange = { matchesDeviceAndMedia(it, cell, null) },
           keepVidRange = null,
         )
@@ -800,33 +818,68 @@ object HighOverlapExpectedReach {
     else rangeAround(count.toDouble() / reach, 0.0, RATIO_RELATIVE_TOLERANCE)
 
   /**
-   * Computes full-flight device/media reach by merging VID intervals, without expanding
-   * impressions. The report must contain each source flight in full; a partial flight needs
-   * timestamp replay.
+   * Computes device/media reach by merging complete-flight VID intervals. Partial flights retain
+   * their original timestamps and replay into bitmaps to bound temporary memory.
    */
   fun computeWholeIntervalRangesByDeviceAndMedia(
     config: ImpressionTestDataConfig,
     eventGroupReferenceIds: Set<String>,
+    populationSpec: PopulationSpec,
     reportStart: LocalDate,
     reportEnd: LocalDate,
     metricSpecConfig: MetricSpecConfig,
     signedIn: Boolean?,
   ): Map<String, Map<String, ClosedFloatingPointRange<Double>>> {
     val intervals = mutableMapOf<String, MutableMap<String, MutableList<Pair<Long, Long>>>>()
-    val specs = mutableMapOf<String, SyntheticEventGroupSpec>()
+    val partialReach = mutableMapOf<String, MutableMap<String, BitSet>>()
+    val timeRange =
+      reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)..<reportEnd
+          .atStartOfDay()
+          .toInstant(ZoneOffset.UTC)
+    val processedSources = mutableSetOf<String>()
     for (group in config.eventGroupsList) {
       for (entity in group.entityKeySpecsList) {
         if ("${entity.entityType}-${entity.entityId}" !in eventGroupReferenceIds) continue
+        // Identical sources shared by EDPs contribute the same VIDs to union reach.
+        if (!processedSources.add(entity.dataSpecResourcePath)) continue
         val spec =
-          specs.getOrPut(entity.dataSpecResourcePath) {
-            ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(entity.dataSpecResourcePath)
-          }
+          ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(entity.dataSpecResourcePath)
         for (date in spec.dateSpecsList) {
-          require(
-            date.dateRange.start.toLocalDate() >= reportStart &&
-              date.dateRange.endExclusive.toLocalDate() <= reportEnd
-          ) {
-            "Device/media interval expectations require the complete source flight"
+          val sourceStart = date.dateRange.start.toLocalDate()
+          val sourceEnd = date.dateRange.endExclusive.toLocalDate()
+          if (sourceEnd <= reportStart || sourceStart >= reportEnd) continue
+          if (sourceStart < reportStart || sourceEnd > reportEnd) {
+            val partialSpec =
+              spec.copy {
+                dateSpecs.clear()
+                dateSpecs += date
+              }
+            for (shard in
+              SyntheticDataGeneration.generateEvents(
+                TestEvent.getDefaultInstance(),
+                populationSpec,
+                partialSpec,
+                timeRange,
+              )) {
+              for (event in shard.labeledEvents) {
+                val common = event.message.common
+                if (signedIn != null && common.signedIn != signedIn) continue
+                val cell = "${common.deviceType.name}/${common.mediaType.name}"
+                for (label in
+                  listOf(
+                    ReportingUserSimulator.AMI_FILTER_ID,
+                    ReportingUserSimulator.MRC_FILTER_ID,
+                  )) {
+                  if (!FILTER_PREDICATES.getValue(label)(event.message)) continue
+                  // The synthetic population uses VIDs below Int.MAX_VALUE.
+                  partialReach
+                    .getOrPut(cell) { mutableMapOf() }
+                    .getOrPut(label) { BitSet() }
+                    .set(Math.toIntExact(event.vid))
+                }
+              }
+            }
+            continue
           }
           for (frequency in date.frequencySpecsList) {
             require(frequency.frequency > 0)
@@ -840,32 +893,17 @@ object HighOverlapExpectedReach {
                 )
               val media =
                 checkNotNull(MediaType.forNumber(fields.getValue("common.media_type").enumValue))
-              val event =
-                TestEvent.newBuilder()
-                  .apply {
-                    when (media) {
-                      MediaType.VIDEO ->
-                        setVideo(
-                          TestEvent.getDefaultInstance()
-                            .video
-                            .toBuilder()
-                            .setCompletedFraction(
-                              fields.getValue("video.completed_fraction").floatValue
-                            )
-                        )
-                      MediaType.DISPLAY ->
-                        setDisplay(
-                          TestEvent.getDefaultInstance()
-                            .display
-                            .toBuilder()
-                            .setViewableFraction(
-                              fields.getValue("display.viewable_fraction").floatValue
-                            )
-                        )
-                      else -> error("Unsupported seeded media type $media")
+              val event = testEvent {
+                when (media) {
+                  MediaType.VIDEO -> video = video {
+                      completedFraction = fields.getValue("video.completed_fraction").floatValue
                     }
-                  }
-                  .build()
+                  MediaType.DISPLAY -> display = display {
+                      viewableFraction = fields.getValue("display.viewable_fraction").floatValue
+                    }
+                  else -> error("Unsupported seeded media type $media")
+                }
+              }
               for (label in
                 listOf(
                   ReportingUserSimulator.AMI_FILTER_ID,
@@ -907,6 +945,12 @@ object HighOverlapExpectedReach {
               } else end = maxOf(end, nextEnd)
             }
             count += end - start
+            partialReach[cell]?.get(label)?.let { partial ->
+              for ((fullStart, fullEnd) in intervals[cell]?.get(label).orEmpty()) {
+                partial.set(Math.toIntExact(fullStart), Math.toIntExact(fullEnd))
+              }
+              count = partial.cardinality().toLong()
+            }
             rangeAround(count.toDouble(), noise, DEMOGRAPHIC_RELATIVE_TOLERANCE)
           }
       }

@@ -32,6 +32,7 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -58,6 +59,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataView
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
@@ -1001,12 +1003,11 @@ class ImpressionDataSourceProviderTest {
       }
     }
     val basic = listImpressionMetadataResponse {
-      impressionMetadata +=
-        full.impressionMetadataList.map { it.toBuilder().clearEntityKeys().build() }
+      impressionMetadata += full.impressionMetadataList.map { it.copy { entityKeys.clear() } }
     }
     assertThat(full.serializedSize).isGreaterThan(4 * 1024 * 1024)
     assertThat(basic.serializedSize).isLessThan(100 * 1024)
-    println(
+    logger.info(
       "Metadata receive-limit regression: full_bytes=${full.serializedSize} basic_bytes=${basic.serializedSize}"
     )
     whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer { invocation ->
@@ -1268,4 +1269,8 @@ class ImpressionDataSourceProviderTest {
       assertThat(sources.single().interval).isEqualTo(firstMetadata.interval)
       verify(impressionMetadataServiceMock, times(2)).listImpressionMetadata(any())
     }
+
+  companion object {
+    private val logger = Logger.getLogger(ImpressionDataSourceProviderTest::class.java.name)
+  }
 }

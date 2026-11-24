@@ -24,6 +24,9 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.entityKeySpec
+import org.measurement.integration.k8s.testing.ImpressionTestDataConfigKt.syntheticEventGroup
+import org.measurement.integration.k8s.testing.impressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.MediaType
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
@@ -31,6 +34,16 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt.VidSamplingIntervalKt.fixedStart
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt.differentialPrivacyParams
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt.impressionCountParams
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt.reachAndFrequencyParams
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt.reachAndFrequencySamplingAndPrivacyParams
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt.reachParams
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt.samplingAndPrivacyParams
+import org.wfanet.measurement.config.reporting.MetricSpecConfigKt.vidSamplingInterval
+import org.wfanet.measurement.config.reporting.copy
+import org.wfanet.measurement.config.reporting.metricSpecConfig
 
 /**
  * Covers how [HighOverlapExpectedReach] resolves a VID's demographic cell.
@@ -211,20 +224,6 @@ class HighOverlapExpectedReachTest {
   }
 
   @Test
-  fun `interval expectations reject a partial source flight`() {
-    assertFailsWith<IllegalArgumentException> {
-      HighOverlapExpectedReach.computeWholeIntervalRangesByDeviceAndMedia(
-        intervalConfig(),
-        REFERENCE_IDS,
-        START,
-        START.plusDays(13),
-        metricConfig(),
-        signedIn = null,
-      )
-    }
-  }
-
-  @Test
   fun `sampled weekly cell has the same values as replaying all reached cells`() {
     val config = samplingConfig()
     val cells = setOf("CALIFORNIA/NOT_PARENT", "NEW_YORK/PARENT")
@@ -312,10 +311,9 @@ class HighOverlapExpectedReachTest {
         days = 7,
       )
     val params =
-      metricConfig()
-        .toBuilder()
-        .apply { impressionCountParamsBuilder.maximumFrequencyPerUser = 1 }
-        .build()
+      metricConfig().copy {
+        impressionCountParams = impressionCountParams.copy { maximumFrequencyPerUser = 1 }
+      }
     val total =
       HighOverlapExpectedReach.computeWholeIntervalRangesByDemographic(
           config,
@@ -338,7 +336,7 @@ class HighOverlapExpectedReachTest {
           REFERENCE_IDS,
           samplingPopulation(),
           START,
-          2,
+          START.plusWeeks(2),
           params,
           2,
           populationKey = ::populationCell,
@@ -365,7 +363,7 @@ class HighOverlapExpectedReachTest {
         REFERENCE_IDS,
         samplingPopulation(),
         START,
-        2,
+        START.plusWeeks(2),
         metricConfig(),
         2,
         setOf("DESKTOP/VIDEO", "TV/DISPLAY"),
@@ -443,6 +441,128 @@ class HighOverlapExpectedReachTest {
     }
   }
 
+  @Test
+  fun `ninety day report has thirteen windows and excludes final seed day`() {
+    val config =
+      sourceConfig(
+        listOf(sourceRange(1, 6, Common.DeviceType.DESKTOP, MediaType.DISPLAY, true, 1.0F)),
+        frequency = 1,
+        days = 90,
+      )
+    java.io
+      .File(config.eventGroupsList.first().entityKeySpecsList.single().dataSpecResourcePath)
+      .appendText(
+        """
+        date_specs {
+          date_range { start { year: 2026 month: 6 day: 30 } end_exclusive { year: 2026 month: 7 day: 1 } }
+          frequency_specs { frequency: 1 ${sourceRange(6, 11, Common.DeviceType.DESKTOP, MediaType.DISPLAY, true, 1.0F)} }
+        }
+      """
+          .trimIndent()
+      )
+    val end = START.plusDays(90)
+    val series =
+      HighOverlapExpectedReach.computeWeeklyRangesByDemographic(
+          config,
+          REFERENCE_IDS,
+          samplingPopulation(),
+          START,
+          end,
+          metricConfig(),
+          2,
+          populationKey = ::populationCell,
+          selectedCells = setOf("CALIFORNIA/NOT_PARENT"),
+        )
+        .getValue("CALIFORNIA/NOT_PARENT")
+    for (label in listOf("ami", "mrc")) {
+      val weeks = series.getValue(label)
+      assertThat(weeks).hasSize(13)
+      assertMidpoint(weeks.last().cumulative.reach, 5.0)
+      assertMidpoint(checkNotNull(weeks.last().cumulative.impressions), 10.0)
+      assertMidpoint(checkNotNull(weeks.last().cumulative.averageFrequency), 2.0)
+      assertMidpoint(weeks.last().cumulativePercentReach, 50.0)
+      assertThat(
+          weeks.sumOf {
+            (it.nonCumulativeImpressions.start + it.nonCumulativeImpressions.endInclusive) / 2
+          }
+        )
+        .isWithin(0.000001)
+        .of(10.0)
+      weeks.last().cumulative.componentReach.values.forEach { assertMidpoint(it, 5.0) }
+    }
+    val full =
+      HighOverlapExpectedReach.computeWeeklyRangesByDeviceAndMedia(
+          config,
+          REFERENCE_IDS,
+          samplingPopulation(),
+          START,
+          START.plusDays(91),
+          metricConfig(),
+          2,
+          setOf("DESKTOP/DISPLAY"),
+        )
+        .getValue("DESKTOP/DISPLAY")
+        .getValue("ami")
+    assertMidpoint(full.last().cumulative.reach, 10.0)
+    assertMidpoint(checkNotNull(full.last().cumulative.impressions), 20.0)
+  }
+
+  @Test
+  fun `partial flight device reach matches timestamp replay without duplicating full flight VIDs`() {
+    val config = samplingConfig()
+    java.io
+      .File(config.eventGroupsList.first().entityKeySpecsList.single().dataSpecResourcePath)
+      .appendText(
+        """
+        date_specs {
+          date_range { start { year: 2026 month: 4 day: 1 } end_exclusive { year: 2026 month: 4 day: 8 } }
+          frequency_specs { frequency: 1 ${sourceRange(1, 6, Common.DeviceType.DESKTOP, MediaType.VIDEO, true, 1.0F)} }
+        }
+        date_specs {
+          date_range { start { year: 2026 month: 4 day: 8 } end_exclusive { year: 2026 month: 4 day: 15 } }
+          frequency_specs { frequency: 1 ${sourceRange(21, 31, Common.DeviceType.TV, MediaType.DISPLAY, true, 1.0F)} }
+        }
+      """
+          .trimIndent()
+      )
+    val cells =
+      setOf("DESKTOP/VIDEO", "DESKTOP/DISPLAY", "MOBILE/VIDEO", "MOBILE/DISPLAY", "TV/DISPLAY")
+    val end = START.plusWeeks(1)
+    for (signedIn in listOf(null, true, false)) {
+      val compact =
+        HighOverlapExpectedReach.computeWholeIntervalRangesByDeviceAndMedia(
+          config,
+          REFERENCE_IDS,
+          samplingPopulation(),
+          START,
+          end,
+          metricConfig(),
+          signedIn,
+        )
+      val replay =
+        HighOverlapExpectedReach.computeWholeIntervalMetricsByDeviceAndMedia(
+          config,
+          REFERENCE_IDS,
+          listOf("one", "two"),
+          samplingPopulation(),
+          START,
+          end,
+          metricConfig(),
+          2,
+          cells,
+          signedIn,
+        )
+      for (cell in cells) for (label in listOf("ami", "mrc")) {
+        val expected = replay.getValue(cell).getValue(label).reach
+        assertMidpoint(
+          compact.getValue(cell).getValue(label),
+          (expected.start + expected.endInclusive) / 2,
+        )
+      }
+      assertMidpoint(compact.getValue("TV/DISPLAY").getValue("ami"), 0.0)
+    }
+  }
+
   private fun assertMidpoint(range: ClosedFloatingPointRange<Double>, expected: Double) {
     assertThat((range.start + range.endInclusive) / 2).isWithin(0.000001).of(expected)
   }
@@ -484,7 +604,7 @@ class HighOverlapExpectedReachTest {
       REFERENCE_IDS,
       samplingPopulation(),
       START,
-      2,
+      START.plusWeeks(2),
       metricConfig(),
       2,
       populationKey = ::populationCell,
@@ -495,6 +615,7 @@ class HighOverlapExpectedReachTest {
     HighOverlapExpectedReach.computeWholeIntervalRangesByDeviceAndMedia(
       config,
       REFERENCE_IDS,
+      samplingPopulation(),
       START,
       START.plusWeeks(2),
       metricConfig(),
@@ -502,41 +623,38 @@ class HighOverlapExpectedReachTest {
     )
 
   private fun metricConfig(): MetricSpecConfig {
-    val privacy =
-      MetricSpecConfig.DifferentialPrivacyParams.newBuilder().setEpsilon(1.0).setDelta(0.000001)
-    val sampling =
-      MetricSpecConfig.VidSamplingInterval.newBuilder()
-        .setFixedStart(
-          MetricSpecConfig.VidSamplingInterval.FixedStart.newBuilder().setStart(0.0F).setWidth(1.0F)
-        )
-    return MetricSpecConfig.newBuilder()
-      .setReachParams(
-        MetricSpecConfig.ReachParams.newBuilder()
-          .setSingleDataProviderParams(
-            MetricSpecConfig.SamplingAndPrivacyParams.newBuilder()
-              .setPrivacyParams(privacy)
-              .setVidSamplingInterval(sampling)
-          )
-      )
-      .setReachAndFrequencyParams(
-        MetricSpecConfig.ReachAndFrequencyParams.newBuilder()
-          .setMultipleDataProviderParams(
-            MetricSpecConfig.ReachAndFrequencySamplingAndPrivacyParams.newBuilder()
-              .setReachPrivacyParams(privacy)
-              .setFrequencyPrivacyParams(privacy)
-              .setVidSamplingInterval(sampling)
-          )
-      )
-      .setImpressionCountParams(
-        MetricSpecConfig.ImpressionCountParams.newBuilder()
-          .setParams(
-            MetricSpecConfig.SamplingAndPrivacyParams.newBuilder()
-              .setPrivacyParams(privacy)
-              .setVidSamplingInterval(sampling)
-          )
-          .setMaximumFrequencyPerUser(10)
-      )
-      .build()
+    val privacy = differentialPrivacyParams {
+      epsilon = 1.0
+      delta = 0.000001
+    }
+    val sampling = vidSamplingInterval {
+      fixedStart = fixedStart {
+        start = 0.0F
+        width = 1.0F
+      }
+    }
+    return metricSpecConfig {
+      reachParams = reachParams {
+        singleDataProviderParams = samplingAndPrivacyParams {
+          privacyParams = privacy
+          vidSamplingInterval = sampling
+        }
+      }
+      reachAndFrequencyParams = reachAndFrequencyParams {
+        multipleDataProviderParams = reachAndFrequencySamplingAndPrivacyParams {
+          reachPrivacyParams = privacy
+          frequencyPrivacyParams = privacy
+          vidSamplingInterval = sampling
+        }
+      }
+      impressionCountParams = impressionCountParams {
+        params = samplingAndPrivacyParams {
+          privacyParams = privacy
+          vidSamplingInterval = sampling
+        }
+        maximumFrequencyPerUser = 10
+      }
+    }
   }
 
   private fun intervalConfig() =
@@ -588,31 +706,29 @@ class HighOverlapExpectedReachTest {
     days: Int,
   ): ImpressionTestDataConfig {
     val source = temp.newFile()
+    val end = START.plusDays(days.toLong())
     source.writeText(
       """
       date_specs {
-        date_range { start { year: 2026 month: 4 day: 1 } end_exclusive { year: 2026 month: 4 day: ${days + 1} } }
+        date_range { start { year: 2026 month: 4 day: 1 } end_exclusive { year: ${end.year} month: ${end.monthValue} day: ${end.dayOfMonth} } }
         frequency_specs { frequency: $frequency ${ranges.joinToString("\n")} }
       }
     """
         .trimIndent()
     )
-    return ImpressionTestDataConfig.newBuilder()
-      .apply {
-        for (edp in listOf("one", "two")) {
-          addEventGroups(
-            ImpressionTestDataConfig.SyntheticEventGroup.newBuilder()
-              .setEdpName(edp)
-              .addEntityKeySpecs(
-                ImpressionTestDataConfig.EntityKeySpec.newBuilder()
-                  .setEntityType("campaign")
-                  .setEntityId(edp)
-                  .setDataSpecResourcePath(source.absolutePath)
-              )
-          )
+    return impressionTestDataConfig {
+      eventGroups +=
+        listOf("one", "two").map { edp ->
+          syntheticEventGroup {
+            edpName = edp
+            entityKeySpecs += entityKeySpec {
+              entityType = "campaign"
+              entityId = edp
+              dataSpecResourcePath = source.absolutePath
+            }
+          }
         }
-      }
-      .build()
+    }
   }
 
   /** A spec of [stripes] equal, aligned stripes cycling through the demographic tuples. */
