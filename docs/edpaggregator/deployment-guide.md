@@ -1950,6 +1950,20 @@ image is not `STABLE`). Never use a debug image in production.
 
 ## Debugging notes
 
+### TEE exception diagnostics
+
+TEE attempt failures and labeled-output writer logs report exception types, status
+codes, and code locations without arbitrary exception messages. Use WorkItem and
+attempt resource names to correlate failures. Update diagnostic queries that
+depend on exception text; `WorkItemAttempt.error_message` contains approved
+diagnostic metadata and remains limited to 1,024 characters.
+
+Deploy protected images for every enabled SubpoolAssigner, VidRankBuilder,
+VidLabeler, and ResultsFulfiller consumer using the existing rollout and attestation
+procedures. Old workers retain their previous diagnostic behavior until replaced.
+Use a protected image for rollback. Previously stored errors and logs are not
+rewritten by an image update.
+
 * **Config caching** — the ResultsFulfiller and functions generally read their config at process
   start. After changing a config file in `EDPA_CONFIG_BUCKET`, recreate the affected MIG VMs or
   redeploy the function so the new config is picked up. **Update CMMS** performs this automatically.
