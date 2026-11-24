@@ -129,7 +129,8 @@ kingdom: #Kingdom & {
 	configMaps: "java": #JavaConfigMap
 
 	deploymentPodDisruptionBudgets: {
-		"gcp-kingdom-data-server": spec: minAvailable: 1
+		"gcp-kingdom-data-server": spec: minAvailable:   1
+		"v2alpha-public-api-server": spec: minAvailable: 1
 	}
 
 	deployments: {
@@ -166,6 +167,16 @@ kingdom: #Kingdom & {
 				_javaOptions: maxHeapSize: #PublicServerMaxHeapSize
 			}
 			_rateLimitConfigPath: "/etc/\(#AppName)/config-files/rate_limit_config.textproto"
+			spec: {
+				replicas: 2
+				// Prefer separate nodes without blocking scheduling at limited capacity.
+				template: spec: topologySpreadConstraints: [{
+					maxSkew:           1
+					topologyKey:       "kubernetes.io/hostname"
+					whenUnsatisfiable: "ScheduleAnyway"
+					labelSelector:     kingdom.deployments["v2alpha-public-api-server"].spec.selector
+				}]
+			}
 		}
 	}
 

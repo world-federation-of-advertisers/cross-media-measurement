@@ -45,13 +45,9 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt.PopulationsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ReplaceDataAvailabilityIntervalsRequest
-import org.wfanet.measurement.api.v2alpha.Requisition
-import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
@@ -66,7 +62,6 @@ import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getModelLineRequest
-import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
@@ -75,13 +70,11 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.api.v2alpha.updateEventGroupRequest
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.identity.withPrincipalName
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
@@ -93,24 +86,12 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.client.LabeledImpressionWriter
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionWorkItemDispatcher
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.ContinuousGaussianNoiseSelector
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.DefaultFulfillerSelector
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.FulfillerSelector
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ImpressionDataSourceProvider
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineDataSource
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.PipelineConfiguration
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfiller
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMetrics
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.StripedByteFrequencyVector
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.testing.ResultsFulfillerTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
@@ -118,7 +99,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRespon
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledImpression
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
@@ -148,7 +128,6 @@ import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
-import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /** Operator comparison through the VID pipeline and public Reporting APIs before cutover. */
 class VidLabelingOperatorComparisonIntegrationTest :
@@ -632,53 +611,6 @@ class VidLabelingOperatorComparisonIntegrationTest :
       d1: String,
       cutover: ModelLineCutover,
     ) {
-      val noThrottle =
-        object : Throttler {
-          override suspend fun <T> onReady(block: suspend () -> T): T = block()
-        }
-      val requisitions = RequisitionsCoroutineStub(kingdomChannel).withPrincipalName(provider.name)
-      val metadata = RequisitionMetadataServiceCoroutineStub(edpaPublicServer.channel)
-      val validator =
-        RequisitionsValidator(provider.privateEncryptionKey, allowMixedEventGroupSelectors = false)
-      val requisitionsDirectory = tempFolder.newFolder("comparison-requisitions")
-      val groupedStorage = FileSystemStorageClient(requisitionsDirectory)
-      val groupedBlobs = mutableListOf<String>()
-      val dispatcher =
-        object : RequisitionWorkItemDispatcher {
-          override fun workItemName(groupId: String) = "workItems/operator-$groupId"
-
-          override suspend fun dispatch(groupId: String, blobUri: String) {
-            groupedBlobs += blobUri
-          }
-
-          override suspend fun fail(workItemName: String) {}
-        }
-      RequisitionFetcher(
-          requisitionsStub = requisitions,
-          requisitionMetadataStub = metadata,
-          storageClient = groupedStorage,
-          dataProviderName = provider.name,
-          directStoragePathPrefix = "groups",
-          blobUriPrefix = "file://" + requisitionsDirectory.absolutePath,
-          requisitionValidator = validator,
-          requisitionGrouper =
-            RequisitionGrouperByReportId(
-              validator,
-              requisitions,
-              EventGroupsCoroutineStub(kingdomChannel).withPrincipalName(provider.name),
-              noThrottle,
-              noThrottle,
-            ),
-          metadataThrottler = noThrottle,
-          kingdomListThrottler = noThrottle,
-          workItemDispatcher = dispatcher,
-          requisitionRefusalDuration = Duration.ofDays(2),
-          clock = java.time.Clock.systemUTC(),
-          modelLineCutovers = listOf(cutover),
-          legacyModelLineMap = mapOf(d1 to r1),
-        )
-        .fetchAndStoreRequisitions()
-      assertThat(groupedBlobs).hasSize(2)
       val modelInfo =
         ModelLineInfo(
           comparisonPopulationSpec,
@@ -686,57 +618,11 @@ class VidLabelingOperatorComparisonIntegrationTest :
           InMemoryVidIndexMap.build(comparisonPopulationSpec),
           localAlias = null,
         )
-      val delegate =
-        DefaultFulfillerSelector(
-          requisitions,
-          noThrottle,
-          noThrottle,
-          emptyMap(),
-          provider.certificateKey,
-          provider.signingKeyHandle,
-          ContinuousGaussianNoiseSelector(),
-          null,
-          false,
-          null,
-          supportedMultiPartyNoiseMechanisms = emptySet(),
-          trusTeeV2ImpressionCountMode =
-            ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode.UNSPECIFIED,
-          trusTeeV2MaxFrequencyPerUser = null,
-          logMeasurementValues = false,
-        )
-      for (uri in groupedBlobs) {
-        val group =
-          Any.parseFrom(
-              checkNotNull(groupedStorage.getBlob("groups/" + uri.substringAfterLast('/')))
-                .read()
-                .flatten()
-            )
-            .unpack(GroupedRequisitions::class.java)
-        selectedSources += group.selectedModelLine
-        val selection =
-          object : FulfillerSelector {
-            override suspend fun selectFulfiller(
-              requisition: Requisition,
-              measurementSpec: MeasurementSpec,
-              requisitionSpec: RequisitionSpec,
-              frequencyVector: StripedByteFrequencyVector,
-              populationSpec: PopulationSpec,
-              kekUri: String?,
-            ): MeasurementFulfiller {
-              assertThat(frequencyVector.getTotalUncappedImpressions())
-                .isEqualTo(if (measurementSpec.modelLine == l1) 4L else 2L)
-              fulfilledModelLines += measurementSpec.modelLine
-              return delegate.selectFulfiller(
-                requisition,
-                measurementSpec,
-                requisitionSpec,
-                frequencyVector,
-                populationSpec,
-                kekUri,
-              )
-            }
-          }
-        val sourceProvider =
+      val groupCount =
+        ResultsFulfillerTestHelper.fulfillTestRequisitions(
+          provider,
+          kingdomChannel,
+          RequisitionMetadataServiceCoroutineStub(edpaPublicServer.channel),
           ImpressionDataSourceProvider(
             ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(
               readServer.channel
@@ -749,32 +635,20 @@ class VidLabelingOperatorComparisonIntegrationTest :
                 r1 to ModelLineDataSource(outputPrefix, null, null),
               ),
             modelLineStorageClientFactory = { metadataStorage },
-          )
-        ResultsFulfiller(
-            provider.name,
-            metadata,
-            requisitions,
-            noThrottle,
-            noThrottle,
-            provider.privateEncryptionKey,
-            group,
-            mapOf(l1 to modelInfo, r1 to modelInfo, d1 to modelInfo.copy(localAlias = r1)),
-            PipelineConfiguration(16, 4, 2, 2, 2),
-            sourceProvider,
-            kmsClient,
-            StorageConfig(rootDirectory = File("/")),
-            selection,
-            emptySet(),
-            metrics = ResultsFulfillerMetrics(Instrumentation.meter),
-          )
-          .fulfillRequisitions()
-        for (entry in group.requisitionsList) {
-          val requisition = entry.requisition.unpack(Requisition::class.java)
-          val actual =
-            requisitions.getRequisition(getRequisitionRequest { name = requisition.name })
-          assertThat(actual.state).isEqualTo(Requisition.State.FULFILLED)
+          ),
+          mapOf(l1 to modelInfo, r1 to modelInfo, d1 to modelInfo.copy(localAlias = r1)),
+          kmsClient,
+          tempFolder.newFolder("comparison-requisitions"),
+          java.time.Clock.systemUTC(),
+          cutovers = listOf(cutover),
+          aliases = mapOf(d1 to r1),
+          onSelectedSource = { selectedSources += it },
+        ) { measurementSpec, _, frequencyVector ->
+          assertThat(frequencyVector.getTotalUncappedImpressions())
+            .isEqualTo(if (measurementSpec.modelLine == l1) 4L else 2L)
+          fulfilledModelLines += measurementSpec.modelLine
         }
-      }
+      assertThat(groupCount).isEqualTo(2)
     }
   }
 
