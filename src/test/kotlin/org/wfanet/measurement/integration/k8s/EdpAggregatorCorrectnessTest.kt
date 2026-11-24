@@ -771,6 +771,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set"),
           labelerInputFieldMapping = provisionModelResources.labelerInputFieldMapping,
           populationSpec = modelPopulationSpec,
+          eventTemplateVersion = 1,
         )
       }
     }

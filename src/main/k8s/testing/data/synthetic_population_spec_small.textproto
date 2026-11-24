@@ -17,7 +17,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_18_TO_34
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -33,7 +32,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_18_TO_34
       us_state: NEW_YORK
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -49,7 +47,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_35_TO_54
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -65,7 +62,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_35_TO_54
       us_state: NEW_YORK
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -81,7 +77,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_55_PLUS
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -97,7 +92,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_55_PLUS
       us_state: NEW_YORK
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -113,7 +107,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -129,7 +122,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       us_state: NEW_YORK
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -145,7 +137,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -161,7 +152,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       us_state: NEW_YORK
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -177,7 +167,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -193,7 +182,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       us_state: NEW_YORK
-      parental_status: NOT_PARENT
     }
   }
 }

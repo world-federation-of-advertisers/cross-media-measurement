@@ -283,6 +283,15 @@ resource "google_storage_bucket_object" "upload_results_fulfiller_population_spe
   source = var.results_fulfiller_population_spec.local_path
 }
 
+resource "google_storage_bucket_object" "upload_additional_results_fulfiller_population_specs" {
+  for_each = var.additional_results_fulfiller_population_specs
+
+  name           = each.value.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = each.value.local_path
+  source_md5hash = filemd5(each.value.local_path)
+}
+
 resource "google_storage_bucket_object" "upload_vid_labeler_population_spec" {
   name           = var.vid_labeler_population_spec.destination
   bucket         = module.config_files_bucket.storage_bucket.name
@@ -506,7 +515,10 @@ resource "google_pubsub_subscription_iam_member" "result_fulfiller_dead_letter_s
 module "result_fulfiller_tee_app" {
   source = "../mig"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_additional_results_fulfiller_population_specs,
+  ]
 
   enabled                       = var.tee_consumers_enabled
   work_item_consumption_enabled = var.tee_consumers_enabled

@@ -173,7 +173,7 @@ message Common {
     population_attribute: false
     reporting_features: FILTERABLE
     reporting_features: GROUPABLE
-    version_added: 1
+    version_added: 2
   }];
 
   // Whether the person has children under 18 in their household.
@@ -188,6 +188,6 @@ message Common {
         population_attribute: true
         reporting_features: FILTERABLE
         reporting_features: GROUPABLE
-        version_added: 1
+        version_added: 2
       }];
 }

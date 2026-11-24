@@ -322,6 +322,7 @@ jobs:
         -var="postgres_instance_name=$POSTGRES_INSTANCE"
         -var="postgres_password=$POSTGRES_PASSWORD"
         -var="kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET"
+        -var="high_overlap_model_line=$HIGH_OVERLAP_MODEL_LINE"
         -var="secure_computation_public_api_target=$SECURE_COMPUTATION_PUBLIC_API_TARGET"
         -var="metadata_storage_public_api_target=$METADATA_STORAGE_PUBLIC_API_TARGET"
         -var="data_watcher_uber_jar_path=${{ steps.download-uber-jars.outputs.data_watcher_source_path }}"

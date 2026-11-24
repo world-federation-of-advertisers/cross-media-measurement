@@ -40,6 +40,7 @@ import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.PopulationSetup
 
 /**
@@ -47,10 +48,10 @@ import org.wfanet.measurement.integration.common.PopulationSetup
  * [ModelRelease] and rollout pointing at it.
  *
  * The ModelLine itself is not created here: it is provisioned once per environment by an operator
- * and looked up by resource name. Because creating a ModelLine requires a Population up front, that
- * line is bootstrapped against whatever Population is convenient; [provision] then attaches the
- * correct one. Since the PDP resolves the most recent rollout on a line, the release created here
- * supersedes the bootstrap.
+ * and looked up by resource name. It must declare event-template version 2. [provision] attaches
+ * the full high-overlap Population before seeding writes any impressions. If the line was
+ * bootstrapped with the ModelRepository tool, this release supersedes its bootstrap because the PDP
+ * resolves the most recent rollout on a line.
  *
  * @param populationSpec the high overlap synthetic population spec
  * @param populationDataProvider resource name of the PDP that owns the Population
@@ -71,9 +72,6 @@ class HighOverlapModelResources(
 
   @Blocking
   fun provision() {
-    val highOverlapPopulation = ensurePopulation()
-    logger.info("high overlap Population: ${highOverlapPopulation.name}")
-
     val modelLine =
       try {
         ModelLinesGrpc.newBlockingStub(mpChannel)
@@ -87,6 +85,15 @@ class HighOverlapModelResources(
           }
         throw IllegalStateException(message, e)
       }
+    check(
+      modelLine.hasEventTemplateVersion() &&
+        modelLine.eventTemplateVersion == HighOverlapDataset.EVENT_TEMPLATE_VERSION
+    ) {
+      "ModelLine $modelLineName must have event_template_version=" +
+        "${HighOverlapDataset.EVENT_TEMPLATE_VERSION}. Create a new ModelLine with that " +
+        "version; existing population contracts cannot be changed."
+    }
+
     val activeStart = modelLine.activeStartTime.toInstant()
 
     // A line active after the first event date silently drops the events before it.
@@ -103,6 +110,8 @@ class HighOverlapModelResources(
         "data set ending $LOW_OVERLAP_LAST_DATE. It must start at or after $minActiveStart."
     }
 
+    val highOverlapPopulation = ensurePopulation()
+    logger.info("high overlap Population: ${highOverlapPopulation.name}")
     ensureModelRelease(highOverlapPopulation, modelLine)
   }
 

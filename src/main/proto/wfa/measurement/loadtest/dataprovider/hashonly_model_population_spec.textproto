@@ -22,8 +22,9 @@
 # `event_template_type` the deployed VidLabelingConfig sets
 # (wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent).
 #
-# State and parental status are required population attributes. The model has
-# neither dimension, so they are fixed to CALIFORNIA and NOT_PARENT throughout.
+# `Common.us_state` is annotated `population_attribute`, so PopulationSpecValidator
+# requires it on every subpopulation. The model has no geo dimension, so it is fixed
+# to CALIFORNIA throughout; no cloud-test measurement filters or groups on it.
 
 # MALE 16-34: VIDs 10000-24999
 subpopulations {
@@ -36,7 +37,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_18_TO_34
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -52,7 +52,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_35_TO_54
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -68,7 +67,6 @@ subpopulations {
       gender: MALE
       age_group: YEARS_55_PLUS
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -84,7 +82,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_18_TO_34
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -100,7 +97,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_35_TO_54
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
@@ -116,7 +112,6 @@ subpopulations {
       gender: FEMALE
       age_group: YEARS_55_PLUS
       us_state: CALIFORNIA
-      parental_status: NOT_PARENT
     }
   }
 }
