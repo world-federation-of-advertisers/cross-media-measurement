@@ -102,7 +102,9 @@ class BasicReportReportingSetBackfillerTest {
       .createMeasurementConsumer(
         measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
       )
-    reportingSetsService = PostgresReportingSetsService(ID_GENERATOR, postgresClient)
+    // The backfill inputs intentionally include malformed legacy ReportingSets.
+    reportingSetsService =
+      PostgresReportingSetsService(ID_GENERATOR, postgresClient, validateCreateReportingSet = false)
 
     // BasicReports is interleaved in MeasurementConsumers, so the parent row must exist.
     spannerClient.readWriteTransaction().run { txn ->
@@ -5663,6 +5665,7 @@ class BasicReportReportingSetBackfillerTest {
     spannerClient.readWriteTransaction().run { txn ->
       txn.insertReportResult(
         measurementConsumerId = MEASUREMENT_CONSUMER_ID,
+        assembly = null,
         reportResultId = REPORT_RESULT_ID,
         externalReportResultId = EXTERNAL_REPORT_RESULT_ID,
         reportStart =

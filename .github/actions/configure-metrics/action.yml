@@ -27,7 +27,7 @@ runs:
 
   - name: Generate configurations
     shell: bash
-    run: bazelisk build //src/main/k8s/dev:open_telemetry_gke
+    run: tools/bazel-with-results bazelisk build //src/main/k8s/dev:open_telemetry_gke
 
   - name: Apply configurations
     shell: bash

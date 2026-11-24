@@ -73,6 +73,7 @@ abstract class RequisitionFulfiller(
   /** Paces outbound calls to the Kingdom's Certificates and Requisitions services. */
   private val kingdomRpcThrottler: Throttler,
   protected val trustedCertificates: Map<ByteString, X509Certificate>,
+  protected val logMeasurementValues: Boolean,
 ) {
   /**
    * Paces [block] via [kingdomRpcThrottler]. [errorMessage] wraps the exception on failure.
@@ -219,8 +220,14 @@ abstract class RequisitionFulfiller(
     nonce: Long,
     measurementResult: Measurement.Result,
   ) {
-    logger.log(Level.INFO, "Direct MeasurementSpec:\n$measurementSpec")
-    logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
+    logger.info(
+      "Fulfilling direct requisition ${requisition.name} with measurement type " +
+        measurementSpec.measurementTypeCase
+    )
+    if (logMeasurementValues) {
+      logger.log(Level.INFO, "Direct MeasurementSpec:\n$measurementSpec")
+      logger.log(Level.INFO, "Direct MeasurementResult:\n$measurementResult")
+    }
 
     DataProviderCertificateKey.fromName(requisition.dataProviderCertificate)
       ?: throw RequisitionRefusalException.Default(
@@ -252,6 +259,7 @@ abstract class RequisitionFulfiller(
         }
       )
     }
+    logger.info("Fulfilled direct requisition ${requisition.name}")
   }
 
   companion object {

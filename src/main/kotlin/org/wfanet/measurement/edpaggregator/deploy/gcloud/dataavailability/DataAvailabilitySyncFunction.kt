@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 
-import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.BlobId
@@ -24,6 +23,7 @@ import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
 import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
@@ -82,9 +82,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemPublicationCodec
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemCloudFunction
+import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemInvocation
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
@@ -193,7 +195,25 @@ private fun Throwable.grpcStatusCodeFromCauseChain(): Status.Code? {
  * - WorkItems select a configured data provider from their application parameters.
  * - gRPC channels are created with mutual TLS using the provided certificate files.
  */
-class DataAvailabilitySyncFunction() : HttpFunction {
+class DataAvailabilitySyncFunction() : WorkItemCloudFunction() {
+  override fun isWorkItemRequest(request: HttpRequest): Boolean {
+    logger.fine("Starting DataAvailabilitySyncFunction")
+    return !request.getFirstHeader(DATA_WATHCER_PATH_HEADER).isPresent
+  }
+
+  override fun flushTelemetry() {
+    EdpaTelemetry.flush()
+  }
+
+  override fun handleFailure(error: Exception, response: HttpResponse) {
+    if (error.grpcStatusCodeFromCauseChain() in RETRYABLE_GRPC_STATUS_CODES) {
+      logger.log(Level.WARNING, "Transient downstream gRPC failure", error)
+      response.setStatusCode(503)
+    } else {
+      throw error
+    }
+  }
+
   private val fileSystemMetadata = ConcurrentHashMap<Pair<String, String>, FileSystemBlobMetadata>()
 
   private data class FileSystemBlobMetadata(
@@ -205,91 +225,71 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     EdpaTelemetry.ensureInitialized()
   }
 
-  override fun service(request: HttpRequest, response: HttpResponse) {
-    try {
-      logger.fine("Starting DataAvailabilitySyncFunction")
-      val doneBlobPath = request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElse(null)
-      if (doneBlobPath == null) {
-        serviceWorkItem(request)
-        return
-      }
-      val requestBody = request.reader.readText()
-      val dataAvailabilitySyncConfig =
-        ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
+  override fun serviceLegacyRequest(request: HttpRequest, response: HttpResponse) {
+    val doneBlobPath = request.getFirstHeader(DATA_WATHCER_PATH_HEADER).get()
+    val requestBody = request.reader.readText()
+    val dataAvailabilitySyncConfig =
+      ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
-      val dataAvailabilitySync =
-        buildDataAvailabilitySync(
-          externalSyncConfig(dataAvailabilitySyncConfig),
-          doneBlobPath = doneBlobPath,
-          availabilityImpressionPaths = availabilityImpressionPaths(dataAvailabilitySyncConfig),
+    val dataAvailabilitySync =
+      buildDataAvailabilitySync(
+        externalSyncConfig(dataAvailabilitySyncConfig),
+        doneBlobPath = doneBlobPath,
+        availabilityImpressionPaths = availabilityImpressionPaths(dataAvailabilitySyncConfig),
+      )
+
+    Tracing.withW3CTraceContext(request) {
+      val generation =
+        parseDataWatcherGeneration(
+          request
+            .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
+            .orElse(null)
         )
-
-      Tracing.withW3CTraceContext(request) {
-        val generation =
-          parseDataWatcherGeneration(
-            request
-              .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
-              .orElse(null)
+      val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, generation)
+      val attributes =
+        Attributes.builder()
+          .put(
+            VidLabelingTraceAttributes.DATA_PROVIDER_NAME,
+            dataAvailabilitySyncConfig.dataProvider,
           )
-        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, generation)
-        val attributes =
-          Attributes.builder()
-            .put(
-              VidLabelingTraceAttributes.DATA_PROVIDER_NAME,
-              dataAvailabilitySyncConfig.dataProvider,
-            )
-            .put(XmmTraceAttributes.LIFECYCLE_STAGE, "data_availability_sync")
-            .put(XmmTraceAttributes.OUTCOME, "started")
-            .also { builder ->
-              request
-                .getFirstHeader(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_HEADER)
-                .ifPresent {
-                  builder.put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, it)
-                }
-              request.getFirstHeader(VidLabelingTraceAttributes.MODEL_LINE_HEADER).ifPresent {
-                builder.put(VidLabelingTraceAttributes.MODEL_LINE_NAME, it)
-              }
-              request.getFirstHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER).ifPresent {
-                builder.put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, it)
-              }
-              builder
-                .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
-                .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
+          .put(XmmTraceAttributes.LIFECYCLE_STAGE, "data_availability_sync")
+          .put(XmmTraceAttributes.OUTCOME, "started")
+          .also { builder ->
+            request
+              .getFirstHeader(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_HEADER)
+              .ifPresent { builder.put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, it) }
+            request.getFirstHeader(VidLabelingTraceAttributes.MODEL_LINE_HEADER).ifPresent {
+              builder.put(VidLabelingTraceAttributes.MODEL_LINE_NAME, it)
             }
-            .build()
-        Tracing.trace("edpa.data_availability.sync", attributes) {
-          val outcome =
-            runBlocking(Context.current().asContextElement()) {
-              buildDataAvailabilitySyncLeaseRunner(dataAvailabilitySyncConfig).run(
-                dataAvailabilitySyncConfig.dataProvider
-              ) { lease ->
-                dataAvailabilitySync.sync(
-                  doneBlobPath,
-                  dataAvailabilitySyncLease = lease.name,
-                  ensureLeaseActive = lease::invoke,
-                  doneBlobGeneration = generation,
-                )
-              }
+            request.getFirstHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER).ifPresent {
+              builder.put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, it)
             }
-          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
-        }
+            builder
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
+          }
+          .build()
+      Tracing.trace("edpa.data_availability.sync", attributes) {
+        val outcome =
+          runBlocking(Context.current().asContextElement()) {
+            buildDataAvailabilitySyncLeaseRunner(dataAvailabilitySyncConfig).run(
+              dataAvailabilitySyncConfig.dataProvider
+            ) { lease ->
+              dataAvailabilitySync.sync(
+                doneBlobPath,
+                dataAvailabilitySyncLease = lease.name,
+                ensureLeaseActive = lease::invoke,
+                doneBlobGeneration = generation,
+              )
+            }
+          }
+        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
       }
-    } catch (e: Exception) {
-      if (e.grpcStatusCodeFromCauseChain() in RETRYABLE_GRPC_STATUS_CODES) {
-        logger.log(Level.WARNING, "Transient downstream gRPC failure", e)
-        response.setStatusCode(503)
-      } else {
-        throw e
-      }
-    } finally {
-      // Critical for Cloud Functions: flush metrics before function freezes
-      EdpaTelemetry.flush()
     }
   }
 
-  private fun serviceWorkItem(request: HttpRequest) {
-    val input =
-      DataAvailabilitySyncWorkItem.parse(WorkItemPublicationCodec.parse(request.inputStream))
+  override suspend fun createWorkItemInvocation(workItem: WorkItem): WorkItemInvocation {
+    val input = DataAvailabilitySyncWorkItem.parse(workItem)
     val providerConfig =
       runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
     val internalPath = providerConfig.vidLabeledImpressionPath
@@ -365,12 +365,19 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         verifyDoneObject = { workItem ->
           if (workItem.appParams.triggeringRawImpressionUpload.isNotEmpty()) {
             val parent =
-              globalThrottler.onReady {
-                rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
-                  getRawImpressionUploadModelLineRequest {
-                    name = workItem.rawImpressionUploadModelLineName
-                  }
-                )
+              try {
+                globalThrottler.onReady {
+                  rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+                    getRawImpressionUploadModelLineRequest {
+                      name = workItem.rawImpressionUploadModelLineName
+                    }
+                  )
+                }
+              } catch (e: StatusException) {
+                if (e.status.code == Status.Code.NOT_FOUND) {
+                  throw IllegalArgumentException("WorkItem source model line does not exist", e)
+                }
+                throw IllegalStateException("Unable to read WorkItem source model line", e)
               }
             require(
               parent.name == workItem.rawImpressionUploadModelLineName &&
@@ -412,7 +419,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             )
         },
       )
-    runBlocking { processor.process(input) }
+    return processor.createInvocation(input, close = {})
   }
 
   private fun verifyWorkItemDoneObject(
@@ -588,6 +595,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         },
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
+      hiddenModelLines = dataAvailabilitySyncConfig.hiddenModelLinesList.toSet(),
       publishEventGroupActivities = eventGroupActivityPublisher?.let { it::publish },
       availabilityImpressionPaths =
         (availabilityImpressionPaths + triggerDataSource.edpImpressionPath).distinct(),

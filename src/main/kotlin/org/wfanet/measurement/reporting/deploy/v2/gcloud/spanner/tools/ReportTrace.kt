@@ -1639,13 +1639,27 @@ internal object ReportTraceOutput {
       val fields = safeTextFields(entry.message)
       val stage = fields["xmm.lifecycle.stage"]
       if (stage != null) {
-        observed.getOrPut(stage) { mutableListOf() } +=
-          LifecycleEvidence(
-            description = lifecycleEvidenceDescription("log ${entry.service}", fields),
-            outcome = fields["xmm.outcome"],
-            attributes = fields,
-            timestamp = entry.timestamp,
-          )
+        val evidenceFields =
+          if (
+            stage == "metric_result_sync" && ReportTraceAttributes.METRIC_COUNT_STRING in fields
+          ) {
+            // Expand only named metrics; report state and counts cannot identify a polled subset.
+            SAFE_TEXT.fieldValues(entry.message, ReportTraceAttributes.METRIC_NAME_STRING)
+              .distinct()
+              .map { fields + (ReportTraceAttributes.METRIC_NAME_STRING to it) }
+              .ifEmpty { listOf(fields) }
+          } else {
+            listOf(fields)
+          }
+        for (attributes in evidenceFields) {
+          observed.getOrPut(stage) { mutableListOf() } +=
+            LifecycleEvidence(
+              description = lifecycleEvidenceDescription("log ${entry.service}", attributes),
+              outcome = attributes["xmm.outcome"],
+              attributes = attributes,
+              timestamp = entry.timestamp,
+            )
+        }
       }
     }
     if (context.basicReportState?.uppercase() == "SUCCEEDED") {
@@ -3484,6 +3498,7 @@ internal object ReportTraceOutput {
       "xmm.basic_report.state",
       "xmm.report.state",
       "xmm.metric.state",
+      ReportTraceAttributes.METRIC_COUNT_STRING,
       "xmm.measurement.state",
       "xmm.requisition.state",
       "xmm.lifecycle.stage",

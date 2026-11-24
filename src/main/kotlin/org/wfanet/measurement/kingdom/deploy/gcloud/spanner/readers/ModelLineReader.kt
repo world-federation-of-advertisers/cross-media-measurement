@@ -66,6 +66,7 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
       ModelLines.ActiveStartTime,
       ModelLines.ActiveEndTime,
       ModelLines.Type,
+      ModelLines.EventTemplateVersion,
       ModelLines.CreateTime,
       ModelLines.UpdateTime,
       ModelSuites.ExternalModelSuiteId,
@@ -138,6 +139,7 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
         ModelLines.ActiveStartTime,
         ModelLines.ActiveEndTime,
         ModelLines.Type,
+        ModelLines.EventTemplateVersion,
         ModelLines.CreateTime,
         ModelLines.UpdateTime,
         HoldbackModelLine.ExternalModelLineId AS ExternalHoldbackModelLineId,
@@ -188,6 +190,9 @@ class ModelLineReader : SpannerReader<ModelLineReader.Result>() {
         activeEndTime = struct.getTimestamp("ActiveEndTime").toProto()
       }
       type = struct.getProtoEnum("Type", ModelLine.Type::forNumber)
+      if (!struct.isNull("EventTemplateVersion")) {
+        eventTemplateVersion = Math.toIntExact(struct.getLong("EventTemplateVersion"))
+      }
       if (!struct.isNull("ExternalHoldbackModelLineId")) {
         externalHoldbackModelLineId = struct.getLong("ExternalHoldbackModelLineId")
       }

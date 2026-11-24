@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.service
 
 import com.google.protobuf.Descriptors
+import java.time.Clock
 import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.db.r2dbc.DatabaseClient
@@ -73,6 +74,8 @@ object DataServices {
     impressionQualificationFilterMapping: ImpressionQualificationFilterMapping?,
     eventMessageDescriptor: Descriptors.Descriptor?,
     disableMetricsReuse: Boolean,
+    validateInsertBasicReport: Boolean,
+    validateCreateReportingSet: Boolean,
     coroutineContext: CoroutineContext,
   ): Services {
     val idGenerator = LegacyIdGeneratorAdapter(idGenerator)
@@ -86,6 +89,7 @@ object DataServices {
           spannerClient,
           postgresClient,
           impressionQualificationFilterMapping,
+          validateInsertBasicReport,
           coroutineContext,
         )
       } else {
@@ -112,8 +116,9 @@ object DataServices {
         SpannerReportResultsService(
           spannerClient,
           impressionQualificationFilterMapping,
-          idGenerator,
-          coroutineContext,
+          clock = Clock.systemUTC(),
+          idGenerator = idGenerator,
+          coroutineContext = coroutineContext,
         )
       } else {
         null
@@ -126,7 +131,12 @@ object DataServices {
         PostgresMeasurementsService(idGenerator, postgresClient, coroutineContext),
       metricsService = PostgresMetricsService(idGenerator, postgresClient, coroutineContext),
       reportingSetsService =
-        PostgresReportingSetsService(idGenerator, postgresClient, coroutineContext),
+        PostgresReportingSetsService(
+          idGenerator,
+          postgresClient,
+          validateCreateReportingSet,
+          coroutineContext,
+        ),
       reportsService =
         PostgresReportsService(idGenerator, postgresClient, disableMetricsReuse, coroutineContext),
       reportSchedulesService =

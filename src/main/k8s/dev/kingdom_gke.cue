@@ -45,6 +45,16 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
+#SchemaUpdateResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "384Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 #CancellationJobMaxHeapSize:     "96M"
 #CancellationJobInitialHeapSize: "64M"
 
@@ -106,7 +116,8 @@ kingdom: #Kingdom & {
 	configMaps: "java": #JavaConfigMap
 
 	deploymentPodDisruptionBudgets: {
-		"gcp-kingdom-data-server": spec: minAvailable: 1
+		"gcp-kingdom-data-server": spec: minAvailable:   1
+		"v2alpha-public-api-server": spec: minAvailable: 1
 	}
 
 	deployments: {
@@ -116,6 +127,7 @@ kingdom: #Kingdom & {
 				resources:           #InternalServerResourceRequirements
 				_javaOptions: maxHeapSize: #InternalServerMaxHeapSize
 			}
+			_updateSchemaContainer: resources: #SchemaUpdateResourceRequirements
 			spec: {
 				replicas: 2
 				template: spec: #ServiceAccountPodSpec & {
@@ -138,6 +150,16 @@ kingdom: #Kingdom & {
 		}
 		"v2alpha-public-api-server": {
 			_rateLimitConfigPath: "/etc/\(#AppName)/config-files/rate_limit_config.textproto"
+			spec: {
+				replicas: 2
+				// Prefer separate nodes without blocking scheduling at limited capacity.
+				template: spec: topologySpreadConstraints: [{
+					maxSkew:           1
+					topologyKey:       "kubernetes.io/hostname"
+					whenUnsatisfiable: "ScheduleAnyway"
+					labelSelector:     kingdom.deployments["v2alpha-public-api-server"].spec.selector
+				}]
+			}
 		}
 	}
 

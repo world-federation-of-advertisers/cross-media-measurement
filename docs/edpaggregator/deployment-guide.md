@@ -57,6 +57,30 @@ None of the names below are prescriptive — they are only examples.
 
 ---
 
+## Measurement value logging
+
+Halo's Terraform and Kubernetes examples and cloud-test fixtures enable
+measurement-value logging by default. The application flags themselves default
+to disabled. Markets may want to disable the example settings according to their
+data-access and log-retention policies.
+
+| Configuration | Halo example default | How to disable |
+| --- | --- | --- |
+| ResultsFulfiller in the CMMS Terraform example | `log_measurement_values = true` | Set `log_measurement_values = false` in your Terraform variables. |
+| Reporting, EDP simulators, and population fulfillment in the Halo GKE examples | CUE tag `log_measurement_values=true` | Pass `-t log_measurement_values=false` to the CUE renderer, or set the component's `_logMeasurementValues` to `false`. |
+| Python report post-processing in the Halo GKE examples | CUE tag `log_noise_correction_values=true` | Pass `-t log_noise_correction_values=false` to the CUE renderer, or set `_logNoiseCorrectionValues` to `false`. |
+
+For workloads deployed from custom configurations, set
+`--log-measurement-values=false` and `--log-noise-correction-values=false` on the
+applicable processes. Identifiers, stages, verdicts, and failure types remain
+available. The impression verifier omits raw impression fields from both sample
+and failure logs regardless of the count-logging setting.
+
+See [Measurement value diagnostics](/docs/edpaggregator/report-debugging-guide.md#measurement-value-diagnostics)
+for the values controlled by each flag. Full gRPC request/response debug logging
+has its own setting; markets that disable value logging should review that
+setting as well.
+
 ## Architecture
 
 The EDP Aggregator is a distributed system spanning the following Google Cloud
@@ -661,7 +685,7 @@ requisition_fulfiller_config = {
     java_tool_options             = "-Xmx..."   # optional
     docker_image                  = "ghcr.io/.../results_fulfiller:<tag>"
     mig_distribution_policy_zones = ["REGION-a", "REGION-b"]
-    app_flags                     = ["--flag=value", ...]
+    app_flags                     = ["--log-measurement-values=true", "--flag=value", ...]
   }
 }
 ```
@@ -1117,7 +1141,7 @@ configs {
   secure_computation_control_plane_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   edp_impression_path: "edp/<edp-id>"
   vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # required when VID labeling is enabled
-  # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
+  # model_line_map { key: "modelProviders/MP/modelSuites/MS/modelLines/INTERNAL" value { model_lines: ["modelProviders/MP/modelSuites/MS/modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
   # model_line_cutovers {
   #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
@@ -1182,20 +1206,144 @@ pre-cutover WorkItems and unfulfilled Requisitions whose signed MeasurementSpec 
 `report_interval` have drained.
 
 `maximum_report_duration` must be a positive whole number of days.
-`legacy_required_through_date` must be at least `cutover_date + maximum_report_duration`, ensuring
-that every Report starting before the cutover can finish on the historical line. Through
-`legacy_required_through_date`, DataAvailabilitySync advances the advertiser-visible end
-only through complete contiguous coverage in both contributing model lines. A gap in either line
-leaves Kingdom availability unchanged even when `error_if_gaps_exist` is false. A producer's
-completion marker counts only after DataAvailabilitySync has persisted that marker's metadata;
-prior Kingdom publication from each contributor is not required. After that date,
-the replacement line advances the end independently. Each contributor can use a different bucket
-and path through `model_line_data_sources`. Replacement contributors are produced by the internal
-VID Labeler. Replay uses each configured model line's completion-marker semantics, including when
-contributors share a base path or use separate buckets. While the cutover is configured,
-DataAvailabilitySync
-publishes only the combined advertiser-visible model line; it does not expose the internal
-historical or replacement lines to Kingdom.
+`legacy_required_through_date` must be at least `cutover_date + maximum_report_duration`,
+ensuring that every Report starting before the cutover can finish on the historical line.
+
+DataAvailabilitySync calculates each published identity from its own required source coverage.
+An explicit contributor alias exposes that source's native interval, including synchronized,
+finalized zero-impression boundary dates. Missing dates or unfinished completion markers block
+the affected identity even if the cutover does not yet require that contributor. A blocked
+identity retains its previous interval only while that interval remains valid; healthy identities
+can still publish in the same provider-wide replacement.
+
+| Phase | Advertiser-visible legacy identity | Replacement comparison alias |
+| --- | --- | --- |
+| Before the UTC cutover date | Native historical coverage; a replacement gap does not block valid publication | Native replacement coverage; a historical gap does not block valid publication |
+| Cutover through `legacy_required_through_date`, inclusive | Historical and replacement coverage over their cutover-required ranges | Native replacement coverage, independent of historical gaps |
+| After `legacy_required_through_date` | Replacement coverage advances the end without new historical uploads; required historical coverage for earlier Reports remains validated | Native replacement coverage, independent of historical gaps |
+
+For example, with a cutover next year and both sources active today, a missing replacement day
+blocks its DEV comparison alias while the legacy PROD interval can advance. A missing legacy
+day blocks the legacy interval while complete replacement coverage can advance the DEV alias.
+During overlap, a missing required day in either source blocks the advertiser-visible projection.
+These coverage requirements apply even when `error_if_gaps_exist` is false.
+
+A producer's completion marker counts only after DataAvailabilitySync has persisted that marker's
+metadata, or validated a finalized zero-output date; prior Kingdom publication by the contributor
+is not required. Each contributor can use a different bucket and path through
+`model_line_data_sources`. Replay uses each configured model line's completion semantics,
+including shared base paths and separate buckets. DataAvailabilitySync publishes the configured
+advertiser-visible identity and explicit aliases; distinct contributor identities remain hidden.
+Aliases must be unique to one source and must not name a contributor, a hidden source, or the
+cutover's advertiser-visible identity.
+
+#### Compare EDP-labeled and EDPA-labeled impressions before cutover
+
+Use three ModelLines in the same market:
+
+| Identity | Type | Impression source and purpose |
+| --- | --- | --- |
+| L1 | PROD | EDP-labeled impressions; normal advertiser-visible reporting identity |
+| R1 | PROD | EDPA VID-labeling pipeline output; hidden physical replacement source, never selectable for reporting |
+| D1 | DEV | Temporary comparison alias of R1; selectable only by an authorized explicit DEV request |
+
+D1 is independent of the L1/R1 cutover relationship. It creates no labeling jobs, impression files,
+or ImpressionMetadata of its own. R1 remains PROD so the labeling pipeline can process it; hiding
+it is enforced by omitting its native identity from Kingdom's ModelLine-keyed data availability.
+For a single participating EDP, omission must hold for that EDP too. Do not rely on another EDP
+having no R1 availability to keep it hidden.
+
+1. Create D1 as DEV. D1 and R1 must share the same PopulationSpec, including VID ranges and
+   subpopulation attributes, and equivalent event-template descriptors, including referenced
+   messages and enums. Create a ModelRollout for D1 covering the comparison interval, using R1's
+   compatible ModelRelease/Population; a DEV line without a rollout cannot fulfill population
+   requisitions used by Reporting. Before the cutover date, also validate that L1 and R1 have
+   matching PopulationSpecs and equivalent descriptors: R1 will serve advertiser-visible L1
+   Reports after cutover. Use compatible VID index maps. Configure the dispatcher to
+   process only R1 for the comparison; keep D1 out of dispatcher overrides and labeling inputs.
+
+2. Keep the cutover in the future while comparing today's data. Configure the same L1/R1 cutover
+   in RequisitionFetcher and DataAvailabilitySync, with L1 as both the external and historical
+   identity. Retain both contributor storage roots. Add the availability alias and persistent
+   suppression to the affected provider's DataAvailabilitySync configuration. Replace the ID
+   placeholders below with full canonical resource names:
+
+   ```textproto
+   # In the provider's DataAvailabilitySyncConfig.
+   hidden_model_lines: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/R1_ID"
+   model_line_map {
+     key: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/R1_ID"
+     value {
+       model_lines: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/D1_ID"
+     }
+   }
+   ```
+
+3. Add the inverse mapping to the provider's ResultsFulfillerParams, including the parameters
+   embedded in RequisitionFetcher's `work_item_dispatch` configuration:
+
+   ```textproto
+   # In the provider's ResultsFulfillerParams.
+   model_line_map {
+     key: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/D1_ID"
+     value: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/R1_ID"
+   }
+   ```
+
+   Configure D1's model-line information and R1's physical storage root consistently.
+   RequisitionFetcher uses this mapping to persist R1 as D1's selected source; ResultsFulfiller
+   reads that source. Uploading data or creating availability WorkItems for D1 is unnecessary.
+   Deploy fulfillment configuration before enabling D1 availability.
+
+4. Grant the comparison caller `reporting.basicReports.createWithDevModelLine` on the
+   MeasurementConsumer, in addition to ordinary BasicReport create/read permissions. With
+   permission-valued authorization scopes, include both `reporting.basicReports.create` and
+   `reporting.basicReports.createWithDevModelLine` (or an authorized `reporting.*` scope). Create two otherwise-identical BasicReports with the same
+   campaign, UTC interval, filters, and metric specifications. Select L1 explicitly for the PROD
+   report and D1 explicitly for the DEV report:
+
+   ```textproto
+   # Fragment of the DEV CreateBasicReportRequest; preserve the other PROD fields.
+   parent: "measurementConsumers/MEASUREMENT_CONSUMER_ID"
+   basic_report_id: "replacement-comparison"
+   basic_report {
+     model_line: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/D1_ID"
+     # Use the same campaign, reporting_interval, filters and result_group_specs
+     # as the PROD request, with a distinct basic_report_id.
+   }
+   ```
+
+   `CreateBasicReportRequest.basic_report.model_line = D1` is required for DEV selection. Automatic selection
+   considers eligible PROD identities, so it must choose L1 rather than D1 or R1. A caller without
+   the DEV permission cannot explicitly select D1. Use the interval common to L1 and D1
+   availability; `report_end` is exclusive and must be the day after the last desired
+   reporting day.
+
+5. Verify before comparing results:
+   * Kingdom publishes separate availability entries for L1 and D1 and no entry for R1.
+   * Both `effective_model_line` values match the explicit requests.
+   * RequisitionFetcher persists L1 for the pre-cutover PROD Report and R1 for the DEV Report;
+     retries retain these choices.
+   * ResultsFulfiller reads EDP-labeled L1 objects for PROD and EDPA-labeled R1 objects for DEV.
+   * Reporting creates separate ModelLine-keyed MetricCalculationSpecs, Metrics, and Kingdom
+     Measurements. Equal dates and metric specifications must not reuse the PROD computation.
+   * An interior missing or unsynchronized R1 date prevents D1 availability from spanning the
+     gap while valid pre-cutover L1 coverage can still publish.
+
+6. To roll back comparison access, stop creating D1 Reports and revoke the DEV permission. Drain
+   or complete existing D1 Reports and WorkItems before removing fulfillment configuration; their
+   persisted routing decisions still select R1. Restore the last known working configuration as a
+   unit if routing or descriptor validation fails.
+
+7. To retire D1, remove `R1 -> D1` from DataAvailabilitySync, run synchronization or replay,
+   and verify Kingdom no longer exposes D1. After existing Reports and WorkItems drain, remove
+   `D1 -> R1` and unused D1 model information from fulfillment configuration, then end
+   D1's active period. Retain R1 impressions needed by historical Reports.
+
+Keep R1 in `hidden_model_lines` when moving, replacing, or removing the cutover
+configuration, and after D1 retires. Removing that suppression can publish R1 as an ordinary native
+PROD identity, making it selectable. Verify that R1 remains absent from every participating EDP's
+Kingdom availability after each configuration change.
 
 For cutover-routed groups, ResultsFulfiller verifies every requested UTC event date against the
 selected internal line's configured validity window and completion marker. An invalid or
@@ -1342,8 +1490,8 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   multi-party suppression is disabled as described below. When this is configured,
   `noise_params.noise_type` must be `NONE`.
 * `impression_max_frequency_per_user` — direct impression measurements only.
-* `model_line_map` — optional external→internal model-line remapping for impression lookup when no
-  report-level cutover is configured. Report-level cutovers belong in
+* `model_line_map` — optional external→internal model-line remapping for requisition model lines
+  without a report-level cutover. Report-level cutovers belong in
   `work_item_dispatch.model_line_cutovers`; ResultsFulfiller consumes the internal line persisted
   in each `GroupedRequisitions` blob rather than evaluating the cutover again.
 * `model_line_data_sources` — required for both internal contributors of each report-level cutover.
