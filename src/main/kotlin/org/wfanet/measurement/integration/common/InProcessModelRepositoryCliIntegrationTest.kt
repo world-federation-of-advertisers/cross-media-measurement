@@ -782,6 +782,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
                 gender = Common.Gender.FEMALE
                 ageGroup = Common.AgeGroup.YEARS_18_TO_34
                 usState = Common.UsState.CALIFORNIA
+                parentalStatus = Common.ParentalStatus.NOT_PARENT
               }
             )
         }

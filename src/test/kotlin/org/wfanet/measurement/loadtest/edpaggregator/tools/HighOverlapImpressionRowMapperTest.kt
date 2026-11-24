@@ -56,6 +56,8 @@ class HighOverlapImpressionRowMapperTest {
           gender = "FEMALE"
           ageGroup = "YEARS_35_TO_54"
           usState = "CALIFORNIA"
+          deviceType = "MOBILE"
+          parentalStatus = "PARENT"
           signedIn = true
           videoCompletedFraction = 0.75F
           videoViewableFraction = 0.5F
@@ -74,6 +76,8 @@ class HighOverlapImpressionRowMapperTest {
     val row = mapRow(event)
 
     assertThat(row.mediaType).isEqualTo("DISPLAY")
+    assertThat(row.deviceType).isEqualTo("MOBILE")
+    assertThat(row.parentalStatus).isEqualTo("PARENT")
     assertThat(row.displayViewableFraction).isEqualTo(0.25F)
     assertThat(row.hasVideoCompletedFraction()).isFalse()
     assertThat(row.hasVideoViewableFraction()).isFalse()
@@ -110,6 +114,46 @@ class HighOverlapImpressionRowMapperTest {
   }
 
   @Test
+  fun `map preserves device types through serialization`() {
+    for (device in
+      listOf(
+        Common.DeviceType.DESKTOP,
+        Common.DeviceType.MOBILE,
+        Common.DeviceType.TABLET,
+        Common.DeviceType.TV,
+        Common.DeviceType.OTHER,
+      )) {
+      val mapped =
+        mapRow(VIDEO_EVENT.copy { common = VIDEO_EVENT.common.copy { deviceType = device } })
+      val row = HighOverlapImpressionRow.parseFrom(mapped.toByteString())
+
+      assertThat(row.deviceType).isEqualTo(device.name)
+      assertThat(row.hasDeviceType()).isTrue()
+      assertThat(row.usState).isEqualTo("CALIFORNIA")
+      assertThat(row.gender).isEqualTo("FEMALE")
+      assertThat(row.ageGroup).isEqualTo("YEARS_35_TO_54")
+    }
+  }
+
+  @Test
+  fun `map preserves parental statuses through serialization`() {
+    for (status in
+      listOf(
+        Common.ParentalStatus.NOT_PARENT,
+        Common.ParentalStatus.PARENT,
+        Common.ParentalStatus.PARENTAL_STATUS_UNSPECIFIED,
+      )) {
+      val mapped =
+        mapRow(VIDEO_EVENT.copy { common = VIDEO_EVENT.common.copy { parentalStatus = status } })
+      val row = HighOverlapImpressionRow.parseFrom(mapped.toByteString())
+
+      assertThat(row.parentalStatus).isEqualTo(status.name)
+      assertThat(row.hasParentalStatus()).isTrue()
+      assertThat(row.deviceType).isEqualTo("MOBILE")
+    }
+  }
+
+  @Test
   fun `map truncates timestamp precision below microseconds`() {
     val row = mapRow(VIDEO_EVENT, Instant.ofEpochSecond(0, 999))
 
@@ -131,6 +175,8 @@ class HighOverlapImpressionRowMapperTest {
     assertThat(row.ageGroup).isEqualTo("AGE_GROUP_UNSPECIFIED")
     assertThat(row.usState).isEqualTo("US_STATE_UNSPECIFIED")
     assertThat(row.hasSignedIn()).isFalse()
+    assertThat(row.hasDeviceType()).isFalse()
+    assertThat(row.hasParentalStatus()).isFalse()
   }
 
   @Test
@@ -171,6 +217,8 @@ class HighOverlapImpressionRowMapperTest {
         gender = Common.Gender.FEMALE
         ageGroup = Common.AgeGroup.YEARS_35_TO_54
         usState = Common.UsState.CALIFORNIA
+        deviceType = Common.DeviceType.MOBILE
+        parentalStatus = Common.ParentalStatus.PARENT
         signedIn = true
       }
       video = video {

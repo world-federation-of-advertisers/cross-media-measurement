@@ -89,6 +89,7 @@ proto_library(
     srcs = ["impression_test_data_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        "@com_google_googleapis//google/type:date_proto",
         "@com_google_protobuf//:struct_proto",
     ],
 )

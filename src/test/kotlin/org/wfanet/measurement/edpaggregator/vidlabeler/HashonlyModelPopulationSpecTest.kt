@@ -69,6 +69,7 @@ class HashonlyModelPopulationSpecTest {
         writer.apply(TestEvent.getDefaultInstance(), vid).unpack(TestEvent::class.java).common
       assertThat(common.gender).isEqualTo(gender)
       assertThat(common.ageGroup).isEqualTo(ageGroup)
+      assertThat(common.parentalStatus).isEqualTo(Common.ParentalStatus.NOT_PARENT)
     }
   }
 

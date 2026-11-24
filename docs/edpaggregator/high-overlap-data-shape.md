@@ -90,10 +90,12 @@ override.
 **10,610,000** are reachable.
 
 The full 360M is not reached. The remaining VIDs generate no impressions and are
-split evenly across **300 `(gender × age_group × us_state)` cohorts**, covering
-both genders, all three age groups and all 50 states (excluding DC). Every cohort
-therefore has a positive population, including the 45 states with no impressions.
-This lets state reports exercise zero impressions without a zero denominator.
+split across **612 `(gender × age_group × us_state × parental_status)` cohorts**,
+covering both genders, all three age groups, all 50 states plus DC, and both
+parental statuses. The 600 state cohorts have reached impressions; the 12 DC
+cohorts have a positive population and zero impressions. This lets reports group
+by every state enum value without confusing zero impressions with a missing
+population denominator.
 
 The frequency vector is a dense `ByteArray` sized to the whole population — one
 slot per population VID, per filter sink — so a 360M population stresses
@@ -101,32 +103,33 @@ frequency-vector allocation regardless of how few VIDs are actually reached.
 
 ### Demographic Striping
 
-The reached range is divided into **10,000-VID stripes** cycling round-robin
-through the 30 `(gender × age_group × us_state)` tuples of
+The reached range is divided into **500-VID stripes** cycling round-robin
+through the 600 `(gender × age_group × us_state × parental_status)` tuples of
 `event_templates.testing.v1.Common`:
 
 *   gender — `MALE`, `FEMALE`
 *   age_group — `YEARS_18_TO_34`, `YEARS_35_TO_54`, `YEARS_55_PLUS`
-*   us_state — `CALIFORNIA`, `NEW_YORK`, `TEXAS`, `FLORIDA`, `ILLINOIS`
+*   us_state — all 50 states, excluding DC
+*   parental_status — `NOT_PARENT`, `PARENT`
 
 Striping exists so demographics stay **orthogonal to the Venn structure**.
 Demographics partition reach — a VID has exactly one gender, one age band, one
-state — whereas Venn membership comes only from which EDPs carry a segment. One
-full cycle is `30 × 10,000 = 300,000` VIDs, which fits inside the *smallest*
+state and one parental status — whereas Venn membership comes only from which EDPs carry a segment. One
+full cycle is `600 × 500 = 300,000` VIDs, which fits inside the *smallest*
 Venn region, so every region carries the full demographic mix and any region can
-be broken down by gender, age or state.
+be broken down by gender, age, state or parental status.
 
 A coarse spec would defeat this. The pre-existing `360m_population_spec` has 12
 subpopulations of 30M each, so all of VIDs 1–10.6M fall inside a single
 `MALE / YEARS_18_TO_34 / CALIFORNIA` subpopulation — zero demographic variation
 across the entire reached range.
 
-**The stripe is also the unit of every data spec's `vid_range_spec`.**
+**Each data spec's `vid_range_spec` stays inside one population stripe.**
 `SyntheticDataGeneration.findSubPopulationIndex` resolves a range's demographics
 by finding the one subpopulation that *wholly contains* it, so a range spanning
 two stripes fails outright with `Sub-population not found for start: N`. Segment
 boundaries are all multiples of `STRIPE_SIZE`, so stripes tile each segment
-exactly. Tranche, frequency and media are therefore assigned **per stripe**
+exactly. Tranche and frequency are assigned **per stripe**; device and media partition each stripe
 rather than by carving a segment into larger blocks.
 
 ## Overlap Topology
@@ -220,10 +223,10 @@ Media type is carried by the event template itself — populating `video.*` path
 generates `VIDEO` events, `display.*` paths generate `DISPLAY`. Each tranche is
 split so that **every segment, and therefore every EDP, emits both**.
 
-This is deliberate: media type is *not* aligned with EDP or Venn structure, so a
-VID shared across EDPs can be reached by a video impression on one publisher and
-a display impression on another. Their union is then genuine cross-media reach,
-which is the deduplication the system exists to perform. Siloed VIDEO-only and
+Each normal entity key contains both media types, including both types on every
+device. Shared segment specs use the same media assignment across their EDPs;
+this fixture exercises mixed-media reporting and EDP deduplication, but does not
+model one person switching media types between publishers. Siloed VIDEO-only and
 DISPLAY-only reports would not exercise it.
 
 Engagement values are cycled per block so threshold impression-qualification
@@ -251,7 +254,7 @@ Slices are proportional and tile the segment exactly. They need not land on
 stripe boundaries: each `vid_range_spec` is clamped to its enclosing stripe, so a
 slice boundary falling mid-stripe still yields ranges that sit wholly within one
 subpopulation. Note a consequence — a single sliced event group carries a subset
-of the 30 demographic tuples, so the full-mix guarantee below holds per Venn
+of the 600 demographic tuples, so the full-mix guarantee below holds per Venn
 region, not per event group.
 
 **Every event group must carry an entity key.** `EventGroupSync` filters its
@@ -470,3 +473,84 @@ Terraform resource tracks it — recreating the config bucket drops it silently.
 
 *   [Deployment Guide](deployment-guide.md) — seeding and `--create-done-blobs`
 *   [EDP Onboarding](README.md) — registering a new aggregator EDP
+
+## Device fields and metadata scale coverage
+
+Every reached age/gender/state/parental-status stripe is split across desktop,
+mobile, tablet, TV, and other devices, with both video and display on each device.
+Each impression carries its home state, parental status, device, media type,
+signed-in status, and engagement values. Parental status is fixed per person;
+device and signed-in status are event fields, not population attributes. The
+reached impressions cover all 50 states. A complete 600-cohort cycle fits inside
+each main Venn region. The sub-sigma noise probe is smaller than one cycle.
+Total population, segment VID ranges, frequency mix, media split, and overlap
+region sizes are preserved; reached demographics change, so stored impressions
+must be reseeded.
+
+Eight encrypted impression blobs carry 5,000 additional `ad-unit` entity keys
+apiece, alongside their original campaign/ad-group/creative keys. Each extra key
+is attached to one existing impression; it is not just an entry in the sidecar.
+These keys are intentionally not registered as Kingdom EventGroups. Data
+availability publishes activity for mapped entity types; `ad-unit` is additional
+metadata and does not require a mapping. No impressions or ground-truth BigQuery
+rows are added or duplicated.
+
+| EDP | Exclusive segment stress date | All-four segment stress date |
+| --- | --- | --- |
+| edp7 | 2026-04-30 | 2026-06-16 |
+| edpa_meta | 2026-04-30 | 2026-06-16 |
+| edpa_video_pub | 2026-04-30 | 2026-06-16 |
+| edpa_retail_pub | 2026-06-16 | 2026-06-16 |
+
+The generated config records the counts and dates, so its fingerprint changes
+and `--only-if-needed` cannot reuse a dataset without the stress keys. Deploy the
+additive BigQuery `device_type` and `parental_status` columns and updated event
+descriptor with the normal CMMS workflow before running the updated seeder.
+
+The testing template declares parental status as a population attribute. Every
+population using that template must supply it, including the older small,
+hash-only, and simulator fixtures. Those fixtures use `NOT_PARENT` throughout;
+the high-overlap fixture exercises both statuses. `CommittedPopulationSpecsTest`
+validates all seven committed populations against the current event descriptor.
+When deploying the expanded descriptor, refresh previously provisioned test
+population resources from these updated files as part of test setup.
+
+| Testing field | Meaning and coverage |
+| --- | --- |
+| `common.gender` | Male and female |
+| `common.age_group` | All three age groups |
+| `common.us_state` | All 50 reached states, with DC as a positive-population, zero-impression control |
+| `common.device_type` | Desktop, mobile, tablet, TV, and other |
+| `common.parental_status` | Parent and not parent, fixed per VID |
+| `common.media_type` | Video and display on every device within each normal entity key |
+| `common.signed_in` | Both signed-in and signed-out impressions |
+
+`EdpAggregatorMetadataScaleTest` checks the deployed metadata service using its
+normal 4 MiB response limit. It filters by all 10,000 extra keys for each EDP,
+paginates with one blob per page, and verifies no duplicate or missing blobs.
+It also audits every active seed row against the live blobs and checks metadata,
+impressions, and completion-marker generations. The BASIC view (the API name
+for compact listing) omits keys while the FULL view
+matches the sidecars, including all 5,000 additional keys and version-pinning
+fields. The reporting cloud tests then verify fulfillment over these same blobs.
+Run `Seed High Overlap Dataset` with force refresh before
+`Run EDPA Reporting Integration Test`; do not reseed during another cloud test.
+
+The in-process `ImpressionDataSourceProviderTest` regression uses 16 blobs with
+5,000 additional keys each, served over a real loopback gRPC transport. The FULL
+response exceeds 4 MiB and fails with `RESOURCE_EXHAUSTED` under the normal
+receive limit. The production provider succeeds by requesting BASIC and recovers
+all 80,000 keys from the sidecars. The deployed cloud audit uses smaller pages;
+those pages do not themselves reproduce the oversized FULL response.
+
+### Population setup memory
+
+The dev Kingdom public API uses a 256 MiB JVM heap and a 640 MiB container
+allocation. Its former 64 MiB heap exhausted memory while creating the expanded
+population, before the seeder began writing impressions. The local Kubernetes
+internal reporting server also uses a 256 MiB heap; its former 64 MiB heap
+exhausted memory during correctness-test startup.
+
+The reporting workflow retains the two existing reports: media and impression
+qualification filters, and weekly age/gender results. The metadata audit checks
+the expanded keys separately, without creating a full geographic report.

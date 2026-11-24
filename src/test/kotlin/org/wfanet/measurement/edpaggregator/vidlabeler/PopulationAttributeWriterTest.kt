@@ -47,8 +47,8 @@ class PopulationAttributeWriterTest {
   private val eventDescriptor = TestEvent.getDescriptor()
 
   /**
-   * `v1.Common` carries three population attributes (gender, age_group, us_state), so a spec that
-   * sets fewer than all three is rejected rather than silently zeroing the omitted one.
+   * Each subpopulation must supply all four person attributes rather than leave defaults that
+   * overwrite uploaded values.
    */
   private fun subPopulation(
     gender: Common.Gender,
@@ -56,6 +56,7 @@ class PopulationAttributeWriterTest {
     usState: Common.UsState,
     startVid: Long,
     endVid: Long,
+    parentalStatus: Common.ParentalStatus,
   ): PopulationSpec.SubPopulation =
     PopulationSpecKt.subPopulation {
       attributes +=
@@ -64,6 +65,7 @@ class PopulationAttributeWriterTest {
             this.gender = gender
             this.ageGroup = ageGroup
             this.usState = usState
+            this.parentalStatus = parentalStatus
           }
         )
       vidRanges +=
@@ -81,6 +83,7 @@ class PopulationAttributeWriterTest {
         Common.UsState.CALIFORNIA,
         1L,
         100L,
+        parentalStatus = Common.ParentalStatus.NOT_PARENT,
       )
     subpopulations +=
       subPopulation(
@@ -89,6 +92,7 @@ class PopulationAttributeWriterTest {
         Common.UsState.NEW_YORK,
         101L,
         200L,
+        Common.ParentalStatus.PARENT,
       )
     subpopulations +=
       subPopulation(
@@ -97,6 +101,7 @@ class PopulationAttributeWriterTest {
         Common.UsState.TEXAS,
         201L,
         300L,
+        parentalStatus = Common.ParentalStatus.NOT_PARENT,
       )
   }
 
@@ -105,6 +110,7 @@ class PopulationAttributeWriterTest {
       gender = Common.Gender.MALE
       ageGroup = Common.AgeGroup.YEARS_18_TO_34
       usState = Common.UsState.CALIFORNIA
+      parentalStatus = Common.ParentalStatus.NOT_PARENT
     }
   }
 
@@ -118,6 +124,7 @@ class PopulationAttributeWriterTest {
     assertThat(event.common.ageGroup).isEqualTo(Common.AgeGroup.YEARS_35_TO_54)
     // Every population attribute is taken from the subpopulation, not just gender and age.
     assertThat(event.common.usState).isEqualTo(Common.UsState.NEW_YORK)
+    assertThat(event.common.parentalStatus).isEqualTo(Common.ParentalStatus.PARENT)
   }
 
   @Test
@@ -169,6 +176,7 @@ class PopulationAttributeWriterTest {
               common {
                 gender = Common.Gender.MALE
                 ageGroup = Common.AgeGroup.YEARS_18_TO_34
+                parentalStatus = Common.ParentalStatus.NOT_PARENT
               }
             )
           vidRanges +=
@@ -182,6 +190,33 @@ class PopulationAttributeWriterTest {
     assertFailsWith<PopulationSpecValidationException> {
       PopulationAttributeWriter(eventDescriptor, incomplete)
     }
+  }
+
+  @Test
+  fun `constructor rejects a spec with missing parental status`() {
+    val incomplete = populationSpec {
+      subpopulations +=
+        PopulationSpecKt.subPopulation {
+          attributes +=
+            ProtoAny.pack(
+              common {
+                gender = Common.Gender.MALE
+                ageGroup = Common.AgeGroup.YEARS_18_TO_34
+                usState = Common.UsState.CALIFORNIA
+              }
+            )
+          vidRanges +=
+            PopulationSpecKt.vidRange {
+              startVid = 1
+              endVidInclusive = 100
+            }
+        }
+    }
+    val exception =
+      assertFailsWith<PopulationSpecValidationException> {
+        PopulationAttributeWriter(eventDescriptor, incomplete)
+      }
+    assertThat(exception).hasMessageThat().contains("Common.parental_status")
   }
 
   @Test
@@ -213,6 +248,7 @@ class PopulationAttributeWriterTest {
           Common.UsState.CALIFORNIA,
           1L,
           100L,
+          parentalStatus = Common.ParentalStatus.NOT_PARENT,
         )
       subpopulations +=
         subPopulation(
@@ -221,6 +257,7 @@ class PopulationAttributeWriterTest {
           Common.UsState.NEW_YORK,
           50L,
           200L,
+          parentalStatus = Common.ParentalStatus.NOT_PARENT,
         )
     }
 
@@ -254,6 +291,7 @@ class PopulationAttributeWriterTest {
                 gender = Common.Gender.MALE
                 ageGroup = Common.AgeGroup.YEARS_18_TO_34
                 usState = Common.UsState.CALIFORNIA
+                parentalStatus = Common.ParentalStatus.NOT_PARENT
               }
             )
           attributes +=
@@ -262,6 +300,7 @@ class PopulationAttributeWriterTest {
                 gender = Common.Gender.FEMALE
                 ageGroup = Common.AgeGroup.YEARS_35_TO_54
                 usState = Common.UsState.NEW_YORK
+                parentalStatus = Common.ParentalStatus.NOT_PARENT
               }
             )
           vidRanges +=

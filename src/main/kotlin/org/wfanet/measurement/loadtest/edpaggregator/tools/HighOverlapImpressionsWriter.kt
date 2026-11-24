@@ -22,6 +22,7 @@ import java.util.logging.Logger
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
@@ -133,7 +134,38 @@ class HighOverlapImpressionsWriter(
     return shardsByDate.entries
       .asSequence()
       .sortedBy { it.key }
-      .map { (date, groups) -> EntityKeyedLabeledEventDateShard(date, groups.asSequence()) }
+      .map { (date, groups) ->
+        val shard = EntityKeyedLabeledEventDateShard(date, groups.asSequence())
+        if (eventGroup.additionalEntityKeyDatesList.any { it.toLocalDate() == date }) {
+          withAdditionalEntityKeys(shard, eventGroup)
+        } else {
+          shard
+        }
+      }
+  }
+
+  /** Tags existing impressions, without duplicating events or materializing an entire day. */
+  private fun withAdditionalEntityKeys(
+    shard: EntityKeyedLabeledEventDateShard<TestEvent>,
+    eventGroup: ImpressionTestDataConfig.SyntheticEventGroup,
+  ): EntityKeyedLabeledEventDateShard<TestEvent> {
+    val groups = sequence {
+      var keyIndex = 0
+      for (group in shard.entityKeysWithLabeledEvents) {
+        val events = group.labeledEvents.iterator()
+        while (keyIndex < eventGroup.additionalEntityKeyCount && events.hasNext()) {
+          val event = events.next()
+          val key = EntityKey("ad-unit", "scale-${eventGroup.eventGroupReferenceId}-${keyIndex++}")
+          yield(EntityKeysWithLabeledEvents(group.entityKeys + key, sequenceOf(event)))
+        }
+        yield(EntityKeysWithLabeledEvents(group.entityKeys, events.asSequence()))
+      }
+      check(keyIndex == eventGroup.additionalEntityKeyCount) {
+        "Only $keyIndex impressions available for ${eventGroup.additionalEntityKeyCount} " +
+          "additional entity keys in ${eventGroup.eventGroupReferenceId} on ${shard.localDate}"
+      }
+    }
+    return shard.copy(entityKeysWithLabeledEvents = groups)
   }
 
   companion object {

@@ -798,6 +798,7 @@ class VidLabelingOperatorComparisonIntegrationTest :
                   gender = demographic.first
                   ageGroup = demographic.second
                   usState = Common.UsState.CALIFORNIA
+                  parentalStatus = Common.ParentalStatus.NOT_PARENT
                 }
               )
             vidRanges +=
