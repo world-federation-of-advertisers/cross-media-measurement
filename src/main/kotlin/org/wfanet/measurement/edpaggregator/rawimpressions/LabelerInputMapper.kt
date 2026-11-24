@@ -275,6 +275,7 @@ class LabelerInputMapper(mappings: List<LabelerInputFieldMapping>) {
               throw ValidationFailure.incompatibleType(
                 Type.STRING_VALUE,
                 Type.fromName(value.kindCase.name),
+                path.last(),
               )
             }
             val key = value.stringValue

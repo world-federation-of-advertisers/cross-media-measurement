@@ -354,7 +354,8 @@ class ParquetImpressionConverterTest {
         )
       }
     assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
-    assertThat(failure).hasMessageThat().contains("column=input")
+    assertThat(failure).hasMessageThat().doesNotContain("column=")
+    assertThat(failure).hasMessageThat().contains("field=wfa_virtual_people.DemoBucket.gender")
     assertThat(failure).hasMessageThat().contains("UNKNOWN_ENUM_VALUE")
   }
 
