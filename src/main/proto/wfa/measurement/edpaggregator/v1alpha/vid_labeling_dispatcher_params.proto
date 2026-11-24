@@ -53,6 +53,10 @@ message VidLabelingDispatchWorkItemParams {
   // Authorization for replaying an evicted upload.
   message RecoveryParams {
     // Exact finalized source-object version authorized for replay.
+    // (-- api-linter: core::0215::foreign-type-reference=disabled
+    //     aip.dev/not-precedent: Recovery deliberately reuses the standard
+    //     WorkItem exact-object identity rather than defining a duplicate
+    //     source message. --)
     wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem
         .WorkItemParams.DataPathParams source = 1
         [(google.api.field_behavior) = REQUIRED];
