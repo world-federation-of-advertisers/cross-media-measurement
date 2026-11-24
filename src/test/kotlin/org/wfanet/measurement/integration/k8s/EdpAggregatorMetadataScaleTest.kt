@@ -43,9 +43,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
+import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
-import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Checks compact metadata listing over real, seeded blobs with thousands of entity keys. */
 @RunWith(JUnit4::class)
@@ -77,14 +77,9 @@ class EdpAggregatorMetadataScaleTest {
         parseTextProto(syncConfigFile, DataAvailabilitySyncConfigs.getDefaultInstance())
       val parentsByPath =
         syncConfigs.configsList.associate { it.edpImpressionPath to it.dataProvider }
-      val storage =
-        SelectedStorageClient(
-          blobUri = SelectedStorageClient.parseBlobUri("gs://$bucket/"),
-          rootDirectory = null,
-          projectId = env("GOOGLE_CLOUD_PROJECT"),
-        )
       val gcs =
         StorageOptions.newBuilder().setProjectId(env("GOOGLE_CLOUD_PROJECT")).build().service
+      val storage = GcsStorageClient(gcs, bucket)
       val manifestKey = HighOverlapDataset.manifestBlobKey(modelLineId)
       val manifest =
         HighOverlapDatasetManifest.parseFrom(
