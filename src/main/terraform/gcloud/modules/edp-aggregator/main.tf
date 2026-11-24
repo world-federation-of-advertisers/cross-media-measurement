@@ -913,7 +913,16 @@ resource "google_monitoring_alert_policy" "data_availability_cleanup_queue" {
   }
 }
 
+# Log-based alerts also create Logging notification rules.
+resource "google_project_iam_member" "terraform_logging_config_writer" {
+  project = data.google_project.project.id
+  role    = "roles/logging.configWriter"
+  member  = "serviceAccount:${var.terraform_service_account}"
+}
+
 resource "google_monitoring_alert_policy" "data_availability_cleanup_failed_work_item" {
+  depends_on = [google_project_iam_member.terraform_logging_config_writer]
+
   display_name          = "Metadata cleanup WorkItem requires operator retry"
   combiner              = "OR"
   notification_channels = var.data_availability_cleanup_alert_notification_channels
