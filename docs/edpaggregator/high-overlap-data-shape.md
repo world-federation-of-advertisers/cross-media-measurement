@@ -554,6 +554,8 @@ exclude the final day and retain the source timestamp distribution.
 The dev Kingdom public API uses a 256 MiB JVM heap and a 640 MiB container
 allocation. Its former 64 MiB heap exhausted memory while creating the expanded
 population, before the seeder began writing impressions.
+The local Kubernetes internal reporting server also uses a 256 MiB heap; its
+former 64 MiB heap exhausted memory during correctness-test startup.
 
 | Result group | Dimensions | Periods | Filters |
 | --- | --- | --- | --- |
