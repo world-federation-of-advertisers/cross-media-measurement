@@ -472,6 +472,16 @@ resource "google_bigquery_table" "report_detail" {
     "name": "CmmsMeasurementConsumer",
     "type": "STRING",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportCreateTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EdpFulfilledTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -533,6 +543,16 @@ resource "google_bigquery_table" "report_detail_edp" {
   {
     "name": "CmmsMeasurementConsumer",
     "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "ReportCreateTime",
+    "type": "TIMESTAMP",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "EdpFulfilledTime",
+    "type": "TIMESTAMP",
     "mode": "NULLABLE"
   }
 ]
