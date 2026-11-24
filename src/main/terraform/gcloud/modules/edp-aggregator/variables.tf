@@ -728,3 +728,10 @@ variable "data_availability_publication_status_storage_roots" {
     error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
   }
 }
+
+variable "meta_impression_query_uber_jar_path" {
+  description = "Path to the Meta impression-query Cloud Function uber jar published by edp-components. When null, the function is not deployed."
+  type        = string
+  nullable    = true
+  default     = null
+}

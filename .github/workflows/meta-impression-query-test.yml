@@ -1,0 +1,186 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Meta impression-query test
+run-name: Meta impression-query test [${{ inputs.environment }}]
+
+# Calls the deployed Meta impression-query function with edp-components' DeployedFunctionTest,
+# checked out at the commit the pinned artifact version was built from. Update CMMS runs it after
+# every apply with tests enabled; it can also be run by hand. The version, identity provider,
+# service account, project and region come from the environment's committed cmms.json, the same
+# file the deployment reads. Skipped when cmms.json pins no version, i.e. the function is not
+# deployed there.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        required: true
+        type: choice
+        options:
+        - dev
+        - qa
+        - head
+
+permissions:
+  contents: read
+
+jobs:
+  run-meta-impression-query-test:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Load CMMS environment configuration
+        id: cmms-config
+        uses: ./.github/actions/load-cmms-environment
+        with:
+          environment: ${{ inputs.environment }}
+
+      - name: Resolve test target
+        id: target
+        env:
+          META_IMPRESSION_QUERY_ARTIFACT_VERSION: ${{ fromJSON(steps.cmms-config.outputs.config).META_IMPRESSION_QUERY_ARTIFACT_VERSION }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="${META_IMPRESSION_QUERY_ARTIFACT_VERSION:-}"
+          if [[ -z "$version" ]]; then
+            echo "META_IMPRESSION_QUERY_ARTIFACT_VERSION is not set in cmms.json; the function is not deployed"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # The test code must match the deployed artifact, so the version has to name its source.
+          if [[ "$version" =~ ^0\.0\.0-([0-9a-f]{12})$ ]]; then
+            # actions/checkout needs the full commit SHA, not the 12-character prefix in the version.
+            ref="$(gh api "repos/world-federation-of-advertisers/edp-components/commits/${BASH_REMATCH[1]}" -q .sha)"
+          elif [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            ref="v$version"
+          else
+            echo "Cannot map META_IMPRESSION_QUERY_ARTIFACT_VERSION '$version' to a source revision" >&2
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        if: steps.target.outputs.skip == 'false'
+        with:
+          repository: world-federation-of-advertisers/edp-components
+          ref: ${{ steps.target.outputs.ref }}
+          path: edp-components
+
+      # edp-components resolves common-testing from GitHub Packages, which needs credentials.
+      - name: Configure Maven credentials
+        if: steps.target.outputs.skip == 'false'
+        env:
+          PACKAGES_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGES_USER: ${{ github.actor }}
+        run: |
+          printf 'machine maven.pkg.github.com\nlogin %s\npassword %s\n' \
+            "$PACKAGES_USER" "$PACKAGES_TOKEN" > ~/.netrc
+          chmod 600 ~/.netrc
+
+      - name: Set up Bazel
+        if: steps.target.outputs.skip == 'false'
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+
+      - name: Authenticate to Google Cloud
+        if: steps.target.outputs.skip == 'false'
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+
+      # Calls as the Results Fulfiller, the only identity bound as invoker, so the test proves the
+      # production caller can reach the function.
+      - name: Run DeployedFunctionTest
+        if: steps.target.outputs.skip == 'false'
+        working-directory: edp-components
+        env:
+          GCLOUD_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
+          GCLOUD_REGION: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_REGION }}
+          # One JSON source for the Meta function's per-environment settings; the test target is
+          # its "test" object. A secret rather than a variable: it names a real campaign and its
+          # impression count. Its fields are read and masked only in this step and never written to
+          # GITHUB_ENV, which GitHub prints in every later step's env block in the public log.
+          CONFIG_CONTENT: ${{ secrets.META_IMPRESSION_QUERY_CONFIG_CONTENT }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          # The test skips rather than fails when unconfigured, so a missing input is an error here.
+          [[ -n "$CONFIG_CONTENT" ]] || fail "secrets.META_IMPRESSION_QUERY_CONFIG_CONTENT is empty"
+          read_field() {
+            local value
+            value="$(jq -r --arg f "$1" '.test[$f] // empty' <<<"$CONFIG_CONTENT")"
+            [[ -n "$value" ]] || { echo "META_IMPRESSION_QUERY_CONFIG_CONTENT.test.$1 is missing" >&2; return 1; }
+            printf '%s' "$value"
+          }
+          # Separate assignments, not `export VAR="$(...)"`, so a failed command stops the step.
+          META_TEST_ENTITY_ID="$(read_field entity_id)"
+          META_TEST_EXPECTED_IMPRESSIONS="$(read_field expected_impressions)"
+          # A real entity ID and its impression total are advertiser data; keep them out of the log.
+          echo "::add-mask::$META_TEST_ENTITY_ID"
+          echo "::add-mask::$META_TEST_EXPECTED_IMPRESSIONS"
+          META_TEST_ENTITY_TYPE="$(read_field entity_type)"
+          META_TEST_START_EPOCH_SECONDS="$(read_field start_epoch_seconds)"
+          META_TEST_END_EPOCH_SECONDS="$(read_field end_epoch_seconds)"
+
+          META_TEST_FUNCTION_URL="$(gcloud functions describe meta-impression-query \
+            --gen2 --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+            --format='value(serviceConfig.uri)')"
+          [[ -n "$META_TEST_FUNCTION_URL" ]] || fail "meta-impression-query has no URL"
+          # generateIdToken needs only roles/iam.serviceAccountOpenIdTokenCreator, which Terraform
+          # grants; gcloud's --impersonate-service-account would also need an access token.
+          access_token="$(gcloud auth print-access-token)"
+          echo "::add-mask::$access_token"
+          META_TEST_ID_TOKEN="$(curl -sSf -X POST \
+            -H "Authorization: Bearer $access_token" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n --arg a "$META_TEST_FUNCTION_URL" '{audience: $a, includeEmail: true}')" \
+            "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/results-fulfiller-sa@${GCLOUD_PROJECT}.iam.gserviceaccount.com:generateIdToken" \
+            | jq -r '.token // empty')"
+          [[ -n "$META_TEST_ID_TOKEN" ]] || fail "Could not mint an ID token as the Results Fulfiller"
+          echo "::add-mask::$META_TEST_ID_TOKEN"
+          export META_TEST_ENTITY_ID META_TEST_ENTITY_TYPE META_TEST_START_EPOCH_SECONDS \
+            META_TEST_END_EPOCH_SECONDS META_TEST_EXPECTED_IMPRESSIONS META_TEST_FUNCTION_URL \
+            META_TEST_ID_TOKEN
+
+          target=//src/test/kotlin/org/wfanet/measurement/edpcomponents/meta:DeployedFunctionTest
+          bazel test "$target" \
+            --test_env=META_TEST_FUNCTION_URL \
+            --test_env=META_TEST_ID_TOKEN \
+            --test_env=META_TEST_ENTITY_ID \
+            --test_env=META_TEST_ENTITY_TYPE \
+            --test_env=META_TEST_START_EPOCH_SECONDS \
+            --test_env=META_TEST_END_EPOCH_SECONDS \
+            --test_env=META_TEST_EXPECTED_IMPRESSIONS \
+            --test_output=errors \
+            --nocache_test_results
+          # A skipped JUnit test counts as passed, so require that every test case actually ran.
+          test_xml="$(bazel info bazel-testlogs)/src/test/kotlin/org/wfanet/measurement/edpcomponents/meta/DeployedFunctionTest/test.xml"
+          [[ -f "$test_xml" ]] || fail "DeployedFunctionTest produced no test.xml"
+          if grep -q "<skipped" "$test_xml"; then
+            fail "DeployedFunctionTest skipped test cases instead of running them"
+          fi

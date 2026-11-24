@@ -669,3 +669,10 @@ variable "data_availability_publication_status_storage_roots" {
     error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
   }
 }
+
+variable "meta_impression_query_uber_jar_path" {
+  description = "Path to the downloaded Meta impression-query Cloud Function uber jar. terraform-cmms-v2.yml downloads the version named by META_IMPRESSION_QUERY_ARTIFACT_VERSION in the environment's cmms.json. When unset, the function is not deployed."
+  type        = string
+  nullable    = true
+  default     = null
+}
