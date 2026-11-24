@@ -44,6 +44,8 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt as InternalListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest as InternalListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequestKt as InternalListWorkItemsRequestKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse as InternalListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
@@ -771,6 +773,76 @@ class WorkItemServiceTest {
             internalListWorkItemsResponse.nextPageToken.toByteString().base64UrlEncode()
         }
       )
+  }
+
+  @Test
+  fun `listWorkItems forwards queue and state filter`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { listWorkItems(any()) } doReturn
+        InternalListWorkItemsResponse.getDefaultInstance()
+    }
+
+    service.listWorkItems(
+      listWorkItemsRequest {
+        filter =
+          ListWorkItemsRequestKt.filter {
+            queueIn += "queues/vid-labeler-queue"
+            stateIn += WorkItem.State.QUEUED
+            stateIn += WorkItem.State.RUNNING
+          }
+      }
+    )
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::listWorkItems,
+      )
+      .isEqualTo(
+        internalListWorkItemsRequest {
+          pageSize = 50
+          filter =
+            InternalListWorkItemsRequestKt.filter {
+              queueResourceIds += "queues/vid-labeler-queue"
+              states += InternalWorkItem.State.QUEUED
+              states += InternalWorkItem.State.RUNNING
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItems rejects unspecified state filter`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItems(
+          listWorkItemsRequest {
+            filter = ListWorkItemsRequestKt.filter { stateIn += WorkItem.State.STATE_UNSPECIFIED }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listWorkItems maps unknown filter queue to INVALID_ARGUMENT`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { listWorkItems(any()) } doThrow
+        InternalQueueNotFoundException("queues/missing")
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItems(
+          listWorkItemsRequest {
+            filter = ListWorkItemsRequestKt.filter { queueIn += "queues/missing" }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.QUEUE_NOT_FOUND.name)
   }
 
   @Test

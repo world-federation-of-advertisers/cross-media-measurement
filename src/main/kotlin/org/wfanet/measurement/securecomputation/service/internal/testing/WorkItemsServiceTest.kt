@@ -45,6 +45,7 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequestKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
@@ -1393,6 +1394,87 @@ abstract class WorkItemsServiceTest {
       )
 
     deleteSubscriptionAndTopic()
+  }
+
+  @Test
+  fun `listWorkItems returns only matching queues and states across pages`() = runBlocking {
+    val services =
+      initServices(
+        TestConfig.TWO_QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {}
+        },
+      )
+    suspend fun create(id: String, queue: String): WorkItem =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = id
+            queueResourceId = queue
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val queuedA1 = create("queued-a-1", "test-queue-a")
+    val failedA = create("failed-a", "test-queue-a")
+    create("queued-b", "test-queue-b")
+    val queuedA2 = create("queued-a-2", "test-queue-a")
+    services.workItemAttemptsService.createWorkItemAttempt(
+      createWorkItemAttemptRequest {
+        expectedWorkItemGeneration = failedA.generation
+        workItemAttempt = workItemAttempt {
+          workItemResourceId = failedA.workItemResourceId
+          workItemAttemptResourceId = "failed-a-attempt"
+        }
+      }
+    )
+    services.service.failWorkItem(
+      failWorkItemRequest { workItemResourceId = failedA.workItemResourceId }
+    )
+    val filter =
+      ListWorkItemsRequestKt.filter {
+        queueResourceIds += "test-queue-a"
+        states += WorkItem.State.QUEUED
+      }
+
+    val firstPage =
+      services.service.listWorkItems(
+        listWorkItemsRequest {
+          pageSize = 1
+          this.filter = filter
+        }
+      )
+    val secondPage =
+      services.service.listWorkItems(
+        listWorkItemsRequest {
+          pageSize = 1
+          pageToken = firstPage.nextPageToken
+          this.filter = filter
+        }
+      )
+
+    assertThat(firstPage.workItemsList).containsExactly(queuedA1)
+    assertThat(firstPage.hasNextPageToken()).isTrue()
+    assertThat(secondPage.workItemsList).containsExactly(queuedA2)
+    assertThat(secondPage.hasNextPageToken()).isFalse()
+  }
+
+  @Test
+  fun `listWorkItems throws FAILED_PRECONDITION for unknown filter queue`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.listWorkItems(
+          listWorkItemsRequest {
+            filter = ListWorkItemsRequestKt.filter { queueResourceIds += "non_existing_queue" }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.QUEUE_NOT_FOUND.name)
   }
 
   private suspend fun createWorkItems(

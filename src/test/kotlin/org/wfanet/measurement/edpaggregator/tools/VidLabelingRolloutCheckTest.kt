@@ -20,6 +20,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.netty.handler.ssl.ClientAuth
 import java.nio.file.Paths
+import java.time.Duration
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.assertFailsWith
@@ -89,6 +90,13 @@ class VidLabelingRolloutCheckTest {
   private val registeredServices = mutableListOf<BindableService>()
   private var repeatedToken = false
   private var uploadReads = 0
+  private var workItemReads = 0
+  private var modelLineReads = 0
+  private var healingReads = 0
+  private val workItemRequests = mutableListOf<ListWorkItemsRequest>()
+  private val uploadRequests = mutableListOf<ListRawImpressionUploadsRequest>()
+  private val modelLineRequests = mutableListOf<ListRawImpressionUploadModelLinesRequest>()
+  private val healingRequests = mutableListOf<ListUploadHealingOperationsRequest>()
   private var shardRows =
     (0..1).map { index ->
       poolAssignmentJob {
@@ -99,6 +107,7 @@ class VidLabelingRolloutCheckTest {
   private var labelFiles = listOf("$UPLOAD/files/a", "$UPLOAD/files/b")
   private var ranked = false
   private var modelState = RawImpressionUploadModelLine.State.COMPLETED
+  private var ignoreWorkItemFilter = false
   @get:Rule
   val server = GrpcTestServerRule {
     fun register(service: BindableService) {
@@ -118,16 +127,37 @@ class VidLabelingRolloutCheckTest {
               }
             }
             if (queryFails) throw Status.UNAVAILABLE.asException()
+            uploadRequests += request
+            val states = request.filter.stateInList
+            val matching = uploadRows.filter { states.isEmpty() || it.state in states }
             val offset = request.pageToken.toIntOrNull() ?: 0
-            rawImpressionUploads += uploadRows.drop(offset).take(1)
-            if (offset + 1 < uploadRows.size || repeatedToken) nextPageToken = "1"
+            rawImpressionUploads += matching.drop(offset).take(1)
+            if (repeatedToken) {
+              nextPageToken = "1"
+            } else if (offset + 1 < matching.size) {
+              nextPageToken = (offset + 1).toString()
+            }
           }
       }
     )
     register(
       object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
         override suspend fun listWorkItems(request: ListWorkItemsRequest) = listWorkItemsResponse {
-          workItems += items
+          workItemReads++
+          workItemRequests += request
+          val queues = request.filter.queueInList
+          val states = request.filter.stateInList
+          val matching =
+            if (ignoreWorkItemFilter) items
+            else
+              items.filter {
+                (queues.isEmpty() || it.queue in queues) && (states.isEmpty() || it.state in states)
+              }
+          val offset = request.pageToken.toIntOrNull() ?: 0
+          workItems += matching.drop(offset).take(request.pageSize)
+          if (offset + request.pageSize < matching.size) {
+            nextPageToken = (offset + request.pageSize).toString()
+          }
         }
       }
     )
@@ -136,7 +166,12 @@ class VidLabelingRolloutCheckTest {
         UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
         override suspend fun listUploadHealingOperations(
           request: ListUploadHealingOperationsRequest
-        ) = listUploadHealingOperationsResponse { uploadHealingOperations += operations }
+        ) = listUploadHealingOperationsResponse {
+          healingReads++
+          healingRequests += request
+          val states = request.filter.stateInList
+          uploadHealingOperations += operations.filter { states.isEmpty() || it.state in states }
+        }
       }
     )
     register(
@@ -145,10 +180,15 @@ class VidLabelingRolloutCheckTest {
         override suspend fun listRawImpressionUploadModelLines(
           request: ListRawImpressionUploadModelLinesRequest
         ) = listRawImpressionUploadModelLinesResponse {
-          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-            cmmsModelLine = MODEL
-            state = modelState
-            poolAssignmentComplete = true
+          modelLineReads++
+          modelLineRequests += request
+          val states = request.filter.stateInList
+          if (states.isEmpty() || modelState in states) {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              cmmsModelLine = MODEL
+              state = modelState
+              poolAssignmentComplete = true
+            }
           }
         }
       }
@@ -193,7 +233,10 @@ class VidLabelingRolloutCheckTest {
     )
   }
 
-  private fun checker(leaseProbe: (suspend (Set<String>) -> Unit)? = null) =
+  private fun checker(
+    leaseQuiescence: Duration = Duration.ZERO,
+    sleep: suspend (Duration) -> Unit = {},
+  ) =
     VidLabelingRolloutChecker(
       RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(server.channel),
       RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
@@ -209,7 +252,8 @@ class VidLabelingRolloutCheckTest {
         server.channel
       ),
       WorkItemsGrpcKt.WorkItemsCoroutineStub(server.channel),
-      requireNoSyncLeases = leaseProbe,
+      leaseQuiescence = leaseQuiescence,
+      sleep = sleep,
     )
 
   private suspend fun drained() = checker().requireDrained(setOf("dataProviders/dp"), setOf(QUEUE))
@@ -218,7 +262,7 @@ class VidLabelingRolloutCheckTest {
     checker().requireZeroMembership("dataProviders/dp", DONE, 12, MODEL, 2)
 
   @Test
-  fun `maintenance requires authoritative lease evidence`() =
+  fun `maintenance requires a lease quiescence period`() =
     runBlocking<Unit> {
       assertFailsWith<IllegalStateException> {
         checker().requireMaintenanceDrained(setOf("dataProviders/dp"), setOf(QUEUE))
@@ -226,31 +270,29 @@ class VidLabelingRolloutCheckTest {
     }
 
   @Test
-  fun `maintenance verifies leases and stable state twice`() =
+  fun `maintenance waits for abandoned leases to expire between two drain proofs`() =
     runBlocking<Unit> {
-      var probes = 0
-      checker { providers ->
-          assertThat(providers).containsExactly("dataProviders/dp")
-          probes++
+      val sleeps = mutableListOf<Duration>()
+      checker(LEASE_QUIESCENCE) {
+          assertThat(uploadReads).isEqualTo(1)
+          sleeps += it
         }
         .requireMaintenanceDrained(setOf("dataProviders/dp"), setOf(QUEUE))
-      assertThat(probes).isEqualTo(2)
+      assertThat(sleeps).containsExactly(LEASE_QUIESCENCE)
       assertThat(uploadReads).isEqualTo(2)
+      assertThat(workItemReads).isEqualTo(2)
     }
 
   @Test
-  fun `active lease and state changing during collection fail closed`() =
+  fun `work started during the lease wait fails closed`() =
     runBlocking<Unit> {
-      assertFailsWith<IllegalStateException> {
-        checker { throw IllegalStateException("active lease") }
-          .requireMaintenanceDrained(setOf("dataProviders/dp"), setOf(QUEUE))
-      }
-      assertFailsWith<IllegalStateException> {
-        checker {
+      assertFailsWith<RolloutWorkInProgressException> {
+        checker(LEASE_QUIESCENCE) {
             items =
               listOf(
                 workItem {
-                  queue = QUEUE
+                  name = "workItems/late"
+                  queue = QUEUE_ID
                   state = WorkItem.State.QUEUED
                 }
               )
@@ -260,11 +302,116 @@ class VidLabelingRolloutCheckTest {
     }
 
   @Test
+  fun `large terminal history is bounded by server-side filters`() =
+    runBlocking<Unit> {
+      items =
+        (0 until 10_000).map { index ->
+          workItem {
+            name = "workItems/old-$index"
+            queue = if (index % 2 == 0) QUEUE_ID else "other-queue"
+            state = if (index % 3 == 0) WorkItem.State.FAILED else WorkItem.State.SUCCEEDED
+          }
+        }
+      uploadRows =
+        (0 until 5_000).map { index -> uploadRows.first().copy { name = "$UPLOAD-$index" } }
+      operations =
+        (0 until 1_000).map { index ->
+          uploadHealingOperation {
+            name = "operations/old-$index"
+            state = UploadHealingOperation.State.COMPLETE
+          }
+        }
+
+      drained()
+
+      assertThat(workItemReads).isEqualTo(1)
+      assertThat(uploadReads).isEqualTo(1)
+      assertThat(modelLineReads).isEqualTo(1)
+      assertThat(healingReads).isEqualTo(1)
+      val workItemFilter = workItemRequests.single().filter
+      assertThat(workItemFilter.queueInList).containsExactly(QUEUE_ID)
+      assertThat(workItemFilter.stateInList)
+        .containsExactly(WorkItem.State.QUEUED, WorkItem.State.RUNNING)
+      assertThat(uploadRequests.single().filter.stateInList)
+        .containsExactly(
+          RawImpressionUpload.State.CREATED,
+          RawImpressionUpload.State.ACTIVE,
+          RawImpressionUpload.State.CORRECTION_REQUIRED,
+        )
+      assertThat(modelLineRequests.single().parent)
+        .isEqualTo("dataProviders/dp/rawImpressionUploads/-")
+      assertThat(modelLineRequests.single().filter.stateInList)
+        .containsNoneOf(
+          RawImpressionUploadModelLine.State.COMPLETED,
+          RawImpressionUploadModelLine.State.FAILED,
+        )
+      assertThat(healingRequests.single().filter.stateInList)
+        .doesNotContain(UploadHealingOperation.State.COMPLETE)
+    }
+
+  @Test
+  fun `deployment queue names are translated to WorkItem queue IDs`() =
+    runBlocking<Unit> {
+      for (ignoreFilter in listOf(false, true)) {
+        ignoreWorkItemFilter = ignoreFilter
+        workItemRequests.clear()
+        items =
+          listOf(
+            workItem {
+              name = "workItems/active"
+              queue = QUEUE_ID
+              state = WorkItem.State.RUNNING
+            }
+          )
+        assertFailsWith<RolloutWorkInProgressException> { drained() }
+        assertThat(workItemRequests.single().filter.queueInList).containsExactly(QUEUE_ID)
+      }
+    }
+
+  @Test
+  fun `queue without deployment prefix is rejected`() =
+    runBlocking<Unit> {
+      assertFailsWith<IllegalArgumentException> {
+        checker().requireDrained(setOf("dataProviders/dp"), setOf(QUEUE_ID))
+      }
+    }
+
+  @Test
+  fun `server that ignores the WorkItem filter still drains correctly`() =
+    runBlocking<Unit> {
+      ignoreWorkItemFilter = true
+      items =
+        listOf(
+          workItem {
+            name = "workItems/done"
+            queue = QUEUE_ID
+            state = WorkItem.State.SUCCEEDED
+          },
+          workItem {
+            name = "workItems/other"
+            queue = "other-queue"
+            state = WorkItem.State.RUNNING
+          },
+        )
+      drained()
+      items =
+        items +
+          workItem {
+            name = "workItems/active"
+            queue = QUEUE_ID
+            state = WorkItem.State.RUNNING
+          }
+      assertFailsWith<RolloutWorkInProgressException> { drained() }
+    }
+
+  @Test
   fun `drained evidence is read completely without mutation`() =
     runBlocking<Unit> {
       uploadRows = uploadRows + uploadRows.single().copy { name = "$UPLOAD-other" }
       drained()
-      assertThat(uploadReads).isEqualTo(2)
+      assertThat(uploadReads).isEqualTo(1)
+      assertThat(uploadRows.map { it.state })
+        .containsNoneOf(RawImpressionUpload.State.CREATED, RawImpressionUpload.State.ACTIVE)
     }
 
   @Test
@@ -274,7 +421,7 @@ class VidLabelingRolloutCheckTest {
         listOf(
           workItem {
             name = "workItems/active"
-            queue = QUEUE
+            queue = QUEUE_ID
             state = WorkItem.State.RUNNING
           }
         )
@@ -284,11 +431,13 @@ class VidLabelingRolloutCheckTest {
   @Test
   fun `unknown queue state blocks rollout`() =
     runBlocking<Unit> {
+      // A newer server can return a state this client does not know.
+      ignoreWorkItemFilter = true
       items =
         listOf(
           WorkItem.newBuilder()
             .setName("workItems/unknown")
-            .setQueue(QUEUE)
+            .setQueue(QUEUE_ID)
             .setStateValue(999)
             .build()
         )
@@ -304,8 +453,7 @@ class VidLabelingRolloutCheckTest {
             name = "$UPLOAD-next"
             state = RawImpressionUpload.State.ACTIVE
           }
-      assertFailsWith<IllegalStateException> { drained() }
-      assertThat(uploadReads).isEqualTo(2)
+      assertFailsWith<RolloutWorkInProgressException> { drained() }
     }
 
   @Test
@@ -516,5 +664,7 @@ class VidLabelingRolloutCheckTest {
     private const val DONE = "gs://test/vid-labeling-rollout-smoke/run/done"
     private const val MODEL = "modelProviders/mp/modelSuites/ms/modelLines/ml"
     private const val QUEUE = "queues/vid-labeler-queue"
+    private const val QUEUE_ID = "vid-labeler-queue"
+    private val LEASE_QUIESCENCE: Duration = Duration.ofMinutes(11)
   }
 }
