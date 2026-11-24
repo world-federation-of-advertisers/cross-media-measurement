@@ -266,6 +266,15 @@ variable "results_fulfiller_population_spec" {
   })
 }
 
+variable "additional_results_fulfiller_population_specs" {
+  description = "Additional model populations uploaded to the config bucket before fulfiller workers are deployed."
+  type = map(object({
+    local_path  = string
+    destination = string
+  }))
+  default = {}
+}
+
 variable "vid_labeler_population_spec" {
   description = "An object containing the local path of the VID Labeler population spec file and its destination path in Cloud Storage."
   type = object({

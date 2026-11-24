@@ -17,10 +17,12 @@ package org.wfanet.measurement.loadtest.dataprovider
 import com.google.common.truth.Truth.assertThat
 import com.google.devtools.build.runfiles.Runfiles
 import com.google.protobuf.TypeRegistry
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.Parameterized
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
@@ -28,7 +30,10 @@ import org.wfanet.measurement.common.parseTextProto
 
 /** Keeps committed test populations compatible when the testing template adds person attributes. */
 @RunWith(Parameterized::class)
-class CommittedPopulationSpecsTest(private val resourcePath: String) {
+class CommittedPopulationSpecsTest(
+  private val resourcePath: String,
+  private val eventTemplateVersion: Int,
+) {
   @Test
   fun `population fixture supplies every required person attribute`() {
     val spec =
@@ -37,7 +42,20 @@ class CommittedPopulationSpecsTest(private val resourcePath: String) {
         PopulationSpec.getDefaultInstance(),
         TypeRegistry.newBuilder().add(Common.getDescriptor()).build(),
       )
-    PopulationSpecValidator.validate(spec, TestEvent.getDescriptor())
+    PopulationSpecValidator.validate(spec, TestEvent.getDescriptor(), eventTemplateVersion)
+    if (eventTemplateVersion == 1) {
+      val exception =
+        assertFailsWith<PopulationSpecValidationException> {
+          PopulationSpecValidator.validate(spec, TestEvent.getDescriptor(), 2)
+        }
+      assertThat(
+          exception.details
+            .filterIsInstance<PopulationSpecValidationException.PopulationFieldNotSetDetail>()
+            .map { it.field.name }
+            .toSet()
+        )
+        .containsExactly("parental_status")
+    }
     assertThat(spec.subpopulationsCount).isGreaterThan(0)
   }
 
@@ -45,22 +63,26 @@ class CommittedPopulationSpecsTest(private val resourcePath: String) {
     private val RUNFILES = Runfiles.preload().withSourceRepository("")
 
     @JvmStatic
-    @Parameterized.Parameters(name = "{0}")
-    fun fixtures(): List<Array<String>> =
+    @Parameterized.Parameters(name = "{0} (version {1})")
+    fun fixtures(): List<Array<Any>> =
       listOf(
-        arrayOf("src/main/k8s/testing/data/synthetic_population_spec_large.textproto"),
-        arrayOf("src/main/k8s/testing/data/synthetic_population_spec_small.textproto"),
+        arrayOf("src/main/k8s/testing/data/synthetic_population_spec_large.textproto", 1),
+        arrayOf("src/main/k8s/testing/data/synthetic_population_spec_small.textproto", 1),
         arrayOf(
-          "src/main/proto/wfa/measurement/loadtest/dataprovider/360m_population_spec.textproto"
+          "src/main/proto/wfa/measurement/loadtest/dataprovider/360m_population_spec.textproto",
+          1,
         ),
         arrayOf(
-          "src/main/proto/wfa/measurement/loadtest/dataprovider/hashonly_model_population_spec.textproto"
+          "src/main/proto/wfa/measurement/loadtest/dataprovider/hashonly_model_population_spec.textproto",
+          1,
         ),
         arrayOf(
-          "src/main/proto/wfa/measurement/loadtest/dataprovider/small_population_spec.textproto"
+          "src/main/proto/wfa/measurement/loadtest/dataprovider/small_population_spec.textproto",
+          1,
         ),
         arrayOf(
-          "src/main/proto/wfa/measurement/api/v2alpha/population_specs/360m_population_spec_us.textproto"
+          "src/main/proto/wfa/measurement/api/v2alpha/population_specs/360m_population_spec_us.textproto",
+          2,
         ),
       )
   }

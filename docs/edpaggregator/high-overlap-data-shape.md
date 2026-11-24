@@ -455,8 +455,8 @@ an operator, using the `ModelRepository` tool, and referenced by resource name.
 
 `model-lines create` requires `--population` and `--event-template-version`,
 because it creates the ModelLine, a `ModelRelease` and a `ModelRollout` together.
-Use the event-template version defining the high overlap PopulationSpec. Bootstrap
-it against an existing Population with that contract: seeding then creates the correct high overlap Population
+Use `--event-template-version=2` for this fixture. Bootstrap
+it against a Population validated for version 2: seeding then creates the correct high overlap Population
 and attaches its own release and rollout, which supersedes the bootstrap because
 the PDP resolves the **most recent** rollout on a line.
 
@@ -467,9 +467,38 @@ rollouts over time and the newest is live. The same pattern already runs in
 remain separate because the seeder and test use different model lines and active
 windows.
 
-The Population only affects **population measurements** (`population_size`).
-Reach, frequency and impressions come from the impression data, so an
-unattached Population makes `population_size` wrong and nothing else.
+The PDP uses the model line's Population for population-size measurements. The
+results fulfiller also uses that population's VID ranges for frequency-vector
+indexing. Both must describe the same VID population as the labeled impressions.
+
+### Upgrading a version-1 high-overlap line
+
+Keep the existing line and its population. Create a new ModelLine with version 2;
+do not use `set-event-template-version` to change an initialized line. The committed
+dev/head/qa configuration names separate new lines. The seeder provisions their
+full Population, ModelRelease and ModelRollout before modifying impression data.
+
+The public `CreateModelLine` API can create a line without a bootstrap release.
+The `ModelRepository` convenience command also creates a release and rollout,
+so it requires a version-2 Population up front. With the usual connection and
+TLS flags for the ModelProvider and an existing validated version-2 Population:
+
+```shell
+ModelRepository <MP-connection-and-TLS-flags> model-lines create \
+  --parent=<model-suite> --population=<new-population> \
+  --display-name="high overlap version 2" --type=PROD \
+  --active-start-time=2026-01-01T00:00:00Z --event-template-version=2
+```
+
+Set `HIGH_OVERLAP_MODEL_LINE` in the environment's committed `cmms.json` to
+the new line. The CMMS workflow passes this value to Terraform, which adds the
+version-2 population mapping while retaining the old line's mapping and blob for
+historical data. The normal Terraform deployment uploads the committed population
+to `high-overlap-v2-population-spec.textproto` before
+updating fulfiller workers. Deploy the updated descriptor and fulfiller
+configuration with the normal CMMS workflow, then seed the new line before
+running either high-overlap test. The new line has its own impression paths and
+manifest; a manifest from the old line cannot satisfy it.
 
 ### The Results Fulfiller Needs the Spec Too
 
@@ -520,13 +549,16 @@ and `--only-if-needed` cannot reuse a dataset without the stress keys. Deploy th
 additive BigQuery `device_type` and `parental_status` columns and updated event
 descriptor with the normal CMMS workflow before running the updated seeder.
 
-The testing template declares parental status as a population attribute. Every
-population using that template must supply it, including the older small,
-hash-only, and simulator fixtures. Those fixtures use `NOT_PARENT` throughout;
-the high-overlap fixture exercises both statuses. `CommittedPopulationSpecsTest`
-validates all seven committed populations against the current event descriptor.
-When deploying the expanded descriptor, refresh previously provisioned test
-population resources from these updated files as part of test setup.
+Device type and parental status were added in event-template version 2. Parental
+status is a population attribute, so version-2 populations must supply it. The
+older small, hash-only, and simulator fixtures retain their version-1 contract
+and do not require parental status. `CommittedPopulationSpecsTest` validates
+every committed population fixture against its declared version, including
+historical populations with the newer descriptor.
+
+Use a new high-overlap model line with `--event-template-version=2`; an existing
+version-1 line cannot be changed to version 2. The seeder checks the repository
+version before modifying data, even when a matching manifest exists.
 
 | Testing field | Meaning and coverage |
 | --- | --- |

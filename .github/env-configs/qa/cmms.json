@@ -12,7 +12,7 @@
   "GCLOUD_REGION": "us-central1",
   "GCLOUD_ZONE": "us-central1-c",
   "GKE_CONFIG_SERVICE_ACCOUNT": "gke-configuration@halo-cmm-qa.iam.gserviceaccount.com",
-  "HIGH_OVERLAP_MODEL_LINE": "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/TCufUiq5VqE",
+  "HIGH_OVERLAP_MODEL_LINE": "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/PypX0w7F-JY",
   "KINGDOM_PUBLIC_API_TARGET": "v2alpha.kingdom.qa.halo-cmm.org:8443",
   "KINGDOM_SYSTEM_API_TARGET": "v1alpha.system.kingdom.qa.halo-cmm.org:8443",
   "MCP_HOST": "mcp.reporting.qa.halo-cmm.org",

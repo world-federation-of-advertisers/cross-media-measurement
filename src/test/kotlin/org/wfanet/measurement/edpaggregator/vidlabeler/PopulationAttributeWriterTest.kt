@@ -28,12 +28,14 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.DuplicatePersonEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.copy
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.testEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.video
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedCommon
@@ -193,7 +195,7 @@ class PopulationAttributeWriterTest {
   }
 
   @Test
-  fun `constructor rejects a spec with missing parental status`() {
+  fun `version 2 rejects a spec with missing parental status`() {
     val incomplete = populationSpec {
       subpopulations +=
         PopulationSpecKt.subPopulation {
@@ -214,9 +216,37 @@ class PopulationAttributeWriterTest {
     }
     val exception =
       assertFailsWith<PopulationSpecValidationException> {
-        PopulationAttributeWriter(eventDescriptor, incomplete)
+        PopulationAttributeWriter(eventDescriptor, incomplete, eventTemplateVersion = 2)
       }
     assertThat(exception).hasMessageThat().contains("Common.parental_status")
+  }
+
+  @Test
+  fun `version 1 accepts the historical population without parental status`() {
+    val historicalSpec = populationSpec {
+      subpopulations +=
+        subPopulation(
+          Common.Gender.FEMALE,
+          Common.AgeGroup.YEARS_35_TO_54,
+          Common.UsState.NEW_YORK,
+          1L,
+          100L,
+          parentalStatus = Common.ParentalStatus.PARENTAL_STATUS_UNSPECIFIED,
+        )
+    }
+    val writer =
+      PopulationAttributeWriter(eventDescriptor, historicalSpec, eventTemplateVersion = 1)
+    val uploaded =
+      uploadedEvent().copy {
+        common = common.copy { parentalStatus = Common.ParentalStatus.PARENT }
+      }
+
+    val event = writer.apply(uploaded, 50L).unpack(TestEvent::class.java)
+
+    assertThat(event.common.gender).isEqualTo(Common.Gender.FEMALE)
+    assertThat(event.common.ageGroup).isEqualTo(Common.AgeGroup.YEARS_35_TO_54)
+    assertThat(event.common.usState).isEqualTo(Common.UsState.NEW_YORK)
+    assertThat(event.common.parentalStatus).isEqualTo(Common.ParentalStatus.PARENT)
   }
 
   @Test

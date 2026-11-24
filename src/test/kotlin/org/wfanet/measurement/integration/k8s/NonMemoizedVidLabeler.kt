@@ -53,6 +53,7 @@ class NonMemoizedVidLabeler(
   private val assigner: VirtualPeopleVidAssigner,
   labelerInputFieldMapping: List<LabelerInputFieldMapping>,
   populationSpec: PopulationSpec,
+  eventTemplateVersion: Int,
 ) {
   private val mapper = LabelerInputMapper(labelerInputFieldMapping)
 
@@ -61,7 +62,7 @@ class NonMemoizedVidLabeler(
    * `population_spec_blob_uri`, so [relabel] reproduces the pipeline's output event exactly.
    */
   private val populationAttributeWriter =
-    PopulationAttributeWriter(TestEvent.getDescriptor(), populationSpec)
+    PopulationAttributeWriter(TestEvent.getDescriptor(), populationSpec, eventTemplateVersion)
 
   /**
    * Assigns the model VID for one impression, projecting it onto the same raw-impression columns
@@ -121,6 +122,7 @@ class NonMemoizedVidLabeler(
       gcsProjectId: String,
       labelerInputFieldMapping: List<LabelerInputFieldMapping>,
       populationSpec: PopulationSpec,
+      eventTemplateVersion: Int,
     ): NonMemoizedVidLabeler {
       require(modelBlobUri.isNotEmpty()) { "modelBlobUri must be non-empty" }
       require(gcsProjectId.isNotEmpty()) { "gcsProjectId must be non-empty" }
@@ -136,6 +138,7 @@ class NonMemoizedVidLabeler(
         VirtualPeopleVidAssigner.fromCompiledNodeBlob(bytes),
         labelerInputFieldMapping,
         populationSpec,
+        eventTemplateVersion,
       )
     }
   }

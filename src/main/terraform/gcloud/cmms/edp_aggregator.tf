@@ -13,6 +13,13 @@
 # limitations under the License.
 
 locals {
+  high_overlap_population_spec_destination = "high-overlap-v2-population-spec.textproto"
+  results_fulfiller_model_line_population_spec_blob_uris = merge(
+    var.edpa_model_line_population_spec_blob_uris,
+    var.high_overlap_model_line == "" ? {} : {
+      (var.high_overlap_model_line) = "gs://${var.edpa_config_files_bucket_name}/${local.high_overlap_population_spec_destination}"
+    },
+  )
 
   edp_secret_mount_paths = {
     edp7 = {
@@ -271,7 +278,7 @@ locals {
         # One --model-line group per model line, each with its own population
         # spec. The event template descriptor is shared by all lines.
         flatten([
-          for model_line, population_spec_blob_uri in var.edpa_model_line_population_spec_blob_uris : [
+          for model_line, population_spec_blob_uri in local.results_fulfiller_model_line_population_spec_blob_uris : [
             "--model-line", model_line,
             "--population-spec-file-blob-uri", population_spec_blob_uri,
             "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
@@ -670,6 +677,13 @@ module "edp_aggregator" {
   source                  = "../modules/edp-aggregator"
 
   depends_on = [google_project_iam_member.terraform_metric_writer]
+
+  additional_results_fulfiller_population_specs = var.high_overlap_model_line == "" ? {} : {
+    high_overlap_v2 = {
+      local_path  = "${path.module}/../../../proto/wfa/measurement/api/v2alpha/population_specs/360m_population_spec_us.textproto"
+      destination = local.high_overlap_population_spec_destination
+    }
+  }
 
   tee_consumers_enabled                                 = var.tee_consumers_enabled
   requisition_fulfiller_config                          = local.requisition_fulfiller_config
