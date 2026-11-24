@@ -551,6 +551,10 @@ from 2026-04-01 to 2026-06-30, exclusive: 90 days across 13 weekly windows.
 The final window is six days. The seed data still covers 91 days; expectations
 exclude the final day and retain the source timestamp distribution.
 
+The dev Kingdom public API uses a 256 MiB JVM heap and a 640 MiB container
+allocation. Its former 64 MiB heap exhausted memory while creating the expanded
+population, before the seeder began writing impressions.
+
 | Result group | Dimensions | Periods | Filters |
 | --- | --- | --- | --- |
 | Geography and demographics, weekly | 51 state/DC values × 2 genders × 3 ages × 2 parental statuses | 13 | AMI, MRC |
