@@ -28,13 +28,11 @@ import java.security.SecureRandom
 import java.time.Instant
 import java.time.LocalDate
 import java.util.concurrent.ForkJoinTask
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFailsWith
-import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -145,12 +143,15 @@ class EventProcessingIntegrationTest {
           IllegalArgumentException("SYNTHETIC_PRIVATE_CAUSE"),
         )
         .apply { addSuppressed(IllegalStateException("SYNTHETIC_PRIVATE_SUPPRESSED")) }
-    val uncaughtRecord = CompletableDeferred<java.util.logging.LogRecord>()
+    val uncaughtRecord = AtomicReference<java.util.logging.LogRecord?>()
     val source =
       object : EventSource<Message> {
         override fun generateEventBatches(): Flow<EventBatch<Message>> = flow {
-          checkNotNull(ForkJoinTask.getPool()).execute(Runnable { throw failure })
-          withTimeout(10.seconds) { uncaughtRecord.await() }
+          // Invoke the pool's production handler synchronously from this worker thread, so the
+          // test needs no cross-thread handoff or wall-clock wait.
+          checkNotNull(ForkJoinTask.getPool())
+            .uncaughtExceptionHandler
+            .uncaughtException(Thread.currentThread(), failure)
           throw failure
         }
       }
@@ -160,7 +161,7 @@ class EventProcessingIntegrationTest {
         override fun publish(record: java.util.logging.LogRecord) {
           output += java.util.logging.SimpleFormatter().format(record)
           if (record.message.startsWith("Uncaught exception in thread pool:")) {
-            uncaughtRecord.complete(record)
+            uncaughtRecord.compareAndSet(null, record)
           }
         }
 
@@ -196,8 +197,9 @@ class EventProcessingIntegrationTest {
         }
       assertThat(thrown.message).isEqualTo("SYNTHETIC_PRIVATE_VALUE")
       assertThat(generateSequence<Throwable>(thrown) { it.cause }.any { it === failure }).isTrue()
-      val workerOutput = java.util.logging.SimpleFormatter().format(uncaughtRecord.await())
-      assertThat(workerOutput).contains("Uncaught exception in thread pool:")
+      val workerOutput =
+        java.util.logging.SimpleFormatter().format(checkNotNull(uncaughtRecord.get()))
+      assertThat(workerOutput).contains("Uncaught exception in thread pool: SharedPool-")
       for (marker in
         listOf(
           "SYNTHETIC_PRIVATE_VALUE",

@@ -19,6 +19,7 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.ForkJoinPool
+import java.util.concurrent.ForkJoinWorkerThread
 import java.util.concurrent.TimeUnit
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -271,9 +272,12 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
         thread
       },
       { t, e ->
+        // Rebuild the factory-assigned label from the pool index rather than logging the mutable
+        // thread name.
+        val worker = (t as? ForkJoinWorkerThread)?.let { "SharedPool-${it.poolIndex}" } ?: "${t.id}"
         logger.log(
           Level.SEVERE,
-          "Uncaught exception in thread pool: ${t.id}",
+          "Uncaught exception in thread pool: $worker",
           ExceptionDiagnostics.forLogging(e),
         )
       },

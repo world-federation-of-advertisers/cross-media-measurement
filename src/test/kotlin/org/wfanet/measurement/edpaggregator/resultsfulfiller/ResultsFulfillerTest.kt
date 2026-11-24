@@ -3063,7 +3063,7 @@ class ResultsFulfillerTest {
     assertThat(formattedLogs).contains("justification=UNFULFILLABLE")
     assertThat(formattedLogs).contains("category=REQUISITION_REFUSAL")
     assertThat(formattedLogs).contains("code=FULFILLMENT_FAILED")
-    // The actual direct fulfiller proves that #4944's flag is wired, independent of refusal
+    // The real direct fulfiller proves logMeasurementValues is wired, independent of refusal
     // sanitization.
     assertThat(formattedLogs.contains("Direct MeasurementResult:")).isEqualTo(logMeasurementValues)
     val spans = collectSpans()
