@@ -302,7 +302,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     companion object {
       private val channels = mutableListOf<ManagedChannel>()
-      private val REPORTING_HTTP_TIMEOUT: Duration = Duration.ofMinutes(1)
+      private val REPORTING_HTTP_TIMEOUT: Duration = Duration.ofMinutes(10)
     }
   }
 

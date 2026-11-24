@@ -47,29 +47,29 @@ func run() error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-  // Create connection object to connect to gRPC server
-  gatewayMux := runtime.NewServeMux()
-  conn, err := newClient(*grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
+	// Create connection object to connect to gRPC server
+	gatewayMux := runtime.NewServeMux()
+	conn, err := newClient(*grpcTarget, *tlsTrustedCertsPath, *grpcTargetCertHost)
 
-  // TODO: Replace with connection to health check at grpcTarget
+	// TODO: Replace with connection to health check at grpcTarget
 	// Block until the connection is actually READY
-  fmt.Printf("Waiting for gRPC connection to %s...\n", *grpcTarget)
-  waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
-  defer waitCancel()
+	fmt.Printf("Waiting for gRPC connection to %s...\n", *grpcTarget)
+	waitCtx, waitCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer waitCancel()
 
-  for {
-      state := conn.GetState()
-      if state == connectivity.Idle {
-          conn.Connect()
-      }
-      if state == connectivity.Ready {
-          break
-      }
-      if !conn.WaitForStateChange(waitCtx, state) {
-          return fmt.Errorf("gRPC connection failed to reach READY state within timeout")
-      }
-  }
-  fmt.Println("gRPC connection established.")
+	for {
+		state := conn.GetState()
+		if state == connectivity.Idle {
+			conn.Connect()
+		}
+		if state == connectivity.Ready {
+			break
+		}
+		if !conn.WaitForStateChange(waitCtx, state) {
+			return fmt.Errorf("gRPC connection failed to reach READY state within timeout")
+		}
+	}
+	fmt.Println("gRPC connection established.")
 
 	if err != nil {
 		return err
@@ -89,9 +89,9 @@ func run() error {
 		}
 	}
 
-  mainMux := http.NewServeMux()
-  mainMux.HandleFunc("/healthz", healthzHandler)
-  mainMux.Handle("/", gatewayMux)
+	mainMux := http.NewServeMux()
+	mainMux.HandleFunc("/healthz", healthzHandler)
+	mainMux.Handle("/", gatewayMux)
 
 	// Start HTTP server (and proxy calls to gRPC server endpoint)
 	addr := ":" + strconv.Itoa(*port)
@@ -104,13 +104,13 @@ func newClient(target string, trustedCertsPath string, certHost string) (*grpc.C
 		return nil, err
 	}
 
-	return grpc.NewClient(target, grpc.WithTransportCredentials(creds))
+	return grpc.NewClient(target, grpc.WithTransportCredentials(creds), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(64*1024*1024)))
 }
 
 // Create a local health handler
 func healthzHandler(w http.ResponseWriter, r *http.Request) {
-  w.WriteHeader(http.StatusOK)
-  w.Write([]byte("ok"))
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("ok"))
 }
 
 func main() {

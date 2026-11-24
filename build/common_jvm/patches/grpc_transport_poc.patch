@@ -1,0 +1,22 @@
+diff --git a/src/main/kotlin/org/wfanet/measurement/common/grpc/CommonServer.kt b/src/main/kotlin/org/wfanet/measurement/common/grpc/CommonServer.kt
+--- a/src/main/kotlin/org/wfanet/measurement/common/grpc/CommonServer.kt
++++ b/src/main/kotlin/org/wfanet/measurement/common/grpc/CommonServer.kt
+@@ -60,2 +60,3 @@
+     NettyServerBuilder.forPort(port)
++      .maxInboundMessageSize(Integer.getInteger("wfa.grpc.maxInboundMessageSize", 4 * 1024 * 1024))
+       .apply {
+diff --git a/src/main/kotlin/org/wfanet/measurement/common/grpc/Channel.kt b/src/main/kotlin/org/wfanet/measurement/common/grpc/Channel.kt
+--- a/src/main/kotlin/org/wfanet/measurement/common/grpc/Channel.kt
++++ b/src/main/kotlin/org/wfanet/measurement/common/grpc/Channel.kt
+@@ -39,2 +39,3 @@
+   return NettyChannelBuilder.forTarget(target)
++    .maxInboundMessageSize(Integer.getInteger("wfa.grpc.maxInboundMessageSize", 4 * 1024 * 1024))
+     .apply {
+diff --git a/src/main/kotlin/org/wfanet/measurement/common/grpc/ServiceConfig.kt b/src/main/kotlin/org/wfanet/measurement/common/grpc/ServiceConfig.kt
+--- a/src/main/kotlin/org/wfanet/measurement/common/grpc/ServiceConfig.kt
++++ b/src/main/kotlin/org/wfanet/measurement/common/grpc/ServiceConfig.kt
+@@ -68,3 +68,3 @@
+             name += MethodConfig.Name.getDefaultInstance()
+-            timeout = Durations.fromSeconds(30)
++            timeout = Durations.fromSeconds(java.lang.Long.getLong("wfa.grpc.defaultDeadlineSeconds", 30))
+             retryPolicy =

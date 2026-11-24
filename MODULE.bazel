@@ -43,6 +43,13 @@ bazel_dep(
     repo_name = "wfa_common_jvm",
 )
 
+# Dev-only scale experiment. This branch is not intended to merge.
+single_version_override(
+    module_name = "common-jvm",
+    patch_strip = 1,
+    patches = ["//build/common_jvm/patches:grpc_transport_poc.patch"],
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",

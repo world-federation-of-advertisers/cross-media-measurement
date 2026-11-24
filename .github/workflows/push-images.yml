@@ -17,6 +17,12 @@ name: Build and push container images
 run-name: Build and push container images | image-tag=${{ inputs.image-tag }}
 
 on:
+  workflow_dispatch:
+    inputs:
+      image-tag:
+        description: "Dev-only transport experiment image tag"
+        type: string
+        required: true
   workflow_call:
     inputs:
       image-tag:
@@ -65,17 +71,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Build images
+      - name: Build experiment images
         run: >
           tools/bazel-with-results bazelisk build
-          //src/main/docker:push_all_gke_images 
-          //src/main/docker:push_tee_app_gke_images
-          //src/main/docker/panel_exchange_client:push_all_images
-          //src/main/docker:push_all_eks_images
+          //src/main/docker:push_gcloud_reporting_v2_internal_server_image
+          //src/main/docker:push_reporting_v2alpha_public_api_server_image
+          //src/main/docker:push_basic_reports_reports_image
+          //src/main/docker:push_reporting_grpc_gateway_image
 
-      - name: Push images
+      - name: Push experiment images
         run: |
-          bazelisk run //src/main/docker:push_all_gke_images 
-          bazelisk run //src/main/docker:push_tee_app_gke_images
-          bazelisk run //src/main/docker/panel_exchange_client:push_all_images
-          bazelisk run //src/main/docker:push_all_eks_images
+          bazelisk run //src/main/docker:push_gcloud_reporting_v2_internal_server_image
+          bazelisk run //src/main/docker:push_reporting_v2alpha_public_api_server_image
+          bazelisk run //src/main/docker:push_basic_reports_reports_image
+          bazelisk run //src/main/docker:push_reporting_grpc_gateway_image
