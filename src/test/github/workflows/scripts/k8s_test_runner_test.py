@@ -112,7 +112,7 @@ class KubernetesTestRunnerTest(unittest.TestCase):
         status = json.loads((output / "status.json").read_text())
         self.assertEqual(status["pods"][0]["status"]["containerStatuses"][0]["image"], "emulator:1.5.52")
         self.assertNotIn("SECRET_FROM_ENV", (output / "status.json").read_text())
-        self.assertEqual((output / "spanner-emulator-spanner-emulator.log").stat().st_size, 16384)
+        self.assertEqual((output / "spanner-emulator-original-spanner-emulator.log").stat().st_size, 16384)
         logs = [command for command in commands if "logs" in command]
         self.assertTrue(all("--tail=80" in command and "--limit-bytes=16384" in command for command in logs))
 
@@ -128,15 +128,48 @@ class KubernetesTestRunnerTest(unittest.TestCase):
         result, output, commands = self.invoke({"responses": [[pod]]}, LONG_CHILD)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("restarted", result.stderr)
-        self.assertTrue((output / "spanner-emulator-spanner-emulator-previous.log").exists())
+        self.assertTrue((output / "spanner-emulator-original-spanner-emulator-previous.log").exists())
         self.assertTrue(any("--previous" in command for command in commands))
 
-    def test_detects_replacement_by_uid(self):
-        old = self.pod("original", {"running": {}}, 0)
-        new = self.pod("replacement", {"running": {}}, 0)
-        result, _, _ = self.invoke({"responses": [[old], [new]]}, LONG_CHILD)
+    def test_detects_replacement_and_preserves_both_pod_snapshots(self):
+        old = self.pod("original", {"running": {"startedAt": "2026-01-01T00:00:00Z"}}, 0)
+        new = self.pod("replacement", {"running": {"startedAt": "2026-01-01T00:00:01Z"}}, 0)
+        result, output, commands = self.invoke({
+            "responses": [[old], [new]], "logs": "replacement startup logs",
+        }, LONG_CHILD)
         self.assertEqual(result.returncode, 1, result.stderr)
         self.assertIn("original -> replacement", result.stderr)
+        snapshots = {pod["uid"]: pod for pod in json.loads((output / "status.json").read_text())["pods"]}
+        self.assertEqual(set(snapshots), {"original", "replacement"})
+        self.assertEqual(snapshots["original"]["status"], old["status"])
+        self.assertEqual(snapshots["replacement"]["status"], new["status"])
+        self.assertEqual(snapshots["original"]["role"], "original")
+        self.assertEqual(snapshots["replacement"]["role"], "replacement")
+        self.assertEqual(
+            {path.name for path in output.glob("*.log")},
+            {"spanner-emulator-replacement-spanner-emulator.log"},
+        )
+        self.assertEqual(
+            (output / "spanner-emulator-replacement-spanner-emulator.log").read_text().strip(),
+            "replacement startup logs",
+        )
+        errors = json.loads((output / "errors.json").read_text())
+        self.assertEqual(errors[0]["uid"], "original")
+        self.assertIn("replacement", errors[0]["error"])
+        self.assertEqual(sum("logs" in command for command in commands), 1)
+
+    def test_discards_logs_if_pod_is_replaced_during_capture(self):
+        old = self.pod("original", {"terminated": {"exitCode": 255}}, 0)
+        new = self.pod("replacement", {"running": {}}, 0)
+        result, output, commands = self.invoke({
+            "responses": [[old], [old], [new]], "logs": "replacement startup logs",
+        }, LONG_CHILD)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertFalse(list(output.glob("*.log")))
+        errors = json.loads((output / "errors.json").read_text())
+        self.assertEqual(errors[0]["uid"], "original")
+        self.assertIn("replacement", errors[0]["error"])
+        self.assertEqual(sum("logs" in command for command in commands), 1)
 
     def test_detects_disappearance_after_observation(self):
         pod = self.pod("original", {"running": {}}, 0)

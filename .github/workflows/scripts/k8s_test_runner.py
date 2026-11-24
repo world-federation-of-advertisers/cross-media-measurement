@@ -55,11 +55,25 @@ def _stop(process):
         process.wait()
 
 
-def _capture(args, pods, message):
+def _check_pod_uid(namespace, name, uid):
+    result = _kubectl(namespace, ["get", "pods", name, "--ignore-not-found", "-o", "json"])
+    if result.returncode:
+        raise RuntimeError(result.stderr.strip()[:2000])
+    response = json.loads(result.stdout) if result.stdout.strip() else {"kind": "List", "items": []}
+    pods = response.get("items", []) if response.get("kind") == "List" else [response]
+    current_uid = next(
+        (pod["metadata"]["uid"] for pod in pods if pod["metadata"]["name"] == name), None,
+    )
+    if current_uid != uid:
+        raise RuntimeError(f"Pod {name} UID {uid} is unavailable; current UID is {current_uid or 'none'}.")
+
+
+def _capture(args, pods, observed, message):
     args.output_dir.mkdir(parents=True, exist_ok=True)
     # Pod specs can contain credentials; retain only identity and runtime status.
     snapshots = [
         {"name": pod["metadata"]["name"], "uid": pod["metadata"]["uid"],
+         "role": "original" if pod["metadata"]["uid"] == observed[pod["metadata"]["name"]] else "replacement",
          "status": pod.get("status", {})}
         for pod in pods.values()
     ]
@@ -78,14 +92,18 @@ def _capture(args, pods, message):
                 variants.append(arguments + ["--previous"])
             for command in variants:
                 try:
+                    # Log requests use names; verify identity on both sides of the read.
+                    _check_pod_uid(args.namespace, pod["name"], pod["uid"])
                     result = _kubectl(args.namespace, command)
                     if result.returncode:
                         raise RuntimeError(result.stderr.strip()[:2000])
+                    _check_pod_uid(args.namespace, pod["name"], pod["uid"])
                     suffix = "-previous" if "--previous" in command else ""
-                    path = args.output_dir / f"{pod['name']}-{container['name']}{suffix}.log"
+                    path = args.output_dir / f"{pod['name']}-{pod['uid']}-{container['name']}{suffix}.log"
                     path.write_bytes(result.stdout.encode("utf-8")[-LOG_BYTE_LIMIT:])
-                except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
-                    errors.append({"command": command, "error": str(error)[:2000]})
+                except (OSError, RuntimeError, subprocess.TimeoutExpired, json.JSONDecodeError,
+                        KeyError, TypeError, AttributeError) as error:
+                    errors.append({"command": command, "uid": pod["uid"], "error": str(error)[:2000]})
     (args.output_dir / "errors.json").write_text(json.dumps(errors, indent=2) + "\n")
     text = f"## Kubernetes test dependency failure\n\n{message}\n\nStatus and bounded logs: `{args.output_dir}`.\n"
     print(text, file=sys.stderr)
@@ -158,9 +176,9 @@ def main(argv):
                             break
                         continue  # The test creates these pods during startup.
                     pod = current[name]
-                    snapshots[name] = pod
-                    message = _lost(pod, observed.get(name))
-                    observed.setdefault(name, pod["metadata"]["uid"])
+                    previous_uid = observed.setdefault(name, pod["metadata"]["uid"])
+                    snapshots[pod["metadata"]["uid"]] = pod
+                    message = _lost(pod, previous_uid)
                     if message:
                         break
                 failures = 0
@@ -173,7 +191,7 @@ def main(argv):
                 break
             if message:
                 _stop(process)
-                _capture(args, snapshots, message)
+                _capture(args, snapshots, observed, message)
                 return 1
             try:
                 process.wait(timeout=args.poll_interval_seconds)
