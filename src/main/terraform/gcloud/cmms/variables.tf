@@ -116,7 +116,7 @@ variable "vid_models_storage_bucket_name" {
 }
 
 variable "terraform_service_account" {
-  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  description = "Email of the Terraform deployment service account. Must already be able to manage project IAM bindings and Monitoring alert policies; EDPA grants a custom role limited to Logging notification rules."
   type        = string
   nullable    = false
 }

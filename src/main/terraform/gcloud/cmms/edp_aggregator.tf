@@ -665,6 +665,30 @@ locals {
 
 }
 
+# Reuse the dashboard's role-admin bootstrap before creating the Logging role.
+resource "time_sleep" "terraform_logging_role_admin_propagation" {
+  depends_on      = [google_project_iam_member.terraform_role_admin]
+  create_duration = "120s"
+  triggers = {
+    iam_binding = google_project_iam_member.terraform_role_admin.id
+  }
+}
+
+resource "google_project_iam_custom_role" "terraform_logging_notification_rules" {
+  depends_on  = [time_sleep.terraform_logging_role_admin_propagation]
+  project     = data.google_client_config.default.project
+  role_id     = "terraformLoggingNotificationRules"
+  title       = "Terraform Logging Notification Rules"
+  description = "Manage Logging notification rules required by log-based alerts."
+  permissions = [
+    "logging.notificationRules.create",
+    "logging.notificationRules.delete",
+    "logging.notificationRules.get",
+    "logging.notificationRules.list",
+    "logging.notificationRules.update",
+  ]
+}
+
 module "edp_aggregator" {
   event_group_sync_memory = var.event_group_sync_memory
   source                  = "../modules/edp-aggregator"
@@ -683,6 +707,7 @@ module "edp_aggregator" {
   data_watcher_delete_service_account_name              = "edpa-data-watcher-delete"
   data_watcher_delete_trigger_service_account_name      = "edpa-data-delete-trigger"
   terraform_service_account                             = var.terraform_service_account
+  terraform_logging_notification_rules_role             = google_project_iam_custom_role.terraform_logging_notification_rules.id
   requisition_fetcher_service_account_name              = "edpa-requisition-fetcher"
   data_availability_sync_service_account_name           = "edpa-data-availability-sync"
   data_availability_cleanup_service_account_name        = "edpa-data-availability-cleanup"
