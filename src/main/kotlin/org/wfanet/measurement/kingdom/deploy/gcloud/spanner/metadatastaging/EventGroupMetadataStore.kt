@@ -28,8 +28,8 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 /**
  * Durable staging, worker fencing, and atomic metadata publication.
  *
- * DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4542): Wire the activation
- * job and Operations before enabling ancestor updates.
+ * Before accepting ancestor rename requests, Kingdom must coordinate hierarchy activation with
+ * [MetadataWriteGuard] and wire the Operations service.
  */
 class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
   data class Request(
