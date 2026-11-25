@@ -1,0 +1,102 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Prepare CMMS Terraform inputs
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+      image-tag:
+        type: string
+        required: true
+    outputs:
+      input-artifact:
+        description: "Validated immutable inputs for both rollout stages"
+        value: ${{ jobs.prepare.outputs.input-artifact }}
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    environment: ${{ inputs.environment }}
+    outputs:
+      input-artifact: ${{ steps.package-inputs.outputs.artifact-name }}
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Load CMMS environment configuration
+      uses: ./.github/actions/load-cmms-environment
+      with:
+        environment: ${{ inputs.environment }}
+
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
+
+    - name: Write ~/.bazelrc
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        build --remote_download_outputs=all
+        EOF
+
+    - name: Set TCP keepalive
+      run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
+    - id: prepare-inputs
+      name: Prepare and validate inputs
+      uses: ./.github/actions/prepare-cmms-terraform-inputs
+      with:
+        environment: ${{ inputs.environment }}
+        image-tag: ${{ inputs.image-tag }}
+        packages-token: ${{ github.token }}
+
+    - id: package-inputs
+      name: Package immutable inputs
+      env:
+        CMMS_ENVIRONMENT: ${{ inputs.environment }}
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        DESCRIPTORS_PATH: ${{ steps.prepare-inputs.outputs.event_proto_descriptors_path }}
+      run: |
+        set -euo pipefail
+        python3 .github/workflows/scripts/cmms_input_artifact.py pack \
+          --directory "$RUNNER_TEMP/cmms-inputs" --uber-jars "$RUNNER_TEMP/uber-jars" \
+          --descriptors "$DESCRIPTORS_PATH" --commit "$GITHUB_SHA" \
+          --environment "$CMMS_ENVIRONMENT" --image-tag "$IMAGE_TAG" \
+          --certificates src/main/k8s/testing/secretfiles/all_root_certs.pem
+        # A preparation rerun uses a new name; downstream-only retries reuse
+        # the successful preparation job's original artifact output.
+        echo "artifact-name=cmms-inputs-${CMMS_ENVIRONMENT}-${IMAGE_TAG}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+    # Store validated inputs for reuse by both Terraform rollout stages.
+    - name: Upload immutable inputs
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: ${{ steps.package-inputs.outputs.artifact-name }}
+        path: ${{ runner.temp }}/cmms-inputs/
+        if-no-files-found: error
+        compression-level: 0
+        retention-days: 30
