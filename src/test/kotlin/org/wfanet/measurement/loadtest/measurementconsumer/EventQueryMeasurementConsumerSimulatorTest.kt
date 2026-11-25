@@ -22,7 +22,6 @@ import java.util.concurrent.TimeoutException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.runTest
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -170,8 +169,9 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
     verifyBlocking(measurementsServiceMock, times(2)) { getMeasurement(any()) }
   }
 
+  // The gRPC server runs outside the test scheduler; use real time for the deadlines.
   @Test
-  fun `testImpression times out when final poll does not complete`() = runTest {
+  fun `testImpression times out when final poll does not complete`() = runBlocking {
     stubEventGroups(listOf("sim-eg-ref-1"))
     val measurementName = "$MC_NAME/measurements/m1"
     var getMeasurementCount = 0
