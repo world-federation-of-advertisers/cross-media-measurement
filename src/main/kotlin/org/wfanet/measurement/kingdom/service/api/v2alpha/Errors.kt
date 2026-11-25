@@ -205,7 +205,8 @@ class ModelLineInvalidArgsException(
  * This may replace the error info and description...
  */
 fun Status.toExternalStatusRuntimeException(
-  internalApiException: StatusException
+  internalApiException: StatusException,
+  translateInvalidFieldName: (String) -> String = { it },
 ): StatusRuntimeException {
   val errorInfo = internalApiException.errorInfo
   if (errorInfo == null || errorInfo.domain != ErrorCode.getDescriptor().fullName) {
@@ -220,7 +221,15 @@ fun Status.toExternalStatusRuntimeException(
         put("fieldName", errorInfo.metadataMap.getValue("field_name"))
       }
       ErrorCode.INVALID_FIELD_VALUE -> {
-        put("fieldName", errorInfo.metadataMap.getValue("field_name"))
+        val internalFieldName = errorInfo.metadataMap.getValue("field_name")
+        val fieldName = translateInvalidFieldName(internalFieldName)
+        put("fieldName", fieldName)
+        if (fieldName != internalFieldName) {
+          errorMessage = errorMessage.replaceFirst(internalFieldName, fieldName)
+        }
+      }
+      ErrorCode.EVENT_GROUP_HIERARCHY_CONFLICT -> {
+        errorMessage = internalApiException.status.description ?: "EventGroup hierarchy conflict."
       }
       ErrorCode.MEASUREMENT_NOT_FOUND -> {
         val measurementName =

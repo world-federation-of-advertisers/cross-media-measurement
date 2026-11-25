@@ -371,6 +371,7 @@ class ModelLinesService(
             ErrorCode.EXCHANGE_STEP_ATTEMPT_NOT_FOUND,
             ErrorCode.EXCHANGE_STEP_NOT_FOUND,
             ErrorCode.EVENT_GROUP_STATE_ILLEGAL,
+            ErrorCode.EVENT_GROUP_HIERARCHY_CONFLICT,
             ErrorCode.DUCHY_NOT_ACTIVE,
             ErrorCode.MEASUREMENT_ETAG_MISMATCH,
             ErrorCode.MODEL_SUITE_NOT_FOUND,

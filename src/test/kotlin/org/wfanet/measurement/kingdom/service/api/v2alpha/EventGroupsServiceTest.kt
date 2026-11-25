@@ -120,10 +120,12 @@ import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalG
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyConflictException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupInvalidArgsException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 
 private val CREATE_TIME: Timestamp = Instant.ofEpochSecond(123).toProtoTime()
@@ -1991,6 +1993,85 @@ class EventGroupsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("dataProvider", DATA_PROVIDER_NAME)
+  }
+
+  @Test
+  fun `createEventGroup reports the public field path for invalid hierarchy metadata`() {
+    internalEventGroupsMock.stub {
+      onBlocking { createEventGroup(any()) }
+        .thenThrow(
+          InvalidFieldValueException("event_group.entity_metadata")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        )
+    }
+    val request = createEventGroupRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroup = EVENT_GROUP
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.createEventGroup(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val publicFieldPath = "event_group.event_group_metadata.entity_metadata"
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("fieldName", publicFieldPath)
+    assertThat(exception.status.description).contains(publicFieldPath)
+  }
+
+  @Test
+  fun `batchCreateEventGroups reports the public field path with the original batch index`() {
+    internalEventGroupsMock.stub {
+      onBlocking { batchCreateEventGroups(any()) }
+        .thenThrow(
+          InvalidFieldValueException("requests.1.event_group.entity_metadata")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        )
+    }
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      repeat(2) { requests += createEventGroupRequest { eventGroup = EVENT_GROUP } }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchCreateEventGroups(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val publicFieldPath = "requests[1].event_group.event_group_metadata.entity_metadata"
+    assertThat(exception.errorInfo?.metadataMap).containsEntry("fieldName", publicFieldPath)
+    assertThat(exception.status.description).contains(publicFieldPath)
+  }
+
+  @Test
+  fun `batchCreateEventGroups preserves FAILED_PRECONDITION for an ancestor conflict`() {
+    internalEventGroupsMock.stub {
+      onBlocking { batchCreateEventGroups(any()) }
+        .thenThrow(
+          EventGroupHierarchyConflictException("An ordinary EventGroup occupies an ancestor key.")
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        )
+    }
+    val request = batchCreateEventGroupsRequest {
+      parent = DATA_PROVIDER_NAME
+      requests += createEventGroupRequest { eventGroup = EVENT_GROUP }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.batchCreateEventGroups(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.status.description).contains("ordinary EventGroup")
   }
 
   @Test

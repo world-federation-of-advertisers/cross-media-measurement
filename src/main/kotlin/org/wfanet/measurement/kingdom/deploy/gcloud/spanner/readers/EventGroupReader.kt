@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers
 
 import com.google.cloud.Timestamp as CloudTimestamp
 import com.google.cloud.spanner.Key
+import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.protobuf.Struct as ProtobufStruct
@@ -23,6 +24,7 @@ import com.google.type.interval
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.flow.singleOrNull
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.toProtoDate
@@ -55,6 +57,13 @@ private constructor(private val view: EventGroup.View, private val index: Index)
     val internalEventGroupId: InternalId,
     val internalDataProviderId: InternalId,
     val createRequestId: String?,
+    val entityPath: String?,
+    val isLeaf: Boolean,
+  )
+
+  data class HierarchyKey(
+    val measurementConsumerId: InternalId,
+    val entityKey: EventGroup.EntityKey,
   )
 
   override val builder: Statement.Builder = Statement.newBuilder(getSql(view, index))
@@ -84,6 +93,59 @@ private constructor(private val view: EventGroup.View, private val index: Index)
       }
       .execute(readContext)
       .singleOrNull()
+  }
+
+  /** Reads the complete EventGroups for the requested hierarchy members in one DataProvider. */
+  suspend fun readHierarchyMembers(
+    readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
+    keys: Set<HierarchyKey>,
+  ): Map<HierarchyKey, Result> {
+    if (keys.isEmpty()) return emptyMap()
+
+    val indexKeys =
+      KeySet.newBuilder()
+        .apply {
+          for (key in keys) {
+            addKey(
+              Key.of(
+                dataProviderId.value,
+                key.measurementConsumerId.value,
+                key.entityKey.entityType,
+                key.entityKey.entityId,
+              )
+            )
+          }
+        }
+        .build()
+    val measurementConsumerIdsByEventGroupId =
+      readContext
+        .readUsingIndex(
+          "EventGroups",
+          "EventGroupsByEntityKey",
+          indexKeys,
+          listOf("EventGroupId", "MeasurementConsumerId"),
+        )
+        .toList()
+        .associate { it.getInternalId("EventGroupId") to it.getInternalId("MeasurementConsumerId") }
+    if (measurementConsumerIdsByEventGroupId.isEmpty()) return emptyMap()
+
+    return fillStatementBuilder {
+        appendClause(
+          "WHERE DataProviderId = @dataProviderId AND EventGroupId IN UNNEST(@eventGroupIds)"
+        )
+        bind("dataProviderId" to dataProviderId)
+        bind("eventGroupIds")
+          .toInt64Array(measurementConsumerIdsByEventGroupId.keys.map { it.value })
+      }
+      .execute(readContext)
+      .toList()
+      .associateBy {
+        HierarchyKey(
+          measurementConsumerIdsByEventGroupId.getValue(it.internalEventGroupId),
+          it.eventGroup.entityKey,
+        )
+      }
   }
 
   suspend fun readByCreateRequestIds(
@@ -185,6 +247,8 @@ private constructor(private val view: EventGroup.View, private val index: Index)
       InternalId(struct.getLong("EventGroupId")),
       InternalId(struct.getLong("DataProviderId")),
       if (struct.isNull("CreateRequestId")) null else struct.getString("CreateRequestId"),
+      if (struct.isNull("EntityPath")) null else struct.getString("EntityPath"),
+      struct.getBoolean("IsLeaf"),
     )
 
   private fun buildEventGroup(struct: Struct): EventGroup {
@@ -304,6 +368,8 @@ private constructor(private val view: EventGroup.View, private val index: Index)
         EventGroups.EntityType,
         EventGroups.EntityId,
         EventGroups.EntityMetadata,
+        EventGroups.EntityPath,
+        EventGroups.IsLeaf,
         MeasurementConsumers.ExternalMeasurementConsumerId,
         DataProviders.ExternalDataProviderId,
         EventGroups.State,
@@ -338,6 +404,8 @@ private constructor(private val view: EventGroup.View, private val index: Index)
         EventGroups.EntityType,
         EventGroups.EntityId,
         EventGroups.EntityMetadata,
+        EventGroups.EntityPath,
+        EventGroups.IsLeaf,
         MeasurementConsumers.ExternalMeasurementConsumerId,
         DataProviders.ExternalDataProviderId,
         EventGroups.State,

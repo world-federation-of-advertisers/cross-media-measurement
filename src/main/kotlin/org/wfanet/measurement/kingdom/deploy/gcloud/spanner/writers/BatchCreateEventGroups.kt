@@ -19,7 +19,6 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.BatchCreateEventGroupsResponse
-import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsResponse
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
@@ -61,21 +60,22 @@ class BatchCreateEventGroups(private val request: BatchCreateEventGroupsRequest)
           request.requestsList.map { it.requestId },
         )
 
-    val creations: List<EventGroup> =
-      request.requestsList
-        .filter { !existingEventGroups.containsKey(it.requestId) }
-        .map { subRequest ->
-          val measurementConsumerId: InternalId =
-            externalToInternalMeasurementConsumerId[
-              ExternalId(subRequest.eventGroup.externalMeasurementConsumerId)]
-              ?: throw MeasurementConsumerNotFoundException(
-                ExternalId(subRequest.eventGroup.externalMeasurementConsumerId)
-              )
+    val creations =
+      request.requestsList.mapIndexedNotNull { index, subRequest ->
+        if (existingEventGroups.containsKey(subRequest.requestId)) return@mapIndexedNotNull null
 
-          createEventGroup(idGenerator, dataProviderId, measurementConsumerId, subRequest)
-        }
+        val measurementConsumerId: InternalId =
+          externalToInternalMeasurementConsumerId[
+            ExternalId(subRequest.eventGroup.externalMeasurementConsumerId)]
+            ?: throw MeasurementConsumerNotFoundException(
+              ExternalId(subRequest.eventGroup.externalMeasurementConsumerId)
+            )
 
-    val creationIterator = creations.iterator()
+        EventGroupHierarchyWriter.Creation(subRequest, measurementConsumerId, batchIndex = index)
+      }
+
+    val creationIterator =
+      EventGroupHierarchyWriter(this, dataProviderId).create(creations).iterator()
     return batchCreateEventGroupsResponse {
       eventGroups +=
         request.requestsList.map {
