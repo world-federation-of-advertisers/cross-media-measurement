@@ -257,10 +257,13 @@ class VidLabelingDispatcher(
         doneBlobUri.key.substringBeforeLast("/", missingDelimiterValue = "")
       val listingPrefix = if (folderPrefix.isEmpty()) "" else "$folderPrefix/"
 
-      var replayModelLines = overrideModelLines
-      val committedReplay =
-        findCommittedReplay(doneBlobPath, doneBlobGeneration) { approved ->
-          if (overrideModelLines.isEmpty()) replayModelLines = approved
+      val committedReplay = findCommittedReplay(doneBlobPath, doneBlobGeneration)
+      // Model lines derived from the operation come only from an accepted exact checkpoint.
+      val replayModelLines =
+        if (committedReplay != null && overrideModelLines.isEmpty()) {
+          committedReplay.steps.map { it.cmmsModelLine }.distinct().sorted()
+        } else {
+          overrideModelLines
         }
       if (committedReplay != null) {
         val doneMetadata = readBlobVersionMetadata(doneBlobUri.key, doneBlobGeneration)
@@ -1512,7 +1515,6 @@ class VidLabelingDispatcher(
   private suspend fun findCommittedReplay(
     doneBlobPath: String,
     doneBlobGeneration: Long,
-    onAuthorizedModelLines: (List<String>) -> Unit,
   ): CommittedReplay? {
     val sourceName = recoverySourceUpload ?: return null
     val operationId = checkNotNull(recoveryOperationId)
@@ -1548,7 +1550,6 @@ class VidLabelingDispatcher(
           it.recoveryTarget && it.rawImpressionUploadCorrectionCandidate == candidateName
         }
       } else sourceSteps
-    onAuthorizedModelLines(steps.map { it.cmmsModelLine }.distinct().sorted())
     val expectedAction =
       if (kind == RecoveryKind.EDP_CORRECTION) {
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
@@ -1562,7 +1563,11 @@ class VidLabelingDispatcher(
           it.recoveryAction != expectedAction
       }
     ) {
-      if (operation.rawImpressionUploadCorrectionCandidatesCount > 0) {
+      // A request without supplied model lines depends on this checkpoint, so it waits for the
+      // controller to record it instead of falling back to legacy registration.
+      if (
+        operation.rawImpressionUploadCorrectionCandidatesCount > 0 || overrideModelLines.isEmpty()
+      ) {
         throw java.io.IOException("The exact recovery checkpoint is not ready")
       }
       return null
