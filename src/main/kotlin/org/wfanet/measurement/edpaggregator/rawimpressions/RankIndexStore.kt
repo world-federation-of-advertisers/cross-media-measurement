@@ -66,10 +66,10 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
    * unconditional to a per-attempt-UUID key (see [snapshotKey]). Do NOT collapse to a deterministic
    * key + write-if-absent (common-jvm#389 `writeBlobIfNotFound`): the current UUID-key design is
    * already clobber-safe (each attempt writes its own key; the winning `RankIndexBlob` row picks
-   * the authoritative blob and a loser just orphans bytes), whereas write-if-absent on a
-   * deterministic, envelope-encrypted blob (per-attempt random DEK + IV -> non-reproducible bytes)
-   * would REGRESS it: a writer that crashes between the write and the row insert leaves an orphan
-   * that fails every retry's 412 forever. See [snapshotKey] and
+   * the authoritative blob and a loser can discard its unregistered bytes), whereas write-if-absent
+   * on a deterministic, envelope-encrypted blob (per-attempt random DEK + IV -> non-reproducible
+   * bytes) would REGRESS it: a writer that crashes between the write and the row insert leaves an
+   * orphan that fails every retry's 412 forever. See [snapshotKey] and
    * [SubpoolFingerprintsStore.writeBlob].
    */
   suspend fun writeBlob(
@@ -190,6 +190,11 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
    */
   suspend fun blobSize(blobKey: String, encryptedDek: EncryptedDek): Long =
     encryptedClient(encryptedDek).getBlob(blobKey)?.size ?: 0L
+
+  /** Deletes an unregistered, per-attempt object without modifying any rank metadata. */
+  suspend fun deleteBlob(blobKey: String) {
+    storageClient.getBlob(blobKey)?.delete()
+  }
 
   companion object {
     /**
