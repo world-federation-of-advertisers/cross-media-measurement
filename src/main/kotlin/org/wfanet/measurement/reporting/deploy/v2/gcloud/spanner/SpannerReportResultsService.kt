@@ -74,6 +74,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportingWindowResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readAbandonedReportResultAssemblies
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readExistingReportingSetResultIds
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readReportResultAssembly
@@ -83,9 +84,6 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readUnproces
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.renewReportResultAssembly
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportResultExistsWithExternalId
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExists
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingSetResultExistsByExternalId
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.reportingWindowResultExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToSucceeded
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToUnprocessedResultsReady
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
@@ -451,18 +449,18 @@ class SpannerReportResultsService(
         )
       }
 
+      val ids =
+        generateReportingSetResultIds(
+          txn,
+          measurementConsumerId,
+          reportResultId,
+          request.requestsCount,
+        )
       batchCreateReportingSetResultsResponse {
-        for (reportingSetResultRequest in request.requestsList) {
+        for ((index, reportingSetResultRequest) in request.requestsList.withIndex()) {
           val value = reportingSetResultRequest.reportingSetResult
           val dimension = value.dimension
-          val reportingSetResultId =
-            idGenerator.generateNewId {
-              txn.reportingSetResultExists(measurementConsumerId, reportResultId, it)
-            }
-          val externalReportingSetResultId =
-            idGenerator.generateNewId {
-              txn.reportingSetResultExistsByExternalId(measurementConsumerId, reportResultId, it)
-            }
+          val (reportingSetResultId, externalReportingSetResultId) = ids[index]
           val impressionQualificationFilterId: Long? =
             if (dimension.custom) {
               null
@@ -507,18 +505,85 @@ class SpannerReportResultsService(
               }
             }
 
+          val allocatedWindowIds = mutableSetOf<Long>()
           for (windowEntry in value.reportingWindowResultsList) {
             addUnprocessedWindowResults(
               txn,
               measurementConsumerId,
               reportResultId,
               reportingSetResultId,
+              allocatedWindowIds,
               windowEntry,
             )
           }
         }
       }
     }
+  }
+
+  private data class ReportingSetResultIds(
+    val reportingSetResultId: Long,
+    val externalReportingSetResultId: Long,
+  )
+
+  private suspend fun generateReportingSetResultIds(
+    txn: AsyncDatabaseClient.TransactionContext,
+    measurementConsumerId: Long,
+    reportResultId: Long,
+    count: Int,
+  ): List<ReportingSetResultIds> {
+    val allocatedInternalIds = mutableSetOf<Long>()
+    val allocatedExternalIds = mutableSetOf<Long>()
+    val ids =
+      MutableList(count) {
+        ReportingSetResultIds(
+          idGenerator.generateNewId { !allocatedInternalIds.add(it) },
+          idGenerator.generateNewId { !allocatedExternalIds.add(it) },
+        )
+      }
+    var pendingIndices = ids.indices.toList()
+    while (pendingIndices.isNotEmpty()) {
+      // Check candidates in the same transaction as the inserts, so concurrent conflicts retry.
+      val existingInternalIds =
+        txn.readExistingReportingSetResultIds(
+          measurementConsumerId,
+          reportResultId,
+          pendingIndices.map { ids[it].reportingSetResultId },
+        )
+      val existingExternalIds =
+        txn
+          .readReportingSetResultIds(
+            measurementConsumerId,
+            reportResultId,
+            pendingIndices.map { ids[it].externalReportingSetResultId },
+          )
+          .keys
+      pendingIndices =
+        pendingIndices.filter { index ->
+          val candidate = ids[index]
+          val internalCollision = candidate.reportingSetResultId in existingInternalIds
+          val externalCollision = candidate.externalReportingSetResultId in existingExternalIds
+          if (internalCollision || externalCollision) {
+            ids[index] =
+              candidate.copy(
+                reportingSetResultId =
+                  if (internalCollision) {
+                    idGenerator.generateNewId { !allocatedInternalIds.add(it) }
+                  } else {
+                    candidate.reportingSetResultId
+                  },
+                externalReportingSetResultId =
+                  if (externalCollision) {
+                    idGenerator.generateNewId { !allocatedExternalIds.add(it) }
+                  } else {
+                    candidate.externalReportingSetResultId
+                  },
+              )
+          }
+          internalCollision || externalCollision
+        }
+    }
+    return ids
   }
 
   private fun validate(request: BatchCreateReportingSetResultsRequest) {
@@ -657,17 +722,11 @@ class SpannerReportResultsService(
     measurementConsumerId: Long,
     reportResultId: Long,
     reportingSetResultId: Long,
+    allocatedWindowIds: MutableSet<Long>,
     windowEntry: ReportingSetResult.ReportingWindowEntry,
   ) {
-    val reportingWindowResultId =
-      idGenerator.generateNewId {
-        txn.reportingWindowResultExists(
-          measurementConsumerId,
-          reportResultId,
-          reportingSetResultId,
-          it,
-        )
-      }
+    // The parent is new, so only buffered siblings can have a colliding window ID.
+    val reportingWindowResultId = idGenerator.generateNewId { !allocatedWindowIds.add(it) }
     txn.insertReportingWindowResult(
       measurementConsumerId,
       reportResultId,

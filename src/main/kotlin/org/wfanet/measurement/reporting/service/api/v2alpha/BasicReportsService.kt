@@ -620,18 +620,20 @@ class BasicReportsService(
       reportId = "a${UUID.randomUUID()}"
     }
 
-    try {
-      reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
-    } catch (e: StatusException) {
-      throw Status.INTERNAL.withCause(e).asRuntimeException()
-    }
+    val createdReport: Report =
+      try {
+        reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
+      } catch (e: StatusException) {
+        throw Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    val createdReportKey = checkNotNull(ReportKey.fromName(createdReport.name))
 
     try {
       internalBasicReportsStub.setExternalReportId(
         setExternalReportIdRequest {
           cmmsMeasurementConsumerId = parentKey.measurementConsumerId
           externalBasicReportId = request.basicReportId
-          externalReportId = createReportRequest.reportId
+          externalReportId = createdReportKey.reportId
         }
       )
     } catch (e: StatusException) {
@@ -657,16 +659,11 @@ class BasicReportsService(
     }
 
     logger.info {
-      val reportName =
-        ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName()
-      "Associated xmm.basic_report.name=$basicReportName xmm.report.name=$reportName"
+      "Associated xmm.basic_report.name=$basicReportName xmm.report.name=${createdReport.name}"
     }
     Span.current()
       .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
-      .setAttribute(
-        ReportTraceAttributes.REPORT_NAME,
-        ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName(),
-      )
+      .setAttribute(ReportTraceAttributes.REPORT_NAME, createdReport.name)
 
     return createdInternalBasicReport.toBasicReport(
       populateDeprecatedReportingUnitEventGroupSummaries = false
