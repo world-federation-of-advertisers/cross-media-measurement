@@ -288,6 +288,21 @@ fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToFailed(
 
 /**
  * Buffers an update mutation to set the State of a BasicReports row to
+ * [BasicReport.State.MEASUREMENTS_CREATED].
+ */
+fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToMeasurementsCreated(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+) {
+  bufferUpdateMutation("BasicReports") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("BasicReportId").to(basicReportId)
+    set("State").to(BasicReport.State.MEASUREMENTS_CREATED)
+  }
+}
+
+/**
+ * Buffers an update mutation to set the State of a BasicReports row to
  * [BasicReport.State.UNPROCESSED_RESULTS_READY].
  */
 fun AsyncDatabaseClient.TransactionContext.setBasicReportStateToUnprocessedResultsReady(

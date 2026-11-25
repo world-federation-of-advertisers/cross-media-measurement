@@ -399,6 +399,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":basic_report_proto",
+        ":report_computation_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
