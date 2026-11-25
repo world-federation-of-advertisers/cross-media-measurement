@@ -58,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -495,19 +496,28 @@ class VidLabelerApp(
         buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
         kmsClient,
       )
-    // Resolve the current snapshot set every WorkItem (cheap listing); reuse the process-wide
-    // cached index when the exact same blobs would load, else build it (evicting the old one
-    // first). New Phase-1 output changes the chosen blob URIs -> a new cache key -> a rebuild.
-    // TODO: resolveLatestBlobs runs a metadata-list RPC on every WorkItem, even on a cache hit, so
-    // a metadata-service roll (UNAVAILABLE / DEADLINE_EXCEEDED) fails every WorkItem's fast path
-    // until it recovers. If it becomes a hotspot, cache the result with a short TTL to share one
-    // call across a burst of WorkItems, or retry-on-transient before falling through to a rebuild.
+    val upload = parentUpload(params.vidLabelingJob)
+    require(params.rawImpressionUpload.isEmpty() || params.rawImpressionUpload == upload) {
+      "raw_impression_upload does not match vid_labeling_job"
+    }
+    val uploadKey = requireNotNull(RawImpressionUploadKey.fromName(upload))
+    require(dataProvider == "dataProviders/${uploadKey.dataProviderId}") {
+      "vid_labeling_job does not belong to $dataProvider"
+    }
+    val owner =
+      checkNotNull(
+        listAllModelLines(upload, modelLine).singleOrNull { it.cmmsModelLine == modelLine }
+      ) {
+        "Missing model-line owner for $upload under $modelLine"
+      }
     val resolvedBlobs =
-      MemoizedRankIndex.resolveLatestBlobs(
+      MemoizedRankIndex.resolveUploadBlobs(
         rankIndexBlobsStub,
         dataProvider,
         modelLine,
         rpcThrottlers.metadataRead,
+        upload,
+        owner.poolOffsetsList.toSet(),
       )
     val rankIndex =
       memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
@@ -1232,10 +1242,12 @@ class VidLabelerApp(
   }
 
   /**
-   * Lists every [RawImpressionUploadModelLine] under [upload] (no `cmms_model_line` filter). Used
-   * to resolve the parent rows of the model lines this call completed.
+   * Lists [RawImpressionUploadModelLine] rows under [upload], optionally restricted to [modelLine].
    */
-  private suspend fun listAllModelLines(upload: String): List<RawImpressionUploadModelLine> {
+  private suspend fun listAllModelLines(
+    upload: String,
+    modelLine: String? = null,
+  ): List<RawImpressionUploadModelLine> {
     val rows = mutableListOf<RawImpressionUploadModelLine>()
     rawImpressionUploadModelLinesStub
       .listResources { pageToken: String ->
@@ -1245,6 +1257,10 @@ class VidLabelerApp(
               listRawImpressionUploadModelLinesRequest {
                 parent = upload
                 this.pageToken = pageToken
+                if (modelLine != null) {
+                  filter =
+                    ListRawImpressionUploadModelLinesRequestKt.filter { cmmsModelLine = modelLine }
+                }
               }
             )
           }

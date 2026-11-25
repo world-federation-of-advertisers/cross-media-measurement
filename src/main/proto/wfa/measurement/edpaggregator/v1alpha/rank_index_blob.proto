@@ -29,8 +29,8 @@ option java_outer_classname = "RankIndexBlobProto";
 // A pointer to a rank index blob in Cloud Storage, with its
 // encrypted DEK. Every upload (forward or backfill) writes two
 // rows per (upload, model line, subpool): one DAY_ONLY and one
-// SNAPSHOT. Day-only blobs persist until aged out by the
-// retention policy; snapshots are not pruned.
+// SNAPSHOT. Day-only blobs are retained for unfinished or retryable labeling,
+// then aged out by retention; snapshots are not pruned.
 message RankIndexBlob {
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/RankIndexBlob"
@@ -44,7 +44,7 @@ message RankIndexBlob {
     // Default, unspecified type. Should not be used.
     BLOB_TYPE_UNSPECIFIED = 0;
     // Contains only fingerprints seen during this dispatch.
-    // Used for renewal tracking and deletion bookkeeping.
+    // Saved assignments for this upload, used during memoized VID labeling.
     DAY_ONLY = 1;
     // Contains the full cumulative set of fingerprints with
     // assigned ranks for this subpool.
