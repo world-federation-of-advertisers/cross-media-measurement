@@ -32,7 +32,7 @@ option go_package = "github.com/world-federation-of-advertisers/cross-media-meas
 
 // Service for managing `BasicReport` resources.
 service BasicReports {
-  // Creates a `BasicReport`
+  // Creates a `BasicReport` in the FULL view.
   rpc CreateBasicReport(CreateBasicReportRequest) returns (BasicReport) {
     option (google.api.http) = {
       post: "/v2alpha/{parent=measurementConsumers/*}/basicReports"
@@ -42,7 +42,7 @@ service BasicReports {
         "parent,basic_report,basic_report_id";
   }
 
-  // Returns the `BasicReport` with the given resource key.
+  // Returns the `BasicReport` with the given resource key and result view.
   rpc GetBasicReport(GetBasicReportRequest) returns (BasicReport) {
     option (google.api.http) = {
       get: "/v2alpha/{name=measurementConsumers/*/basicReports/*}"
@@ -50,7 +50,8 @@ service BasicReports {
     option (google.api.method_signature) = "name";
   }
 
-  // Lists `BasicReport` resources that match the filter criteria.
+  // Lists `BasicReport` resources that match the filter criteria in the
+  // requested result view.
   //
   // Ordered by (`create_time` ascending, `name` ascending).
   rpc ListBasicReports(ListBasicReportsRequest)
@@ -77,6 +78,8 @@ message GetBasicReportRequest {
   // field from the response. When unset, the field is still populated; use the
   // `reporting_set` reference instead.
   //
+  // Applies to reporting-unit summaries in both FULL and COMPACT views.
+  //
   // This is a temporary opt-out to drop the deprecated field early during the
   // EventGroup-to-ReportingSet migration. It will be removed in a future
   // release.
@@ -84,6 +87,10 @@ message GetBasicReportRequest {
     (google.api.field_behavior) = OPTIONAL,
     (type.future_disposition) = DEPRECATED
   ];
+
+  // Result representation to return. Defaults to FULL when unspecified.
+  // Authorization and resource identity are the same for both views.
+  BasicReport.View view = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for `ListBasicReport` method
@@ -131,6 +138,8 @@ message ListBasicReportsRequest {
   // field from each returned `BasicReport`. When unset, the field is still
   // populated; use the `reporting_set` reference instead.
   //
+  // Applies to reporting-unit summaries in both FULL and COMPACT views.
+  //
   // This is a temporary opt-out to drop the deprecated field early during the
   // EventGroup-to-ReportingSet migration. It will be removed in a future
   // release.
@@ -138,6 +147,12 @@ message ListBasicReportsRequest {
     (google.api.field_behavior) = OPTIONAL,
     (type.future_disposition) = DEPRECATED
   ];
+
+  // Result representation for every returned report. Defaults to FULL when
+  // unspecified, preserving the existing List response. The effective view
+  // must match the request that supplied `page_token`: unspecified and FULL
+  // are equivalent.
+  BasicReport.View view = 6 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for `ListBasicReports` method.
