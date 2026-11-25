@@ -59,6 +59,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as internalTrusTeeResultMinimumThresholds
@@ -79,6 +80,7 @@ import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.protocolConfig
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
@@ -100,8 +102,10 @@ import org.wfanet.measurement.system.v1alpha.computation
 import org.wfanet.measurement.system.v1alpha.computationParticipant
 import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.getComputationRequest
+import org.wfanet.measurement.system.v1alpha.query
 import org.wfanet.measurement.system.v1alpha.requisition
 import org.wfanet.measurement.system.v1alpha.stageAttempt
+import org.wfanet.measurement.system.v1alpha.vectorSet
 
 private const val DUCHY_ID: String = "some-duchy-id"
 private const val MILL_ID: String = "some-mill-id"
@@ -324,6 +328,35 @@ private val INTERNAL_TRUS_TEE_MEASUREMENT =
     }
     computationParticipants.clear()
     computationParticipants += INTERNAL_TRUS_TEE_COMPUTATION_PARTICIPANT
+  }
+
+private val PLAINTEXT_REQUISITION_SPEC = ByteString.copyFromUtf8("a requisition spec.")
+/** SHA-256 hash of [PLAINTEXT_REQUISITION_SPEC]. */
+private val PLAINTEXT_REQUISITION_SPEC_HASH =
+  HexString("DE322EE0628C8057AA18E36E4393ADF24A1190895BE2B2B0C8B8B28D5B383D82")
+private val QUERY = query {
+  id = "a query"
+  summands = vectorSet { baseVectors += 1 }
+  maxFrequency = 10
+}
+
+private val INTERNAL_TRUS_TEE_V2_MEASUREMENT =
+  INTERNAL_TRUS_TEE_MEASUREMENT.copy {
+    details =
+      details.copy {
+        protocolConfig = protocolConfig {
+          trusTeeV2 = ProtocolConfig.TrusTeeV2.getDefaultInstance()
+        }
+        queries += QUERY.toByteString()
+      }
+    requisitions.clear()
+    requisitions +=
+      INTERNAL_REQUISITION.copy {
+        details = requisitionDetails {
+          vectorIndex = 1
+          requisitionSpec = PLAINTEXT_REQUISITION_SPEC
+        }
+      }
   }
 
 @RunWith(JUnit4::class)
@@ -626,6 +659,30 @@ class ComputationsServiceTest {
         }
       )
   }
+
+  @Test
+  fun `getComputation returns multimeasurement queries and vector requisitions for TrusTEE v2`() =
+    runBlocking {
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+      val request = getComputationRequest { name = SYSTEM_COMPUTATION_NAME }
+
+      val response = service.getComputation(request)
+
+      assertThat(response.mpcProtocolConfig.hasTrusTeeV2()).isTrue()
+      assertThat(response.multimeasurement.queriesList).containsExactly(QUERY)
+      assertThat(response.requisitionsList)
+        .containsExactly(
+          requisition {
+            name = SYSTEM_REQUISITION_NAME
+            state = Requisition.State.FULFILLED
+            requisitionSpecHash = PLAINTEXT_REQUISITION_SPEC_HASH.bytes
+            fulfillingComputationParticipant = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+            vectorIndex = 1
+          }
+        )
+    }
 
   @Test
   fun `stream active computations successfully`() = runBlocking {

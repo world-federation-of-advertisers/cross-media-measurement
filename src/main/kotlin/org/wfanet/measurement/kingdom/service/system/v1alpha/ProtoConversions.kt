@@ -34,6 +34,7 @@ import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationKt
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as systemResultMinimumThresholds
@@ -48,6 +49,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.system.v1alpha.Query
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionKt
@@ -66,7 +68,13 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
           externalIdToApiId(source.externalRequisitionId),
         )
         .toName()
-    requisitionSpecHash = Hashing.hashSha256(source.details.encryptedRequisitionSpec)
+    if (source.details.hasVectorIndex()) {
+      // A multimeasurement RequisitionSpec is in plaintext and carries no nonce.
+      requisitionSpecHash = Hashing.hashSha256(source.details.requisitionSpec)
+      vectorIndex = source.details.vectorIndex
+    } else {
+      requisitionSpecHash = Hashing.hashSha256(source.details.encryptedRequisitionSpec)
+    }
     nonceHash = source.details.nonceHash
     state = source.state.toSystemRequisitionState()
     nonce = source.details.nonce
@@ -261,6 +269,22 @@ fun InternalMeasurement.toSystemComputation(): Computation {
       }
     requisitions += requisitionsList.map { requisition -> requisition.toSystemRequisition() }
     mpcProtocolConfig = buildMpcProtocolConfig(details.duchyProtocolConfig, details.protocolConfig)
+    if (details.protocolConfig.hasTrusTeeV2()) {
+      multimeasurement = source.toSystemMultimeasurement()
+    }
+  }
+}
+
+/** Builds a system [Computation.Multimeasurement] from this internal multimeasurement. */
+private fun InternalMeasurement.toSystemMultimeasurement(): Computation.Multimeasurement {
+  val source = this
+  return ComputationKt.multimeasurement {
+    // The system `Query` is wire-compatible with the public API `Query` that
+    // `MeasurementDetails.queries` holds.
+    queries += source.details.queriesList.map { Query.parseFrom(it) }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Set `population_spec`
+    //   and `event_descriptor` resolved from the `MeasurementSpec`'s model line, which needs the
+    //   Kingdom to look up the `Population` and event template for a `ModelLine`.
   }
 }
 

@@ -84,6 +84,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.multimeasurementVector
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
@@ -187,15 +188,20 @@ class MeasurementsService(
       }
     }
 
-    request.measurement.requireNotMultimeasurement()
-    grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
-      "measurement.data_providers is empty"
+    if (request.measurement.isMultimeasurement) {
+      grpcRequire(request.measurement.multimeasurement.dataProviderVectorsList.isNotEmpty()) {
+        "measurement.multimeasurement.data_provider_vectors is empty"
+      }
+    } else {
+      grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
+        "measurement.data_providers is empty"
+      }
     }
 
     val externalDataProviderIds: List<ExternalId> =
-      request.measurement.dataProvidersList.map {
+      request.measurement.dataProviderNames.distinct().map { dataProviderName ->
         val key =
-          grpcRequireNotNull(DataProviderKey.fromName(it.key)) {
+          grpcRequireNotNull(DataProviderKey.fromName(dataProviderName)) {
             "DataProvider resource name unspecified or invalid"
           }
         ApiId(key.dataProviderId).externalId
@@ -336,7 +342,7 @@ class MeasurementsService(
         }
 
       val measurement = internalMeasurement.toMeasurement()
-      val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
+      val measurementSpec: MeasurementSpec = measurement.effectiveMeasurementSpec
       Span.current()
         .setAllAttributes(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
         .setAttribute(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
@@ -387,14 +393,9 @@ class MeasurementsService(
       failGrpc { "Number of elements in requests exceeds the maximum batch size." }
     }
 
-    for (createMeasurementRequest in request.requestsList) {
-      createMeasurementRequest.measurement.requireNotMultimeasurement()
-    }
-
     val allExternalDataProviderIds: List<ExternalId> =
       request.requestsList
-        .flatMap { it.measurement.dataProvidersList }
-        .map { it.key }
+        .flatMap { it.measurement.dataProviderNames }
         .distinct()
         .map { dataProviderName ->
           val key =
@@ -458,8 +459,8 @@ class MeasurementsService(
       }
 
       val externalDataProviderIds: Set<ExternalId> =
-        createMeasurementRequest.measurement.dataProvidersList
-          .map { ApiId(DataProviderKey.fromName(it.key)!!.dataProviderId).externalId }
+        createMeasurementRequest.measurement.dataProviderNames
+          .map { ApiId(DataProviderKey.fromName(it)!!.dataProviderId).externalId }
           .toSet()
       val internalCreateMeasurementRequest =
         createMeasurementRequest.buildInternalCreateMeasurementRequest(
@@ -742,7 +743,8 @@ class MeasurementsService(
             }
         }
       }
-      MeasurementSpec.MeasurementTypeCase.MULTI -> error("Multi measurements are not supported.")
+      MeasurementSpec.MeasurementTypeCase.MULTI ->
+        error("Multimeasurements are built by buildInternalCreateMultimeasurementRequest.")
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("MeasurementType not set.")
     }
@@ -753,17 +755,14 @@ class MeasurementsService(
     parentKey: MeasurementConsumerKey,
     measurementFieldPath: String,
   ): InternalCreateMeasurementRequest {
-    val measurementConsumerCertificateKey =
-      grpcRequireNotNull(
-        MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
-      ) {
-        "measurement_consumer_certificate is either unspecified or invalid"
-      }
-    grpcRequire(
-      measurementConsumerCertificateKey.measurementConsumerId == parentKey.measurementConsumerId
-    ) {
-      "measurement_consumer_certificate does not belong to $parent"
+    if (measurement.isMultimeasurement) {
+      return buildInternalCreateMultimeasurementRequest(
+        dataProviderCapabilities,
+        parentKey,
+        measurementFieldPath,
+      )
     }
+    val measurementConsumerCertificateKey = getMeasurementConsumerCertificateKey(parentKey)
 
     grpcRequire(measurement.hasMeasurementSpec()) { "measurement_spec is unspecified" }
 
@@ -813,6 +812,79 @@ class MeasurementsService(
     }
   }
 
+  private fun CreateMeasurementRequest.buildInternalCreateMultimeasurementRequest(
+    dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
+    parentKey: MeasurementConsumerKey,
+    measurementFieldPath: String,
+  ): InternalCreateMeasurementRequest {
+    val measurementConsumerCertificateKey = getMeasurementConsumerCertificateKey(parentKey)
+
+    grpcRequire(!measurement.hasMeasurementSpec()) {
+      "$measurementFieldPath.measurement_spec must not be set for a multimeasurement"
+    }
+    grpcRequire(measurement.dataProvidersList.isEmpty()) {
+      "$measurementFieldPath.data_providers must be empty for a multimeasurement"
+    }
+    grpcRequire(measurement.hasUnsignedMeasurementSpec()) {
+      "$measurementFieldPath.unsigned_measurement_spec is unspecified"
+    }
+    val measurementSpec: MeasurementSpec = measurement.unsignedMeasurementSpec
+    grpcRequire(measurementSpec.hasMulti()) {
+      "$measurementFieldPath.unsigned_measurement_spec must be a multimeasurement spec"
+    }
+    measurementSpec.validate("$measurementFieldPath.unsigned_measurement_spec")
+    measurementSpec.validateReportingMetadata(parentKey)
+
+    grpcRequire(measurement.hasMultimeasurement()) {
+      "$measurementFieldPath.multimeasurement is unspecified"
+    }
+    val multimeasurementVectors: List<InternalMeasurement.MultimeasurementVector> =
+      measurement.multimeasurement.toValidatedInternalVectors(
+        "$measurementFieldPath.multimeasurement"
+      )
+    grpcRequire(measurement.multimeasurement.queriesList.isNotEmpty()) {
+      "$measurementFieldPath.multimeasurement.queries is empty"
+    }
+
+    if (!dataProviderCapabilities.all { it.trusTeeV2Supported }) {
+      failGrpc(Status.FAILED_PRECONDITION) { "Not every DataProvider supports TrusTEE v2" }
+    }
+    val internalProtocolConfig = protocolConfig {
+      trusTeeV2 = InternalProtocolConfig.TrusTeeV2.getDefaultInstance()
+    }
+    validateSamplingInterval(measurementSpec, internalProtocolConfig)
+
+    val internalMeasurement =
+      measurement.toInternalMultimeasurement(
+        measurementConsumerCertificateKey,
+        multimeasurementVectors,
+        internalProtocolConfig,
+      )
+
+    val requestId = this.requestId
+    return internalCreateMeasurementRequest {
+      measurement = internalMeasurement
+      this.requestId = requestId
+    }
+  }
+
+  private fun CreateMeasurementRequest.getMeasurementConsumerCertificateKey(
+    parentKey: MeasurementConsumerKey
+  ): MeasurementConsumerCertificateKey {
+    val measurementConsumerCertificateKey =
+      grpcRequireNotNull(
+        MeasurementConsumerCertificateKey.fromName(measurement.measurementConsumerCertificate)
+      ) {
+        "measurement_consumer_certificate is either unspecified or invalid"
+      }
+    grpcRequire(
+      measurementConsumerCertificateKey.measurementConsumerId == parentKey.measurementConsumerId
+    ) {
+      "measurement_consumer_certificate does not belong to $parent"
+    }
+    return measurementConsumerCertificateKey
+  }
+
   private fun measurementCreationTraceAttributes(request: CreateMeasurementRequest): Attributes {
     return Attributes.builder()
       .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
@@ -822,7 +894,7 @@ class MeasurementsService(
           builder.put(ReportTraceAttributes.MEASUREMENT_REQUEST_ID, request.requestId)
         }
         val measurementSpec =
-          runCatching { request.measurement.measurementSpec.unpack<MeasurementSpec>() }.getOrNull()
+          runCatching { request.measurement.effectiveMeasurementSpec }.getOrNull()
         if (measurementSpec != null) {
           builder.putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
         }
@@ -831,7 +903,7 @@ class MeasurementsService(
   }
 
   private fun recordMeasurementCreation(measurement: Measurement, requestId: String): Measurement {
-    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
+    val measurementSpec: MeasurementSpec = measurement.effectiveMeasurementSpec
     val attributes =
       Attributes.builder()
         .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
@@ -849,13 +921,65 @@ class MeasurementsService(
   }
 }
 
-/** Rejects a multimeasurement, which the Kingdom does not support yet. */
-// TODO(world-federation-of-advertisers/cross-media-measurement#4532): Validate and create a
-//   multimeasurement, fanning it out to one Requisition per vector, once its Kingdom support lands.
-private fun Measurement.requireNotMultimeasurement() {
-  if (hasUnsignedMeasurementSpec() || hasMultimeasurement()) {
-    failGrpc(Status.UNIMPLEMENTED) { "Multimeasurements are not supported" }
+/** Whether this [Measurement] is a multimeasurement. */
+private val Measurement.isMultimeasurement: Boolean
+  get() = hasUnsignedMeasurementSpec() || hasMultimeasurement()
+
+/** Resource names of the `DataProvider`s this [Measurement] names, possibly with duplicates. */
+private val Measurement.dataProviderNames: List<String>
+  get() =
+    if (isMultimeasurement) {
+      multimeasurement.dataProviderVectorsList.map { it.dataProvider }
+    } else {
+      dataProvidersList.map { it.key }
+    }
+
+/** The [MeasurementSpec] of this [Measurement], whether signed or unsigned. */
+private val Measurement.effectiveMeasurementSpec: MeasurementSpec
+  get() =
+    if (hasUnsignedMeasurementSpec()) unsignedMeasurementSpec
+    else measurementSpec.unpack<MeasurementSpec>()
+
+/**
+ * Validates this [Measurement.Multimeasurement]'s `data_provider_vectors` and converts them to
+ * internal vectors.
+ */
+private fun Measurement.Multimeasurement.toValidatedInternalVectors(
+  fieldPath: String
+): List<InternalMeasurement.MultimeasurementVector> {
+  grpcRequire(dataProviderVectorsList.isNotEmpty()) { "$fieldPath.data_provider_vectors is empty" }
+  val externalDataProviderIds = mutableSetOf<ExternalId>()
+  val vectors: List<InternalMeasurement.MultimeasurementVector> = buildList {
+    for ((entryIndex, entry) in dataProviderVectorsList.withIndex()) {
+      val entryPath = "$fieldPath.data_provider_vectors[$entryIndex]"
+      val dataProviderKey =
+        grpcRequireNotNull(DataProviderKey.fromName(entry.dataProvider)) {
+          "$entryPath.data_provider is either unspecified or invalid"
+        }
+      val externalDataProviderId = ApiId(dataProviderKey.dataProviderId).externalId
+      grpcRequire(externalDataProviderIds.add(externalDataProviderId)) {
+        "$entryPath.data_provider is duplicated"
+      }
+      grpcRequire(entry.vectorsList.isNotEmpty()) { "$entryPath.vectors is empty" }
+      for ((vectorIndex, vector) in entry.vectorsList.withIndex()) {
+        val vectorPath = "$entryPath.vectors[$vectorIndex]"
+        grpcRequire(vector.hasIndex()) { "$vectorPath.index is unspecified" }
+        grpcRequire(vector.hasRequisitionSpec()) { "$vectorPath.requisition_spec is unspecified" }
+        add(
+          multimeasurementVector {
+            this.externalDataProviderId = externalDataProviderId.value
+            index = vector.index
+            requisitionSpec = vector.requisitionSpec.toByteString()
+          }
+        )
+      }
+    }
   }
+  val indexes: List<Int> = vectors.map { it.index }.sorted()
+  grpcRequire(indexes == indexes.indices.toList()) {
+    "$fieldPath vector indexes must cover 0 to ${indexes.size - 1} exactly once"
+  }
+  return vectors
 }
 
 private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementConsumerKey) {
@@ -973,8 +1097,22 @@ private fun MeasurementSpec.validate(fieldPath: String) {
           )
       }
     }
-    MeasurementSpec.MeasurementTypeCase.MULTI ->
-      failGrpc(Status.INVALID_ARGUMENT) { "Multi measurements are not supported" }
+    MeasurementSpec.MeasurementTypeCase.MULTI -> {
+      grpcRequire(nonceHashesList.isEmpty()) {
+        "$fieldPath.nonce_hashes must be empty for a multimeasurement"
+      }
+      grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is invalid" }
+      if (modelLine.isEmpty()) {
+        throw Status.INVALID_ARGUMENT.withDescription("Model Line is unspecified")
+          .asRuntimeException(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
+              metadata["fieldName"] = "$fieldPath.model_line"
+            }
+          )
+      }
+    }
     MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
       failGrpc(Status.INVALID_ARGUMENT) { "Measurement type is unspecified" }
   }

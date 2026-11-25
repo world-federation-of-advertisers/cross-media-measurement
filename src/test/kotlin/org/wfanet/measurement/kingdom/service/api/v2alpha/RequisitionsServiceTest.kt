@@ -88,6 +88,7 @@ import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
@@ -688,6 +689,32 @@ class RequisitionsServiceTest {
       }
 
     assertThat(requisition).isEqualTo(REQUISITION)
+  }
+
+  @Test
+  fun `getRequisition returns plaintext specs for a TrusTEE v2 multimeasurement`() = runBlocking {
+    whenever(internalRequisitionMock.getRequisition(any()))
+      .thenReturn(INTERNAL_MULTIMEASUREMENT_REQUISITION)
+
+    val request = getRequisitionRequest { name = REQUISITION_NAME }
+
+    val requisition =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.getRequisition(request) }
+      }
+
+    assertThat(requisition.unsignedMeasurementSpec).isEqualTo(MULTI_MEASUREMENT_SPEC)
+    assertThat(requisition.requisitionSpec).isEqualTo(PLAINTEXT_REQUISITION_SPEC)
+    assertThat(requisition.hasMeasurementSpec()).isFalse()
+    assertThat(requisition.hasEncryptedRequisitionSpec()).isFalse()
+    assertThat(requisition.protocolConfig)
+      .isEqualTo(
+        protocolConfig {
+          measurementType = ProtocolConfig.MeasurementType.MULTI
+          protocols +=
+            ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfig.TrusTeeV2.getDefaultInstance() }
+        }
+      )
   }
 
   @Test
@@ -1567,6 +1594,34 @@ class RequisitionsServiceTest {
             }
             dataProvidersCount = 2
           }
+      }
+
+    private val MULTI_MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = MEASUREMENT_SPEC.measurementPublicKey
+      multi = MeasurementSpecKt.multiMeasurementSpec {}
+      vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
+    }
+
+    private val PLAINTEXT_REQUISITION_SPEC = requisitionSpec {
+      measurementPublicKey = MEASUREMENT_SPEC.measurementPublicKey
+    }
+
+    private val INTERNAL_MULTIMEASUREMENT_REQUISITION =
+      INTERNAL_REQUISITION.copy {
+        val source = this@copy
+
+        duchies.clear()
+        parentMeasurement =
+          source.parentMeasurement.copy {
+            measurementSpec = MULTI_MEASUREMENT_SPEC.toByteString()
+            protocolConfig = internalProtocolConfig {
+              trusTeeV2 = InternalProtocolConfig.TrusTeeV2.getDefaultInstance()
+            }
+          }
+        details = requisitionDetails {
+          vectorIndex = 1
+          requisitionSpec = PLAINTEXT_REQUISITION_SPEC.toByteString()
+        }
       }
 
     private val REQUISITION: Requisition = requisition {
