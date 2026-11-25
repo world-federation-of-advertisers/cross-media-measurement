@@ -207,10 +207,31 @@ decide whether the path matches a watched pattern, which processing flow to acti
 and which downstream API or function to call. It fans every incoming EDP file into
 the correct pipeline.
 
-The two watched-path types per EDP:
+The watched-path types per EDP:
 
 1. **Event group detection** — an event-group blob creates an EventGroupSync WorkItem.
 2. **Impressions / data availability** — an external `done` marker creates a DataAvailabilitySync WorkItem.
+3. **Raw VID dispatch** — a raw-upload `done` marker creates a dispatch WorkItem on
+   `vid-labeling-dispatch-queue`. The worker registers the upload and starts the existing labeling
+   pipeline. Routes configure the provider-only `VidLabelingDispatcherParams` template.
+   DataWatcher constructs complete `VidLabelingDispatchWorkItemParams` after the storage event
+   supplies the exact source identity and recovery authorization. The source is application-owned
+   so approved historical recovery can reuse its original generation.
+
+Use **Update CMMS** with the default online VID dispatch cutover. It verifies compatible
+code and queue delivery, then uses a versioned configuration to queue only the isolated
+test provider. Fresh storage-object finalizations must produce their deterministic
+DataWatcher WorkItems and successful ordinary/recovery outcomes before live routes switch.
+The recovery fixture uses the controller-recorded operator-recovery generation; queue-write
+evidence from the DataWatcher function is required for both storage events.
+EDPs can continue publishing raw done markers. For a shorter maintenance cutover, pause
+new raw done markers and select maintenance mode; one fail-closed preflight and one
+final-stack apply precede readiness and the same storage-event smoke.
+Follow [the VID dispatch migration guide](../operations/migrating-vid-labeling-dispatch.md)
+for committed environment configuration, fresh one-run source/approval inputs, fallback
+sequencing, generation-checked CLI retries and rollback. Legacy revisions drain at zero
+traffic using their captured maximum request lifetimes and source-subscription checks;
+the compatible HTTP adapter remains available.
 
 Requisition blobs are not watched in the recommended configuration. RequisitionFetcher creates
 their WorkItems directly after the blob and all associated metadata rows are durable.
@@ -890,9 +911,9 @@ per_method_rate_limit {
 ```
 
 Both VID Labeling scheduler jobs use a 660-second attempt deadline, retaining 60 seconds of response
-headroom beyond the monitor function's 600-second timeout. The GCS-triggered DataWatcher has a
-540-second timeout and calls a dispatcher capped at 480 seconds, so that synchronous caller also
-retains one minute of shutdown and response headroom.
+headroom beyond the monitor function's 600-second timeout. Legacy HTTP DataWatcher deliveries retain
+a 540-second caller timeout and a 480-second dispatcher timeout. Queued dispatch returns after durable
+task creation; the worker retains its 480-second timeout.
 
 The dispatcher and monitor accept these optional environment variables:
 
