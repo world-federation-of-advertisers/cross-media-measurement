@@ -286,7 +286,7 @@ class BasicReportsReportsJob(
                     ) {
                       "Report results contain duplicate dimensions"
                     }
-                    val resultBatches = batchReportingSetResultRequests(reportingSetResultRequests)
+                    val resultBatches = ReportingSetResultBatching.batch(reportingSetResultRequests)
                     for ((index, batch) in resultBatches.withIndex()) {
                       reportResultsStub.batchCreateReportResultAssembly(
                         batchCreateReportResultAssemblyRequest {
@@ -1066,52 +1066,7 @@ class BasicReportsReportsJob(
     val dimensionSpecFilter: String,
   )
 
-  private fun batchReportingSetResultRequests(
-    requests: List<CreateReportingSetResultRequest>
-  ): List<List<CreateReportingSetResultRequest>> {
-    // TODO(world-federation-of-advertisers/cross-media-measurement#5020): Bound histogram
-    // entries per batch before supporting 127 bins so requests and responses fit within 4 MiB.
-    return buildList {
-        // Preserve request boundaries so mutation splitting cannot regroup large payloads.
-        for (chunk in requests.chunked(REPORTING_SET_RESULT_BATCH_SIZE)) {
-          var batch = mutableListOf<CreateReportingSetResultRequest>()
-          var batchMutations = 0L
-          for (request in chunk) {
-            val requestMutations =
-              REPORTING_SET_RESULT_MUTATIONS +
-                REPORTING_WINDOW_RESULT_MUTATIONS *
-                  request.reportingSetResult.reportingWindowResultsCount
-            require(requestMutations <= SPANNER_MUTATION_LIMIT - REPORT_RESULT_MUTATION_RESERVE) {
-              "A reporting set result has too many windows for one Spanner transaction"
-            }
-            if (
-              batch.isNotEmpty() &&
-                batchMutations + requestMutations > REPORT_RESULT_BATCH_MUTATIONS
-            ) {
-              add(batch)
-              batch = mutableListOf()
-              batchMutations = 0L
-            }
-            batch += request
-            batchMutations += requestMutations
-          }
-          if (batch.isNotEmpty()) {
-            add(batch)
-          }
-        }
-      }
-      .ifEmpty { listOf(emptyList()) }
-  }
-
   companion object {
-    private const val REPORTING_SET_RESULT_BATCH_SIZE = 100
-    // Conservative cell counts include secondary indexes and the noisy-value row for each window.
-    private const val REPORTING_SET_RESULT_MUTATIONS = 32L
-    private const val REPORTING_WINDOW_RESULT_MUTATIONS = 24L
-    private const val REPORT_RESULT_BATCH_MUTATIONS = 60_000L
-    private const val SPANNER_MUTATION_LIMIT = 80_000L
-    private const val REPORT_RESULT_MUTATION_RESERVE = 1000L
-
     private val logger: Logger = Logger.getLogger(BasicReportsReportsJob::class.java.name)
     private const val BATCH_SIZE = 10
     private const val METRIC_CALCULATION_SPEC_BATCH_SIZE = 1000

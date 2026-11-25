@@ -36,6 +36,7 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/reporting/job:__pkg__",
     ],
     deps = [
+        ":reporting_set_result_batching",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -59,5 +60,45 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "reporting_set_result_batching",
+    srcs = ["ReportingSetResultBatching.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_kt_jvm_grpc_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "basic_reports_multimeasurement_results_job",
+    srcs = ["BasicReportsMultimeasurementResultsJob.kt"],
+    deps = [
+        ":reporting_set_result_batching",
+        "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/service/internal:normalization",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:query_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:event_template_field_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_computation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_interval_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_sets_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_unit_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:result_group_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:date_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
