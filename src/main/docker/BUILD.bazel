@@ -4,7 +4,9 @@ load(
     "container_push_all",
 )
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
+load("//build/cosign:image_manifest.bzl", "image_manifest")
 load("//build/cosign:macros.bzl", "sign_all")
+load("//src/main/docker/panel_exchange_client:images.bzl", "AWS_IMAGES", "GCLOUD_IMAGES", "LOCAL_IMAGES")
 load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES")
 
 package(
@@ -166,3 +168,20 @@ sign_all(
     )
     for image_spec in IMAGES_TO_SIGN
 ]
+
+# Deduplicate shared GKE/EKS destinations and retain the panel local image.
+RELEASE_IMAGES = {"{registry}/{name}".format(
+    name = image_spec.repository,
+    registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+): image_spec.image for image_spec in ALL_GKE_IMAGES + ALL_TEE_APP_GKE_IMAGES + ALL_EKS_IMAGES + GCLOUD_IMAGES + AWS_IMAGES + LOCAL_IMAGES}
+
+image_manifest(
+    name = "release_image_manifest",
+    images = RELEASE_IMAGES,
+    tags = ["manual"],
+    # The forwarded panel image has historically been published without signing.
+    unsigned_repositories = ["{registry}/{name}".format(
+        name = image_spec.repository,
+        registry = IMAGE_REPOSITORY_SETTINGS.container_registry,
+    ) for image_spec in LOCAL_IMAGES],
+)

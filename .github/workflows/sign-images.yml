@@ -21,6 +21,10 @@ on:
         description: "Tag of container images"
         type: string
         required: true
+      image-manifest-artifact:
+        description: "Artifact containing the published image digests and signing tool"
+        type: string
+        required: true
       kms-key-resource-name:
         description: "GCP KMS key resource name for image signing"
         type: string
@@ -49,26 +53,11 @@ jobs:
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - uses: ./.github/actions/free-disk-space
-      
-      - name: Write auth.bazelrc
-        env:
-          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
-        run: |
-          cat << EOF > auth.bazelrc
-          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
-          EOF
-
-      - name: Write ~/.bazelrc
-        env:
-          IMAGE_TAG: ${{ inputs.image-tag }}
-        run: |
-          cat << EOF > ~/.bazelrc
-          common --config=ci
-          build --define container_registry=$CONTAINER_REGISTRY
-          build --define image_repo_prefix=$GITHUB_REPOSITORY_OWNER
-          build --define image_tag=$IMAGE_TAG
-          EOF
+      - name: Download published image manifest
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: ${{ inputs.image-manifest-artifact }}
+          path: ${{ runner.temp }}/published-images
 
       - name: Authenticate to GitHub Container Registry
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4.1.0
@@ -99,49 +88,16 @@ jobs:
 
           echo "encoded_pub_key=${encoded_pub_key}" >> "$GITHUB_OUTPUT"
 
-      - name: Build image signing script
-        run: >
-          tools/bazel-with-results bazelisk build
-          //src/main/docker:sign_all_images
-          //src/main/docker/panel_exchange_client:sign_all_images
-
-      - name: Sign images
+      - name: Sign published image digests
         env:
+          IMAGE_TAG: ${{ inputs.image-tag }}
           GCP_KMS_KEY_FOR_SIGNING: "gcpkms://${{ inputs.kms-key-resource-name }}"
           PUBLIC_KEY: ${{ steps.get-public-key.outputs.encoded_pub_key }}
         run: |
           set -euo pipefail
-          targets=(
-            "//src/main/docker:sign_all_images"
-            "//src/main/docker/panel_exchange_client:sign_all_images"
-          )
-          common_flags=(
-            "--tlog-upload=false"
-            "--key=$GCP_KMS_KEY_FOR_SIGNING"
-            "-a" "dev.cosignproject.cosign/sigalg=ECDSA_P256_SHA256"
-            "-a" "dev.cosignproject.cosign/pub=${PUBLIC_KEY}"
-          )
-          signing_log=$(mktemp)
-          # Go HTTP socket and DNS errors identify transport failures at their source.
-          token_transport_errors='(dial|read|write) (tcp|udp)|lookup [^:]+:'
-          token_transport_errors+='|timeout|context deadline exceeded|EOF'
-          token_transport_errors+='|connection (reset by peer|refused|aborted)|network is unreachable|no route to host'
-          for target in "${targets[@]}"; do
-            for attempt in 1 2 3; do
-              if bazelisk run "$target" -- "${common_flags[@]}" 2>&1 | tee "$signing_log"; then
-                break
-              else
-                exit_code=$?
-              fi
-
-              if ((attempt == 3)) || ! grep -Eiq \
-                "invalid response when retrieving subject token:.*(${token_transport_errors})" \
-                "$signing_log"; then
-                exit "$exit_code"
-              fi
-
-              delay_seconds=$((15 * attempt))
-              echo "::warning::Identity-token network failure signing $target; retrying in ${delay_seconds}s (attempt $((attempt + 1)) of 3)."
-              sleep "$delay_seconds"
-            done
-          done
+          chmod +x "$RUNNER_TEMP/published-images/cosign"
+          python3 .github/workflows/scripts/sign_image_manifest.py \
+            --manifest "$RUNNER_TEMP/published-images/images.json" \
+            --commit "$GITHUB_SHA" --image-tag "$IMAGE_TAG" \
+            --cosign "$RUNNER_TEMP/published-images/cosign" \
+            --key "$GCP_KMS_KEY_FOR_SIGNING" --public-key "$PUBLIC_KEY"
