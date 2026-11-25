@@ -52,6 +52,11 @@ kt_jvm_library(
         "MultimeasurementEvaluator.kt",
         "SliceSuppression.kt",
     ],
+    visibility = [
+        test_target(":__pkg__"),
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
     deps = [
         ":query_evaluator",
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
@@ -62,5 +67,38 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:query_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:query_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "trus_tee_v2_mill",
+    srcs = ["TrusTeeV2Mill.kt"],
+    visibility = [
+        test_target(":__pkg__"),
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+    ],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        ":hash_rank_subpopulation_index",
+        ":multimeasurement_evaluator",
+        ":query_evaluator",
+        ":subpopulation_attributes",
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_base",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:trus_tee_requisition_decryptor",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_protocols_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:requisition_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_v2_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_key_storage",
     ],
 )

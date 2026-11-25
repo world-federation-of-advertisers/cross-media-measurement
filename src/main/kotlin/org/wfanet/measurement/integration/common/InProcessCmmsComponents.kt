@@ -61,6 +61,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.DuchyCertConfig
 import org.wfanet.measurement.dataprovider.DataProviderData
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
 import org.wfanet.measurement.internal.kingdom.HmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -89,6 +90,7 @@ class InProcessCmmsComponents(
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
+  private val trusTeeV2FallbackEventDescriptor: TrusTeeV2.EventDescriptor? = null,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -120,6 +122,7 @@ class InProcessCmmsComponents(
         trustedCertificates = TRUSTED_CERTIFICATES,
         trusTeeKmsClient = trusTeeKmsClient,
         verboseGrpcLogging = false,
+        trusTeeV2FallbackEventDescriptor = trusTeeV2FallbackEventDescriptor,
       )
     }
   }
