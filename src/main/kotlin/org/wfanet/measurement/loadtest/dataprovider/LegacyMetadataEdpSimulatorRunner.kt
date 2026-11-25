@@ -146,6 +146,7 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
     eventQuery: SyntheticGeneratorEventQuery,
     vidIndexMap: InMemoryVidIndexMap,
     logSketchDetails: Boolean,
+    logMeasurementValues: Boolean,
     throttler: MinimumIntervalThrottler,
     kingdomRpcThrottler: MinimumIntervalThrottler,
     health: SettableHealth,
@@ -177,6 +178,7 @@ class LegacyMetadataEdpSimulatorRunner : AbstractEdpSimulatorRunner() {
       health = health,
       random = random,
       kingdomRpcThrottler = kingdomRpcThrottler,
+      logMeasurementValues = logMeasurementValues,
     )
   }
 

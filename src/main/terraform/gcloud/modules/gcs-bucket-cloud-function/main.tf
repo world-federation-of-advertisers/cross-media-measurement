@@ -117,6 +117,8 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
     var.uploaded_config_generation,
     var.timeout_seconds,
     var.retry_on_failure,
+    var.max_instances,
+    var.concurrency,
   ]
 
   provisioner "local-exec" {
@@ -134,6 +136,8 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
       TRIGGER_EVENT_TYPE      = var.trigger_event_type
       TIMEOUT_SECONDS         = var.timeout_seconds == null ? "" : tostring(var.timeout_seconds)
       RETRY_ON_FAILURE        = tostring(var.retry_on_failure)
+      MAX_INSTANCES           = var.max_instances == null ? "" : tostring(var.max_instances)
+      CONCURRENCY             = var.concurrency == null ? "" : tostring(var.concurrency)
     }
     command = <<-EOT
       #!/bin/bash
@@ -170,6 +174,13 @@ resource "terraform_data" "deploy_gcs_cloud_function" {
 
       if [[ -n "$TIMEOUT_SECONDS" ]]; then
         args+=("--timeout=$TIMEOUT_SECONDS")
+      fi
+
+      if [[ -n "$MAX_INSTANCES" ]]; then
+        args+=("--max-instances=$MAX_INSTANCES")
+      fi
+      if [[ -n "$CONCURRENCY" ]]; then
+        args+=("--concurrency=$CONCURRENCY")
       fi
 
       gcloud "$${args[@]}"

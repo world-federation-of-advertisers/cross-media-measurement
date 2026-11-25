@@ -57,6 +57,30 @@ None of the names below are prescriptive — they are only examples.
 
 ---
 
+## Measurement value logging
+
+Halo's Terraform and Kubernetes examples and cloud-test fixtures enable
+measurement-value logging by default. The application flags themselves default
+to disabled. Markets may want to disable the example settings according to their
+data-access and log-retention policies.
+
+| Configuration | Halo example default | How to disable |
+| --- | --- | --- |
+| ResultsFulfiller in the CMMS Terraform example | `log_measurement_values = true` | Set `log_measurement_values = false` in your Terraform variables. |
+| Reporting, EDP simulators, and population fulfillment in the Halo GKE examples | CUE tag `log_measurement_values=true` | Pass `-t log_measurement_values=false` to the CUE renderer, or set the component's `_logMeasurementValues` to `false`. |
+| Python report post-processing in the Halo GKE examples | CUE tag `log_noise_correction_values=true` | Pass `-t log_noise_correction_values=false` to the CUE renderer, or set `_logNoiseCorrectionValues` to `false`. |
+
+For workloads deployed from custom configurations, set
+`--log-measurement-values=false` and `--log-noise-correction-values=false` on the
+applicable processes. Identifiers, stages, verdicts, and failure types remain
+available. The impression verifier omits raw impression fields from both sample
+and failure logs regardless of the count-logging setting.
+
+See [Measurement value diagnostics](/docs/edpaggregator/report-debugging-guide.md#measurement-value-diagnostics)
+for the values controlled by each flag. Full gRPC request/response debug logging
+has its own setting; markets that disable value logging should review that
+setting as well.
+
 ## Architecture
 
 The EDP Aggregator is a distributed system spanning the following Google Cloud
@@ -661,7 +685,7 @@ requisition_fulfiller_config = {
     java_tool_options             = "-Xmx..."   # optional
     docker_image                  = "ghcr.io/.../results_fulfiller:<tag>"
     mig_distribution_policy_zones = ["REGION-a", "REGION-b"]
-    app_flags                     = ["--flag=value", ...]
+    app_flags                     = ["--log-measurement-values=true", "--flag=value", ...]
   }
 }
 ```
@@ -719,9 +743,24 @@ One variable per function/worker service account:
 `data_availability_sync_service_account_name`,
 `data_availability_cleanup_service_account_name`,
 `data_availability_monitor_service_account_name`,
-`vid_labeling_healing_controller_service_account_name`, plus `terraform_service_account`
-(used to attach MIG service accounts to VMs) and `pubsub_iam_service_account_member`
-(the Secure Computation control-plane SA granted publisher on the queues).
+`vid_labeling_healing_controller_service_account_name`, plus
+`pubsub_iam_service_account_member` (the Secure Computation control-plane SA granted
+publisher on the queues).
+
+Set `terraform_service_account` to the email of the service account running
+Terraform. This deployment identity must already have permission to manage
+project IAM bindings and Monitoring alert policies; for example,
+`roles/resourcemanager.projectIamAdmin` and `roles/monitoring.alertPolicyEditor`,
+or equivalent permissions. The module lets it attach MIG service accounts to VMs
+and grants a custom role containing only `logging.notificationRules.create`,
+`delete`, `get`, `list`, and `update`. These permissions are required by the
+failed-cleanup log-based alert in addition to the Monitoring role.
+
+CMMS creates this custom role after its existing role-admin bootstrap, with a
+120-second IAM propagation wait. EDPA waits another 120 seconds after granting
+the custom role before creating the alert. The waits repeat if their IAM bindings
+change; a normal deployment handles this ordering. See the
+[module's cleanup alert prerequisites](../../src/main/terraform/gcloud/modules/edp-aggregator/README.md#workitem-delivery).
 
 The module also requires the deployed **function names** for the functions the
 DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):
@@ -1910,6 +1949,20 @@ image is not `STABLE`). Never use a debug image in production.
 ---
 
 ## Debugging notes
+
+### TEE exception diagnostics
+
+TEE attempt failures and labeled-output writer logs report exception types, status
+codes, and code locations without arbitrary exception messages. Use WorkItem and
+attempt resource names to correlate failures. Update diagnostic queries that
+depend on exception text; `WorkItemAttempt.error_message` contains approved
+diagnostic metadata and remains limited to 1,024 characters.
+
+Deploy protected images for every enabled SubpoolAssigner, VidRankBuilder,
+VidLabeler, and ResultsFulfiller consumer using the existing rollout and attestation
+procedures. Old workers retain their previous diagnostic behavior until replaced.
+Use a protected image for rollback. Previously stored errors and logs are not
+rewritten by an image update.
 
 * **Config caching** — the ResultsFulfiller and functions generally read their config at process
   start. After changing a config file in `EDPA_CONFIG_BUCKET`, recreate the affected MIG VMs or

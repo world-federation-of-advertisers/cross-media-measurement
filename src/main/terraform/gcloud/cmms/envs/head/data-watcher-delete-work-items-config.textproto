@@ -1,0 +1,62 @@
+# proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
+# proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-head-bucket/(?:vid-labeled-impressions/)?edp/edp7/.*"
+  event_types: "google.cloud.storage.object.v1.deleted"
+  event_types: "google.cloud.storage.object.v1.archived"
+  control_plane_queue_sink {
+    queue: "data-availability-cleanup-queue"
+    allow_missing_source_identity: true
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
+        data_provider: "dataProviders/Z1YwJJmvvN8"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-head-bucket/(?:vid-labeled-impressions/)?edp/edpa_meta/.*"
+  event_types: "google.cloud.storage.object.v1.deleted"
+  event_types: "google.cloud.storage.object.v1.archived"
+  control_plane_queue_sink {
+    queue: "data-availability-cleanup-queue"
+    allow_missing_source_identity: true
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
+        data_provider: "dataProviders/YpCPT-x89j4"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-head-bucket/(?:vid-labeled-impressions/)?edp/edpa_video_pub/.*"
+  event_types: "google.cloud.storage.object.v1.deleted"
+  event_types: "google.cloud.storage.object.v1.archived"
+  control_plane_queue_sink {
+    queue: "data-availability-cleanup-queue"
+    allow_missing_source_identity: true
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
+        data_provider: "dataProviders/DikW9D-jyWk"
+      }
+    }
+  }
+}
+watched_paths {
+  identifier: "data-availability-cleanup"
+  source_path_regex: "^gs://secure-computation-storage-head-bucket/(?:vid-labeled-impressions/)?edp/edpa_retail_pub/.*"
+  event_types: "google.cloud.storage.object.v1.deleted"
+  event_types: "google.cloud.storage.object.v1.archived"
+  control_plane_queue_sink {
+    queue: "data-availability-cleanup-queue"
+    allow_missing_source_identity: true
+    app_params {
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParams] {
+        data_provider: "dataProviders/TiyslcBcEfA"
+      }
+    }
+  }
+}

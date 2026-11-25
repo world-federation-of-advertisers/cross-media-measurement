@@ -34,3 +34,8 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink/testing",
     ],
 )
+
+exports_files(
+    ["ResultsFulfillerTestHelper.kt"],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:__pkg__"],
+)

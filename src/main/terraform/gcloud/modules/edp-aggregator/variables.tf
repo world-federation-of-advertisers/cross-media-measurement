@@ -305,7 +305,13 @@ variable "data_watcher_delete_trigger_service_account_name" {
 }
 
 variable "terraform_service_account" {
-  description = "Service account used by terraform that needs to attach the MIG service account to the VM."
+  description = "Email of the Terraform deployment service account."
+  type        = string
+  nullable    = false
+}
+
+variable "terraform_logging_notification_rules_role" {
+  description = "Project custom role ID granting the Terraform deployment identity logging.notificationRules create, delete, get, list, and update permissions."
   type        = string
   nullable    = false
 }
@@ -469,6 +475,46 @@ variable "edp_aggregator_api_server_ip_address" {
   type        = string
   nullable    = true
   default     = null
+}
+
+variable "data_availability_cleanup_work_item_queue" {
+  description = "Pub/Sub queue for storage deletion metadata cleanup WorkItems."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
+}
+
+variable "data_availability_cleanup_max_instances" {
+  description = "Maximum parallel cleanup deliveries; each instance handles one request."
+  type        = number
+  default     = 5
+  validation {
+    condition     = var.data_availability_cleanup_max_instances >= 1 && floor(var.data_availability_cleanup_max_instances) == var.data_availability_cleanup_max_instances
+    error_message = "Cleanup maximum instances must be a positive integer."
+  }
+}
+
+variable "data_availability_cleanup_alert_notification_channels" {
+  description = "Monitoring channels for delayed or failed cleanup WorkItems."
+  type        = list(string)
+  default     = []
+}
+
+variable "data_availability_cleanup_max_queue_age_seconds" {
+  description = "Age of the oldest outstanding cleanup delivery before alerting."
+  type        = number
+  default     = 1800
+}
+
+variable "data_watcher_delete_max_instances" {
+  description = "Maximum deletion watcher instances; each handles one event."
+  type        = number
+  default     = 10
 }
 
 

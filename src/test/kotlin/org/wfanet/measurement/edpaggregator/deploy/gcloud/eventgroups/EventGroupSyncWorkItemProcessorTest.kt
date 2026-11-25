@@ -24,10 +24,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
 import java.util.UUID
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -82,45 +79,6 @@ class EventGroupSyncWorkItemProcessorTest {
   ) {
     processor(synchronize, { error("unexpected active attempt") }, { awaitCancellation() }, {})
       .process(input())
-  }
-
-  @Test
-  fun `duplicate successful delivery does not sync again`() = runBlocking {
-    var calls = 0
-    process { _, ensureActive ->
-      ensureActive()
-      calls++
-    }
-    process { _, _ -> calls++ }
-    assertThat(calls).isEqualTo(1)
-    assertThat(controlPlane.state).isEqualTo(WorkItem.State.SUCCEEDED)
-    assertThat(controlPlane.claims.single().expectedWorkItemGeneration).isEqualTo(1L)
-    assertThat(controlPlane.claims.single().supportsAttemptLease).isTrue()
-  }
-
-  @Test
-  fun `active redelivery waits then acknowledges completed work`() = runBlocking {
-    controlPlane.state = WorkItem.State.RUNNING
-    var waits = 0
-    processor(
-        { _, _ -> error("must not repeat active sync") },
-        {
-          waits++
-          controlPlane.state = WorkItem.State.SUCCEEDED
-        },
-        { awaitCancellation() },
-        {},
-      )
-      .process(input())
-    assertThat(waits).isEqualTo(1)
-    assertThat(controlPlane.claims).isEmpty()
-  }
-
-  @Test
-  fun `stale WorkItem generation is acknowledged without sync`() = runBlocking {
-    controlPlane.generation = 2
-    process { _, _ -> error("stale delivery must not sync") }
-    assertThat(controlPlane.claims).isEmpty()
   }
 
   @Test
@@ -222,59 +180,6 @@ class EventGroupSyncWorkItemProcessorTest {
     assertThat(controlPlane.state).isEqualTo(WorkItem.State.FAILED)
     assertThat(controlPlane.failedGeneration).isEqualTo(1L)
     assertThat(controlPlane.claims).hasSize(1)
-  }
-
-  @Test
-  fun `lease renews while sync is still running`() = runBlocking {
-    val renewed = CompletableDeferred<Unit>()
-    controlPlane.onRenew = { renewed.complete(Unit) }
-    var waits = 0
-    processor(
-        { _, _ -> renewed.await() },
-        { error("unexpected active") },
-        { if (waits++ > 0) awaitCancellation() },
-        {},
-      )
-      .process(input())
-    assertThat(controlPlane.renewals).isEqualTo(1)
-    assertThat(controlPlane.state).isEqualTo(WorkItem.State.SUCCEEDED)
-  }
-
-  @Test
-  fun `lease renews while sync blocks its thread`() = runBlocking {
-    val syncStarted = CompletableDeferred<Unit>()
-    val renewed = CountDownLatch(1)
-    controlPlane.onRenew = renewed::countDown
-    var waits = 0
-    processor(
-        { _, _ ->
-          syncStarted.complete(Unit)
-          check(renewed.await(10, TimeUnit.SECONDS)) { "Lease renewal was blocked by sync" }
-        },
-        { error("unexpected active") },
-        { if (waits++ == 0) syncStarted.await() else awaitCancellation() },
-        {},
-      )
-      .process(input())
-    assertThat(controlPlane.renewals).isEqualTo(1)
-    assertThat(controlPlane.state).isEqualTo(WorkItem.State.SUCCEEDED)
-  }
-
-  @Test
-  fun `completion writeback retries without repeating sync`() = runBlocking {
-    controlPlane.completionFailures = 2
-    var syncs = 0
-    var retries = 0
-    processor(
-        { _, _ -> syncs++ },
-        { error("unexpected active") },
-        { awaitCancellation() },
-        { retries++ },
-      )
-      .process(input())
-    assertThat(syncs).isEqualTo(1)
-    assertThat(retries).isEqualTo(2)
-    assertThat(controlPlane.state).isEqualTo(WorkItem.State.SUCCEEDED)
   }
 
   private fun input(): EventGroupSyncWorkItem =

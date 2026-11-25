@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -361,7 +362,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
         logger.log(
           java.util.logging.Level.SEVERE,
           "Labeled-output writer failed for model line " + key.modelLine + " at " + outputBlobUri,
-          e,
+          ExceptionDiagnostics.forLogging(e),
         )
         publicationObserver(
           LabeledOutputPublication(

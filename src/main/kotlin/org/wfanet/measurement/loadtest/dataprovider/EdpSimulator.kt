@@ -66,6 +66,7 @@ class EdpSimulator(
   blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   trusTeeEncryptionParams: FulfillRequisitionRequestBuilder.EncryptionParams? = null,
   kingdomRpcThrottler: Throttler,
+  logMeasurementValues: Boolean,
 ) :
   AbstractEdpSimulator(
     edpData,
@@ -92,6 +93,7 @@ class EdpSimulator(
     blockingCoroutineContext,
     trusTeeEncryptionParams,
     trusTeeSupported,
+    logMeasurementValues = logMeasurementValues,
   ) {
 
   interface EventGroupOptions : AbstractEdpSimulator.EventGroupOptions {

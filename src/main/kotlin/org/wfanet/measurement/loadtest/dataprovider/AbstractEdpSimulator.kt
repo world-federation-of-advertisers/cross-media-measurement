@@ -172,6 +172,7 @@ abstract class AbstractEdpSimulator(
   private val blockingCoroutineContext: @BlockingExecutor CoroutineContext,
   private val trusTeeEncryptionParams: TrusTeeRequisitionRequestBuilder.EncryptionParams?,
   private val trusTeeSupported: Boolean,
+  logMeasurementValues: Boolean,
 ) :
   RequisitionFulfiller(
     edpData,
@@ -179,6 +180,7 @@ abstract class AbstractEdpSimulator(
     requisitionsStub,
     kingdomRpcThrottler,
     trustedCertificates,
+    logMeasurementValues = logMeasurementValues,
   ),
   Health by health {
 
@@ -535,8 +537,10 @@ abstract class AbstractEdpSimulator(
             )
           }
 
-        logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
-        logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
+        if (logMeasurementValues) {
+          logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
+          logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
+        }
 
         for (eventGroupEntry in requisitionSpec.events.eventGroupsList) {
           val eventGroupKey =

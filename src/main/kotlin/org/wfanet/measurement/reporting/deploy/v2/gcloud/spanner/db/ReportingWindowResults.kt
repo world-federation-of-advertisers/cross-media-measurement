@@ -17,7 +17,6 @@
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db
 
 import com.google.cloud.Date
-import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
@@ -40,19 +39,6 @@ private val REPORTING_WINDOW_STRUCT =
     Type.StructField.of("ReportingWindowStartDate", Type.date()),
     Type.StructField.of("ReportingWindowEndDate", Type.date()),
   )
-
-suspend fun AsyncDatabaseClient.ReadContext.reportingWindowResultExists(
-  measurementConsumerId: Long,
-  reportResultId: Long,
-  reportingSetResultId: Long,
-  reportingWindowResultId: Long,
-): Boolean {
-  return readRow(
-    "ReportingWindowResults",
-    Key.of(measurementConsumerId, reportResultId, reportingSetResultId, reportingWindowResultId),
-    listOf("ReportResultId"),
-  ) != null
-}
 
 suspend fun AsyncDatabaseClient.ReadContext.readReportingWindowResultIds(
   measurementConsumerId: Long,
