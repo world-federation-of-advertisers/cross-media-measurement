@@ -38,6 +38,7 @@ import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.encryptionKey
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
 import org.wfanet.measurement.common.ProtoReflection
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.tink.StreamingEncryption
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 
@@ -103,6 +104,25 @@ class FulfillRequisitionRequestBuilder(
 
   /** Whether this fulfills a `TrusTeeV2` [Requisition] rather than a `TrusTee` one. */
   private val isTrusTeeV2: Boolean
+
+  /**
+   * Fingerprint of the [Requisition] the Duchy matches the fulfillment against.
+   *
+   * For a `TrusTeeV2` [Requisition] this is the SHA-256 of the serialized unsigned
+   * `MeasurementSpec` concatenated with the SHA-256 of the serialized plaintext `RequisitionSpec`,
+   * the same inputs the Duchy receives from the Kingdom.
+   */
+  private val fingerprint: ByteString by lazy {
+    if (isTrusTeeV2) {
+      Hashing.hashSha256(
+        requisition.unsignedMeasurementSpec
+          .toByteString()
+          .concat(Hashing.hashSha256(requisition.requisitionSpec.toByteString()))
+      )
+    } else {
+      computeRequisitionFingerprint(requisition)
+    }
+  }
 
   init {
     val trusTeeProtocolCount = requisition.protocolConfig.protocolsList.count { it.hasTrusTee() }
@@ -173,9 +193,7 @@ class FulfillRequisitionRequestBuilder(
     return fulfillRequisitionRequest {
       header = header {
         name = requisition.name
-        // TODO(world-federation-of-advertisers/cross-media-measurement#5015): Derive the TrusTEE v2
-        // fingerprint from the unsigned MeasurementSpec and the plaintext RequisitionSpec.
-        requisitionFingerprint = computeRequisitionFingerprint(requisition)
+        requisitionFingerprint = fingerprint
         nonce = requisitionNonce
         protocolConfig = requisition.protocolConfig
         if (isTrusTeeV2) {
@@ -243,9 +261,7 @@ class FulfillRequisitionRequestBuilder(
     return fulfillRequisitionRequest {
       header = header {
         name = requisition.name
-        // TODO(world-federation-of-advertisers/cross-media-measurement#5015): Derive the TrusTEE v2
-        // fingerprint from the unsigned MeasurementSpec and the plaintext RequisitionSpec.
-        requisitionFingerprint = computeRequisitionFingerprint(requisition)
+        requisitionFingerprint = fingerprint
         nonce = requisitionNonce
         protocolConfig = requisition.protocolConfig
         if (isTrusTeeV2) {

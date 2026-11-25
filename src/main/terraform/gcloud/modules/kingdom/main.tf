@@ -95,7 +95,7 @@ resource "google_bigquery_table" "measurements" {
     "name": "measurement_type",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "REACH_AND_FREQUENCY, REACH, IMPRESSION, DURATION, or POPULATION"
+    "description": "REACH_AND_FREQUENCY, REACH, IMPRESSION, DURATION, POPULATION, or MULTI"
   },
   {
     "name": "state",
@@ -173,7 +173,7 @@ resource "google_bigquery_table" "requisitions" {
     "name": "measurement_type",
     "type": "STRING",
     "mode": "REQUIRED",
-    "description": "REACH_AND_FREQUENCY, REACH, IMPRESSION, DURATION, or POPULATION"
+    "description": "REACH_AND_FREQUENCY, REACH, IMPRESSION, DURATION, POPULATION, or MULTI"
   },
   {
     "name": "state",
