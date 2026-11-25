@@ -114,8 +114,7 @@ in every vector, and computes, for every cell:
 *   The frequency histogram, folded at `max_frequency`. Reach and frequency
     read off it; reach is the sum of its bins, so it needs no counter of its
     own.
-*   The impression total, scaled to any reported impression count when the cell
-    is emitted.
+*   The impression total, the sum of the counts.
 *   The reach of each `DataProvider` in the cell (`slice_reach`): the number of
     the cell's VIDs that the `DataProvider`'s summand vectors reached. This is
     the only input to the suppression test, which decides whether the cell
@@ -194,12 +193,19 @@ the prune fires only where the noised test would fail anyway.
 ## Noise
 
 Each emitted cell is noised deterministically, so that rerunning the same
-computation returns the same figures. The noise is seeded from the cell's
+computation returns the same figures. The noise is seeded from the measurement's
+resource name, the query's `id`, the cell's grouping values, and the cell's
 fingerprint as released: the first pass's fingerprint when no slice failed, or
 the corrective pass's otherwise, which reads failed `DataProviders`' vectors as
-zero. A failed `DataProvider` therefore never influences the noise. This step
-also scales impressions to the reported impression counts and computes each
-cell's variance.
+zero. A failed `DataProvider` therefore never influences the noise, and two
+unrelated measurements whose cells hold the same data do not share noise. This
+step also computes each cell's variance.
+
+Cell impressions come only from the vectors, so every cell of a query is noised
+by the Mill with one mechanism, and the `QueryResult` reports that mechanism and
+the TrusTEE v2 methodology. A `DataProvider`'s reported impression count, exact
+or noised by the `DataProvider`, describes its whole campaign and does not
+change any cell.
 
 ## Result thresholding
 
