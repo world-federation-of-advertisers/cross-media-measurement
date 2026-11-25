@@ -241,8 +241,15 @@ internal class VidLabelingHealingHandoffIntegrationTest :
           .filter { it.hasGeneration() }
           .associate { it.blobUri to it.generation.toString() }
       assertThat(finalizedManifest).containsAtLeastEntriesIn(frozenOutput)
-      assertThat(generationOf(frozenOutput.keys.single()))
-        .isNotEqualTo(frozenOutput.values.single())
+      // Labeled output is immutable per attempt: eviction removes the frozen data object and the
+      // rebuilt output is published under another attempt of the same input.
+      val frozenDataUri = frozenOutput.keys.single()
+      val frozenCanonicalUri = frozenDataUri.substringBeforeLast(".attempt-")
+      assertThat(fileStorage.getBlob(blobKey(frozenDataUri))).isNull()
+      val rebuiltDataUri = checkNotNull(sidecarDataUri(frozenCanonicalUri))
+      assertThat(rebuiltDataUri).isNotEqualTo(frozenDataUri)
+      assertThat(rebuiltDataUri).startsWith("$frozenCanonicalUri.attempt-")
+      assertThat(fileStorage.getBlob(blobKey(rebuiltDataUri))).isNotNull()
       assertSnapshotsEvicted(original.name, originalRankRows)
       assertThat(correction.name).isEqualTo(replacement.name)
 
