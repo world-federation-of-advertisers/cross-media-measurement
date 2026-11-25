@@ -67,6 +67,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -92,7 +93,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *    (streaming concat — shards partition the fingerprint space, so the slices are disjoint and
  *    need no dedup), deletes the temp per-shard blobs, then fans out Phase 1 — creates a
  *    `RankerJob` per subpool, publishes one `VidRankBuilder` WorkItem per `RankerJob`, and flips
- *    the parent `RawImpressionUploadModelLine` `POOL_ASSIGNING` -> `RANKING`.
+ *    the parent `RawImpressionUploadModelLine` `POOL_ASSIGNING` -> `RANKING`. With no ranked
+ *    memberships, creates normal file-batched labeling jobs and transitions directly to `LABELING`
+ *    after every expected shard has succeeded.
  *
  * Idempotent on Pub/Sub redelivery at the per-shard granularity (a job already `SUCCEEDED` short-
  * circuits the mark). On failure the error propagates so the TEE framework nacks (Pub/Sub retries
@@ -123,6 +126,7 @@ class SubpoolAssigner(
   // filled in at fan-out time.
   private val vidRankBuilderQueue: String,
   private val vidRankBuilderParamsTemplate: VidRankBuilderParams,
+  private val dispatchLabeling: suspend (Map<String, String>) -> Int,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val accumulator: SubpoolFingerprintsAccumulator = SubpoolFingerprintsAccumulator(),
   private val metrics: SubpoolAssignerMetrics = SubpoolAssignerMetrics(),
@@ -215,8 +219,8 @@ class SubpoolAssigner(
     // 412
     //   and the job never reaches SUCCEEDED. A correct fix (recover the winner's DEK on retry:
     //   row-first DEK, or key-on-row) is an API change; kept unconditional for now.
-    val dek: EncryptedDek = store.generateDek(kekUri)
     val subpoolIds = accumulator.subpoolIds().toList()
+    val dek: EncryptedDek? = if (subpoolIds.isEmpty()) null else store.generateDek(kekUri)
     // Write the per-subpool blobs with bounded concurrency (up to SUBPOOL_UPLOAD_CONCURRENCY at
     // once). subpoolIds is deduplicated, so each async block owns a DISTINCT subpool id: the
     // concurrent accumulator.remove(subpoolId) calls therefore only ever run across DIFFERENT
@@ -236,7 +240,7 @@ class SubpoolAssigner(
               try {
                 store.writeBlob(
                   shardSubpoolKey(shardIndex, subpoolId),
-                  dek,
+                  checkNotNull(dek),
                   subpoolId,
                   accumulator.streamChunks(subpoolId),
                 )
@@ -295,26 +299,33 @@ class SubpoolAssigner(
             // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
             // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
             requestId = deterministicUuid("$poolAssignmentJob|succeeded")
-            encryptedDek = dek
+            if (dek != null) encryptedDek = dek
             poolOffsets += subpoolIds
             sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
           }
         )
       }
 
-    // 4. Last-shard-out: merge per-shard blobs into one blob per subpool, then fan out Phase 1.
+    // 4. Last-shard-out: dispatch ranking for discovered pools, or file labeling for empty work.
     val lastShardOut = markResponse.hasLastShardResult()
     if (lastShardOut) {
       val parent =
         requireNotNull(getParent()) {
           "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
         }
-      runLastShardOut(
-        parent,
-        markResponse.lastShardResult.poolOffsetsList,
-        markResponse.lastShardResult.maxEventDate,
-        mergedDek = dek,
-      )
+      if (markResponse.lastShardResult.poolOffsetsCount > 0) {
+        runLastShardOut(
+          parent,
+          markResponse.lastShardResult.poolOffsetsList,
+          markResponse.lastShardResult.maxEventDate,
+          mergedDek = markResponse.poolAssignmentJob.encryptedDek,
+        )
+      } else {
+        check(!markResponse.lastShardResult.hasMaxEventDate()) {
+          "Empty final-shard result has a ranked event date"
+        }
+        runEmptyLastShardOut(parent)
+      }
     }
     return summary(subpoolCount, sink, lastShardOut)
   }
@@ -324,9 +335,12 @@ class SubpoolAssigner(
    * discovered subpool offsets, the max event date, and the merged-blob DEK were persisted on the
    * parent `RawImpressionUploadModelLine` by the last-shard-out's `MarkPoolAssignmentJobSucceeded`,
    * so we read them back:
-   * - empty `pool_offsets` -> this shard was not the last out; nothing to do,
-   * - parent state already `RANKING`/`LABELING`/`COMPLETED` -> the last-shard-out fully finished
-   *   (the state flip is its last step), so there is nothing to recover,
+   * - incomplete Phase 0 and empty `pool_offsets` -> the final shard has not committed,
+   * - completed Phase 0 and empty `pool_offsets` -> verify every expected shard and resume
+   *   labeling,
+   * - parent state already `RANKING`/`LABELING`/`AVAILABILITY_SYNCING`/`COMPLETED` -> the
+   *   last-shard-out fully finished (the state flip is its last step), so there is nothing to
+   *   recover,
    * - parent state `FAILED` -> this is a stale delivery for an upload that must remain terminal,
    * - otherwise -> a crash interrupted the last-shard-out; re-run it. The merge, RankerJob
    *   creation, and WorkItem publish are all idempotent, so re-running is safe.
@@ -337,8 +351,7 @@ class SubpoolAssigner(
    */
   private suspend fun recoverIfLastShardOut(): Result {
     val parent = getParent()
-    if (parent == null || parent.poolOffsetsList.isEmpty()) {
-      logger.info("PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; not last-shard-out")
+    if (parent == null) {
       return Result(0, 0, 0, 0, lastShardOut = false, outcome = "already_completed")
     }
     if (parent.state in NOOP_FANOUT_STATES) {
@@ -347,6 +360,13 @@ class SubpoolAssigner(
           "(parent state=${parent.state})"
       )
       return Result(0, 0, 0, 0, lastShardOut = true, outcome = "already_completed")
+    }
+    if (!parent.poolAssignmentComplete) {
+      return Result(0, 0, 0, 0, lastShardOut = false, outcome = "already_completed")
+    }
+    if (parent.poolOffsetsList.isEmpty()) {
+      runEmptyLastShardOut(parent)
+      return Result(0, 0, 0, 0, lastShardOut = true, outcome = "recovered")
     }
     require(parent.hasEncryptedMergedDek()) {
       "RawImpressionUploadModelLine ${parent.name} has pool_offsets but no encrypted_merged_dek; " +
@@ -360,6 +380,48 @@ class SubpoolAssigner(
       mergedDek = parent.encryptedMergedDek,
     )
     return Result(0, 0, 0, 0, lastShardOut = true, outcome = "recovered")
+  }
+
+  /** Hands completed Phase-0 work with no ranked memberships directly to file labeling. */
+  private suspend fun runEmptyLastShardOut(parent: RawImpressionUploadModelLine): Boolean {
+    if (parent.state in NOOP_FANOUT_STATES) return false
+    check(parent.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
+      "Parent ${parent.name} has not reached POOL_ASSIGNING"
+    }
+    check(
+      parent.poolAssignmentComplete && parent.poolOffsetsList.isEmpty() && !parent.hasMaxEventDate()
+    ) {
+      "Parent ${parent.name} has no valid empty Phase-0 completion"
+    }
+    val jobs = listShardJobs()
+    check(
+      jobs.size == totalShards &&
+        jobs.map { it.shardIndex }.toSet() == (0 until totalShards).toSet() &&
+        jobs.all { it.state == PoolAssignmentJob.State.SUCCEEDED }
+    ) {
+      "Empty Phase-0 completion requires every expected shard to succeed"
+    }
+    check(dispatchLabeling(traceContextProvider()) > 0) {
+      "Upload $rawImpressionUpload has no registered files for empty-membership labeling"
+    }
+    try {
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            name = parent.name
+            etag = parent.etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(parent.name)
+          }
+        )
+      }
+      return true
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.ABORTED && e.status.code != Status.Code.FAILED_PRECONDITION)
+        throw e
+      val current = getParent()
+      if (current != null && current.state in NOOP_FANOUT_STATES) return false
+      throw e
+    }
   }
 
   /**
@@ -406,13 +468,14 @@ class SubpoolAssigner(
         "dispatcher commits the phase transition"
     }
 
+    check(parent.poolAssignmentComplete) { "Parent ${parent.name} has incomplete Phase 0" }
     logger.info(
       "Shard $shardIndex is last-out for $modelLine; merging ${poolOffsets.size} subpools"
     )
 
     // Each shard encrypted its blobs with its own DEK, persisted on its PoolAssignmentJob row by
     // MarkPoolAssignmentJobSucceeded; recover them via ListPoolAssignmentJobs for this model line.
-    val shardDeks: Map<Int, EncryptedDek> = listShardDeks()
+    val shardDeks: Map<Int, EncryptedDek?> = listShardDeks()
 
     // Merge the subpools CONCURRENTLY, all sharing one Semaphore so the TOTAL number of in-flight
     // shard reads across every subpool merge is bounded by MERGE_READ_CONCURRENCY, keeping merge
@@ -430,15 +493,13 @@ class SubpoolAssigner(
             //   unconditional.
             try {
               val inputs =
-                (0 until totalShards).map { shard ->
+                (0 until totalShards).mapNotNull { shard ->
                   failureShard = shard
-                  SubpoolFingerprintsStore.SubpoolBlob(
-                    shardSubpoolKey(shard, poolOffset),
-                    requireNotNull(shardDeks[shard]) {
-                      "Missing DEK for shard $shard; cannot merge"
-                    },
-                  )
+                  require(shard in shardDeks) { "Missing DEK for shard $shard; cannot merge" }
+                  val shardDek = shardDeks[shard] ?: return@mapNotNull null
+                  SubpoolFingerprintsStore.SubpoolBlob(shardSubpoolKey(shard, poolOffset), shardDek)
                 }
+              check(inputs.isNotEmpty()) { "Ranked output has no persisted shard DEK" }
               failureShard = null
               store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore)
             } catch (e: CancellationException) {
@@ -696,8 +757,16 @@ class SubpoolAssigner(
    * (`RawImpressionUpload`, `ModelLine`) via `ListPoolAssignmentJobs` (paged). Each row carries the
    * DEK its shard's `MarkPoolAssignmentJobSucceeded` persisted.
    */
-  private suspend fun listShardDeks(): Map<Int, EncryptedDek> {
-    val deks = HashMap<Int, EncryptedDek>(totalShards)
+  private suspend fun listShardDeks(): Map<Int, EncryptedDek?> =
+    listShardJobs().associate { job ->
+      check(job.state == PoolAssignmentJob.State.SUCCEEDED) {
+        "Fingerprint merge requires every expected shard to succeed"
+      }
+      job.shardIndex to if (job.hasEncryptedDek()) job.encryptedDek else null
+    }
+
+  private suspend fun listShardJobs(): List<PoolAssignmentJob> {
+    val jobs = ArrayList<PoolAssignmentJob>(totalShards)
     poolAssignmentJobsStub
       .listResources { pageToken: String ->
         val response =
@@ -712,8 +781,8 @@ class SubpoolAssigner(
           }
         ResourceList(response.poolAssignmentJobsList, response.nextPageToken)
       }
-      .collect { page -> page.forEach { job -> deks[job.shardIndex] = job.encryptedDek } }
-    return deks
+      .collect { page -> jobs.addAll(page) }
+    return jobs
   }
 
   /**
@@ -884,6 +953,7 @@ class SubpoolAssigner(
         RawImpressionUploadModelLine.State.RANKING,
         RawImpressionUploadModelLine.State.LABELING,
         RawImpressionUploadModelLine.State.COMPLETED,
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
       )
   }
 }

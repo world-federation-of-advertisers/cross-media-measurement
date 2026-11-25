@@ -576,6 +576,7 @@ locals {
         app_flags = concat(local.vid_labeling_common_app_flags, [
           "--subscription-id", "subpool-assigner-subscription",
           "--vid-rank-builder-queue", "vid-rank-builder-queue",
+          "--vid-labeler-queue", "vid-labeler-queue",
         ])
       }
     }
