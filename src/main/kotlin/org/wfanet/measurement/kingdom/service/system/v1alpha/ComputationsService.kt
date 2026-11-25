@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.isActive
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.Measurement.Result as MeasurementResult
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
@@ -56,10 +57,12 @@ import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Population
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.computationKey
+import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
@@ -180,28 +183,20 @@ class ComputationsService(
         }
       grpcRequire(request.publicApiVersion.isNotEmpty()) { "public_api_version unspecified" }
 
-      // This assumes that the Certificate resource name is compatible with public API version
-      // v2alpha.
-      val aggregatorCertificateKey =
-        grpcRequireNotNull(DuchyCertificateKey.fromName(request.aggregatorCertificate)) {
-          "aggregator_certificate unspecified or invalid"
-        }
+      grpcRequire(request.hasEncryptedResult() || request.hasResult()) {
+        "result_payload unspecified"
+      }
       val authenticatedDuchy: DuchyIdentity = duchyIdentityProvider()
-      if (aggregatorCertificateKey.duchyId != authenticatedDuchy.id) {
-        throw Status.PERMISSION_DENIED.withDescription(
-            "Aggregator certificate not owned by authenticated Duchy"
-          )
-          .asRuntimeException()
-      }
+      val externalComputationId = apiIdToExternalId(computationKey.computationId)
 
-      val internalRequest = setMeasurementResultRequest {
-        externalComputationId = apiIdToExternalId(computationKey.computationId)
-        resultPublicKey = request.resultPublicKey
-        externalAggregatorDuchyId = aggregatorCertificateKey.duchyId
-        externalAggregatorCertificateId = apiIdToExternalId(aggregatorCertificateKey.certificateId)
-        encryptedResult = request.encryptedResult
-        publicApiVersion = request.publicApiVersion
-      }
+      val trusTeeV2: Boolean =
+        getMeasurementByComputationId(externalComputationId).details.protocolConfig.hasTrusTeeV2()
+      val internalRequest =
+        if (trusTeeV2) {
+          buildPlaintextResultRequest(request, externalComputationId, authenticatedDuchy)
+        } else {
+          buildEncryptedResultRequest(request, externalComputationId, authenticatedDuchy)
+        }
       val measurement: Measurement =
         try {
           measurementsClient.setMeasurementResult(internalRequest)
@@ -220,6 +215,88 @@ class ComputationsService(
         .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
       computation
     }
+
+  private suspend fun getMeasurementByComputationId(externalComputationId: Long): Measurement {
+    return try {
+      measurementsClient.getMeasurementByComputationId(
+        getMeasurementByComputationIdRequest { this.externalComputationId = externalComputationId }
+      )
+    } catch (e: StatusException) {
+      throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.CANCELLED -> Status.CANCELLED
+          else -> Status.UNKNOWN
+        }
+        .withCause(e)
+        .asRuntimeException()
+    }
+  }
+
+  /**
+   * Builds the internal request for the plaintext multimeasurement `Result` of a TrusTEE v2
+   * computation, which is neither signed nor encrypted and so has no aggregator certificate.
+   */
+  private fun buildPlaintextResultRequest(
+    request: SetComputationResultRequest,
+    externalComputationId: Long,
+    authenticatedDuchy: DuchyIdentity,
+  ): SetMeasurementResultRequest {
+    grpcRequire(request.hasResult()) { "result must be set for a TrusTEE v2 Computation" }
+    val parsedResult: MeasurementResult =
+      try {
+        MeasurementResult.parseFrom(request.result)
+      } catch (e: InvalidProtocolBufferException) {
+        throw Status.INVALID_ARGUMENT.withCause(e)
+          .withDescription("result is not a serialized Result")
+          .asRuntimeException()
+      }
+    grpcRequire(parsedResult.hasMultimeasurementResult()) {
+      "result must have a multimeasurement_result for a TrusTEE v2 Computation"
+    }
+
+    return setMeasurementResultRequest {
+      this.externalComputationId = externalComputationId
+      externalAggregatorDuchyId = authenticatedDuchy.id
+      this.result = request.result
+      publicApiVersion = request.publicApiVersion
+    }
+  }
+
+  /**
+   * Builds the internal request for the encrypted and signed `Result` of a computation, which is
+   * verified using the aggregator certificate.
+   */
+  private fun buildEncryptedResultRequest(
+    request: SetComputationResultRequest,
+    externalComputationId: Long,
+    authenticatedDuchy: DuchyIdentity,
+  ): SetMeasurementResultRequest {
+    grpcRequire(request.hasEncryptedResult()) {
+      "encrypted_result must be set for a Computation that is not TrusTEE v2"
+    }
+    // This assumes that the Certificate resource name is compatible with public API version
+    // v2alpha.
+    val aggregatorCertificateKey =
+      grpcRequireNotNull(DuchyCertificateKey.fromName(request.aggregatorCertificate)) {
+        "aggregator_certificate unspecified or invalid"
+      }
+    if (aggregatorCertificateKey.duchyId != authenticatedDuchy.id) {
+      throw Status.PERMISSION_DENIED.withDescription(
+          "Aggregator certificate not owned by authenticated Duchy"
+        )
+        .asRuntimeException()
+    }
+
+    return setMeasurementResultRequest {
+      this.externalComputationId = externalComputationId
+      resultPublicKey = request.resultPublicKey
+      externalAggregatorDuchyId = aggregatorCertificateKey.duchyId
+      externalAggregatorCertificateId = apiIdToExternalId(aggregatorCertificateKey.certificateId)
+      encryptedResult = request.encryptedResult
+      publicApiVersion = request.publicApiVersion
+    }
+  }
 
   /**
    * Converts this [Measurement] to a system [Computation], resolving the `population_spec` of a

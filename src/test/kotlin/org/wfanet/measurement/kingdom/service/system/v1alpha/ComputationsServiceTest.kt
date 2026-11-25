@@ -42,8 +42,13 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.inOrder
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt.queryResult
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.multimeasurementResult
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result as measurementResult
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.Instrumentation
@@ -99,6 +104,7 @@ import org.wfanet.measurement.internal.kingdom.population as internalPopulation
 import org.wfanet.measurement.internal.kingdom.populationDetails
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
+import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
@@ -170,6 +176,16 @@ private val DUCHY_ELGAMAL_KEY = ByteString.copyFromUtf8("an elgamal key.")
 private val DUCHY_ELGAMAL_KEY_SIGNATURE = ByteString.copyFromUtf8("an elgamal key signature.")
 private val RESULT_PUBLIC_KEY = ByteString.copyFromUtf8("result public key.")
 private val ENCRYPTED_RESULT = ByteString.copyFromUtf8("encrypted result.")
+private val MULTIMEASUREMENT_RESULT =
+  measurementResult {
+      multimeasurementResult = multimeasurementResult {
+        queryResults += queryResult {
+          queryId = "query-1"
+          maxFrequency = 5
+        }
+      }
+    }
+    .toByteString()
 
 private val INTERNAL_REQUISITION =
   InternalRequisition.newBuilder()
@@ -978,6 +994,8 @@ class ComputationsServiceTest {
 
   @Test
   fun `set computation result successfully`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_MEASUREMENT)
     whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
       .thenReturn(INTERNAL_MEASUREMENT)
 
@@ -1037,6 +1055,8 @@ class ComputationsServiceTest {
 
   @Test
   fun `setComputationResult emits failed lifecycle span when internal RPC fails`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_MEASUREMENT)
     whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
       .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
     val request =
@@ -1059,4 +1079,81 @@ class ComputationsServiceTest {
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("StatusRuntimeException")
   }
+
+  @Test
+  fun `setComputationResult sets plaintext result without certificate for TrusTEE v2`() =
+    runBlocking {
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+      whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+      val request =
+        SetComputationResultRequest.newBuilder()
+          .apply {
+            name = SYSTEM_COMPUTATION_NAME
+            result = MULTIMEASUREMENT_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
+          }
+          .build()
+
+      service.setComputationResult(request)
+
+      verifyProtoArgument(
+          internalMeasurementsServiceMock,
+          InternalMeasurementsCoroutineService::setMeasurementResult,
+        )
+        .isEqualTo(
+          setMeasurementResultRequest {
+            externalComputationId = EXTERNAL_COMPUTATION_ID
+            externalAggregatorDuchyId = DUCHY_ID
+            result = MULTIMEASUREMENT_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
+          }
+        )
+    }
+
+  @Test
+  fun `setComputationResult throws INVALID_ARGUMENT when TrusTEE v2 sets encrypted_result`() =
+    runBlocking {
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+      val request =
+        SetComputationResultRequest.newBuilder()
+          .apply {
+            name = SYSTEM_COMPUTATION_NAME
+            aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+            resultPublicKey = RESULT_PUBLIC_KEY
+            encryptedResult = ENCRYPTED_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
+          }
+          .build()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.setComputationResult(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      verifyBlocking(internalMeasurementsServiceMock, never()) { setMeasurementResult(any()) }
+    }
+
+  @Test
+  fun `setComputationResult throws INVALID_ARGUMENT when non-TrusTEE v2 sets result`() =
+    runBlocking {
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_MEASUREMENT)
+      val request =
+        SetComputationResultRequest.newBuilder()
+          .apply {
+            name = SYSTEM_COMPUTATION_NAME
+            aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+            result = MULTIMEASUREMENT_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
+          }
+          .build()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.setComputationResult(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      verifyBlocking(internalMeasurementsServiceMock, never()) { setMeasurementResult(any()) }
+    }
 }

@@ -63,9 +63,12 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.MultimeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt.queryResult
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.multimeasurementResult
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.multimeasurement
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result as measurementResult
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
@@ -1326,6 +1329,40 @@ class MeasurementsServiceTest {
       .ignoringRepeatedFieldOrder()
       .isEqualTo(MULTIMEASUREMENT.multimeasurement)
     assertThat(response.protocolConfig).isEqualTo(TRUS_TEE_V2_PUBLIC_PROTOCOL_CONFIG)
+  }
+
+  @Test
+  fun `getMeasurement returns plaintext result of a succeeded TrusTEE v2 multimeasurement`() {
+    val result = measurementResult {
+      multimeasurementResult = multimeasurementResult {
+        queryResults += queryResult {
+          queryId = QUERY.id
+          maxFrequency = QUERY.maxFrequency
+        }
+      }
+    }
+    internalMeasurementsMock.stub {
+      onBlocking { getMeasurement(any()) }
+        .thenReturn(
+          INTERNAL_MULTIMEASUREMENT.copy {
+            state = InternalState.SUCCEEDED
+            results += resultInfo {
+              externalAggregatorDuchyId = "aggregator"
+              this.result = result.toByteString()
+              apiVersion = API_VERSION.string
+            }
+          }
+        )
+    }
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val response: Measurement =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.getMeasurement(request) }
+      }
+
+    assertThat(response.state).isEqualTo(State.SUCCEEDED)
+    assertThat(response.resultsList).containsExactly(resultOutput { this.result = result })
   }
 
   private fun stubTrusTeeV2CapableDataProviders() {

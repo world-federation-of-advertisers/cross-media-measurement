@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.MeasurementDetailsKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.multimeasurementVector
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
@@ -1414,6 +1415,136 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         }
       )
   }
+
+  @Test
+  fun `setMeasurementResult stores plaintext result without certificate for TrusTEE v2`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val measurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              TRUS_TEE_V2_MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                multimeasurementVectors +=
+                  testVector(dataProvider.externalDataProviderId, index = 0)
+              }
+          }
+        )
+      val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+      val request = setMeasurementResultRequest {
+        externalComputationId = measurement.externalComputationId
+        externalAggregatorDuchyId = aggregatorDuchyId
+        result = ByteString.copyFromUtf8("result")
+        publicApiVersion = Version.V2_ALPHA.string
+      }
+
+      val response = measurementsService.setMeasurementResult(request)
+
+      assertThat(response)
+        .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER, Measurement.ETAG_FIELD_NUMBER)
+        .ignoringRepeatedFieldOrder()
+        .isEqualTo(
+          measurement.copy {
+            state = Measurement.State.SUCCEEDED
+            details =
+              details.copy {
+                plaintextResult = MeasurementDetailsKt.plaintextResult {
+                  externalAggregatorDuchyId = aggregatorDuchyId
+                  result = request.result
+                  apiVersion = request.publicApiVersion
+                }
+              }
+            results += resultInfo {
+              externalAggregatorDuchyId = aggregatorDuchyId
+              result = request.result
+              apiVersion = request.publicApiVersion
+            }
+          }
+        )
+      val succeededMeasurement =
+        measurementsService.getMeasurement(
+          getMeasurementRequest {
+            externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+            externalMeasurementId = measurement.externalMeasurementId
+          }
+        )
+      assertThat(succeededMeasurement).ignoringRepeatedFieldOrder().isEqualTo(response)
+    }
+
+  @Test
+  fun `setMeasurementResult throws INVALID_ARGUMENT when TrusTEE v2 sets encrypted_result`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val measurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              TRUS_TEE_V2_MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                multimeasurementVectors +=
+                  testVector(dataProvider.externalDataProviderId, index = 0)
+              }
+          }
+        )
+      val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+      val duchyCertificate =
+        population.createDuchyCertificate(certificatesService, aggregatorDuchyId)
+      val request = setMeasurementResultRequest {
+        externalComputationId = measurement.externalComputationId
+        externalAggregatorDuchyId = aggregatorDuchyId
+        externalAggregatorCertificateId = duchyCertificate.externalCertificateId
+        resultPublicKey = ByteString.copyFromUtf8("resultPublicKey")
+        encryptedResult = ByteString.copyFromUtf8("encryptedResult")
+        publicApiVersion = Version.V2_ALPHA.string
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementsService.setMeasurementResult(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `setMeasurementResult throws INVALID_ARGUMENT when non-TrusTEE v2 sets result`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val measurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+              }
+          }
+        )
+      val request = setMeasurementResultRequest {
+        externalComputationId = measurement.externalComputationId
+        externalAggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+        result = ByteString.copyFromUtf8("result")
+        publicApiVersion = Version.V2_ALPHA.string
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementsService.setMeasurementResult(request)
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
 
   @Test
   fun `cancelMeasurement transitions Measurement state`() = runBlocking {

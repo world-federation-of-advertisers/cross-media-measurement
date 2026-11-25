@@ -255,7 +255,12 @@ fun InternalMeasurement.toSystemComputation(): Computation {
     measurementSpec = details.measurementSpec
     state = source.state.toSystemComputationState()
     val resultsList = source.resultsList
-    if (resultsList.isNotEmpty() && resultsList[0].externalAggregatorDuchyId.isNotBlank()) {
+    // A TrusTEE v2 plaintext `result` has no aggregator certificate and no `Computation` field.
+    if (
+      resultsList.isNotEmpty() &&
+        resultsList[0].externalAggregatorDuchyId.isNotBlank() &&
+        resultsList[0].result.isEmpty
+    ) {
       aggregatorCertificate =
         when (apiVersion) {
           Version.V2_ALPHA ->

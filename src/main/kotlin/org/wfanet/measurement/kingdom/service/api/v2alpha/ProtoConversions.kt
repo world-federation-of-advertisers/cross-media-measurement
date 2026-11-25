@@ -1051,11 +1051,18 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
 
     state = source.state.toState()
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Set
-    //   `ResultOutput.result` for a multimeasurement once its result handling lands.
     results +=
       source.resultsList.map {
         val resultApiVersion = Version.fromString(it.apiVersion)
+        if (!it.result.isEmpty) {
+          // A multimeasurement `Result` is neither signed nor encrypted, so it has no certificate.
+          return@map resultOutput {
+            result =
+              when (resultApiVersion) {
+                Version.V2_ALPHA -> Measurement.Result.parseFrom(it.result)
+              }
+          }
+        }
         val certificateApiId = externalIdToApiId(it.externalCertificateId)
         resultOutput {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case fields cannot be null.

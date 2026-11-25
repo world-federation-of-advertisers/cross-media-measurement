@@ -510,6 +510,14 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
         apiVersion = duchyResultStruct.getString("PublicApiVersion")
       }
     }
+    if (details.hasPlaintextResult()) {
+      val plaintextResult: MeasurementDetails.PlaintextResult = details.plaintextResult
+      results += resultInfo {
+        externalAggregatorDuchyId = plaintextResult.externalAggregatorDuchyId
+        result = plaintextResult.result
+        apiVersion = plaintextResult.apiVersion
+      }
+    }
   }
   etag = ETags.computeETag(struct.getTimestamp("UpdateTime"))
 }
