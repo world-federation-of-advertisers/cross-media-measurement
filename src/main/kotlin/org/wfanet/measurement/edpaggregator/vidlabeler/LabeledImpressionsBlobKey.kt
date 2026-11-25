@@ -29,14 +29,17 @@ object LabeledImpressionsBlobKeys {
     eventDate: LocalDate,
   ): String = "${prefix.trimEnd('/')}/${forInput(inputBlobUri, modelLine, eventDate)}"
 
+  /** Returns the prefix shared by every immutable data URI of one canonical output. */
+  fun attemptPrefix(canonicalUri: String): String = "$canonicalUri.attempt-"
+
   /** Returns an immutable data URI within one canonical output's namespace. */
   fun forAttemptUri(canonicalUri: String, attemptId: UUID): String =
-    "$canonicalUri.attempt-$attemptId"
+    "${attemptPrefix(canonicalUri)}$attemptId"
 
   /** Whether [dataUri] belongs to the exact canonical input output, including legacy data. */
   fun matchesInputUri(dataUri: String, canonicalUri: String): Boolean {
     if (dataUri == canonicalUri) return true
-    val prefix = "$canonicalUri.attempt-"
+    val prefix = attemptPrefix(canonicalUri)
     if (!dataUri.startsWith(prefix)) return false
     val suffix = dataUri.removePrefix(prefix)
     return try {

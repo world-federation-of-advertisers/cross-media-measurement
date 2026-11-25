@@ -186,6 +186,73 @@ locals {
   }
 }
 
+locals {
+  vid_labeling_repository_root = "${path.module}/../../../../../.."
+  # Wire, persistence and object-layout sources that old and new workers must
+  # share during a mixed-version rollout: EDPA public/internal protos, Spanner
+  # changesets, the code that names, encrypts, frames and publishes Phase 0/1/2
+  # storage objects, the Phase-0 complete-write client, deterministic Phase-2
+  # bin-packing and dispatch, deterministic WorkItem/request IDs, and the event
+  # fingerprint and rank-index byte formats.
+  vid_labeling_contract_sources = sort(concat(
+    tolist(fileset(local.vid_labeling_repository_root, "src/main/proto/wfa/measurement/edpaggregator/**/*.proto")),
+    tolist(fileset(local.vid_labeling_repository_root, "src/main/proto/wfa/measurement/internal/edpaggregator/**/*.proto")),
+    tolist(fileset(local.vid_labeling_repository_root, "src/main/resources/edpaggregator/spanner/**")),
+    [
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/EncryptedStorage.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/CompleteGcsStorageClient.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/EncryptedRecordIoStore.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/EventIdDigest.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/EventIdDigestExtractor.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/RankIndexStore.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/RawImpressionFileBinPacker.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions/SubpoolFingerprintsStore.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/LabeledImpressionsBlobKey.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler/VidLabelingSink.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/MemoizedVidLabelingJobDispatcher.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/RequestIds.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/VidLabelingDispatchSequencer.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/WorkItemIds.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder/EventIdDigestBytes.kt",
+      "src/main/kotlin/org/wfanet/measurement/edpaggregator/vidrankbuilder/LastSeenDayBytes.kt",
+    ],
+  ))
+  # Any changed contract source or packing/routing configuration requires the
+  # checked maintenance path. A successful-cutover receipt binds this identity
+  # to verified serving revisions.
+  vid_labeling_contract_id = sha256(jsonencode({
+    sources = {
+      for source in local.vid_labeling_contract_sources :
+      source => filesha256("${local.vid_labeling_repository_root}/${source}")
+    }
+    dispatcher           = filesha256(var.vid_labeling_dispatcher_config.local_path)
+    monitor              = filesha256(var.vid_labeling_monitor_config.local_path)
+    availability_monitor = filesha256(var.data_availability_monitor_config.local_path)
+    data_watcher         = filesha256(var.data_watcher_config.local_path)
+    data_watcher_delete  = filesha256(var.data_watcher_delete_config.local_path)
+    availability         = filesha256(var.data_availability_sync_config.local_path)
+  }))
+  # Exactly the functions that terraform_data.vid_labeling_reader_readiness
+  # depends on; unrelated functions must not enter the reader gate.
+  vid_labeling_rollout_roles = [
+    "data_availability_cleanup",
+    "data_availability_monitor",
+    "data_availability_sync",
+    "data_watcher",
+    "data_watcher_delete",
+    "vid_labeling_dispatcher",
+    "vid_labeling_healing_controller",
+    "vid_labeling_monitor",
+  ]
+  vid_labeling_rollout_functions = [
+    for role in local.vid_labeling_rollout_roles : {
+      role            = role
+      name            = var.cloud_function_configs[role].function_name
+      artifact_sha256 = filesha256(var.cloud_function_configs[role].uber_jar_path)
+    }
+  ]
+}
+
 module "edp_aggregator_bucket" {
   source = "../storage-bucket"
 
@@ -321,7 +388,7 @@ module "data_watcher_cloud_function" {
   terraform_service_account                   = var.terraform_service_account
   function_name                               = var.cloud_function_configs.data_watcher.function_name
   entry_point                                 = var.cloud_function_configs.data_watcher.entry_point
-  extra_env_vars                              = var.cloud_function_configs.data_watcher.extra_env_vars
+  extra_env_vars                              = join(",", compact([var.cloud_function_configs.data_watcher.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
   secret_mappings                             = var.cloud_function_configs.data_watcher.secret_mappings
   uber_jar_path                               = var.cloud_function_configs.data_watcher.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
@@ -344,7 +411,7 @@ module "data_watcher_delete_cloud_function" {
   terraform_service_account                   = var.terraform_service_account
   function_name                               = var.cloud_function_configs.data_watcher_delete.function_name
   entry_point                                 = var.cloud_function_configs.data_watcher_delete.entry_point
-  extra_env_vars                              = var.cloud_function_configs.data_watcher_delete.extra_env_vars
+  extra_env_vars                              = join(",", compact([var.cloud_function_configs.data_watcher_delete.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
   secret_mappings                             = var.cloud_function_configs.data_watcher_delete.secret_mappings
   uber_jar_path                               = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
@@ -433,7 +500,7 @@ module "data_availability_sync_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.data_availability_sync.function_name
   entry_point                              = var.cloud_function_configs.data_availability_sync.entry_point
-  extra_env_vars                           = var.cloud_function_configs.data_availability_sync.extra_env_vars
+  extra_env_vars                           = join(",", compact([var.cloud_function_configs.data_availability_sync.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
   config_path                              = var.data_availability_sync_config.local_path
@@ -462,7 +529,7 @@ module "data_availability_cleanup_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.data_availability_cleanup.function_name
   entry_point                              = var.cloud_function_configs.data_availability_cleanup.entry_point
-  extra_env_vars                           = var.cloud_function_configs.data_availability_cleanup.extra_env_vars
+  extra_env_vars                           = join(",", compact([var.cloud_function_configs.data_availability_cleanup.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
   secret_mappings                          = var.cloud_function_configs.data_availability_cleanup.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_cleanup.uber_jar_path
   config_path                              = var.data_availability_sync_config.local_path
@@ -996,7 +1063,7 @@ module "data_availability_monitor_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.data_availability_monitor.function_name
   entry_point                              = var.cloud_function_configs.data_availability_monitor.entry_point
-  extra_env_vars                           = var.cloud_function_configs.data_availability_monitor.extra_env_vars
+  extra_env_vars                           = join(",", compact([var.cloud_function_configs.data_availability_monitor.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
   secret_mappings                          = var.cloud_function_configs.data_availability_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_monitor.uber_jar_path
   config_path                              = var.data_availability_monitor_config.local_path
@@ -1117,11 +1184,52 @@ resource "google_pubsub_subscription_iam_member" "vid_labeling_operator_dead_let
   member       = module.edp_aggregator_internal.iam_service_account.member
 }
 
+# Read-only activation prerequisite, managed by Terraform with its consumers.
+# Desired templates do not prove serving reader revisions are ready.
+resource "terraform_data" "vid_labeling_reader_readiness" {
+  count = var.tee_consumers_enabled && length(var.vid_labeling_workers) > 0 ? 1 : 0
+  depends_on = [
+    module.data_watcher_cloud_function,
+    module.data_watcher_delete_cloud_function,
+    module.data_availability_sync_cloud_function,
+    module.data_availability_cleanup_cloud_function,
+    module.data_availability_monitor_cloud_function,
+    module.vid_labeling_dispatcher_cloud_function,
+    module.vid_labeling_monitor_cloud_function,
+    module.vid_labeling_healing_controller_cloud_function,
+  ]
+  triggers_replace = [
+    local.vid_labeling_contract_id,
+    jsonencode(local.vid_labeling_rollout_functions),
+  ]
+  provisioner "local-exec" {
+    interpreter = ["/bin/bash", "-c"]
+    environment = {
+      CUTOVER_PROJECT = data.google_project.project.id
+      CUTOVER_REGION  = data.google_client_config.default.region
+      CUTOVER_MANIFEST = jsonencode({
+        schema_version = 1
+        contract_id    = local.vid_labeling_contract_id
+        functions      = local.vid_labeling_rollout_functions
+      })
+    }
+    command = <<-EOT
+      set -euo pipefail
+      cutover_manifest_file=$(mktemp)
+      trap 'rm -f "$cutover_manifest_file"' EXIT
+      printf '%s' "$CUTOVER_MANIFEST" > "$cutover_manifest_file"
+      python3 "${path.module}/../../../../../../.github/workflows/scripts/check_vid_labeling_readiness.py" \
+        --project="$CUTOVER_PROJECT" --region="$CUTOVER_REGION" --image-tag=reader-gate \
+        --functions-only --manifest="$cutover_manifest_file"
+    EOT
+  }
+}
+
 module "vid_labeling_tee_app" {
   source   = "../mig"
   for_each = var.vid_labeling_workers
 
-  depends_on = [module.secrets]
+  depends_on = [module.secrets, terraform_data.vid_labeling_reader_readiness]
 
   enabled                       = var.tee_consumers_enabled
   work_item_consumption_enabled = var.tee_consumers_enabled
@@ -1147,7 +1255,7 @@ module "vid_labeling_tee_app" {
   config_storage_bucket         = module.config_files_bucket.storage_bucket.name
   subnetwork_name               = google_compute_subnetwork.private_subnetwork.name
   tee_signed_image_repo         = each.value.worker.tee_signed_image_repo
-  extra_metadata                = local.otel_metadata
+  extra_metadata                = merge(local.otel_metadata, { "tee-env-VID_LABELING_CONTRACT_ID" = local.vid_labeling_contract_id })
 }
 
 # The VID Labeling TEE apps read raw impressions and read/write/delete their own pipeline outputs
@@ -1200,7 +1308,7 @@ module "vid_labeling_dispatcher_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.vid_labeling_dispatcher.function_name
   entry_point                              = var.cloud_function_configs.vid_labeling_dispatcher.entry_point
-  extra_env_vars                           = var.cloud_function_configs.vid_labeling_dispatcher.extra_env_vars
+  extra_env_vars                           = join(",", compact([var.cloud_function_configs.vid_labeling_dispatcher.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
   secret_mappings                          = var.cloud_function_configs.vid_labeling_dispatcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_dispatcher.uber_jar_path
   config_path                              = var.vid_labeling_dispatcher_config.local_path
@@ -1255,7 +1363,7 @@ module "vid_labeling_monitor_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.vid_labeling_monitor.function_name
   entry_point                              = var.cloud_function_configs.vid_labeling_monitor.entry_point
-  extra_env_vars                           = var.cloud_function_configs.vid_labeling_monitor.extra_env_vars
+  extra_env_vars                           = join(",", compact([var.cloud_function_configs.vid_labeling_monitor.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
   secret_mappings                          = var.cloud_function_configs.vid_labeling_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
   config_path                              = var.vid_labeling_monitor_config.local_path
@@ -1315,7 +1423,7 @@ module "vid_labeling_healing_controller_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.vid_labeling_healing_controller.function_name
   entry_point                              = var.cloud_function_configs.vid_labeling_healing_controller.entry_point
-  extra_env_vars                           = var.cloud_function_configs.vid_labeling_healing_controller.extra_env_vars
+  extra_env_vars                           = join(",", compact([var.cloud_function_configs.vid_labeling_healing_controller.extra_env_vars, "VID_LABELING_CONTRACT_ID=${local.vid_labeling_contract_id}"]))
   secret_mappings                          = var.cloud_function_configs.vid_labeling_healing_controller.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_healing_controller.uber_jar_path
   secrets_to_access                        = [for key in local.vid_labeling_healing_controller_secrets_access : local.all_secrets[key].secret_id]

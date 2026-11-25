@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
+import com.google.api.gax.paging.Page
 import com.google.cloud.storage.Blob
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.Storage
@@ -36,6 +37,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
@@ -313,6 +315,10 @@ class GcsLabeledOutputEvictionTest {
     }
 
   private suspend fun evictor(storage: Storage): EvictUploader {
+    // No unreferenced attempt objects exist outside the approved manifest in these cases.
+    val noAttempts = mock<Page<Blob>>()
+    whenever(noAttempts.iterateAll()).thenReturn(emptyList())
+    whenever(storage.list(eq("output"), any<Storage.BlobListOption>())).thenReturn(noAttempts)
     whenever(storage.get(any<BlobId>())).thenAnswer { invocation ->
       mock<Blob>().also {
         whenever(it.name).thenReturn(invocation.getArgument<BlobId>(0).name)
@@ -347,6 +353,7 @@ class GcsLabeledOutputEvictionTest {
       store::getGeneration,
       store::delete,
       readBlobDetails = { uri, _ -> blobDetails { blobUri = uri.removeSuffix(".metadata.binpb") } },
+      listBlobGenerations = store::listGenerations,
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
   }

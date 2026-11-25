@@ -248,6 +248,9 @@ class VidLabelingHealingChronologyIntegrationTest {
         readBlobDetails = { uri, _ ->
           blobDetails { blobUri = uri.removeSuffix(".metadata.binpb") }
         },
+        listBlobGenerations = { prefix ->
+          outputBlobUris.filter { it.startsWith(prefix) }.associateWith { 100L }
+        },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
     val recoverUploader =
@@ -502,6 +505,9 @@ class VidLabelingHealingChronologyIntegrationTest {
           },
           readBlobDetails = { uri, _ ->
             blobDetails { blobUri = uri.removeSuffix(".metadata.binpb") }
+          },
+          listBlobGenerations = { prefix ->
+            outputBlobUris.filter { it.startsWith(prefix) }.associateWith { 100L }
           },
           rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
         )

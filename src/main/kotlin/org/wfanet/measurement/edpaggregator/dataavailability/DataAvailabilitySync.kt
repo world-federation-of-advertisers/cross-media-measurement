@@ -42,6 +42,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -1943,13 +1944,21 @@ class DataAvailabilitySync(
         val metadataBlob = storageClient.getBlob(metadataBlobKey)
         if (metadataBlob != null) {
           emit(MetadataBlobCandidate(metadataBlob, absoluteBlobUri(doneBlobUri, outputBlobKey)))
-        } else if (storageClient.getBlob(outputBlobKey) != null) {
+        } else if (
+          storageClient.getBlob(outputBlobKey) != null || hasAttemptOutput(outputBlobKey)
+        ) {
           throw IllegalStateException(
             "VID Labeler output exists without its metadata sidecar: $outputBlobKey"
           )
         }
       }
     }
+
+  /** Whether any immutable attempt of the canonical output [outputBlobKey] exists. */
+  private suspend fun hasAttemptOutput(outputBlobKey: String): Boolean =
+    storageClient.listBlobs(LabeledImpressionsBlobKeys.attemptPrefix(outputBlobKey)).firstOrNull {
+      LabeledImpressionsBlobKeys.matchesInputUri(it.blobKey, outputBlobKey)
+    } != null
 
   private fun absoluteBlobUri(doneBlobUri: BlobUri, blobKey: String): String =
     when (doneBlobUri.scheme) {

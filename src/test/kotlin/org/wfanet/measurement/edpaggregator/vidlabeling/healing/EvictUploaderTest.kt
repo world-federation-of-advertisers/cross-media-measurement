@@ -155,6 +155,11 @@ class EvictUploaderTest {
       readBlobDetails = { uri, _ ->
         sidecarDetails[uri] ?: blobDetails { blobUri = uri.removeSuffix(".metadata.binpb") }
       },
+      listBlobGenerations = { prefix ->
+        blobGenerations
+          .filter { (uri, generation) -> uri.startsWith(prefix) && generation != null }
+          .mapValues { checkNotNull(it.value) }
+      },
       rpcThrottlers = recordingThrottlers.throttlers,
     )
   }

@@ -73,6 +73,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.clearInvocations
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
@@ -106,6 +107,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -141,6 +143,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.queue.MessageConsumer
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -837,6 +840,242 @@ class VidLabelerAppTest {
     fieldPath = path
     scalar = scalarColumn { column = "input" }
   }
+
+  @Test
+  fun `sidecar collisions replay Mark without sibling scans while partial jobs finish`() =
+    runBlocking<Unit> {
+      val expectedRequestId = RequestIds.forMarkVidLabelingJobSucceeded(VID_LABELING_JOB)
+      for (memoized in listOf(false, true)) {
+        clearInvocations(vidLabelingJobsService, workItemsService)
+        if (memoized) seedRankIndexBlob()
+        tempFolder.root.resolve("output-bucket").mkdirs()
+        val fileName = "$UPLOAD/rawImpressionUploadFiles/file1"
+        val eventDate =
+          com.google.type.date {
+            year = 2026
+            month = 6
+            day = 30
+          }
+        val parquetBlob =
+          mock<ParquetStorageClient.ParquetBlob> {
+            on { readRows() } doReturn
+              flowOf(mapOf("event_id_column" to parquetValue { stringValue = "event" }))
+            onBlocking { readSchema() } doReturn
+              mapOf("event_id_column" to ParquetValue.KindCase.STRING_VALUE)
+            onBlocking { readKeyValueMetadata() } doReturn mapOf("event_date" to "2026-06-30")
+          }
+        mockParquetStorageClient.stub { onBlocking { getBlob(any()) } doReturn parquetBlob }
+        rawImpressionUploadFilesService.stub {
+          onBlocking { getRawImpressionUploadFile(any()) } doReturn
+            rawImpressionUploadFile {
+              name = fileName
+              blobUri = "file:///raw-bucket/input.parquet"
+              this.eventDate = eventDate
+            }
+        }
+        val writer =
+          mock<PopulationAttributeWriter> {
+            on { apply(any(), any()) } doReturn
+              com.google.protobuf.Any.pack(TestEvent.getDefaultInstance())
+          }
+        val converter = ImpressionConverter { _, _ ->
+          ConvertedImpression(
+            LabelerInput.newBuilder()
+              .setTimestampUsec(Instant.parse("2026-06-30T00:00:01Z").epochSecond * 1_000_000L)
+              .build(),
+            { TestEvent.getDefaultInstance() },
+            listOf(
+              LabeledImpressionKt.entityKey {
+                entityType = "household"
+                entityId = "h1"
+              }
+            ),
+            writer,
+          )
+        }
+        mockVidAssigner.stub {
+          on { assign(any()) } doReturn
+            LabelerOutput.newBuilder()
+              .addPeople(VirtualPersonActivity.newBuilder().setVirtualPersonId(42L))
+              .build()
+        }
+        fun job(stateValue: VidLabelingJob.State) = vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = stateValue
+          etag = "etag"
+          createTime = com.google.protobuf.util.Timestamps.fromSeconds(10L)
+          updateTime = com.google.protobuf.util.Timestamps.fromSeconds(20L)
+          rawImpressionUploadFiles += fileName
+        }
+        vidLabelingJobsService.stub {
+          onBlocking { getVidLabelingJob(any()) } doReturn job(VidLabelingJob.State.CREATED)
+          onBlocking { markVidLabelingJobSucceeded(any()) } doAnswer
+            {
+              val request = it.getArgument<MarkVidLabelingJobSucceededRequest>(0)
+              check(request.name == VID_LABELING_JOB && request.requestId == expectedRequestId) {
+                "Only the original successful Mark request can be replayed"
+              }
+              markVidLabelingJobSucceededResponse {}
+            }
+        }
+        val params = if (memoized) memoizedParams() else nonMemoizedParams()
+        createApp(converter = converter).runWork(buildMessage(params))
+        val originalMark = argumentCaptor<MarkVidLabelingJobSucceededRequest>()
+        verifyBlocking(vidLabelingJobsService) {
+          markVidLabelingJobSucceeded(originalMark.capture())
+        }
+        val originalRequest = originalMark.firstValue
+        assertThat(originalRequest.requestId).isEqualTo(expectedRequestId)
+        for (completed in listOf(true, false)) {
+          clearInvocations(vidLabelingJobsService)
+          var gets = 0
+          vidLabelingJobsService.stub {
+            onBlocking { getVidLabelingJob(any()) } doAnswer
+              {
+                job(
+                  if (gets++ == 0 || !completed) VidLabelingJob.State.CREATED
+                  else VidLabelingJob.State.SUCCEEDED
+                )
+              }
+          }
+          rawImpressionUploadModelLinesService.stub {
+            onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+              listRawImpressionUploadModelLinesResponse {
+                rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                  name = PARENT_NAME
+                  cmmsModelLine = MODEL_LINE
+                  state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+                }
+              }
+          }
+          createApp(converter = converter).runWork(buildMessage(params))
+          val replayMark = argumentCaptor<MarkVidLabelingJobSucceededRequest>()
+          verifyBlocking(vidLabelingJobsService, times(1)) {
+            markVidLabelingJobSucceeded(replayMark.capture())
+          }
+          assertThat(replayMark.firstValue.requestId).isEqualTo(originalRequest.requestId)
+          assertThat(replayMark.firstValue.name).isEqualTo(originalRequest.name)
+          assertThat(gets).isEqualTo(2)
+          verifyBlocking(vidLabelingJobsService, never()) { listVidLabelingJobs(any()) }
+        }
+        // Siblings may finish after the first mark. The saved Mark response remains empty;
+        // the worker must use it without enumerating siblings or guessing from their timestamps.
+        vidLabelingJobsService.stub {
+          onBlocking { listVidLabelingJobs(any()) } doAnswer
+            {
+              error("Collision replay must not list sibling jobs")
+            }
+        }
+        for (completed in listOf(true, false)) {
+          clearInvocations(vidLabelingJobsService)
+          var gets = 0
+          vidLabelingJobsService.stub {
+            onBlocking { getVidLabelingJob(any()) } doAnswer
+              {
+                job(
+                  if (gets++ == 0 || !completed) VidLabelingJob.State.CREATED
+                  else VidLabelingJob.State.SUCCEEDED
+                )
+              }
+          }
+          rawImpressionUploadModelLinesService.stub {
+            onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+              listRawImpressionUploadModelLinesResponse {
+                rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                  name = PARENT_NAME
+                  cmmsModelLine = MODEL_LINE
+                  state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+                }
+              }
+          }
+          val collisionConverter = ImpressionConverter { _, _ ->
+            throw org.wfanet.measurement.storage.BlobChangedException("immutable data collision")
+          }
+          if (completed) createApp(converter = collisionConverter).runWork(buildMessage(params))
+          else
+            assertFailsWith<org.wfanet.measurement.storage.BlobChangedException> {
+              createApp(converter = collisionConverter).runWork(buildMessage(params))
+            }
+          verifyBlocking(vidLabelingJobsService, times(if (completed) 1 else 0)) {
+            markVidLabelingJobSucceeded(any())
+          }
+          verifyBlocking(vidLabelingJobsService, never()) { listVidLabelingJobs(any()) }
+          verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobFailed(any()) }
+        }
+        // Original last-out responsibility cannot revive a parent that subsequently failed.
+        clearInvocations(
+          vidLabelingJobsService,
+          workItemsService,
+          rawImpressionUploadModelLinesService,
+        )
+        var failedParentGets = 0
+        vidLabelingJobsService.stub {
+          onBlocking { getVidLabelingJob(any()) } doAnswer
+            {
+              job(
+                if (failedParentGets++ == 0) VidLabelingJob.State.CREATED
+                else VidLabelingJob.State.SUCCEEDED
+              )
+            }
+          onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+            markVidLabelingJobSucceededResponse {
+              vidLabelingJob = job(VidLabelingJob.State.SUCCEEDED)
+              lastVidLabelingJobResult =
+                MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+                  completedModelLines += MODEL_LINE
+                }
+            }
+        }
+        rawImpressionUploadModelLinesService.stub {
+          onBlocking { listRawImpressionUploadModelLines(any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                etag = "failed-parent-etag"
+                state = RawImpressionUploadModelLine.State.FAILED
+              }
+            }
+        }
+        createApp(converter = converter).runWork(buildMessage(params))
+        val failedReplay = argumentCaptor<MarkVidLabelingJobSucceededRequest>()
+        verifyBlocking(vidLabelingJobsService) {
+          markVidLabelingJobSucceeded(failedReplay.capture())
+        }
+        assertThat(failedReplay.firstValue.requestId).isEqualTo(originalRequest.requestId)
+        assertThat(failedParentGets).isEqualTo(2)
+        verifyBlocking(vidLabelingJobsService, never()) { listVidLabelingJobs(any()) }
+        verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+        verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+          markRawImpressionUploadModelLineAvailabilitySyncing(any())
+        }
+        assertThat(
+            tempFolder.root
+              .walkTopDown()
+              .filter { it.isFile && (it.name == "done" || it.name.startsWith("done-")) }
+              .toList()
+          )
+          .isEmpty()
+
+        // A decryptable pair with unusable metadata cannot complete an unfinished job.
+        val metadataFile =
+          tempFolder.root.walkTopDown().single { it.isFile && it.name.endsWith(".metadata.binpb") }
+        val original =
+          org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails.parseFrom(
+            metadataFile.readBytes()
+          )
+        metadataFile.writeBytes(original.toBuilder().clearInterval().build().toByteArray())
+        clearInvocations(vidLabelingJobsService)
+        vidLabelingJobsService.stub {
+          onBlocking { getVidLabelingJob(any()) } doReturn job(VidLabelingJob.State.CREATED)
+        }
+        assertFailsWith<IllegalArgumentException> {
+          createApp(converter = converter).runWork(buildMessage(params))
+        }
+        verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+        metadataFile.writeBytes(original.toByteArray())
+      }
+    }
 
   @Test
   fun `runWork marks job succeeded`() = runBlocking {
@@ -2820,6 +3059,106 @@ class VidLabelerAppTest {
       markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
   }
+
+  @Test
+  fun `collision replay finalizes a healthy model line without reviving a failed sibling`() =
+    runBlocking<Unit> {
+      val params =
+        taskParams().copy {
+          clearMemoizedParams()
+          modelLines += SIBLING_MODEL_LINE
+          modelLineConfigs[SIBLING_MODEL_LINE] = modelLineConfigs.getValue(MODEL_LINE)
+          modelBlobPaths[SIBLING_MODEL_LINE] = modelBlobPaths.getValue(MODEL_LINE)
+        }
+      var gets = 0
+      fun job(stateValue: VidLabelingJob.State) = vidLabelingJob {
+        name = VID_LABELING_JOB
+        state = stateValue
+        etag = "etag"
+        cmmsModelLines += listOf(MODEL_LINE, SIBLING_MODEL_LINE)
+        rawImpressionUploadFiles += "$UPLOAD/rawImpressionUploadFiles/file1"
+      }
+      vidLabelingJobsService.stub {
+        onBlocking { getVidLabelingJob(any()) } doAnswer
+          {
+            job(if (gets++ == 0) VidLabelingJob.State.CREATED else VidLabelingJob.State.SUCCEEDED)
+          }
+        onBlocking { markVidLabelingJobSucceeded(any()) } doAnswer
+          {
+            val request = it.getArgument<MarkVidLabelingJobSucceededRequest>(0)
+            check(request.requestId == RequestIds.forMarkVidLabelingJobSucceeded(VID_LABELING_JOB))
+            markVidLabelingJobSucceededResponse {
+              vidLabelingJob = job(VidLabelingJob.State.SUCCEEDED)
+              lastVidLabelingJobResult =
+                MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+                  completedModelLines += listOf(MODEL_LINE, SIBLING_MODEL_LINE)
+                }
+            }
+          }
+      }
+      val blob =
+        mock<ParquetStorageClient.ParquetBlob> {
+          on { readRows() } doReturn
+            flowOf(mapOf("event_id_column" to parquetValue { stringValue = "event" }))
+          onBlocking { readSchema() } doReturn
+            mapOf("event_id_column" to ParquetValue.KindCase.STRING_VALUE)
+          onBlocking { readKeyValueMetadata() } doReturn mapOf("event_date" to "2026-06-30")
+        }
+      mockParquetStorageClient.stub { onBlocking { getBlob(any()) } doReturn blob }
+      rawImpressionUploadFilesService.stub {
+        onBlocking { getRawImpressionUploadFile(any()) } doReturn
+          rawImpressionUploadFile {
+            name = "$UPLOAD/rawImpressionUploadFiles/file1"
+            blobUri = "file:///raw-bucket/input.parquet"
+          }
+      }
+      stubModelLineList(
+        preMark =
+          listOf(
+            MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
+            SIBLING_MODEL_LINE to RawImpressionUploadModelLine.State.FAILED,
+          ),
+        postMark =
+          listOf(
+            MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            SIBLING_MODEL_LINE to RawImpressionUploadModelLine.State.FAILED,
+          ),
+      )
+      stubRegisteredEventDate()
+      val doneKeys = mutableListOf<String>()
+      val app =
+        createApp(
+          converter =
+            ImpressionConverter { _, _ ->
+              throw org.wfanet.measurement.storage.BlobChangedException("immutable data collision")
+            },
+          writeGcsObject = { _, info, _, _ ->
+            doneKeys += info.name
+            321L
+          },
+        )
+      app.runWork(buildMessage(params))
+      assertThat(gets).isEqualTo(2)
+      verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(any()) }
+      verifyBlocking(vidLabelingJobsService, never()) { listVidLabelingJobs(any()) }
+      assertThat(doneKeys).hasSize(1)
+      assertThat(doneKeys.single()).contains("/model-line/ml1/")
+      val transition = argumentCaptor<MarkRawImpressionUploadModelLineAvailabilitySyncingRequest>()
+      verifyBlocking(rawImpressionUploadModelLinesService) {
+        markRawImpressionUploadModelLineAvailabilitySyncing(transition.capture())
+      }
+      assertThat(transition.firstValue.name).isEqualTo(PARENT_NAME)
+      val publication = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService) { createWorkItem(publication.capture()) }
+      val availabilityParams =
+        publication.firstValue.workItem.workItemParams
+          .unpack(WorkItem.WorkItemParams::class.java)
+          .appParams
+          .unpack(
+            org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams::class.java
+          )
+      assertThat(availabilityParams.modelLine).isEqualTo(MODEL_LINE)
+    }
 
   @Test
   fun `runWork completes the model line even while a sibling is still labeling`() = runBlocking {

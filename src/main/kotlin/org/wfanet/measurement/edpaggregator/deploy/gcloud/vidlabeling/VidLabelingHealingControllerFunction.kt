@@ -190,6 +190,7 @@ class VidLabelingHealingControllerFunction(
               labeledOutputStore::getGeneration,
               labeledOutputStore::delete,
               labeledOutputStore::readBlobDetails,
+              labeledOutputStore::listGenerations,
               rpcThrottlers = rpcThrottlers,
             )
         }
@@ -327,6 +328,16 @@ internal class GcsLabeledOutputStore(private val storage: Storage) {
     withContext(Dispatchers.IO) {
       val parsed = GcsUri.parse(uri)
       storage.delete(BlobId.of(parsed.bucket, parsed.key, generation))
+    }
+
+  /** Returns the live generation of every object whose URI starts with [prefixUri]. */
+  suspend fun listGenerations(prefixUri: String): Map<String, Long> =
+    withContext(Dispatchers.IO) {
+      val parsed = GcsUri.parse(prefixUri)
+      storage
+        .list(parsed.bucket, Storage.BlobListOption.prefix(parsed.key))
+        .iterateAll()
+        .associate { "gs://${parsed.bucket}/${it.name}" to it.generation }
     }
 }
 
