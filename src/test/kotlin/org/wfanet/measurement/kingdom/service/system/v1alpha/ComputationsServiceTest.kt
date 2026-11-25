@@ -886,8 +886,7 @@ class ComputationsServiceTest {
   @Test
   fun `getComputation throws FAILED_PRECONDITION when TrusTEE v2 model line has no rollout`() =
     runBlocking {
-      whenever(internalModelRolloutsServiceMock.streamModelRollouts(any()))
-        .thenReturn(emptyFlow())
+      whenever(internalModelRolloutsServiceMock.streamModelRollouts(any())).thenReturn(emptyFlow())
       whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
         .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
 

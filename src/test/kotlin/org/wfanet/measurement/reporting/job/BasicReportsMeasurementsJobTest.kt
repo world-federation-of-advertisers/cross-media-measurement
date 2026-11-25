@@ -97,7 +97,6 @@ import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.setMeasurementsCreatedRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MultimeasurementCompiler
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 
 @RunWith(JUnit4::class)
 class BasicReportsMeasurementsJobTest {
@@ -136,11 +135,7 @@ class BasicReportsMeasurementsJobTest {
 
   private val reportingSetsMock: ReportingSetsCoroutineImplBase = mockService {
     onBlocking { batchGetReportingSets(any()) }
-      .thenReturn(
-        batchGetReportingSetsResponse {
-          reportingSets += CAMPAIGN_GROUP
-        }
-      )
+      .thenReturn(batchGetReportingSetsResponse { reportingSets += CAMPAIGN_GROUP })
     on { streamReportingSets(any()) }
       .thenReturn(flowOf(CAMPAIGN_GROUP, PRIMITIVE_REPORTING_SET_1, PRIMITIVE_REPORTING_SET_2))
   }
@@ -311,11 +306,7 @@ class BasicReportsMeasurementsJobTest {
     whenever(basicReportsMock.listBasicReports(any()))
       .thenReturn(listBasicReportsResponse { basicReports += basicReport })
     whenever(reportingSetsMock.batchGetReportingSets(any()))
-      .thenReturn(
-        batchGetReportingSetsResponse {
-          reportingSets += PRIMITIVE_REPORTING_SET_1
-        }
-      )
+      .thenReturn(batchGetReportingSetsResponse { reportingSets += PRIMITIVE_REPORTING_SET_1 })
 
     job.execute()
 
@@ -467,8 +458,7 @@ class BasicReportsMeasurementsJobTest {
     val job =
       BasicReportsMeasurementsJob(
         measurementConsumerConfigs {
-          configs[MEASUREMENT_CONSUMER_NAME] =
-            MEASUREMENT_CONSUMER_CONFIG.copy { clearApiKey() }
+          configs[MEASUREMENT_CONSUMER_NAME] = MEASUREMENT_CONSUMER_CONFIG.copy { clearApiKey() }
         },
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         ReportingSetsCoroutineStub(grpcTestServerRule.channel),

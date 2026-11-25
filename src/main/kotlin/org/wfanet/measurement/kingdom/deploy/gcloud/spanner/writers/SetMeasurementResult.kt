@@ -172,11 +172,12 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   ): Measurement {
     val details: MeasurementDetails =
       measurement.details.copy {
-        plaintextResult = MeasurementDetailsKt.plaintextResult {
-          externalAggregatorDuchyId = request.externalAggregatorDuchyId
-          result = request.result
-          apiVersion = request.publicApiVersion
-        }
+        plaintextResult =
+          MeasurementDetailsKt.plaintextResult {
+            externalAggregatorDuchyId = request.externalAggregatorDuchyId
+            result = request.result
+            apiVersion = request.publicApiVersion
+          }
       }
 
     updateMeasurementState(

@@ -46,9 +46,10 @@ class CellReleaser(
     val noiser: ResultNoiser = noise.cellNoiser(cell)
     val reach: Long = noiser.noiseReach(cell.reach).coerceAtLeast(0L)
     val impressions: Long = noiser.noiseImpressions(cell.impressions).coerceAtLeast(0L)
-    val bins = LongArray(cell.frequencyHistogram.size) { index ->
-      noiser.noiseFrequencyBucket(index, cell.frequencyHistogram[index]).coerceAtLeast(0L)
-    }
+    val bins =
+      LongArray(cell.frequencyHistogram.size) { index ->
+        noiser.noiseFrequencyBucket(index, cell.frequencyHistogram[index]).coerceAtLeast(0L)
+      }
     val binVariances = DoubleArray(bins.size) { noise.unitVariance }
 
     val thresholds: ResultMinimumThresholds? = resultMinimumThresholds

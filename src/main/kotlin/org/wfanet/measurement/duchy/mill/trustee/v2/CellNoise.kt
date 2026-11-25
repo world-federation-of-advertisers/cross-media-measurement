@@ -30,8 +30,8 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
  * The deterministic noise of the cells of one multimeasurement.
  *
  * Each draw is seeded from [measurementName], the cell's query id and grouping values, and the
- * cell's fingerprint, so that rerunning a computation returns the same figures and two
- * measurements whose cells hold the same data do not share noise.
+ * cell's fingerprint, so that rerunning a computation returns the same figures and two measurements
+ * whose cells hold the same data do not share noise.
  *
  * @param measurementName resource name of the `Measurement` the computation belongs to
  */
@@ -149,9 +149,9 @@ class CellNoise(private val params: CellPrivacyParams, private val measurementNa
      * [2b^2 - exp(-bound/b) * (bound^2 + 2*bound*b + 2b^2)] / (1 - exp(-bound/b))
      * ```
      *
-     * This mirrors the reporting server's derivation in
-     * `measurementconsumer.stats.Variances`, which keeps it private. It describes the continuous
-     * draw; the draws are rounded to integers, which the reporting server ignores as well.
+     * This mirrors the reporting server's derivation in `measurementconsumer.stats.Variances`,
+     * which keeps it private. It describes the continuous draw; the draws are rounded to integers,
+     * which the reporting server ignores as well.
      */
     private fun truncatedLaplaceVariance(scale: Double, bound: Double): Double {
       val tail = exp(-bound / scale)

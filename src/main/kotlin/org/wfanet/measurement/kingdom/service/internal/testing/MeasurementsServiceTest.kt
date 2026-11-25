@@ -1453,11 +1453,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
             state = Measurement.State.SUCCEEDED
             details =
               details.copy {
-                plaintextResult = MeasurementDetailsKt.plaintextResult {
-                  externalAggregatorDuchyId = aggregatorDuchyId
-                  result = request.result
-                  apiVersion = request.publicApiVersion
-                }
+                plaintextResult =
+                  MeasurementDetailsKt.plaintextResult {
+                    externalAggregatorDuchyId = aggregatorDuchyId
+                    result = request.result
+                    apiVersion = request.publicApiVersion
+                  }
               }
             results += resultInfo {
               externalAggregatorDuchyId = aggregatorDuchyId

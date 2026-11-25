@@ -1260,7 +1260,7 @@ class BasicReportsServiceTest {
         externalBasicReportId = request.basicReportId
       }
       val interruptedBasicReport = internalBasicReportsService.getBasicReport(getInternalRequest)
-      assertThat(interruptedBasicReport.state).isEqualTo(InternalBasicReport.State.CREATED)
+      assertThat(interruptedBasicReport.state).isEqualTo(InternalBasicReport.State.CREATED_LEGACY)
       assertThat(interruptedBasicReport.externalReportId).isEmpty()
       assertThat(reportsByRequestId).hasSize(1)
 

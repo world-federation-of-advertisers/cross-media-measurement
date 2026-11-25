@@ -589,7 +589,8 @@ class BasicReportsService(
       }
 
     // A repeated request with the same request ID returns the existing BasicReport, which may have
-    // already been advanced or failed. A multimeasurement BasicReport has no Report: the BasicReports
+    // already been advanced or failed. A multimeasurement BasicReport has no Report: the
+    // BasicReports
     // create job creates its CMMS Measurements.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
     when (createdInternalBasicReport.state) {

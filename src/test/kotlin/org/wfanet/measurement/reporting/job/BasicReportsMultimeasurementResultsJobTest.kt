@@ -182,14 +182,15 @@ class BasicReportsMultimeasurementResultsJobTest {
         queryResult {
           queryId = REPORTING_UNIT_QUERY_ID
           maxFrequency = 2
-          cells += QueryResultKt.cell {
-            reach = 100
-            reachVariance = 4.0
-            impressions = 300
-            impressionVariance = 9.0
-            frequencyBins += listOf(60L, 40L)
-            frequencyBinVariance += listOf(1.0, 4.0)
-          }
+          cells +=
+            QueryResultKt.cell {
+              reach = 100
+              reachVariance = 4.0
+              impressions = 300
+              impressionVariance = 9.0
+              frequencyBins += listOf(60L, 40L)
+              frequencyBinVariance += listOf(1.0, 4.0)
+            }
         }
       )
     )
@@ -281,9 +282,7 @@ class BasicReportsMultimeasurementResultsJobTest {
           windowEnd = REPORT_END_DATE
           cumulative = false
           component =
-            ResultGroupQueryMappingKt.component {
-              component = COMPONENT_1.externalReportingSetId
-            }
+            ResultGroupQueryMappingKt.component { component = COMPONENT_1.externalReportingSetId }
         }
       }
     )
@@ -293,12 +292,13 @@ class BasicReportsMultimeasurementResultsJobTest {
           queryId = COMPONENT_QUERY_ID
           groupingPaths += GENDER_PATH
           maxFrequency = 1
-          cells += QueryResultKt.cell {
-            attributeValues += populationAttributeValue { enumValue = "FEMALE" }
-            reach = 50
-            impressions = 70
-            frequencyBins += 50L
-          }
+          cells +=
+            QueryResultKt.cell {
+              attributeValues += populationAttributeValue { enumValue = "FEMALE" }
+              reach = 50
+              impressions = 70
+              frequencyBins += 50L
+            }
         }
       )
     )
@@ -344,9 +344,7 @@ class BasicReportsMultimeasurementResultsJobTest {
           windowEnd = REPORT_END_DATE
           cumulative = false
           component =
-            ResultGroupQueryMappingKt.component {
-              component = COMPONENT_1.externalReportingSetId
-            }
+            ResultGroupQueryMappingKt.component { component = COMPONENT_1.externalReportingSetId }
         }
       }
     )
@@ -356,16 +354,18 @@ class BasicReportsMultimeasurementResultsJobTest {
           queryId = COMPONENT_QUERY_ID
           groupingPaths += GENDER_PATH
           maxFrequency = 1
-          cells += QueryResultKt.cell {
-            attributeValues += populationAttributeValue { enumValue = "FEMALE" }
-            reach = 50
-            frequencyBins += 50L
-          }
-          cells += QueryResultKt.cell {
-            attributeValues += populationAttributeValue { enumValue = "MALE" }
-            frequencyBins += 0L
-            suppressed = true
-          }
+          cells +=
+            QueryResultKt.cell {
+              attributeValues += populationAttributeValue { enumValue = "FEMALE" }
+              reach = 50
+              frequencyBins += 50L
+            }
+          cells +=
+            QueryResultKt.cell {
+              attributeValues += populationAttributeValue { enumValue = "MALE" }
+              frequencyBins += 0L
+              suppressed = true
+            }
         }
       )
     )
@@ -456,9 +456,7 @@ class BasicReportsMultimeasurementResultsJobTest {
     }
 
     private val TOTAL_FREQUENCY = metricFrequencySpec { total = true }
-    private val WEEKLY_FREQUENCY = metricFrequencySpec {
-      weekly = DayOfWeek.THURSDAY
-    }
+    private val WEEKLY_FREQUENCY = metricFrequencySpec { weekly = DayOfWeek.THURSDAY }
 
     private val COMPONENT_1: ReportingSet = reportingSet {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID

@@ -569,9 +569,11 @@ class MultimeasurementCompilerTest {
     assertFailsWith<IllegalArgumentException> {
       compile(
         buildBasicReport(
-          listOf(reportingImpressionQualificationFilter {
-            externalImpressionQualificationFilterId = "unknown"
-          }),
+          listOf(
+            reportingImpressionQualificationFilter {
+              externalImpressionQualificationFilterId = "unknown"
+            }
+          ),
           listOf(buildSpec(BOTH_COMPONENTS, cumulativeReportingUnit())),
         )
       )
@@ -615,14 +617,18 @@ class MultimeasurementCompilerTest {
       mapOf("ami" to AMI_IQF_ID, "mrc" to MRC_IQF_ID)
 
     private val AMI_IQF: ReportingImpressionQualificationFilter =
-      reportingImpressionQualificationFilter { externalImpressionQualificationFilterId = "ami" }
+      reportingImpressionQualificationFilter {
+        externalImpressionQualificationFilterId = "ami"
+      }
     private val MRC_IQF: ReportingImpressionQualificationFilter =
       reportingImpressionQualificationFilter {
         externalImpressionQualificationFilterId = "mrc"
         filterSpecs += buildViewableFilterSpec(true)
       }
     private val CUSTOM_IQF: ReportingImpressionQualificationFilter =
-      reportingImpressionQualificationFilter { filterSpecs += buildViewableFilterSpec(false) }
+      reportingImpressionQualificationFilter {
+        filterSpecs += buildViewableFilterSpec(false)
+      }
 
     private val AGE_GROUP_18_TO_34_FILTER: EventFilter = eventFilter {
       terms += eventTemplateField {
@@ -742,9 +748,10 @@ class MultimeasurementCompilerTest {
     }
 
     private fun Measurement.Multimeasurement.requisitionSpecs(): List<RequisitionSpec> =
-      dataProviderVectorsList.flatMap { it.vectorsList }.sortedBy { it.index }.map {
-        it.requisitionSpec
-      }
+      dataProviderVectorsList
+        .flatMap { it.vectorsList }
+        .sortedBy { it.index }
+        .map { it.requisitionSpec }
 
     private fun RequisitionSpec.filterExpression(): String =
       events.eventGroupsList.single().value.filter.expression

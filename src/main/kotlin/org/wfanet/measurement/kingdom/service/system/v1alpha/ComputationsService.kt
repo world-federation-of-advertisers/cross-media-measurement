@@ -84,8 +84,8 @@ import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 /**
  * System API `Computations` service.
  *
- * @param modelRolloutsClient used with [modelReleasesClient] and [populationsClient] to resolve
- *   the `PopulationSpec` of a TrusTEE v2 multimeasurement from its model line
+ * @param modelRolloutsClient used with [modelReleasesClient] and [populationsClient] to resolve the
+ *   `PopulationSpec` of a TrusTEE v2 multimeasurement from its model line
  */
 class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,

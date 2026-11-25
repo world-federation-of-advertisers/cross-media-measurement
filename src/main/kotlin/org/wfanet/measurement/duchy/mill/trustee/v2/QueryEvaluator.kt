@@ -225,8 +225,7 @@ private constructor(
     vector: Int,
     offset: Int,
     zeroed: BooleanArray?,
-  ): Int =
-    if (zeroed != null && zeroed[vector]) 0 else counts[vector][offset]
+  ): Int = if (zeroed != null && zeroed[vector]) 0 else counts[vector][offset]
 
   private fun VectorSet.toIndexes(): IntArray {
     val indexes = baseVectorsList.toIntArray()

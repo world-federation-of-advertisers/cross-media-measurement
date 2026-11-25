@@ -4344,34 +4344,34 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     }
 
   @Test
-  fun `batchCreateReportComputations throws INVALID_ARGUMENT when filter ID is duplicated`():
-    Unit = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.batchCreateReportComputations(
-          batchCreateReportComputationsRequest {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalBasicReportId = BASIC_REPORT.externalBasicReportId
-            reportComputations += newReportComputation(AMI_IQF.impressionQualificationFilterId)
-            reportComputations +=
-              newReportComputation(AMI_IQF.impressionQualificationFilterId).copy {
-                cmmsCreateMeasurementRequestId = "other-request-id"
-              }
+  fun `batchCreateReportComputations throws INVALID_ARGUMENT when filter ID is duplicated`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.batchCreateReportComputations(
+            batchCreateReportComputationsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalBasicReportId = BASIC_REPORT.externalBasicReportId
+              reportComputations += newReportComputation(AMI_IQF.impressionQualificationFilterId)
+              reportComputations +=
+                newReportComputation(AMI_IQF.impressionQualificationFilterId).copy {
+                  cmmsCreateMeasurementRequestId = "other-request-id"
+                }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] =
+              "report_computations[1].impression_qualification_filter_id"
           }
         )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.INVALID_FIELD_VALUE.name
-          metadata[Errors.Metadata.FIELD_NAME.key] =
-            "report_computations[1].impression_qualification_filter_id"
-        }
-      )
-  }
+    }
 
   @Test
   fun `batchCreateReportComputations throws INVALID_ARGUMENT when request ID missing`(): Unit =
@@ -4550,22 +4550,22 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
-  fun `setReportComputationMeasurementId returns ReportComputation when value already set`():
-    Unit = runBlocking {
-    val basicReport = createMultimeasurementBasicReport()
-    createReportComputations(basicReport, AMI_IQF.impressionQualificationFilterId)
-    val request = setReportComputationMeasurementIdRequest {
-      cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-      externalBasicReportId = basicReport.externalBasicReportId
-      impressionQualificationFilterId = AMI_IQF.impressionQualificationFilterId
-      cmmsMeasurementId = "measurement-1"
+  fun `setReportComputationMeasurementId returns ReportComputation when value already set`(): Unit =
+    runBlocking {
+      val basicReport = createMultimeasurementBasicReport()
+      createReportComputations(basicReport, AMI_IQF.impressionQualificationFilterId)
+      val request = setReportComputationMeasurementIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        impressionQualificationFilterId = AMI_IQF.impressionQualificationFilterId
+        cmmsMeasurementId = "measurement-1"
+      }
+      val firstResponse = service.setReportComputationMeasurementId(request)
+
+      val retryResponse = service.setReportComputationMeasurementId(request)
+
+      assertThat(retryResponse).isEqualTo(firstResponse)
     }
-    val firstResponse = service.setReportComputationMeasurementId(request)
-
-    val retryResponse = service.setReportComputationMeasurementId(request)
-
-    assertThat(retryResponse).isEqualTo(firstResponse)
-  }
 
   @Test
   fun `setReportComputationMeasurementId throws FAILED_PRECONDITION when set to other value`():
@@ -4678,35 +4678,36 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     }
 
   @Test
-  fun `setMeasurementsCreated throws FAILED_PRECONDITION when a measurement ID is not set`():
-    Unit = runBlocking {
-    val basicReport = createMultimeasurementBasicReport()
-    createReportComputations(basicReport, AMI_IQF.impressionQualificationFilterId)
+  fun `setMeasurementsCreated throws FAILED_PRECONDITION when a measurement ID is not set`(): Unit =
+    runBlocking {
+      val basicReport = createMultimeasurementBasicReport()
+      createReportComputations(basicReport, AMI_IQF.impressionQualificationFilterId)
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.setMeasurementsCreated(
-          setMeasurementsCreatedRequest {
-            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-            externalBasicReportId = basicReport.externalBasicReportId
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.setMeasurementsCreated(
+            setMeasurementsCreatedRequest {
+              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+              externalBasicReportId = basicReport.externalBasicReportId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REPORT_COMPUTATION_STATE_INVALID.name
+            metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+              basicReport.cmmsMeasurementConsumerId
+            metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] =
+              basicReport.externalBasicReportId
+            metadata[Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID.key] =
+              AMI_IQF.impressionQualificationFilterId.toString()
           }
         )
-      }
-
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REPORT_COMPUTATION_STATE_INVALID.name
-          metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
-            basicReport.cmmsMeasurementConsumerId
-          metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] = basicReport.externalBasicReportId
-          metadata[Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID.key] =
-            AMI_IQF.impressionQualificationFilterId.toString()
-        }
-      )
-  }
+    }
 
   @Test
   fun `setMeasurementsCreated throws FAILED_PRECONDITION when BasicReport has none`(): Unit =

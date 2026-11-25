@@ -107,8 +107,7 @@ class MultimeasurementCompiler(
    *   `ReportingUnit.components`, to the resolved component
    * @param impressionQualificationFilterIds map of external impression qualification filter ID to
    *   its internal ID
-   * @return one [CompiledReportComputation] per effective impression qualification filter, in
-   *   order
+   * @return one [CompiledReportComputation] per effective impression qualification filter, in order
    * @throws IllegalArgumentException if [basicReport] uses a feature with no multimeasurement form,
    *   or references a component or filter missing from the maps
    */

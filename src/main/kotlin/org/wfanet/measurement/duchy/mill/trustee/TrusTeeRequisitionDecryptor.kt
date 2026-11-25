@@ -38,10 +38,10 @@ import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProto
  *
  * This restates the decryption of [TrusTeeMill] so that the TrusTEE v2 Mill shares it.
  *
+ * @param attestationTokenPath the Confidential Space attestation token presented to the KMS
+ *
  * TODO(world-federation-of-advertisers/cross-media-measurement#4532): Have [TrusTeeMill] use this
  *   class too, rather than its own copy.
- *
- * @param attestationTokenPath the Confidential Space attestation token presented to the KMS
  */
 class TrusTeeRequisitionDecryptor(
   private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
