@@ -16,13 +16,20 @@
 
 package org.wfanet.measurement.kingdom.service.api.v2alpha
 
+import com.google.crypto.tink.Aead
+import com.google.protobuf.ByteString
 import com.google.protobuf.InvalidProtocolBufferException
+import com.google.protobuf.Timestamp
 import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import java.security.GeneralSecurityException
+import java.time.Clock
 import java.time.DateTimeException
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -90,6 +97,7 @@ import org.wfanet.measurement.internal.kingdom.EventGroupKt as InternalEventGrou
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub as InternalEventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest as InternalGetEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.MediaType as InternalMediaType
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsPageResponse
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest as InternalUpdateEventGroupRequest
@@ -103,12 +111,15 @@ import org.wfanet.measurement.internal.kingdom.eventGroupDetails
 import org.wfanet.measurement.internal.kingdom.eventGroupKey
 import org.wfanet.measurement.internal.kingdom.eventTemplate as internalEventTemplate
 import org.wfanet.measurement.internal.kingdom.getEventGroupRequest as internalGetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.streamEventGroupsPageRequest
 import org.wfanet.measurement.internal.kingdom.streamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.updateEventGroupRequest as internalUpdateEventGroupRequest
 
 class EventGroupsService(
   private val internalEventGroupsStub: InternalEventGroupsCoroutineStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val pageTokenAead: Aead? = null,
+  private val clock: Clock = Clock.systemUTC(),
 ) : EventGroupsCoroutineImplBase(coroutineContext) {
 
   private enum class Permission {
@@ -493,9 +504,7 @@ class EventGroupsService(
       throw permissionDeniedStatus().asRuntimeException()
     }
 
-    val pageToken: ListEventGroupsPageToken? =
-      if (request.pageToken.isEmpty()) null
-      else ListEventGroupsPageToken.parseFrom(request.pageToken.base64UrlDecode())
+    val pageToken = if (request.pageToken.isEmpty()) null else parsePageToken(request.pageToken)
     val pageSize =
       if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
     val internalRequest =
@@ -508,16 +517,19 @@ class EventGroupsService(
         pageToken,
         request.view,
       )
-    val internalEventGroups: List<InternalEventGroup> =
+    val page =
       try {
-        internalEventGroupsStub.streamEventGroups(internalRequest).toList()
+        readPage(internalRequest, pageToken)
       } catch (e: StatusException) {
         throw when (e.status.code) {
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+          Status.Code.FAILED_PRECONDITION ->
+            if (pageToken?.hasReadTime() == true) EXPIRED_PAGE_TOKEN_STATUS else Status.UNKNOWN
           else -> Status.UNKNOWN
         }.toExternalStatusRuntimeException(e)
       }
 
+    val internalEventGroups = page.eventGroups
     if (internalEventGroups.isEmpty()) {
       return ListEventGroupsResponse.getDefaultInstance()
     }
@@ -529,17 +541,93 @@ class EventGroupsService(
           .map(InternalEventGroup::toEventGroup)
       if (internalEventGroups.size > pageSize) {
         nextPageToken =
-          buildNextPageToken(internalRequest.filter, request.filter, internalEventGroups)
-            .toByteString()
-            .base64UrlEncode()
+          encodePageToken(
+            buildNextPageToken(internalRequest.filter, request, internalEventGroups, page.readTime)
+          )
       }
     }
   }
 
+  private data class Page(
+    val eventGroups: List<InternalEventGroup>,
+    val readTime: Timestamp? = null,
+  )
+
+  private suspend fun readPage(
+    request: StreamEventGroupsRequest,
+    pageToken: ListEventGroupsPageToken?,
+  ): Page {
+    if (pageTokenAead == null) {
+      return Page(internalEventGroupsStub.streamEventGroups(request).toList())
+    }
+    val events = mutableListOf<InternalEventGroup>()
+    var snapshotTime: Timestamp? = null
+    internalEventGroupsStub
+      .streamEventGroupsPage(
+        streamEventGroupsPageRequest {
+          query = request
+          if (pageToken?.hasReadTime() == true) {
+            readTime = pageToken.readTime
+          }
+        }
+      )
+      .collect { result ->
+        when (result.resultCase) {
+          StreamEventGroupsPageResponse.ResultCase.EVENT_GROUP -> events.add(result.eventGroup)
+          StreamEventGroupsPageResponse.ResultCase.READ_TIME -> snapshotTime = result.readTime
+          StreamEventGroupsPageResponse.ResultCase.RESULT_NOT_SET -> error("Missing page result")
+        }
+      }
+    return Page(events, checkNotNull(snapshotTime) { "Missing page read time" })
+  }
+
+  private fun parsePageToken(encodedToken: String): ListEventGroupsPageToken {
+    val isProtected = encodedToken.startsWith(PAGE_TOKEN_PREFIX)
+    val aead =
+      if (isProtected) {
+        pageTokenAead ?: throw EXPIRED_PAGE_TOKEN_STATUS.asRuntimeException()
+      } else {
+        null
+      }
+    val token =
+      try {
+        val bytes = encodedToken.removePrefix(PAGE_TOKEN_PREFIX).base64UrlDecode()
+        if (aead == null) {
+          ListEventGroupsPageToken.parseFrom(bytes)
+        } else {
+          ListEventGroupsPageToken.parseFrom(
+            aead.decrypt(bytes.toByteArray(), PAGE_TOKEN_ASSOCIATED_DATA)
+          )
+        }
+      } catch (e: IllegalArgumentException) {
+        throw invalidPageToken(e)
+      } catch (e: InvalidProtocolBufferException) {
+        throw invalidPageToken(e)
+      } catch (e: GeneralSecurityException) {
+        throw invalidPageToken(e)
+      }
+    grpcRequire(isProtected == token.hasReadTime()) { "Invalid page token" }
+    if (isProtected) {
+      grpcRequire(Timestamps.isValid(token.readTime)) { "Invalid page token read time" }
+      val readTime = Instant.ofEpochSecond(token.readTime.seconds, token.readTime.nanos.toLong())
+      if (readTime <= clock.instant().minus(PAGE_TOKEN_MAX_AGE)) {
+        throw EXPIRED_PAGE_TOKEN_STATUS.asRuntimeException()
+      }
+    }
+    return token
+  }
+
+  private fun encodePageToken(token: ListEventGroupsPageToken): String {
+    val aead = pageTokenAead ?: return token.toByteString().base64UrlEncode()
+    val ciphertext = aead.encrypt(token.toByteArray(), PAGE_TOKEN_ASSOCIATED_DATA)
+    return PAGE_TOKEN_PREFIX + ByteString.copyFrom(ciphertext).base64UrlEncode()
+  }
+
   private fun buildNextPageToken(
     internalFilter: StreamEventGroupsRequest.Filter,
-    publicFilter: ListEventGroupsRequest.Filter,
+    request: ListEventGroupsRequest,
     results: List<InternalEventGroup>,
+    snapshotTime: Timestamp?,
   ): ListEventGroupsPageToken {
     val lastInternalEventGroup: InternalEventGroup = results[results.lastIndex - 1]
     return listEventGroupsPageToken {
@@ -568,7 +656,13 @@ class EventGroupsService(
       if (internalFilter.hasActivityContains()) {
         activityContains = internalFilter.activityContains.toDateInterval()
       }
-      entityTypeIn += publicFilter.entityTypeInList
+      entityTypeIn += request.filter.entityTypeInList
+      showDeleted = request.showDeleted
+      if (snapshotTime != null) {
+        readTime = snapshotTime
+        orderBy = request.orderBy
+        view = request.view
+      }
       lastEventGroup = previousPageEnd {
         externalDataProviderId = lastInternalEventGroup.externalDataProviderId
         externalEventGroupId = lastInternalEventGroup.externalEventGroupId
@@ -594,7 +688,7 @@ class EventGroupsService(
     view: EventGroup.View,
   ): StreamEventGroupsRequest {
     return streamEventGroupsRequest {
-      allowStaleReads = true
+      allowStaleReads = pageTokenAead == null
       this.filter =
         StreamEventGroupsRequestKt.filter {
           if (parentKey is DataProviderKey) {
@@ -666,7 +760,11 @@ class EventGroupsService(
                 pageToken.dataAvailabilityEndTimeOnOrAfter != dataAvailabilityEndTimeOnOrAfter ||
                 pageToken.metadataSearchQuery != metadataSearchQuery ||
                 pageToken.activityContains != filter.activityContains ||
-                pageToken.entityTypeInList != filter.entityTypeInList
+                pageToken.entityTypeInList != filter.entityTypeInList ||
+                (pageToken.hasReadTime() &&
+                  (pageToken.orderBy !=
+                    (orderBy ?: ListEventGroupsRequest.OrderBy.getDefaultInstance()) ||
+                    pageToken.view != view))
             ) {
               throw Status.INVALID_ARGUMENT.withDescription(
                   "Arguments other than page_size must remain the same for subsequent page requests"
@@ -701,6 +799,17 @@ class EventGroupsService(
   }
 
   companion object {
+    private const val PAGE_TOKEN_PREFIX = "v1."
+    private val PAGE_TOKEN_ASSOCIATED_DATA = "ListEventGroups/v1".toByteArray(Charsets.UTF_8)
+    private val PAGE_TOKEN_MAX_AGE = Duration.ofHours(1)
+    private val EXPIRED_PAGE_TOKEN_STATUS =
+      Status.FAILED_PRECONDITION.withDescription("Page token expired. Start a new listing.")
+
+    private fun invalidPageToken(cause: Exception) =
+      Status.INVALID_ARGUMENT.withDescription("Invalid page token")
+        .withCause(cause)
+        .asRuntimeException()
+
     private val BATCH_REQUEST_FIELD_PREFIX = Regex("^requests\\.(\\d+)\\.")
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 2_000

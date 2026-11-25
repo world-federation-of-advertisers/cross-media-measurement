@@ -16,6 +16,11 @@
 
 package org.wfanet.measurement.kingdom.deploy.common.server
 
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.RegistryConfiguration
+import com.google.crypto.tink.TinkProtoKeysetFormat
+import com.google.crypto.tink.aead.AeadConfig
 import io.grpc.ServerServiceDefinition
 import java.io.File
 import kotlin.properties.Delegates
@@ -245,7 +250,11 @@ private fun run(
           rateLimitingInterceptor,
           akidInterceptor,
         ),
-      EventGroupsService(InternalEventGroupsCoroutineStub(channel), serviceDispatcher)
+      EventGroupsService(
+          InternalEventGroupsCoroutineStub(channel),
+          serviceDispatcher,
+          pageTokenAead = v2alphaFlags.eventGroupPageTokenAead(),
+        )
         .withInterceptors(
           apiChangeMetricsInterceptor,
           apiKeyPrincipalInterceptor,
@@ -422,6 +431,25 @@ fun main(args: Array<String>) = commandLineMain(::run, args)
 private class V2alphaFlags {
 
   @CommandLine.Option(
+    names = ["--event-group-page-token-keyset-file"],
+    description =
+      ["Shared binary Tink AEAD keyset file. Enables snapshot pagination for ListEventGroups."],
+  )
+  private var eventGroupPageTokenKeysetFile: File? = null
+
+  fun eventGroupPageTokenAead(): Aead? {
+    val keysetFile = eventGroupPageTokenKeysetFile ?: return null
+    val configuration = RegistryConfiguration.get()
+    val keyset =
+      TinkProtoKeysetFormat.parseKeyset(
+        keysetFile.readBytes(),
+        InsecureSecretKeyAccess.get(),
+        configuration,
+      )
+    return keyset.getPrimitive(configuration, Aead::class.java)
+  }
+
+  @CommandLine.Option(
     names = ["--authority-key-identifier-to-principal-map-file"],
     description = ["File path to a AuthorityKeyToPrincipalMap textproto"],
     required = true,
@@ -564,6 +592,10 @@ private class V2alphaFlags {
   }
 
   companion object {
+    init {
+      AeadConfig.register()
+    }
+
     private val DEFAULT_RATE_LIMIT_CONFIG = rateLimitConfig {
       rateLimit =
         RateLimitConfigKt.rateLimit {

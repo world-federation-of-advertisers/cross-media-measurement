@@ -48,4 +48,11 @@ Bind the timestamp and cursor to the parent, query, filters, view, and sort
 order in an integrity-protected token. Reauthorize each continuation and
 require a fresh listing once the snapshot expires.
 
+The Kingdom public API enables snapshot pagination when configured with
+`--event-group-page-token-keyset-file`. Use the same binary Tink AEAD keyset
+across replicas and enable it after the Kingdom data servers support the
+paginated read. Continuations using older tokens start a snapshot on the
+first request served with snapshot pagination enabled. Snapshot tokens are
+valid for up to one hour, subject to Spanner version retention.
+
 [Spanner search pagination](https://docs.cloud.google.com/spanner/docs/full-text-search/paginate-search-results)

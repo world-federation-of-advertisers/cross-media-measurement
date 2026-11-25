@@ -16,16 +16,32 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Statement
-import com.google.cloud.spanner.TimestampBound
 import com.google.cloud.spanner.Value as SpannerValue
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeysetHandle
+import com.google.crypto.tink.RegistryConfiguration
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.crypto.tink.aead.AesGcmParameters
 import com.google.protobuf.struct
 import com.google.protobuf.value
 import com.google.type.interval
+import io.grpc.Context
+import io.grpc.Contexts
+import io.grpc.Metadata
+import io.grpc.ServerCall
+import io.grpc.ServerCallHandler
+import io.grpc.ServerInterceptor
+import io.grpc.ServerInterceptors
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.grpc.inprocess.InProcessChannelBuilder
+import io.grpc.inprocess.InProcessServerBuilder
+import io.grpc.testing.GrpcCleanupRule
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import kotlin.random.Random
 import kotlin.test.assertFailsWith
@@ -38,9 +54,19 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.DataProviderPrincipal
+import org.wfanet.measurement.api.v2alpha.EventGroup as PublicEventGroup
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as PublicEventGroupsStub
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.filter as publicFilter
+import org.wfanet.measurement.api.v2alpha.ListEventGroupsRequestKt.orderBy
+import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
+import org.wfanet.measurement.api.v2alpha.withPrincipal
 import org.wfanet.measurement.common.identity.RandomIdGenerator
+import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.kingdom.EventGroup
@@ -48,8 +74,8 @@ import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyDetailsKt.leve
 import org.wfanet.measurement.internal.kingdom.EventGroupHierarchyState
 import org.wfanet.measurement.internal.kingdom.EventGroupKt.entityKey
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MediaType
-import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.FilterKt.after
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest
@@ -68,8 +94,8 @@ import org.wfanet.measurement.kingdom.deploy.common.service.KingdomDataServices
 import org.wfanet.measurement.kingdom.deploy.common.testing.DuchyIdSetter
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.EventGroupMetadataStore
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.metadatastaging.MetadataWriteGuard
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.kingdom.service.api.v2alpha.EventGroupsService as PublicEventGroupsService
 import org.wfanet.measurement.kingdom.service.internal.testing.Population
 
 @RunWith(JUnit4::class)
@@ -77,9 +103,20 @@ class SpannerEventGroupMetadataServiceTest {
   @get:Rule
   val database = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
   @get:Rule val duchyIdSetter = DuchyIdSetter(Population.DUCHIES)
+  @get:Rule val grpcCleanup = GrpcCleanupRule()
   private val clock = Clock.systemUTC()
   private val idGenerator = RandomIdGenerator(clock, Random(1))
   private val population = Population(clock, idGenerator)
+  private val pageTokenAead: Aead by lazy {
+    KeysetHandle.generateNew(
+        AesGcmParameters.builder()
+          .setKeySizeBytes(32)
+          .setIvSizeBytes(12)
+          .setTagSizeBytes(16)
+          .build()
+      )
+      .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
+  }
   private lateinit var services: KingdomDataServices
   private val service: EventGroupsCoroutineImplBase
     get() = services.eventGroupsService
@@ -179,7 +216,7 @@ class SpannerEventGroupMetadataServiceTest {
     }
 
   @Test
-  fun `list and search continue on their snapshot across a 51 leaf publication`() =
+  fun `public list and search keep their snapshot across a 51 leaf publication`() =
     runBlocking<Unit> {
       val fixture = fixture()
       service.batchCreateEventGroups(
@@ -199,12 +236,11 @@ class SpannerEventGroupMetadataServiceTest {
       val originalIds = list(fixture).map { it.externalEventGroupId }
       assertThat(originalIds).hasSize(53)
 
+      val parent = dataProviderName(fixture)
+      val stub = publicStub(parent)
+      val originalNames = originalIds.map { "$parent/eventGroups/${externalIdToApiId(it)}" }
       val queries = listOf("", "original")
-      val (firstPages, snapshotBound) =
-        database.databaseClient.readOnlyTransaction().use { snapshot ->
-          val pages = queries.associateWith { snapshotPage(snapshot, fixture, it, limit = 25) }
-          pages to TimestampBound.ofReadTimestamp(snapshot.readTimestamp)
-        }
+      val firstPages = queries.associateWith { stub.listEventGroups(publicListRequest(parent, it)) }
       assertThat(store.stageNextBatch(work, 50))
         .isEqualTo(EventGroupMetadataStore.Progress(53, complete = true))
 
@@ -214,27 +250,136 @@ class SpannerEventGroupMetadataServiceTest {
       assertThat(operation.state).isEqualTo(EventGroupMetadataStore.State.SUCCEEDED)
       assertThat(store.publish(work)).isEqualTo(operation.publicationSequence)
 
-      database.databaseClient.readOnlyTransaction(snapshotBound).use { snapshot ->
-        for ((query, firstPage) in firstPages) {
-          assertThat(firstPage).hasSize(25)
-          val continuation =
-            snapshotPage(snapshot, fixture, query, previousPageEnd = firstPage.last())
-          val results = firstPage + continuation
-          assertThat(results.map { it.externalEventGroupId })
-            .containsExactlyElementsIn(originalIds)
-            .inOrder()
-          assertThat(
-              results.map { it.entityMetadata.fieldsMap.getValue("account_name").stringValue }
-            )
-            .containsExactlyElementsIn(List(53) { "original account" })
-        }
+      for ((query, firstPage) in firstPages) {
+        assertThat(firstPage.eventGroupsList).hasSize(25)
+        assertThat(firstPage.nextPageToken).isNotEmpty()
+        val request = publicListRequest(parent, query)
+        val secondPage = stub.listEventGroups(request.copy { pageToken = firstPage.nextPageToken })
+        assertThat(secondPage.eventGroupsList).hasSize(25)
+        assertThat(secondPage.nextPageToken).isNotEmpty()
+        val thirdPage = stub.listEventGroups(request.copy { pageToken = secondPage.nextPageToken })
+        assertThat(thirdPage.nextPageToken).isEmpty()
+        val results =
+          firstPage.eventGroupsList + secondPage.eventGroupsList + thirdPage.eventGroupsList
+        assertThat(results.map { it.name }).containsExactlyElementsIn(originalNames).inOrder()
+        assertThat(results.map { it.accountName() })
+          .containsExactlyElementsIn(List(53) { "original account" })
       }
       assertThat(get(fixture.leaf).entityMetadata.fieldsMap.getValue("account_name").stringValue)
         .isEqualTo("renamed account")
-      assertThat(list(fixture, "original")).isEmpty()
-      assertThat(list(fixture, "renamed").map { it.externalEventGroupId })
-        .containsExactlyElementsIn(originalIds)
-        .inOrder()
+      assertThat(stub.listEventGroups(publicListRequest(parent, "original")).eventGroupsList)
+        .isEmpty()
+      for (query in listOf("", "renamed")) {
+        val fresh = stub.listEventGroups(publicListRequest(parent, query).copy { pageSize = 100 })
+        assertThat(fresh.eventGroupsList.map { it.name })
+          .containsExactlyElementsIn(originalNames)
+          .inOrder()
+        assertThat(fresh.eventGroupsList.map { it.accountName() })
+          .containsExactlyElementsIn(List(53) { "renamed account" })
+      }
+    }
+
+  @Test
+  fun `public list rejects tampered tokens and a changed view or sort order`() =
+    runBlocking<Unit> {
+      val parent = dataProviderName(fixture())
+      val stub = publicStub(parent)
+      val request = publicListRequest(parent).copy { pageSize = 1 }
+      val firstPage = stub.listEventGroups(request)
+      val token = firstPage.nextPageToken
+      assertThat(token).isNotEmpty()
+      val ciphertextStart = token.indexOf('.') + 1
+      val tampered = token.toCharArray()
+      tampered[ciphertextStart] = if (tampered[ciphertextStart] == 'A') 'B' else 'A'
+      val continued = request.copy { pageToken = token }
+
+      for (invalid in
+        listOf(
+          continued.copy { pageToken = tampered.concatToString() },
+          continued.copy { view = PublicEventGroup.View.WITH_ACTIVITY_SUMMARY },
+          continued.copy {
+            orderBy = orderBy {
+              field = ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+            }
+          },
+        )) {
+        val error = assertFailsWith<StatusException> { stub.listEventGroups(invalid) }
+        assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+  @Test
+  fun `public list tells the caller to restart an expired snapshot`() =
+    runBlocking<Unit> {
+      val parent = dataProviderName(fixture())
+      val request = publicListRequest(parent).copy { pageSize = 1 }
+      val firstPage = publicStub(parent).listEventGroups(request)
+      val laterStub = publicStub(parent, tokenClock = Clock.offset(clock, Duration.ofHours(2)))
+
+      val error =
+        assertFailsWith<StatusException> {
+          laterStub.listEventGroups(request.copy { pageToken = firstPage.nextPageToken })
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(error.status.description).contains("Start a new listing")
+    }
+
+  @Test
+  fun `public list upgrades a legacy cursor to a snapshot token`() =
+    runBlocking<Unit> {
+      val parent = dataProviderName(fixture())
+      val request = publicListRequest(parent).copy { pageSize = 1 }
+      val legacyPage = publicStub(parent, aead = null).listEventGroups(request)
+      val stub = publicStub(parent)
+      val secondPage = stub.listEventGroups(request.copy { pageToken = legacyPage.nextPageToken })
+      val thirdPage = stub.listEventGroups(request.copy { pageToken = secondPage.nextPageToken })
+
+      assertThat(secondPage.nextPageToken).startsWith("v1.")
+      assertThat(thirdPage.nextPageToken).isEmpty()
+      assertThat(
+          (legacyPage.eventGroupsList + secondPage.eventGroupsList + thirdPage.eventGroupsList)
+            .map { it.name }
+        )
+        .containsNoDuplicates()
+    }
+
+  @Test
+  fun `public list paginates availability order with missing start times`() =
+    runBlocking<Unit> {
+      val fixture = fixture()
+      for (id in listOf("missing-start-one", "missing-start-two")) {
+        service.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = fixture.leaf.withCreativeId(id).copy { clearDataAvailabilityInterval() }
+          }
+        )
+      }
+      val parent = dataProviderName(fixture)
+      val stub = publicStub(parent)
+
+      for (isDescending in listOf(false, true)) {
+        val request =
+          publicListRequest(parent).copy {
+            pageSize = 1
+            orderBy = orderBy {
+              field = ListEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME
+              descending = isDescending
+            }
+          }
+        val expected = stub.listEventGroups(request.copy { pageSize = 10 }).eventGroupsList
+        assertThat(expected).hasSize(5)
+        val results = mutableListOf<PublicEventGroup>()
+        var token = ""
+        repeat(expected.size) {
+          val page = stub.listEventGroups(request.copy { pageToken = token })
+          assertThat(page.eventGroupsList).hasSize(1)
+          results += page.eventGroupsList
+          token = page.nextPageToken
+        }
+        assertThat(token).isEmpty()
+        assertThat(results).containsExactlyElementsIn(expected).inOrder()
+      }
     }
 
   @Test
@@ -725,37 +870,56 @@ class SpannerEventGroupMetadataServiceTest {
       )
       .toList()
 
-  private suspend fun snapshotPage(
-    snapshot: AsyncDatabaseClient.ReadContext,
-    fixture: Fixture,
-    query: String,
-    limit: Int = 0,
-    previousPageEnd: EventGroup? = null,
-  ): List<EventGroup> =
-    StreamEventGroups(
-        requestFilter =
-          filter {
-            externalDataProviderId = fixture.leaf.externalDataProviderId
-            metadataSearchQuery = query
-            if (previousPageEnd != null) {
-              after = after {
-                eventGroupKey = eventGroupKey {
-                  externalDataProviderId = previousPageEnd.externalDataProviderId
-                  externalEventGroupId = previousPageEnd.externalEventGroupId
-                }
-              }
-            }
-          },
-        orderBy = StreamEventGroupsRequest.OrderBy.getDefaultInstance(),
-        view = EventGroup.View.BASIC,
-        internalDataProviderId = null,
-        internalMeasurementConsumerId = null,
-        limit = limit,
-        enableEntityMetadataSearch = true,
+  private fun dataProviderName(fixture: Fixture): String =
+    "dataProviders/${externalIdToApiId(fixture.leaf.externalDataProviderId)}"
+
+  private fun publicListRequest(parentName: String, query: String = ""): ListEventGroupsRequest =
+    listEventGroupsRequest {
+      parent = parentName
+      pageSize = 25
+      filter = publicFilter {
+        entityTypeIn += listOf("account", "campaign", "creative")
+        metadataSearchQuery = query
+      }
+    }
+
+  private fun publicStub(
+    parent: String,
+    aead: Aead? = pageTokenAead,
+    tokenClock: Clock = clock,
+  ): PublicEventGroupsStub {
+    val serverName = InProcessServerBuilder.generateName()
+    val channel =
+      grpcCleanup.register(InProcessChannelBuilder.forName(serverName).directExecutor().build())
+    val publicService =
+      PublicEventGroupsService(
+        EventGroupsCoroutineStub(channel),
+        pageTokenAead = aead,
+        clock = tokenClock,
       )
-      .execute(snapshot)
-      .toList()
-      .map { it.eventGroup }
+    val principal = DataProviderPrincipal(requireNotNull(DataProviderKey.fromName(parent)))
+    val principalInterceptor =
+      object : ServerInterceptor {
+        override fun <ReqT, RespT> interceptCall(
+          call: ServerCall<ReqT, RespT>,
+          headers: Metadata,
+          next: ServerCallHandler<ReqT, RespT>,
+        ): ServerCall.Listener<ReqT> =
+          Contexts.interceptCall(Context.current().withPrincipal(principal), call, headers, next)
+      }
+    grpcCleanup.register(
+      InProcessServerBuilder.forName(serverName)
+        .directExecutor()
+        .addService(service)
+        .addService(ServerInterceptors.intercept(publicService, principalInterceptor))
+        .build()
+        .start()
+    )
+    return PublicEventGroupsStub(channel)
+  }
+
+  private fun PublicEventGroup.accountName(): String =
+    eventGroupMetadata.entityMetadata.fieldsMap.getValue("account_name").stringValue
 
   private fun EventGroup.withCreativeId(id: String) =
     withMetadata("creative_id" to id).copy {
@@ -777,6 +941,10 @@ class SpannerEventGroupMetadataServiceTest {
   }
 
   companion object {
+    init {
+      AeadConfig.register()
+    }
+
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }

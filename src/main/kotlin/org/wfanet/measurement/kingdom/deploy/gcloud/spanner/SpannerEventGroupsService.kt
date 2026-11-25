@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 
+import com.google.cloud.Timestamp
+import com.google.cloud.spanner.ErrorCode
+import com.google.cloud.spanner.SpannerException
 import com.google.cloud.spanner.TimestampBound
 import io.grpc.Status
 import java.time.DateTimeException
@@ -23,6 +26,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -39,8 +43,11 @@ import org.wfanet.measurement.internal.kingdom.DeleteEventGroupRequest
 import org.wfanet.measurement.internal.kingdom.EventGroup
 import org.wfanet.measurement.internal.kingdom.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.GetEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsPageRequest
+import org.wfanet.measurement.internal.kingdom.StreamEventGroupsPageResponse
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.UpdateEventGroupRequest
+import org.wfanet.measurement.internal.kingdom.streamEventGroupsPageResponse
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.CertificateIsInvalidException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.EventGroupHierarchyConflictException
@@ -340,7 +347,55 @@ class SpannerEventGroupsService(
       } else {
         TimestampBound.strong()
       }
+    return streamEventGroups(request) { client.singleUse(timestampBound) }
+  }
 
+  override fun streamEventGroupsPage(
+    request: StreamEventGroupsPageRequest
+  ): Flow<StreamEventGroupsPageResponse> {
+    grpcRequire(request.hasQuery() && request.query.limit > 0) { "query.limit must be positive" }
+    val timestampBound =
+      if (request.hasReadTime()) {
+        try {
+          TimestampBound.ofReadTimestamp(Timestamp.fromProto(request.readTime))
+        } catch (e: IllegalArgumentException) {
+          throw Status.INVALID_ARGUMENT.withDescription("Invalid read time")
+            .withCause(e)
+            .asRuntimeException()
+        }
+      } else {
+        TimestampBound.strong()
+      }
+
+    return flow {
+        client.readOnlyTransaction(timestampBound).use { context ->
+          emitAll(
+            streamEventGroups(request.query) { context }
+              .map { group -> streamEventGroupsPageResponse { eventGroup = group } }
+          )
+          emit(streamEventGroupsPageResponse { readTime = context.readTimestamp.toProto() })
+        }
+      }
+      .catch { cause ->
+        if (
+          request.hasReadTime() &&
+            cause is SpannerException &&
+            cause.errorCode == ErrorCode.FAILED_PRECONDITION
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "The EventGroup listing snapshot is unavailable. Start a new listing."
+            )
+            .withCause(cause)
+            .asRuntimeException()
+        }
+        throw cause
+      }
+  }
+
+  private fun streamEventGroups(
+    request: StreamEventGroupsRequest,
+    readContext: () -> AsyncDatabaseClient.ReadContext,
+  ): Flow<EventGroup> {
     if (request.filter.hasActivityContains()) {
       val interval = request.filter.activityContains
       if (!interval.hasStartDate()) {
@@ -397,7 +452,7 @@ class SpannerEventGroupsService(
       val internalDataProviderId =
         if (useDataProviderIndex) {
           DataProviderReader.readDataProviderId(
-            client.singleUse(timestampBound),
+            readContext(),
             ExternalId(request.filter.externalDataProviderId),
           ) ?: return@flow
         } else {
@@ -406,7 +461,7 @@ class SpannerEventGroupsService(
       val internalMeasurementConsumerId =
         if (request.filter.externalMeasurementConsumerId != 0L) {
           MeasurementConsumerReader.readMeasurementConsumerId(
-            client.singleUse(timestampBound),
+            readContext(),
             ExternalId(request.filter.externalMeasurementConsumerId),
           ) ?: return@flow
         } else {
@@ -423,7 +478,7 @@ class SpannerEventGroupsService(
             internalMeasurementConsumerId = internalMeasurementConsumerId,
             enableEntityMetadataSearch = enableEntityMetadataSearch,
           )
-          .execute(client.singleUse(timestampBound))
+          .execute(readContext())
           .map { it.eventGroup }
       )
     }

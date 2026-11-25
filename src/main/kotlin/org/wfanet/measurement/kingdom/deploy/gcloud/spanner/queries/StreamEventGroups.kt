@@ -181,21 +181,32 @@ class StreamEventGroups(
             add(tieBreaker)
           }
           StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME -> {
-            val operator = if (orderBy.descending) "<" else ">"
-            add(
-              """
-              (
-                DataAvailabilityStartTime $operator @${After.DATA_AVAILABILITY_START_TIME}
-                OR (
-                  DataAvailabilityStartTime = @${After.DATA_AVAILABILITY_START_TIME}
-                  AND $tieBreaker
+            if (filter.after.hasDataAvailabilityStartTime()) {
+              val operator = if (orderBy.descending) "<" else ">"
+              val nullsAfter =
+                if (orderBy.descending) "OR DataAvailabilityStartTime IS NULL" else ""
+              add(
+                """
+                (
+                  DataAvailabilityStartTime $operator @${After.DATA_AVAILABILITY_START_TIME}
+                  OR (
+                    DataAvailabilityStartTime = @${After.DATA_AVAILABILITY_START_TIME}
+                    AND $tieBreaker
+                  )
+                  $nullsAfter
                 )
+                """
+                  .trimIndent()
               )
-              """
-                .trimIndent()
-            )
-            bind(After.DATA_AVAILABILITY_START_TIME)
-              .to(filter.after.dataAvailabilityStartTime.toGcloudTimestamp())
+              bind(After.DATA_AVAILABILITY_START_TIME)
+                .to(filter.after.dataAvailabilityStartTime.toGcloudTimestamp())
+            } else {
+              val nullsAfter = "(DataAvailabilityStartTime IS NULL AND $tieBreaker)"
+              add(
+                if (orderBy.descending) nullsAfter
+                else "($nullsAfter OR DataAvailabilityStartTime IS NOT NULL)"
+              )
+            }
           }
           StreamEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized field")
         }

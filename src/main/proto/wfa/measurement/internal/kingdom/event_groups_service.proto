@@ -41,6 +41,9 @@ service EventGroups {
   rpc DeleteEventGroup(DeleteEventGroupRequest) returns (EventGroup);
 
   rpc StreamEventGroups(StreamEventGroupsRequest) returns (stream EventGroup);
+
+  rpc StreamEventGroupsPage(StreamEventGroupsPageRequest)
+      returns (stream StreamEventGroupsPageResponse);
 }
 
 message CreateEventGroupRequest {
@@ -161,6 +164,23 @@ message StreamEventGroupsRequest {
 
   // The view of EventGroup to return.
   EventGroup.View view = 5;
+}
+
+message StreamEventGroupsPageRequest {
+  // The query for one page, including its result limit and optional cursor.
+  // The page uses one snapshot regardless of the query's allow_stale_reads.
+  StreamEventGroupsRequest query = 1;
+
+  // The snapshot returned for the first page. If omitted, use a strong read.
+  google.protobuf.Timestamp read_time = 2;
+}
+
+message StreamEventGroupsPageResponse {
+  oneof result {
+    EventGroup event_group = 1;
+    // Sent once, after the EventGroups, even if the page is empty.
+    google.protobuf.Timestamp read_time = 2;
+  }
 }
 
 message EventGroupKey {
