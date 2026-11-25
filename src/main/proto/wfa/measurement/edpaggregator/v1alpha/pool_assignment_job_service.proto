@@ -229,18 +229,14 @@ message MarkPoolAssignmentJobSucceededRequest {
     (google.api.field_info).format = UUID4
   ];
 
-  // The DEK that encrypts this shard's `SubpoolFingerprints` blobs.
-  // Persisted by the server onto the job's OUTPUT_ONLY
-  // `PoolAssignmentJob.encrypted_dek` atomically with the `SUCCEEDED`
-  // transition. On the last-shard mark, the server additionally promotes
-  // this DEK to the parent `RawImpressionUploadModelLine.encrypted_merged_dek`
-  // so a retrying SubpoolAssigner's merge stays consistent with the
-  // already-written merged blobs.
+  // DEK for this shard's `SubpoolFingerprints` blobs. Required when
+  // `pool_offsets` is nonempty. A final shard without its own output may
+  // omit this field; the server reuses a persisted shard key for merged output.
   // (-- api-linter: core::0215::foreign-type-reference=disabled
   //     aip.dev/not-precedent: Shared encryption key schema used by
   //     impression processing and aggregation. --)
   wfa.measurement.securecomputation.impressions.EncryptedDek encrypted_dek = 4
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 
   // Subpool offsets discovered by this shard during Phase 0. The service unions
   // these across all shards of the (upload, model line); on the last shard out
@@ -264,25 +260,25 @@ message MarkPoolAssignmentJobSucceededResponse {
   // The updated PoolAssignmentJob.
   PoolAssignmentJob pool_assignment_job = 1;
 
-  // Present when this is the last shard to complete for the
-  // (upload, model line). Contains the pool offsets discovered
-  // during Phase 0, used to create RankerJob rows and trigger
-  // Phase 1.
+  // Original result of the final shard completing for the upload and model
+  // line. Present for every final shard; absent for a non-final shard. An empty
+  // result starts direct labeling. Nonempty offsets and a date start ranking.
+  // A retry with the same request ID and immutable input returns this result.
   LastShardResult last_shard_result = 2;
 
-  // Result of the last shard completing. Present only when the
-  // last-shard mark resulted in non-empty cross-shard work; omitted
-  // if no shard wrote impressions.
+  // Result of the final shard completing. Empty when no ranked memberships
+  // were produced; otherwise contains both pool offsets and their maximum date.
   message LastShardResult {
-    // The pool offsets discovered during Phase 0.
-    repeated int64 pool_offsets = 1 [(google.api.field_behavior) = REQUIRED];
+    // Pool offsets discovered during Phase 0. Empty for direct labeling;
+    // nonempty for ranking, in which case `max_event_date` is also present.
+    repeated int64 pool_offsets = 1 [(google.api.field_behavior) = OPTIONAL];
 
     // The maximum event date (UTC) across all shards, reduced from every
     // shard's reported `max_event_date`. Stamped onto each Phase-1
     // `VidRankBuilderParams.max_event_date` so the rank-map retention sweep can
-    // age out blobs. Always set on the last-shard result.
+    // age out blobs. Present only when `pool_offsets` is nonempty.
     google.type.Date max_event_date = 2
-        [(google.api.field_behavior) = REQUIRED];
+        [(google.api.field_behavior) = OPTIONAL];
   }
 }
 

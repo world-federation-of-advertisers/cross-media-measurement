@@ -21,6 +21,7 @@ import org.wfanet.measurement.common.ResourceNameParser
 internal enum class IdVariable {
   WORK_ITEM,
   WORK_ITEM_ATTEMPT,
+  QUEUE,
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {

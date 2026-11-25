@@ -68,6 +68,7 @@ import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listVidLabelingJobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.listVidLabelingJobsResponse
 import org.wfanet.measurement.internal.edpaggregator.markVidLabelingJobSucceededResponse
+import org.wfanet.measurement.internal.edpaggregator.vidLabelingJob
 
 /**
  * Cloud Spanner implementation of the internal [VidLabelingJob] service.
@@ -106,6 +107,7 @@ class SpannerVidLabelingJobService(
               request.requestId,
             )
           if (existing != null) {
+            validateIdempotentCreate(existing.vidLabelingJob, job)
             return@run existing.vidLabelingJob
           }
 
@@ -151,16 +153,18 @@ class SpannerVidLabelingJobService(
         throw e
       }
 
-    return if (createdJob.hasCreateTime()) {
-      createdJob
-    } else {
-      val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
-      createdJob.copy {
-        createTime = commitTimestamp
-        updateTime = commitTimestamp
-        etag = ETags.computeETag(commitTimestamp.toInstant())
+    val response =
+      if (createdJob.hasCreateTime()) {
+        createdJob
+      } else {
+        val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+        createdJob.copy {
+          createTime = commitTimestamp
+          updateTime = commitTimestamp
+          etag = ETags.computeETag(commitTimestamp.toInstant())
+        }
       }
-    }
+    return originalCreateResponse(response)
   }
 
   override suspend fun batchCreateVidLabelingJobs(
@@ -244,6 +248,7 @@ class SpannerVidLabelingJobService(
           request.requestsList.map { subRequest ->
             val existing = existingByRequestId[subRequest.requestId]
             if (existing != null) {
+              validateIdempotentCreate(existing.vidLabelingJob, subRequest.vidLabelingJob)
               existing.vidLabelingJob
             } else {
               val vidLabelingJobId =
@@ -291,15 +296,17 @@ class SpannerVidLabelingJobService(
     return batchCreateVidLabelingJobsResponse {
       vidLabelingJobs +=
         results.map { result ->
-          if (result.hasCreateTime()) {
-            result
-          } else {
-            result.copy {
-              createTime = commitTimestamp
-              updateTime = commitTimestamp
-              etag = ETags.computeETag(commitTimestamp.toInstant())
+          val response =
+            if (result.hasCreateTime()) {
+              result
+            } else {
+              result.copy {
+                createTime = commitTimestamp
+                updateTime = commitTimestamp
+                etag = ETags.computeETag(commitTimestamp.toInstant())
+              }
             }
-          }
+          originalCreateResponse(response)
         }
     }
   }
@@ -653,6 +660,34 @@ class SpannerVidLabelingJobService(
     }
   }
 
+  /** Reconstructs the committed Create response; lifecycle changes are exposed by Get. */
+  private fun originalCreateResponse(job: VidLabelingJob): VidLabelingJob = vidLabelingJob {
+    dataProviderResourceId = job.dataProviderResourceId
+    rawImpressionUploadResourceId = job.rawImpressionUploadResourceId
+    vidLabelingJobResourceId = job.vidLabelingJobResourceId
+    cmmsModelLines += job.cmmsModelLinesList
+    rawImpressionUploadFiles += job.rawImpressionUploadFilesList
+    state = State.VID_LABELING_STATE_CREATED
+    createTime = job.createTime
+    updateTime = job.createTime
+    etag = ETags.computeETag(job.createTime.toInstant())
+  }
+
+  /** Original file/model-line membership is immutable; ordering alone is insignificant. */
+  private fun validateIdempotentCreate(existing: VidLabelingJob, requested: VidLabelingJob) {
+    if (
+      existing.cmmsModelLinesList.sorted() != requested.cmmsModelLinesList.sorted() ||
+        existing.rawImpressionUploadFilesList.sorted() !=
+          requested.rawImpressionUploadFilesList.sorted()
+    ) {
+      throw VidLabelingJobAlreadyExistsException(
+          existing.dataProviderResourceId,
+          existing.rawImpressionUploadResourceId,
+        )
+        .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+    }
+  }
+
   private fun validateCreateRequest(request: CreateVidLabelingJobRequest) {
     if (!request.hasVidLabelingJob()) {
       throw RequiredFieldNotSetException("vid_labeling_job")
@@ -680,6 +715,7 @@ class SpannerVidLabelingJobService(
   }
 
   companion object {
+
     private const val VID_LABELING_JOB_RESOURCE_ID_PREFIX = "vidLabelingJob"
     private const val MAX_PAGE_SIZE = 100
     private const val MAX_BATCH_SIZE = 50

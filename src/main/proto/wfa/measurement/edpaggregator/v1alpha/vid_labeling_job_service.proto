@@ -83,6 +83,12 @@ message CreateVidLabelingJobRequest {
   VidLabelingJob vid_labeling_job = 2 [(google.api.field_behavior) = REQUIRED];
 
   // A request ID provided by the client to ensure idempotency.
+  // Replays must contain the same file and model-line membership (including
+  // multiplicity); ordering alone may differ. Changed membership returns
+  // ALREADY_EXISTS without modifying the existing job.
+  // Matching retries return the original committed Create response: CREATED,
+  // update_time equal to create_time, the original etag, and no error_message.
+  // Get returns current lifecycle metadata and the full stored diagnostic.
   //
   // This field is REQUIRED, deviating from AIP-155 (which recommends request_id
   // be optional): the job's resource name is assigned by the server, so the

@@ -326,7 +326,7 @@ class PoolAssignmentJobService(
 
     validateEtagAndRequestId(request.etag, request.requestId)
 
-    if (!request.hasEncryptedDek()) {
+    if (request.poolOffsetsCount > 0 && !request.hasEncryptedDek()) {
       throw RequiredFieldNotSetException("encrypted_dek")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -340,7 +340,7 @@ class PoolAssignmentJobService(
             poolAssignmentJobResourceId = jobKey.poolAssignmentJobId
             etag = request.etag
             requestId = request.requestId
-            encryptedDek = request.encryptedDek.toInternal()
+            if (request.hasEncryptedDek()) encryptedDek = request.encryptedDek.toInternal()
             poolOffsets += request.poolOffsetsList
             if (request.hasMaxEventDate()) {
               maxEventDate = request.maxEventDate
@@ -452,6 +452,7 @@ private fun handleInternalError(e: StatusException): StatusRuntimeException {
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+    InternalErrors.Reason.POOL_ASSIGNMENT_NOT_READY,
     null -> Status.INTERNAL.withCause(e).asRuntimeException()
     InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
     InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND ->

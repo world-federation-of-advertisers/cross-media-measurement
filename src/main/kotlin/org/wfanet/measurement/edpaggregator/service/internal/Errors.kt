@@ -46,6 +46,7 @@ object Errors {
     POOL_ASSIGNMENT_JOB_NOT_FOUND,
     POOL_ASSIGNMENT_JOB_STATE_INVALID,
     POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+    POOL_ASSIGNMENT_NOT_READY,
     RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
     RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
     RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
@@ -673,6 +674,24 @@ class PoolAssignmentJobStateInvalidException(
       Errors.Metadata.POOL_ASSIGNMENT_JOB_STATE to actualState.name,
       Errors.Metadata.EXPECTED_POOL_ASSIGNMENT_JOB_STATES to
         expectedStates.joinToString(",") { state -> state.name },
+    ),
+    cause,
+  )
+
+/** Phase-0 evidence does not permit direct labeling of this model line. */
+class PoolAssignmentNotReadyException(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  cmmsModelLine: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.POOL_ASSIGNMENT_NOT_READY,
+    "Pool assignment is not ready for direct labeling",
+    mapOf(
+      Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
+      Errors.Metadata.RAW_IMPRESSION_UPLOAD_RESOURCE_ID to rawImpressionUploadResourceId,
+      Errors.Metadata.CMMS_MODEL_LINE to cmmsModelLine,
     ),
     cause,
   )

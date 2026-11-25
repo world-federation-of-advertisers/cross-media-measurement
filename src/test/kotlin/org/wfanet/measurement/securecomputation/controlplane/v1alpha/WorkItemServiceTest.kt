@@ -36,7 +36,9 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -44,6 +46,8 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt as InternalListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest as InternalListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequestKt as InternalListWorkItemsRequestKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse as InternalListWorkItemsResponse
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
@@ -771,6 +775,142 @@ class WorkItemServiceTest {
             internalListWorkItemsResponse.nextPageToken.toByteString().base64UrlEncode()
         }
       )
+  }
+
+  @Test
+  fun `listWorkItems translates queue names and normalizes the filter`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { listWorkItems(any()) } doReturn
+        InternalListWorkItemsResponse.getDefaultInstance()
+    }
+
+    service.listWorkItems(
+      listWorkItemsRequest {
+        filter =
+          ListWorkItemsRequestKt.filter {
+            queueIn += "queues/vid-rank-builder-queue"
+            queueIn += "queues/vid-labeler-queue"
+            queueIn += "queues/vid-labeler-queue"
+            stateIn += WorkItem.State.RUNNING
+            stateIn += WorkItem.State.QUEUED
+          }
+      }
+    )
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::listWorkItems,
+      )
+      .isEqualTo(
+        internalListWorkItemsRequest {
+          pageSize = 50
+          filter =
+            InternalListWorkItemsRequestKt.filter {
+              queueResourceIds += "vid-labeler-queue"
+              queueResourceIds += "vid-rank-builder-queue"
+              states += InternalWorkItem.State.QUEUED
+              states += InternalWorkItem.State.RUNNING
+            }
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItems rejects a queue that is not a Queue resource name`() = runBlocking {
+    for (queue in listOf("vid-labeler-queue", "queues/", "queues/a/b")) {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listWorkItems(
+            listWorkItemsRequest { filter = ListWorkItemsRequestKt.filter { queueIn += queue } }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo?.metadata?.get(Errors.Metadata.FIELD_NAME.key))
+        .isEqualTo("filter.queue_in")
+    }
+    verifyBlocking(internalServiceMock, never()) { listWorkItems(any()) }
+  }
+
+  @Test
+  fun `listWorkItems rejects a page token issued for another filter`() = runBlocking {
+    val pageToken =
+      internalListWorkItemsPageToken {
+          after =
+            InternalListWorkItemsPageTokenKt.after {
+              createdAfter = timestamp { seconds = 123L }
+              workItemResourceId = "work-item-1"
+            }
+          filter =
+            InternalListWorkItemsRequestKt.filter {
+              queueResourceIds += "vid-labeler-queue"
+              states += InternalWorkItem.State.QUEUED
+            }
+        }
+        .toByteString()
+        .base64UrlEncode()
+
+    for (changedFilter in
+      listOf(
+        ListWorkItemsRequestKt.filter { queueIn += "queues/vid-rank-builder-queue" },
+        ListWorkItemsRequestKt.filter {
+          queueIn += "queues/vid-labeler-queue"
+          stateIn += WorkItem.State.RUNNING
+        },
+        ListWorkItemsRequest.Filter.getDefaultInstance(),
+      )) {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.listWorkItems(
+            listWorkItemsRequest {
+              this.pageToken = pageToken
+              filter = changedFilter
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo?.metadata?.get(Errors.Metadata.FIELD_NAME.key))
+        .isEqualTo("page_token")
+    }
+    verifyBlocking(internalServiceMock, never()) { listWorkItems(any()) }
+  }
+
+  @Test
+  fun `listWorkItems rejects unspecified state filter`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItems(
+          listWorkItemsRequest {
+            filter = ListWorkItemsRequestKt.filter { stateIn += WorkItem.State.STATE_UNSPECIFIED }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `listWorkItems maps unknown filter queue to INVALID_ARGUMENT`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { listWorkItems(any()) } doThrow
+        InternalQueueNotFoundException("missing")
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItems(
+          listWorkItemsRequest {
+            filter = ListWorkItemsRequestKt.filter { queueIn += "queues/missing" }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.QUEUE_NOT_FOUND.name)
+    assertThat(exception.errorInfo?.metadata?.get(Errors.Metadata.QUEUE.key))
+      .isEqualTo("queues/missing")
   }
 
   @Test

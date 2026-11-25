@@ -770,6 +770,86 @@ DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):
 
 ### Optional: VID Labeling pipeline
 
+Use one normal **Update CMMS** deployment for this stack. It applies the EDPA
+schema through the internal server's schema-updater init container, rolls metadata
+services, and uses Terraform to roll compatible workers and flags. Do not sequence
+individual services or edit Terraform-owned MIGs, schedulers, or flags by hand.
+
+#### Online compatibility and the maintenance alternative
+
+Prefer an online rollout when deployed and candidate contracts are compatible.
+The first upgrade to this completion/batching contract cannot safely mix active
+legacy memoized work with updated producers. Its exact state/API incompatibilities are:
+
+- Older SubpoolAssigner code interprets any present `last_shard_result` as ranking.
+  The new present-empty result means direct labeling, and the RPC has no caller-version
+  negotiation to provide both meanings during a mixed rollout.
+- Labeling-job membership is immutable and request IDs identify batch slots. New
+  packing limits can change an existing slot. The service must reject that replay;
+  existing uploads have no persisted packing-version choice.
+- Legacy successful marks may lack original-input fingerprints. Aggregate current
+  state cannot prove that a replay matches the original immutable request.
+
+These constraints do not require paused uploads for every future deployment.
+An online bridge for active legacy work must provide response compatibility and stable
+per-upload packing before producer activation. This release does not claim that
+bridge exists. Operators requiring online compatibility can retain their current
+release until those conditions are supported. For this breaking upgrade, use the
+simpler maintenance alternative below:
+
+1. Pause new raw **done markers** at the input publisher and defer new healing
+   approvals for the window. Leave existing consumers running while work finishes;
+   do not mutate Terraform-owned resources out of band.
+2. Run `VidLabelingRolloutCheck --mode=DRAINED` with every deployment EDP and VID queue,
+   including availability handoff. It lists only unfinished WorkItems in those queues,
+   unfinished uploads, unfinished model lines across all uploads and unfinished healing
+   operations, so its cost follows outstanding work rather than retained history. It
+   fails on queued/running work, nonterminal uploads, unfinished healing, unknown states,
+   missing evidence or query errors. Proceed only after it succeeds.
+   `--mode=MAINTENANCE` repeats these checks after waiting one maximum synchronization-lease
+   lifetime plus margin (`--max-sync-lease-lifetime`, default `10m`, and
+   `--sync-lease-margin`, default `1m`). With intake paused and no unfinished work, no
+   worker can renew a lease, so any abandoned lease has expired before the second check.
+   The check uses only service APIs and needs no database access.
+3. Run one normal Update CMMS deployment with `apply=true` and
+   `vid-labeling-readiness=true`. Its normal schema/service/Terraform sequence is
+   followed by read-only checks of schema-init success, expected metadata images,
+   stable MIG templates, consumer enablement and required worker flags.
+4. Submit one fresh zero-membership smoke upload through the normal test-input
+   publisher, with impressions outside the active window. Verify it using
+   `VidLabelingRolloutCheck --mode=ZERO_MEMBERSHIP` and its exact done URI/generation,
+   model line and expected shard count. The verifier requires completed empty
+   assignment, every expected shard successful, no ranked date/merged DEK or RankerJobs,
+   successful labeling and exact registered-file coverage.
+5. Resume production done markers only after deployment readiness and the smoke
+   verification succeed. A failed check leaves the window closed for diagnosis.
+
+The CLI performs only List RPCs with server-side state filters, complete pagination and a
+bounded deadline. A server that predates a filter returns a complete listing, which the CLI
+still evaluates correctly. It never creates, retries, updates or deletes API resources. Smoke input
+is application test data emitted by the normal publisher. The readiness script uses
+only get/describe/list commands and never changes Terraform-owned state.
+
+Example preflight (repeat `--data-provider` for every configured EDP and use the
+queues from the deployment registry):
+
+```shell
+bazel run //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingRolloutCheck -- \
+  --mode=DRAINED --data-provider=dataProviders/edp7 \
+  --queue=queues/subpool-assigner-queue --queue=queues/vid-rank-builder-queue \
+  --queue=queues/vid-labeler-queue --queue=queues/data-availability-sync-queue \
+  --edpa-public-api-target=EDPA_TARGET --control-plane-target=CONTROL_PLANE_TARGET \
+  --tls-cert-file=edpa-client.crt --tls-key-file=edpa-client.key \
+  --cert-collection-file=edpa-roots.pem \
+  --control-plane-tls-cert-file=control-client.crt \
+  --control-plane-tls-key-file=control-client.key \
+  --control-plane-cert-collection-file=control-roots.pem
+```
+
+For smoke verification use the same targets/TLS flags and one EDP, plus
+`--done-blob-uri`, `--done-blob-generation`, `--model-line` and `--expected-shards`.
+Rerun the read-only verifier within the window while asynchronous work completes.
+
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0
 SubpoolAssigner, Phase 1 VidRankBuilder, Phase 2 VidLabeler) as Confidential Space
 TEE apps, plus a VidLabelingDispatcher, VidLabelingMonitor, and
@@ -2021,3 +2101,18 @@ If a previous recovery already exists, it must be older than the configured
 `staleness_threshold` before another is created. A missing/future creation time or
 failed lookup defers recovery. This prevents repeated health requests or a lost
 HTTP response from consuming all three attempts while recovery is still in progress.
+
+Memoized Phase-2 dispatch requires a registration-complete upload before listing its
+immutable files. Keep the packing limits identical across retries: raw-byte limit,
+1,000 files per job, 512 KiB serialized job metadata, and 3 MiB/50 jobs per create RPC.
+Deploy matching metadata-service replay validation before updated producers.
+A reused labeling-job request ID with changed file or model-line membership returns
+ALREADY_EXISTS; retrying unchanged input preserves its existing job. Changing packing
+limits for an in-progress upload requires explicit reconciliation rather than treating
+changed batch-slot membership as replay.
+
+Labeling-job Create and BatchCreate retries return the original committed creation
+response: CREATED, update_time equal to create_time, the creation-time etag and no
+error_message. Identity and immutable membership are retained. GetVidLabelingJob
+exposes current lifecycle metadata and full stored diagnostics. Original creation
+responses prevent later failure text from inflating creation replay batches.

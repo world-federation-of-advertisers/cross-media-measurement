@@ -65,9 +65,12 @@ service RawImpressionUploadModelLineService {
       MarkRawImpressionUploadModelLineRankingRequest)
       returns (RawImpressionUploadModelLine) {}
 
-  // Marks a `RawImpressionUploadModelLine` as `LABELING`. Throws
-  // `ABORTED` if `etag` does not match (AIP-154). Throws
-  // `FAILED_PRECONDITION` if the prior state does not allow this transition.
+  // Marks a `RawImpressionUploadModelLine` as `LABELING`. Allows
+  // `POOL_ASSIGNING` only after `pool_assignment_complete` is set, at least one
+  // Phase-0 shard is registered, every registered shard succeeded,
+  // `pool_offsets` is empty, and `max_event_date` is absent. Throws `ABORTED`
+  // if `etag` does not match (AIP-154). Throws `FAILED_PRECONDITION` if the
+  // prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineLabeling(
       MarkRawImpressionUploadModelLineLabelingRequest)
       returns (RawImpressionUploadModelLine) {}

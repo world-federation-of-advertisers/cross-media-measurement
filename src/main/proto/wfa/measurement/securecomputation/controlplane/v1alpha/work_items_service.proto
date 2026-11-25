@@ -109,6 +109,9 @@ message GetWorkItemRequest {
 }
 
 // Request message for `ListWorkItems` method.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: Using a customized message for the
+//     filter. --)
 message ListWorkItemsRequest {
   // The maximum number of reports to return. The service may return fewer than
   // this value.
@@ -122,6 +125,42 @@ message ListWorkItemsRequest {
   // When paginating, all other parameters provided to `ListWorkItems` must
   // match the call that provided the page token.
   string page_token = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Structured filter for narrowing results.
+  // All fields are combined with `AND` logic.
+  message Filter {
+    // Filter to `WorkItem`s in any of these `Queue`s. Empty matches all queues.
+    // Each value must name a configured `Queue`.
+    //
+    // Format: `queues/{queue}`
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated string queue_in = 1 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.resource_reference) = {
+        type: "control-plane.secure-computation.halo-cmm.org/Queue"
+      }
+    ];
+
+    // Filter to `WorkItem`s whose state is in this set. Empty matches all
+    // states.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not a
+    //     resource state field. --)
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated WorkItem.State state_in = 2
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // Optional. A structured filter to apply to the results. This API uses
+  // structured filters instead of AIP-160 filter strings.
+  // (-- api-linter: core::0160::filter-field-type=disabled
+  //     aip.dev/not-precedent: This API uses structured filters instead of
+  //     AIP-160 filter strings. --)
+  Filter filter = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for `ListWorkItems` method.

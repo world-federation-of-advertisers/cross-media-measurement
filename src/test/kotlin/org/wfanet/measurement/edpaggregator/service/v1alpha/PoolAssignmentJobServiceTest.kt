@@ -718,7 +718,132 @@ class PoolAssignmentJobServiceTest {
     assertThat(response.poolAssignmentJob.state).isEqualTo(PoolAssignmentJob.State.SUCCEEDED)
     assertThat(response.poolAssignmentJob.name).isEqualTo(created.name)
     assertThat(response.poolAssignmentJob.encryptedDek).isEqualTo(ENCRYPTED_DEK)
+    assertThat(response.hasLastShardResult()).isTrue()
+    assertThat(response.lastShardResult.poolOffsetsList).isEmpty()
+    assertThat(response.lastShardResult.hasMaxEventDate()).isFalse()
   }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded accepts empty output without a DEK through public API`() =
+    runBlocking {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      createRawImpressionUploadModelLine(
+        DATA_PROVIDER_ID,
+        RAW_IMPRESSION_UPLOAD_ID,
+        CMMS_MODEL_LINE,
+      )
+      val shard =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            requestId = UUID.randomUUID().toString()
+            parent = UPLOAD_KEY.toName()
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val request = markPoolAssignmentJobSucceededRequest {
+        requestId = UUID.randomUUID().toString()
+        name = shard.name
+        etag = shard.etag
+      }
+      val result = service.markPoolAssignmentJobSucceeded(request)
+      assertThat(result.hasLastShardResult()).isTrue()
+      assertThat(result.lastShardResult.poolOffsetsList).isEmpty()
+      assertThat(result.lastShardResult.hasMaxEventDate()).isFalse()
+      assertThat(result.poolAssignmentJob.hasEncryptedDek()).isFalse()
+      val parent =
+        spannerDatabase.databaseClient.singleUse().use { txn ->
+          txn
+            .executeQuery(
+              statement(
+                """
+                SELECT PoolAssignmentComplete, EncryptedMergedDek, PoolOffsets, MaxEventDate
+                FROM RawImpressionUploadModelLine
+                WHERE DataProviderResourceId = @provider AND CmmsModelLine = @model
+                """
+                  .trimIndent()
+              ) {
+                bind("provider").to(DATA_PROVIDER_ID)
+                bind("model").to(CMMS_MODEL_LINE)
+              }
+            )
+            .single()
+        }
+      assertThat(parent.getBoolean("PoolAssignmentComplete")).isTrue()
+      assertThat(parent.isNull("EncryptedMergedDek")).isTrue()
+      assertThat(parent.getLongList("PoolOffsets")).isEmpty()
+      assertThat(parent.isNull("MaxEventDate")).isTrue()
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(result)
+    }
+
+  @Test
+  fun `markPoolAssignmentJobSucceeded exposes and persists empty final shard completion`() =
+    runBlocking {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      createRawImpressionUploadModelLine(
+        DATA_PROVIDER_ID,
+        RAW_IMPRESSION_UPLOAD_ID,
+        CMMS_MODEL_LINE,
+      )
+      val shards =
+        (0..1).map { index ->
+          service.createPoolAssignmentJob(
+            createPoolAssignmentJobRequest {
+              requestId = UUID.randomUUID().toString()
+              parent = UPLOAD_KEY.toName()
+              poolAssignmentJob = poolAssignmentJob {
+                cmmsModelLine = CMMS_MODEL_LINE
+                shardIndex = index
+              }
+            }
+          )
+        }
+      val requests =
+        shards.map { shard ->
+          markPoolAssignmentJobSucceededRequest {
+            requestId = UUID.randomUUID().toString()
+            name = shard.name
+            etag = shard.etag
+            encryptedDek = ENCRYPTED_DEK
+          }
+        }
+      val early = service.markPoolAssignmentJobSucceeded(requests[0])
+      val final = service.markPoolAssignmentJobSucceeded(requests[1])
+      assertThat(early.hasLastShardResult()).isFalse()
+      assertThat(final.hasLastShardResult()).isTrue()
+      assertThat(final.lastShardResult.poolOffsetsList).isEmpty()
+      assertThat(final.lastShardResult.hasMaxEventDate()).isFalse()
+      assertThat(service.markPoolAssignmentJobSucceeded(requests[0])).isEqualTo(early)
+      assertThat(service.markPoolAssignmentJobSucceeded(requests[1])).isEqualTo(final)
+      val row =
+        spannerDatabase.databaseClient.singleUse().use { txn ->
+          txn
+            .executeQuery(
+              statement(
+                """
+        SELECT EncryptedMergedDek, PoolOffsets, MaxEventDate, PoolAssignmentComplete
+        FROM RawImpressionUploadModelLine JOIN RawImpressionUpload
+        USING (DataProviderResourceId, RawImpressionUploadId)
+        WHERE DataProviderResourceId = @provider
+          AND RawImpressionUploadResourceId = @upload
+          AND CmmsModelLine = @model
+        """
+                  .trimIndent()
+              ) {
+                bind("provider").to(DATA_PROVIDER_ID)
+                bind("upload").to(RAW_IMPRESSION_UPLOAD_ID)
+                bind("model").to(CMMS_MODEL_LINE)
+              }
+            )
+            .single()
+        }
+      assertThat(row.isNull("EncryptedMergedDek")).isTrue()
+      assertThat(row.getBoolean("PoolAssignmentComplete")).isTrue()
+      assertThat(row.getLongList("PoolOffsets")).isEmpty()
+      assertThat(row.isNull("MaxEventDate")).isTrue()
+    }
 
   @Test
   fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for empty name`() = runBlocking {
@@ -772,7 +897,7 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
-  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for missing encrypted_dek`() =
+  fun `markPoolAssignmentJobSucceeded throws INVALID_ARGUMENT for missing encrypted_dek on ranked output`() =
     runBlocking {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
       val created =
@@ -794,6 +919,7 @@ class PoolAssignmentJobServiceTest {
               this.requestId = UUID.randomUUID().toString()
               name = created.name
               etag = created.etag
+              poolOffsets += 7L
             }
           )
         }
