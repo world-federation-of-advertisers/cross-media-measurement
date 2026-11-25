@@ -167,3 +167,16 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_kt_jvm_proto",
     ],
 )
+
+kt_jvm_library(
+    name = "complete_gcs_storage_client",
+    srcs = ["CompleteGcsStorageClient.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/cloud:core",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+    ],
+)

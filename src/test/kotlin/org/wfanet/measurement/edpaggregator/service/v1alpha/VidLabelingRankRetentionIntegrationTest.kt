@@ -218,7 +218,10 @@ internal class VidLabelingRankRetentionIntegrationTest :
       Breakage.MISSING -> checkNotNull(mapStorage.getBlob(snapshot.blobUri)).delete()
       Breakage.CORRUPT_CIPHERTEXT ->
         mapStorage.writeBlob(snapshot.blobUri, flowOf(ByteString.copyFromUtf8("corrupt")))
-      Breakage.CHECKSUM_MISMATCH ->
+      Breakage.CHECKSUM_MISMATCH -> {
+        // Snapshot writes are create-only, so simulate external replacement by removing the
+        // published object before writing a decryptable map that disagrees with its row.
+        checkNotNull(mapStorage.getBlob(snapshot.blobUri)).delete()
         RankIndexStore(mapStorage, kmsClient)
           .writeBlob(
             snapshot.blobUri,
@@ -233,6 +236,7 @@ internal class VidLabelingRankRetentionIntegrationTest :
               }
             ),
           )
+      }
     }
 
     val previousRankWorkItems = rankBuilderWorkItems().mapTo(mutableSetOf()) { it.name }

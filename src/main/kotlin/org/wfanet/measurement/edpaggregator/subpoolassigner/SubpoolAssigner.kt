@@ -77,6 +77,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.BlobChangedException
 
 /**
  * Phase-0 per-WorkItem logic for the memoized VID assignment pipeline (analog of
@@ -166,25 +167,37 @@ class SubpoolAssigner(
           .put(XmmTraceAttributes.OUTCOME, "started")
           .build(),
     ) {
-      runShard().also { result ->
-        Span.current()
-          .setAttribute(SUBPOOL_COUNT, result.subpoolCount.toLong())
-          .setAttribute(LABELED_COUNT, result.labeled)
-          .setAttribute(DROPPED_COUNT, result.droppedOutsideWindow)
-          .setAttribute(UNROUTED_COUNT, result.unrouted)
-          .setAttribute(LAST_SHARD_OUT, result.lastShardOut)
-        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, result.outcome)
-        VidLabelingTraceLogging.log(
-          logger,
-          "edpa.vid_labeling.pool_assignment_completed",
-          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
-          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
-          VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
-          VidLabelingTraceAttributes.PIPELINE_PHASE_STRING to "phase0",
-          XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "pool_assignment",
-          XmmTraceAttributes.OUTCOME_STRING to result.outcome,
-        )
-      }
+      (try {
+          runShard()
+        } catch (e: BlobChangedException) {
+          val current =
+            rpcThrottlers.metadataRead.onReady {
+              poolAssignmentJobsStub.getPoolAssignmentJob(
+                getPoolAssignmentJobRequest { name = poolAssignmentJob }
+              )
+            }
+          if (current.state != PoolAssignmentJob.State.SUCCEEDED) throw e
+          recoverIfLastShardOut()
+        })
+        .also { result ->
+          Span.current()
+            .setAttribute(SUBPOOL_COUNT, result.subpoolCount.toLong())
+            .setAttribute(LABELED_COUNT, result.labeled)
+            .setAttribute(DROPPED_COUNT, result.droppedOutsideWindow)
+            .setAttribute(UNROUTED_COUNT, result.unrouted)
+            .setAttribute(LAST_SHARD_OUT, result.lastShardOut)
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, result.outcome)
+          VidLabelingTraceLogging.log(
+            logger,
+            "edpa.vid_labeling.pool_assignment_completed",
+            VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+            VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+            VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
+            VidLabelingTraceAttributes.PIPELINE_PHASE_STRING to "phase0",
+            XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "pool_assignment",
+            XmmTraceAttributes.OUTCOME_STRING to result.outcome,
+          )
+        }
     }
 
   private suspend fun runShard(): Result {
@@ -208,17 +221,6 @@ class SubpoolAssigner(
 
     // 2. Generate this shard's DEK and stream each subpool to its own RecordIO blob, freeing the
     // subpool's in-memory map as soon as its blob is durable.
-    // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): the per-shard write below
-    //   is intentionally unconditional (not write-if-absent) — see
-    // SubpoolFingerprintsStore.writeBlob.
-    //   For these envelope-encrypted blobs (per-attempt random DEK + IV) a write-if-absent
-    // precondition
-    //   would turn a crash between the write and MarkPoolAssignmentJobSucceeded — today
-    // auto-recovered
-    //   by re-writing — into a permanent FAILED, since the orphan ciphertext fails every retry's
-    // 412
-    //   and the job never reaches SUCCEEDED. A correct fix (recover the winner's DEK on retry:
-    //   row-first DEK, or key-on-row) is an API change; kept unconditional for now.
     val subpoolIds = accumulator.subpoolIds().toList()
     val dek: EncryptedDek? = if (subpoolIds.isEmpty()) null else store.generateDek(kekUri)
     // Write the per-subpool blobs with bounded concurrency (up to SUBPOOL_UPLOAD_CONCURRENCY at
@@ -239,12 +241,14 @@ class SubpoolAssigner(
             uploadSemaphore.withPermit {
               try {
                 store.writeBlob(
-                  shardSubpoolKey(shardIndex, subpoolId),
-                  checkNotNull(dek),
+                  shardSubpoolKey(shardIndex, subpoolId, checkNotNull(dek)),
+                  dek,
                   subpoolId,
                   accumulator.streamChunks(subpoolId),
                 )
               } catch (e: CancellationException) {
+                throw e
+              } catch (e: BlobChangedException) {
                 throw e
               } catch (e: Exception) {
                 logPoolUnit(
@@ -291,19 +295,44 @@ class SubpoolAssigner(
     // so the service can union the offsets and reduce the dates to a max across shards, persisting
     // both on the parent RawImpressionUploadModelLine.
     val markResponse =
-      rpcThrottlers.metadataWrite.onReady {
-        poolAssignmentJobsStub.markPoolAssignmentJobSucceeded(
-          markPoolAssignmentJobSucceededRequest {
-            name = poolAssignmentJob
-            etag = job.etag
-            // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
-            // server returns the cached LastShardResult instead of hitting the etag-mismatch path.
-            requestId = deterministicUuid("$poolAssignmentJob|succeeded")
-            if (dek != null) encryptedDek = dek
-            poolOffsets += subpoolIds
-            sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
-          }
+      try {
+        rpcThrottlers.metadataWrite.onReady {
+          poolAssignmentJobsStub.markPoolAssignmentJobSucceeded(
+            markPoolAssignmentJobSucceededRequest {
+              name = poolAssignmentJob
+              etag = job.etag
+              // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so
+              // the
+              // server returns the cached LastShardResult instead of hitting the etag-mismatch
+              // path.
+              requestId = deterministicUuid("$poolAssignmentJob|succeeded")
+              if (dek != null) encryptedDek = dek
+              poolOffsets += subpoolIds
+              sink.maxTimestampUsec?.let { maxEventDate = usecToUtcDate(it) }
+            }
+          )
+        }
+      } catch (e: StatusException) {
+        if (
+          e.status.code != Status.Code.ALREADY_EXISTS &&
+            e.status.code != Status.Code.ABORTED &&
+            e.status.code != Status.Code.FAILED_PRECONDITION
         )
+          throw e
+        val current =
+          rpcThrottlers.metadataRead.onReady {
+            poolAssignmentJobsStub.getPoolAssignmentJob(
+              getPoolAssignmentJobRequest { name = poolAssignmentJob }
+            )
+          }
+        if (current.state != PoolAssignmentJob.State.SUCCEEDED) throw e
+        check(dek == null || current.hasEncryptedDek()) {
+          "Ranked pool assignment has no winning encrypted DEK"
+        }
+        if (dek != null && current.encryptedDek != dek) {
+          for (poolOffset in subpoolIds) store.delete(shardSubpoolKey(shardIndex, poolOffset, dek))
+        }
+        return recoverIfLastShardOut()
       }
 
     // 4. Last-shard-out: dispatch ranking for discovered pools, or file labeling for empty work.
@@ -318,7 +347,10 @@ class SubpoolAssigner(
           parent,
           markResponse.lastShardResult.poolOffsetsList,
           markResponse.lastShardResult.maxEventDate,
-          mergedDek = markResponse.poolAssignmentJob.encryptedDek,
+          mergedDek =
+            checkNotNull(parent.encryptedMergedDek.takeIf { parent.hasEncryptedMergedDek() }) {
+              "RawImpressionUploadModelLine ${parent.name} has no durable merged DEK"
+            },
         )
       } else {
         check(!markResponse.lastShardResult.hasMaxEventDate()) {
@@ -426,7 +458,7 @@ class SubpoolAssigner(
 
   /**
    * Merges every shard's per-subpool blobs into one blob per subpool (encrypted with [mergedDek],
-   * this last VM's own DEK), deletes the temp per-shard blobs, then fans out Phase 1.
+   * the durable merged DEK), deletes the temp per-shard blobs, then fans out Phase 1.
    */
   private suspend fun runLastShardOut(
     parent: RawImpressionUploadModelLine,
@@ -486,22 +518,30 @@ class SubpoolAssigner(
         .map { poolOffset ->
           async {
             var failureShard: Int? = null
-            // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool
-            //   writes unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery
-            //   path re-runs the merge idempotently by re-writing the merged blob, which a
-            //   write-if-absent precondition would break, so the merge is deliberately left
-            //   unconditional.
             try {
               val inputs =
                 (0 until totalShards).mapNotNull { shard ->
                   failureShard = shard
                   require(shard in shardDeks) { "Missing DEK for shard $shard; cannot merge" }
                   val shardDek = shardDeks[shard] ?: return@mapNotNull null
-                  SubpoolFingerprintsStore.SubpoolBlob(shardSubpoolKey(shard, poolOffset), shardDek)
+                  SubpoolFingerprintsStore.SubpoolBlob(
+                    shardSubpoolKey(shard, poolOffset, shardDek),
+                    shardDek,
+                  )
                 }
               check(inputs.isNotEmpty()) { "Ranked output has no persisted shard DEK" }
               failureShard = null
-              store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore)
+              store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore) {
+                val current =
+                  requireNotNull(getParent()) { "Parent ${parent.name} disappeared during merge" }
+                check(
+                  current.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING ||
+                    current.state in NOOP_FANOUT_STATES
+                ) {
+                  "Parent ${current.name} has not reached POOL_ASSIGNING"
+                }
+                current.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING
+              }
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
@@ -535,7 +575,9 @@ class SubpoolAssigner(
         }
         .awaitAll()
     }
-    val transitioned = fanOutRanking(parent, poolOffsets, maxEventDate, mergedDek)
+    val current = requireNotNull(getParent()) { "Parent ${parent.name} disappeared during merge" }
+    if (current.state in NOOP_FANOUT_STATES) return false
+    val transitioned = fanOutRanking(current, poolOffsets, maxEventDate, mergedDek)
 
     // Clean up the temp per-shard blobs only AFTER fanOutRanking flips the parent to RANKING.
     // recovery re-runs the last-shard-out only while the parent is still POOL_ASSIGNING (pre-flip),
@@ -545,8 +587,9 @@ class SubpoolAssigner(
     // the narrow post-flip/pre-delete window leaks the temp blobs (no corruption) — they are
     // reclaimed by the monitor (#3958) or the bucket lifecycle policy.
     for (shard in 0 until totalShards) {
+      val shardDek = shardDeks[shard] ?: continue
       for (poolOffset in poolOffsets) {
-        store.delete(shardSubpoolKey(shard, poolOffset))
+        store.delete(shardSubpoolKey(shard, poolOffset, shardDek))
       }
     }
     return transitioned
@@ -862,13 +905,14 @@ class SubpoolAssigner(
 
   // Blob layout lives in SubpoolFingerprintsStore so Phase-1 reads the same keys; these bind this
   // run's (blobPrefix, upload, model line) context.
-  private fun shardSubpoolKey(shard: Int, poolOffset: Long) =
+  private fun shardSubpoolKey(shard: Int, poolOffset: Long, dek: EncryptedDek) =
     SubpoolFingerprintsStore.shardSubpoolKey(
       blobPrefix,
       rawImpressionUpload,
       modelLine,
       shard,
       poolOffset,
+      dek,
     )
 
   private fun mergedSubpoolKey(poolOffset: Long) =

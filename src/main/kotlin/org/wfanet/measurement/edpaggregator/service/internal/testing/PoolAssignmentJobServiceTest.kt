@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.rpc.errorInfo
 import com.google.type.date
 import io.grpc.Status
@@ -1146,6 +1147,49 @@ abstract class PoolAssignmentJobServiceTest {
             metadata[Errors.Metadata.FIELD_NAME.key] = "request_id"
           }
         )
+    }
+
+  @Test
+  fun `successful Mark replay rejects a different DEK and retains the original response`() =
+    runBlocking<Unit> {
+      val created =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            requestId = UUID.randomUUID().toString()
+            poolAssignmentJob = poolAssignmentJob {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val request = markPoolAssignmentJobSucceededRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        poolAssignmentJobResourceId = created.poolAssignmentJobResourceId
+        etag = created.etag
+        encryptedDek = ENCRYPTED_DEK
+      }
+      val original = service.markPoolAssignmentJobSucceeded(request)
+      val replay = service.markPoolAssignmentJobSucceeded(request)
+      assertThat(replay).isEqualTo(original)
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.markPoolAssignmentJobSucceeded(
+            request
+              .toBuilder()
+              .setEncryptedDek(
+                ENCRYPTED_DEK.toBuilder()
+                  .setCiphertext(ByteString.copyFromUtf8("different-key"))
+                  .build()
+              )
+              .build()
+          )
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
     }
 
   @Test

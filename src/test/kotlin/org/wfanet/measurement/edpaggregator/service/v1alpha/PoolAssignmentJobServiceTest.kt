@@ -690,6 +690,50 @@ class PoolAssignmentJobServiceTest {
   }
 
   @Test
+  fun `Mark replay mismatch reaches public caller as ALREADY_EXISTS`() =
+    runBlocking<Unit> {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      createRawImpressionUploadModelLine(
+        DATA_PROVIDER_ID,
+        RAW_IMPRESSION_UPLOAD_ID,
+        CMMS_MODEL_LINE,
+      )
+      val created =
+        service.createPoolAssignmentJob(
+          createPoolAssignmentJobRequest {
+            requestId = UUID.randomUUID().toString()
+            parent = UPLOAD_KEY.toName()
+            poolAssignmentJob = poolAssignmentJob {
+              cmmsModelLine = CMMS_MODEL_LINE
+              shardIndex = 0
+            }
+          }
+        )
+      val request = markPoolAssignmentJobSucceededRequest {
+        requestId = UUID.randomUUID().toString()
+        name = created.name
+        etag = created.etag
+        encryptedDek = ENCRYPTED_DEK
+      }
+      val original = service.markPoolAssignmentJobSucceeded(request)
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.markPoolAssignmentJobSucceeded(
+            request
+              .toBuilder()
+              .setEncryptedDek(
+                ENCRYPTED_DEK.toBuilder()
+                  .setCiphertext(com.google.protobuf.ByteString.copyFromUtf8("different-key"))
+                  .build()
+              )
+              .build()
+          )
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+      assertThat(service.markPoolAssignmentJobSucceeded(request)).isEqualTo(original)
+    }
+
+  @Test
   fun `markPoolAssignmentJobSucceeded transitions state`() = runBlocking {
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     createRawImpressionUploadModelLine(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID, CMMS_MODEL_LINE)

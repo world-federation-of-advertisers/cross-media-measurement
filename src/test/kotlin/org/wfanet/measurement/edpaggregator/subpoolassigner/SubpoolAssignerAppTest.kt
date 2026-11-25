@@ -17,38 +17,64 @@
 package org.wfanet.measurement.edpaggregator.subpoolassigner
 
 import com.google.common.truth.Truth.assertThat
+import com.google.crypto.tink.Aead
+import com.google.crypto.tink.KeyTemplates
+import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.RegistryConfiguration
+import com.google.crypto.tink.aead.AeadConfig
+import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
+import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.verifyNoInteractions
+import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
+import org.wfanet.measurement.storage.ParquetValue
+import org.wfanet.measurement.storage.StorageClient
+import org.wfanet.measurement.storage.parquetValue
+import org.wfanet.measurement.storage.testing.InMemoryStorageClient
+import org.wfanet.virtualpeople.common.LabelerInput
 
 private const val DATA_PROVIDER = "dataProviders/dp"
 private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
@@ -93,6 +119,140 @@ class SubpoolAssignerAppTest {
     activeStartTime = timestamp { seconds = 1000 }
     activeEndTime = timestamp { seconds = 2000 }
   }
+
+  @Test
+  fun `runWork returns for a completed storage loser and throws for unfinished work`() =
+    runBlocking<Unit> {
+      AeadConfig.register()
+      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "app"
+      val kms =
+        FakeKmsClient().apply {
+          setAead(
+            kekUri,
+            KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+              .getPrimitive(RegistryConfiguration.get(), Aead::class.java),
+          )
+        }
+      val row =
+        mapOf(
+          "raw_event_id" to parquetValue { stringValue = "event-1" },
+          "raw_time" to parquetValue { int64Value = 1_000_000_000L },
+        )
+      val parquetBlob =
+        mock<ParquetStorageClient.ParquetBlob> {
+          on { readRows() } doReturn flowOf(row)
+          onBlocking { readSchema() } doReturn
+            mapOf(
+              "raw_event_id" to ParquetValue.KindCase.STRING_VALUE,
+              "raw_time" to ParquetValue.KindCase.INT64_VALUE,
+            )
+          onBlocking { readKeyValueMetadata() } doReturn emptyMap()
+        }
+      val parquet =
+        mock<ParquetStorageClient> { onBlocking { getBlob(any()) } doReturn parquetBlob }
+      val files =
+        mock<RawImpressionUploadFileServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
+            listRawImpressionUploadFilesResponse {
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                name = "$UPLOAD/files/file1"
+                blobUri = "gs://raw/input.parquet"
+                blobGeneration = 42L
+              }
+            }
+        }
+      val emit =
+        object : PoolEmitLabeler {
+          override fun emit(input: LabelerInput, onPoolOffset: (Long) -> Unit): Int {
+            onPoolOffset(7L)
+            return 1
+          }
+
+          override fun rankedSize(poolOffset: Long): Int = 100
+        }
+      for (completed in listOf(true, false)) {
+        var reads = 0
+        val jobs =
+          mock<PoolAssignmentJobServiceCoroutineStub> {
+            onBlocking { getPoolAssignmentJob(any(), any()) } doAnswer
+              {
+                poolAssignmentJob {
+                  name = "$UPLOAD/poolAssignmentJobs/job"
+                  etag = "etag"
+                  state =
+                    if (reads++ == 0 || !completed) PoolAssignmentJob.State.CREATED
+                    else PoolAssignmentJob.State.SUCCEEDED
+                }
+              }
+          }
+        var writes = 0
+        val output =
+          object : ConditionalOperationStorageClient by InMemoryStorageClient() {
+            override suspend fun writeBlobIfNotFound(
+              blobKey: String,
+              content: Flow<ByteString>,
+            ): StorageClient.Blob {
+              writes++
+              throw BlobChangedException("concurrent output")
+            }
+          }
+        val lines =
+          mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+            onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+              listRawImpressionUploadModelLinesResponse {
+                rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                  name = "$UPLOAD/rawImpressionUploadModelLines/line"
+                  cmmsModelLine = MODEL_LINE
+                  state = RawImpressionUploadModelLine.State.RANKING
+                  poolOffsets += 7L
+                }
+              }
+          }
+        val app =
+          SubpoolAssignerApp(
+            subscriptionId = "test",
+            queueSubscriber = mock(),
+            parser = WorkItem.parser(),
+            workItemsClient = mock<WorkItemsCoroutineStub>(),
+            workItemAttemptsClient = mock<WorkItemAttemptsCoroutineStub>(),
+            vidRankBuilderQueue = "queues/ranker",
+            vidLabelerQueue = "queues/vid-labeler",
+            vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
+            kmsClients = mapOf(DATA_PROVIDER to kms),
+            getSubpoolMapStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+            getRawImpressionsStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+            getModelStorageConfig = { StorageConfig(blobPrefix = it.blobPrefix) },
+            rawImpressionUploadsStub = mock(),
+            rawImpressionUploadModelLinesStub = lines,
+            rankerJobsStub = mock(),
+            poolAssignmentJobsStub = jobs,
+            rawImpressionUploadFilesStub = files,
+            buildParquetStorageClient = { _, _ -> parquet },
+            buildSubpoolMapStorageClient = { output },
+            loadPoolEmitLabeler = { _, _ -> emit },
+            getSubpoolMapKekUri = { kekUri },
+            rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+          )
+        val params =
+          validParams().copy {
+            totalShards = 1
+            labelerInputFieldMapping +=
+              LabelerInputFieldMapping.newBuilder()
+                .setFieldPath("timestamp_usec")
+                .setScalar(ScalarColumn.newBuilder().setColumn("raw_time"))
+                .build()
+            activeStartTime = timestamp {}
+            poolAssignmentJob = "$UPLOAD/poolAssignmentJobs/job"
+          }
+        val message = workItemParams { appParams = params.pack() }.pack()
+        if (completed) app.runWork(message)
+        else assertFailsWith<BlobChangedException> { app.runWork(message) }
+        assertThat(writes).isEqualTo(1)
+        assertThat(reads).isEqualTo(2)
+        verifyBlocking(jobs, never()) { markPoolAssignmentJobSucceeded(any(), any()) }
+        verifyBlocking(lines, never()) { markRawImpressionUploadModelLineRanking(any(), any()) }
+      }
+    }
 
   @Test
   fun `runWork rejects an invalid model before reading raw impressions`() =
