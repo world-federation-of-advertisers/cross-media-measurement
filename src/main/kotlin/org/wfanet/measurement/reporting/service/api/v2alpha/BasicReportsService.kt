@@ -575,7 +575,9 @@ class BasicReportsService(
     // already been advanced or failed.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
     when (createdInternalBasicReport.state) {
-      InternalBasicReport.State.CREATED -> {}
+      InternalBasicReport.State.CREATED_LEGACY -> {}
+      InternalBasicReport.State.CREATED_MULTIMEASUREMENT,
+      InternalBasicReport.State.MEASUREMENTS_CREATED,
       InternalBasicReport.State.REPORT_CREATED,
       InternalBasicReport.State.UNPROCESSED_RESULTS_READY,
       InternalBasicReport.State.SUCCEEDED ->
