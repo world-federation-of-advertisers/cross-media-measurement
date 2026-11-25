@@ -380,7 +380,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     internal val TRUSTEE_NO_NOISE_EVENT_GROUP_REF_IDS =
       setOf(TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID, MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID)
 
-    private val modelLineName =
+    internal val modelLineName =
       "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs"
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
     // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
