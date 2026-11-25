@@ -48,6 +48,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
   private enum class Index(val sql: String) {
     NONE(""),
     EXTERNAL_ID("@{FORCE_INDEX=EventGroupsByExternalId}"),
+    UPDATE_TIME("@{FORCE_INDEX=EventGroupsByUpdateTime}"),
   }
 
   data class Result(
@@ -283,6 +284,10 @@ private constructor(private val view: EventGroup.View, private val index: Index)
   }
 
   companion object {
+    /** Uses the modification-time index, with the primary key as a tie breaker. */
+    fun usingUpdateTimeIndex(): EventGroupReader =
+      EventGroupReader(EventGroup.View.BASIC, Index.UPDATE_TIME)
+
     /** Returns a reader using the index ordered by DataProviderId and ExternalEventGroupId. */
     fun usingExternalIdIndex(view: EventGroup.View): EventGroupReader =
       EventGroupReader(view, Index.EXTERNAL_ID)
