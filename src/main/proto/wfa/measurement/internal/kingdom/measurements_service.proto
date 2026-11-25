@@ -128,15 +128,29 @@ message SetMeasurementResultRequest {
   string external_aggregator_duchy_id = 2;
 
   // External ID of the certificate belonging to the aggregator `Duchy`.
+  //
+  // Not set when `result` is set.
   fixed64 external_aggregator_certificate_id = 3;
 
   // Serialized `EncryptionPublicKey` message from the public API.
+  //
+  // Not set when `result` is set.
   bytes result_public_key = 4;
 
-  // Encrypted `SignedData` message from the public API containing a serialized
-  // `Result` message from the public API, which can be verified using
-  // `aggregator_certificate`.
-  bytes encrypted_result = 5;
+  // Result of the `Measurement`. Required.
+  //
+  // `result` is set if and only if the `Measurement` uses the TrusTEE v2
+  // protocol.
+  oneof result_payload {
+    // Encrypted `SignedData` message from the public API containing a
+    // serialized `Result` message from the public API, which can be verified
+    // using `aggregator_certificate`.
+    bytes encrypted_result = 5;
+
+    // Serialized `Result` message from the public API, neither signed nor
+    // encrypted.
+    bytes result = 7;
+  }
 
   // Version of the public API for serialized message definitions.
   string public_api_version = 6;
