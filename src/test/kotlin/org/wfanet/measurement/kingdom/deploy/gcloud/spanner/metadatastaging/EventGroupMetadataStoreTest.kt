@@ -57,6 +57,37 @@ class EventGroupMetadataStoreTest {
   val database = SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.KINGDOM_CHANGELOG_PATH)
 
   @Test
+  fun `retrying start returns the original work before and after publication`() =
+    runBlocking<Unit> {
+      seedEventGroups(eventGroup(1))
+      val worker = EventGroupMetadataStore(database.databaseClient)
+      val original = worker.start(REQUEST)
+      val restarted = EventGroupMetadataStore(database.databaseClient)
+
+      val retried = restarted.start(REQUEST)
+      assertThat(retried).isEqualTo(original)
+      assertThat(restarted.stageNextBatch(retried, 2)).isEqualTo(Progress(1, true))
+      val publicationSequence = restarted.publish(retried)
+
+      val completed = restarted.start(REQUEST)
+      assertThat(completed).isEqualTo(original)
+      assertThat(restarted.publish(completed)).isEqualTo(publicationSequence)
+    }
+
+  @Test
+  fun `start rejects an operation ID reused for a different request`() =
+    runBlocking<Unit> {
+      val worker = EventGroupMetadataStore(database.databaseClient)
+      worker.start(REQUEST)
+      val differentRequest =
+        REQUEST.copy(metadata = struct { fields["account_name"] = value { stringValue = "other" } })
+
+      val exception = assertFailsWith<StatusRuntimeException> { worker.start(differentRequest) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
   fun `stageNextBatch commits bounded batches and resumes without changing live metadata`() =
     runBlocking<Unit> {
       seedEventGroups(*(1L..123L).map { eventGroup(it) }.toTypedArray())
@@ -462,7 +493,9 @@ class EventGroupMetadataStoreTest {
       worker.stageNextBatch(oldWork, 1)
       val restarted = EventGroupMetadataStore(database.databaseClient)
       val resumed = restarted.resume(oldWork.operationId)
-      assertAborted { worker.stageNextBatch(oldWork, 40) }
+      val retriedStart = worker.start(REQUEST)
+      assertThat(retriedStart).isEqualTo(oldWork)
+      assertAborted { worker.stageNextBatch(retriedStart, 40) }
       assertAborted { worker.fail(oldWork) }
       assertAborted { worker.publish(oldWork) }
       assertThat(restarted.stageNextBatch(resumed, 40)).isEqualTo(Progress(2, true))

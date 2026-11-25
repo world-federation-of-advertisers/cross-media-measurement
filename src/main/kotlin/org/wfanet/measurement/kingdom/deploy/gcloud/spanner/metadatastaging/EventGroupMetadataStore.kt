@@ -54,7 +54,7 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
 
   data class Operation(val state: State, val progress: Progress, val publicationSequence: Long?)
 
-  /** Persists the immutable staging request under a new operation ID. */
+  /** Starts staging or returns the original work token for an identical request. */
   suspend fun start(request: Request): WorkToken =
     databaseClient.readWriteTransaction().run { transaction -> start(transaction, request) }
 
@@ -66,6 +66,28 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
     require(request.operationId.isNotBlank() && request.operationId.length <= 64)
     require(request.entityPath.isNotBlank() && request.entityPath.endsWith("/"))
     require(request.ownedKeys.containsAll(request.metadata.fieldsMap.keys))
+    val work = WorkToken(request.operationId, INITIAL_WORKER_FENCE)
+    val existing = findOperation(transaction, request.operationId)
+    if (existing != null) {
+      val storedRequest =
+        Request(
+          operationId = request.operationId,
+          dataProviderId = existing.getLong("DataProviderId"),
+          measurementConsumerId = existing.getLong("MeasurementConsumerId"),
+          entityPath = existing.getString("EntityPath"),
+          ownedKeys = existing.getStringList("OwnedKeys").toSet(),
+          metadata = existing.getProtoMessage("Metadata", Struct.getDefaultInstance()),
+        )
+      if (storedRequest != request) {
+        throw Status.ALREADY_EXISTS.withDescription(
+            "Operation ID is already associated with a different metadata request"
+          )
+          .asRuntimeException()
+      }
+      // Only resume can issue a newer worker token.
+      return work
+    }
+
     MetadataWriteGuard.checkAvailable(
       transaction,
       request.dataProviderId,
@@ -80,7 +102,7 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
       set("OwnedKeys").toStringArray(request.ownedKeys)
       set("Metadata").to(Value.protoMessage(request.metadata))
       set("State").to(State.RUNNING.number)
-      set("WorkerFence").to(1L)
+      set("WorkerFence").to(work.fence)
       set("StagedCount").to(0L)
       set("Complete").to(false)
     }
@@ -90,7 +112,7 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
       set("MeasurementConsumerId").to(request.measurementConsumerId)
       set("EntityPath").to(request.entityPath)
     }
-    return WorkToken(request.operationId, 1L)
+    return work
   }
 
   /** Commits at most [batchSize] staged rows and their checkpoint in one transaction. */
@@ -213,11 +235,13 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
     context: AsyncDatabaseClient.ReadContext,
     operationId: String,
   ): SpannerStruct =
-    requireNotNull(
-      context.readRow("EventGroupMetadataOperations", Key.of(operationId), OPERATION_COLUMNS)
-    ) {
-      "Staging operation not found"
-    }
+    requireNotNull(findOperation(context, operationId)) { "Staging operation not found" }
+
+  private suspend fun findOperation(
+    context: AsyncDatabaseClient.ReadContext,
+    operationId: String,
+  ): SpannerStruct? =
+    context.readRow("EventGroupMetadataOperations", Key.of(operationId), OPERATION_COLUMNS)
 
   private fun checkRunning(operation: SpannerStruct) {
     if (operation.getLong("State") != State.RUNNING.number) {
@@ -234,6 +258,7 @@ class EventGroupMetadataStore(private val databaseClient: AsyncDatabaseClient) {
   }
 
   companion object {
+    private const val INITIAL_WORKER_FENCE = 1L
     private val STATES = State.entries.associateBy { it.number }
     private val OPERATION_COLUMNS =
       listOf(
