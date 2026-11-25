@@ -84,6 +84,7 @@ import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesRequest
 import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.base64UrlEncode
@@ -3744,6 +3745,209 @@ class BasicReportsServiceTest {
     assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
     assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.CREATE)
     assertNoBasicReportCreated(request)
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when grouping field removed in ModelLine version`():
+    Unit = runBlocking {
+    stubAvailableModelLines(listOf(versionedModelLine(PROD_MODEL_LINE, eventTemplateVersion = 3)))
+    val request =
+      createVersionedEventBasicReportRequest(
+        PROD_MODEL_LINE.name,
+        dimensionSpec {
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += RETIRED_FIELD_PATH }
+        },
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          buildVersionedEventService().createBasicReport(request)
+        }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("event template version 3")
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+          metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = RETIRED_FIELD_PATH
+        }
+      )
+    assertNoBasicReportCreated(request)
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when filter field removed in ModelLine version`():
+    Unit = runBlocking {
+    stubAvailableModelLines(listOf(versionedModelLine(PROD_MODEL_LINE, eventTemplateVersion = 3)))
+    val request =
+      createVersionedEventBasicReportRequest(
+        PROD_MODEL_LINE.name,
+        dimensionSpec {
+          filters += eventFilter {
+            terms += eventTemplateField {
+              path = RETIRED_FIELD_PATH
+              value = EventTemplateFieldKt.fieldValue { enumValue = "SEGMENT_B" }
+            }
+          }
+        },
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          buildVersionedEventService().createBasicReport(request)
+        }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("event template version 3")
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+          metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = RETIRED_FIELD_PATH
+        }
+      )
+    assertNoBasicReportCreated(request)
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when grouping field added after ModelLine version`():
+    Unit = runBlocking {
+    stubAvailableModelLines(listOf(versionedModelLine(PROD_MODEL_LINE, eventTemplateVersion = 1)))
+    val request =
+      createVersionedEventBasicReportRequest(
+        PROD_MODEL_LINE.name,
+        dimensionSpec {
+          grouping = DimensionSpecKt.grouping { eventTemplateFields += LATER_FIELD_PATH }
+        },
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          buildVersionedEventService().createBasicReport(request)
+        }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("event template version 1")
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.EVENT_TEMPLATE_FIELD_INVALID.name
+          metadata[Errors.Metadata.EVENT_TEMPLATE_FIELD_PATH.key] = LATER_FIELD_PATH
+        }
+      )
+    assertNoBasicReportCreated(request)
+  }
+
+  @Test
+  fun `createBasicReport returns basic report when grouping fields present in ModelLine version`():
+    Unit = runBlocking {
+    stubAvailableModelLines(listOf(versionedModelLine(PROD_MODEL_LINE, eventTemplateVersion = 2)))
+    val request =
+      createVersionedEventBasicReportRequest(
+        PROD_MODEL_LINE.name,
+        dimensionSpec {
+          grouping =
+            DimensionSpecKt.grouping {
+              eventTemplateFields += LATER_FIELD_PATH
+              eventTemplateFields += RETIRED_FIELD_PATH
+            }
+        },
+      )
+
+    val response =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        buildVersionedEventService().createBasicReport(request)
+      }
+
+    assertThat(response.effectiveModelLine).isEqualTo(PROD_MODEL_LINE.name)
+    assertThat(
+        response.resultGroupSpecsList.single().dimensionSpec.grouping.eventTemplateFieldsList
+      )
+      .containsExactly(LATER_FIELD_PATH, RETIRED_FIELD_PATH)
+  }
+
+  @Test
+  fun `createBasicReport checks permissions before ModelLine event template version`(): Unit =
+    runBlocking {
+      stubAvailableModelLines(listOf(versionedModelLine(DEV_MODEL_LINE, eventTemplateVersion = 3)))
+      val request =
+        createVersionedEventBasicReportRequest(
+          DEV_MODEL_LINE.name,
+          dimensionSpec {
+            grouping = DimensionSpecKt.grouping { eventTemplateFields += RETIRED_FIELD_PATH }
+          },
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, setOf(BasicReportsService.Permission.CREATE)) {
+            buildVersionedEventService().createBasicReport(request)
+          }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertNoBasicReportCreated(request)
+    }
+
+  /** Returns [base] with the specified [eventTemplateVersion]. */
+  private fun versionedModelLine(base: ModelLine, eventTemplateVersion: Int): ModelLine =
+    modelLine {
+      name = base.name
+      type = base.type
+      this.eventTemplateVersion = eventTemplateVersion
+    }
+
+  /** Builds a [BasicReportsService] for [VersionedEvent]. */
+  private fun buildVersionedEventService(): BasicReportsService {
+    return BasicReportsService(
+      internalBasicReportsService,
+      internalImpressionQualificationFiltersService,
+      internalReportingSetsService,
+      internalMetricCalculationSpecsService,
+      reportsService,
+      modelLinesService,
+      EventMessageDescriptor(VersionedEvent.getDescriptor()),
+      METRIC_SPEC_CONFIG,
+      SecureRandom().asKotlinRandom(),
+      authorization,
+      MEASUREMENT_CONSUMER_CONFIGS,
+      defaultReportStartHour = null,
+      baseExternalImpressionQualificationFilterIds = emptyList(),
+      enableReportingSetReportingUnitComponents = true,
+    )
+  }
+
+  /** Creates a [VersionedEvent] request for [modelLine] with [dimensionSpec] and no IQF terms. */
+  private suspend fun createVersionedEventBasicReportRequest(
+    modelLine: String,
+    dimensionSpec: DimensionSpec,
+  ): CreateBasicReportRequest {
+    val request = createModelLineBasicReportRequest(modelLine)
+    return request.copy {
+      basicReport =
+        request.basicReport.copy {
+          impressionQualificationFilters.clear()
+          impressionQualificationFilters += reportingImpressionQualificationFilter {
+            custom =
+              ReportingImpressionQualificationFilter.CustomImpressionQualificationFilterSpec
+                .getDefaultInstance()
+          }
+          resultGroupSpecs[0] = resultGroupSpecs[0].copy { this.dimensionSpec = dimensionSpec }
+        }
+    }
   }
 
   @Test
@@ -12938,6 +13142,12 @@ class BasicReportsServiceTest {
       PostgresDatabaseProviderRule(PostgresSchemata.REPORTING_CHANGELOG_PATH)
 
     private val TEST_EVENT_DESCRIPTOR = EventMessageDescriptor(TestEvent.getDescriptor())
+
+    /** [VersionedEvent] population field removed in Event version 3. */
+    private const val RETIRED_FIELD_PATH = "versioned_common.retired"
+
+    /** [VersionedEvent] population field added in Event version 2. */
+    private const val LATER_FIELD_PATH = "versioned_common.later"
 
     private val SECRETS_DIR =
       getRuntimePath(

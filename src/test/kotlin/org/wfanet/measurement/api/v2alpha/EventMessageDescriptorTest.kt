@@ -55,6 +55,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
           enumType = Person.Gender.getDescriptor(),
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "person.age_group",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -68,6 +70,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
           enumType = Person.AgeGroup.getDescriptor(),
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "person.social_grade_group",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -81,6 +85,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
           enumType = Person.SocialGradeGroup.getDescriptor(),
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "video_ad.length",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -94,6 +100,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.MESSAGE,
           enumType = null,
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "video_ad.viewed_fraction",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -107,6 +115,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.DOUBLE,
           enumType = null,
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "banner_ad.viewable",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -120,6 +130,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.BOOL,
           enumType = null,
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "testing_only.testing_string",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -133,6 +145,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.STRING,
           enumType = null,
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "testing_only.testing_float",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -146,6 +160,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.FLOAT,
           enumType = null,
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "testing_only.testing_string_filterable",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -159,6 +175,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.STRING,
           enumType = null,
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "testing_only.testing_arm_iqf.testing_arm_iqf_enum",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -172,6 +190,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
           enumType = TestingOnly.TestingArmIqf.TestingArmIqfEnum.getDescriptor(),
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "testing_only.testing_arm_filterable.testing_arm_filterable_enum",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -185,6 +205,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
           enumType = TestingOnly.TestingArmFilterable.TestingArmFilterableEnum.getDescriptor(),
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
         "testing_only.testing_arm_groupable.testing_arm_groupable_enum",
         EventMessageDescriptor.EventTemplateFieldInfo(
@@ -198,6 +220,8 @@ class EventMessageDescriptorTest {
             ),
           type = Descriptors.FieldDescriptor.Type.ENUM,
           enumType = TestingOnly.TestingArmGroupable.TestingArmGroupableEnum.getDescriptor(),
+          versionAdded = 1,
+          versionRemoved = 0,
         ),
       )
   }

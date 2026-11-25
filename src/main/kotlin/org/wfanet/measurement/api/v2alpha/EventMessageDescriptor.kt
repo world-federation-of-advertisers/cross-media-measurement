@@ -51,6 +51,10 @@ class EventMessageDescriptor(val descriptor: Descriptors.Descriptor) {
    * [event_annotations.proto](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/blob/main/src/main/proto/wfa/measurement/api/v2alpha/event_annotations.proto)
    * for canonical schema-design guidance (mediaType inheritance, where to place
    * `IMPRESSION_QUALIFICATION` vs `FILTERABLE` / `GROUPABLE`).
+   *
+   * @property versionAdded [EventFieldDescriptor.getVersionAdded] of the field
+   * @property versionRemoved [EventFieldDescriptor.getVersionRemoved] of the field, or `0` if the
+   *   field has not been removed
    */
   data class EventTemplateFieldInfo(
     val mediaType: MediaType,
@@ -58,7 +62,14 @@ class EventMessageDescriptor(val descriptor: Descriptors.Descriptor) {
     val supportedReportingFeatures: SupportedReportingFeatures,
     val type: Descriptors.FieldDescriptor.Type,
     val enumType: Descriptors.EnumDescriptor?,
-  )
+    val versionAdded: Int,
+    val versionRemoved: Int,
+  ) {
+    /** Returns whether the field is present in Event version [eventTemplateVersion]. */
+    fun isPresentIn(eventTemplateVersion: Int): Boolean =
+      versionAdded <= eventTemplateVersion &&
+        (versionRemoved == 0 || eventTemplateVersion < versionRemoved)
+  }
 
   /** Map of EventTemplate field path with respect to Event message to info for the field. */
   val eventTemplateFieldsByPath: Map<String, EventTemplateFieldInfo> =
@@ -129,6 +140,8 @@ class EventMessageDescriptor(val descriptor: Descriptors.Descriptor) {
                     supportedReportingFeatures = nestedSupportedReportingFeatures,
                     type = nestedField.type,
                     enumType = nestedEnumType,
+                    versionAdded = nestedFieldAnnotation.versionAdded,
+                    versionRemoved = nestedFieldAnnotation.versionRemoved,
                   ),
                 )
               }
@@ -159,6 +172,8 @@ class EventMessageDescriptor(val descriptor: Descriptors.Descriptor) {
                 supportedReportingFeatures = supportedReportingFeatures,
                 type = templateField.type,
                 enumType = enumType,
+                versionAdded = templateFieldAnnotation.versionAdded,
+                versionRemoved = templateFieldAnnotation.versionRemoved,
               ),
             )
           }
