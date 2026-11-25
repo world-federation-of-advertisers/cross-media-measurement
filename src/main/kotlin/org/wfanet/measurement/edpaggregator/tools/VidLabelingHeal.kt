@@ -58,6 +58,12 @@ import picocli.CommandLine.Option
   mixinStandardHelpOptions = true,
   subcommands =
     [
+      GetDispatchWorkItemCommand::class,
+      RetryDispatchWorkItemCommand::class,
+      PreflightDispatchCutoverCommand::class,
+      SmokeDispatchCutoverCommand::class,
+      PrepareDispatchCanaryConfigCommand::class,
+      InspectDispatchCutoverConfigCommand::class,
       MarkFailedCommand::class,
       RetryFailedCommand::class,
       BackfillModelLineCommand::class,
@@ -123,7 +129,7 @@ abstract class EdpaApiCommand : Runnable {
   }
 }
 
-private class ControlPlaneTlsFlags {
+class ControlPlaneTlsFlags {
   @Option(names = ["--control-plane-tls-cert-file"], required = true)
   lateinit var certFile: File
     private set

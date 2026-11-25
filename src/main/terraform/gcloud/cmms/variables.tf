@@ -669,3 +669,9 @@ variable "data_availability_publication_status_storage_roots" {
     error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
   }
 }
+
+variable "activate_vid_labeling_dispatch_config" {
+  description = "Select the prepared VID dispatch configuration after cutover readiness passes."
+  type        = bool
+  default     = false
+}

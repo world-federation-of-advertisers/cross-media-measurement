@@ -734,3 +734,22 @@ variable "data_availability_publication_status_storage_roots" {
     error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
   }
 }
+
+variable "vid_labeling_dispatch_work_item_queue" {
+  description = "Optional Pub/Sub queue for durable VID dispatch; deploy before switching watcher routes."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
+  default = null
+}
+
+variable "activate_vid_labeling_dispatch_config" {
+  description = "Select the v2 watcher configuration while retaining the legacy configuration object."
+  type        = bool
+  default     = false
+}

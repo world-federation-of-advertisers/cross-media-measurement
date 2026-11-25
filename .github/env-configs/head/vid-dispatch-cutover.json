@@ -1,0 +1,16 @@
+{
+  "isolatedDataProvider": "dataProviders/Z1YwJJmvvN8",
+  "liveDataProviders": [
+    "dataProviders/YpCPT-x89j4"
+  ],
+  "rawImpressionsPrefix": "gs://secure-computation-storage-head-bucket/raw-impressions/edp/edp7/",
+  "watcherIdentifier": "vid-labeling-dispatch",
+  "tlsSecrets": {
+    "tls-cert-file": "projects/halo-cmm-head/secrets/edpa-tee-app-tls-pem/versions/latest",
+    "tls-key-file": "projects/halo-cmm-head/secrets/edpa-tee-app-tls-key/versions/latest",
+    "cert-collection-file": "projects/halo-cmm-head/secrets/edpaggregator-root-ca/versions/latest",
+    "control-plane-tls-cert-file": "projects/halo-cmm-head/secrets/edpa-data-watcher-tls-pem/versions/latest",
+    "control-plane-tls-key-file": "projects/halo-cmm-head/secrets/edpa-data-watcher-tls-key/versions/latest",
+    "control-plane-cert-collection-file": "projects/halo-cmm-head/secrets/securecomputation-root-ca/versions/latest"
+  }
+}

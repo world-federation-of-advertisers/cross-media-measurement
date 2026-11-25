@@ -30,6 +30,18 @@ on:
       environment:
         type: string
         required: true
+      vid-dispatch-cutover-mode:
+        description: Automated online cutover or shorter maintenance cutover
+        type: string
+        default: online
+      vid-dispatch-markers-paused-at:
+        description: Confirmed UTC pause time for maintenance done markers
+        type: string
+        default: ""
+      vid-dispatch-smoke-inputs:
+        description: Fresh isolated source URIs, recovery upload and inspected approval JSON for this run
+        type: string
+        default: ""
       run-tests:
         description: "Run tests"
         type: boolean
@@ -48,6 +60,21 @@ on:
         - dev
         - qa
         - head
+      vid-dispatch-cutover-mode:
+        description: VID dispatch cutover mode
+        type: choice
+        default: online
+        options:
+        - online
+        - maintenance
+      vid-dispatch-markers-paused-at:
+        description: Confirmed UTC done-marker pause time for maintenance (RFC 3339)
+        type: string
+        default: ""
+      vid-dispatch-smoke-inputs:
+        description: Fresh isolated source URIs, recovery upload and inspected approval JSON for this run
+        type: string
+        default: ""
       run-tests:
         description: "Run tests"
         type: boolean
@@ -91,8 +118,11 @@ jobs:
     name: Validate direct-dispatch configuration
     runs-on: ubuntu-24.04
     environment: ${{ inputs.environment }}
+    outputs:
+      dispatch-cutover-needed: ${{ steps.dispatch-cutover.outputs.needed }}
     permissions:
       contents: read
+      id-token: write
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
@@ -151,6 +181,50 @@ jobs:
           --data-availability-sync-config="$CONFIG_DIR/data-availability-sync-config.textproto" \
           --data-availability-monitor-config="$CONFIG_DIR/data-availability-monitor-config.textproto" \
           --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
+
+    - name: Authenticate for dispatch cutover checks
+      if: ${{ inputs.apply }}
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ fromJSON(steps.cmms-config.outputs.config).WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ fromJSON(steps.cmms-config.outputs.config).TF_SERVICE_ACCOUNT }}
+
+    - name: Detect dispatch cutover and check maintenance preflight
+      id: dispatch-cutover
+      env:
+        APPLY: ${{ inputs.apply }}
+        CUTOVER_MODE: ${{ inputs.vid-dispatch-cutover-mode || 'online' }}
+        PAUSED_AT: ${{ inputs.vid-dispatch-markers-paused-at }}
+        EXISTING_IMAGE_TAG: ${{ inputs.existing-image-tag }}
+        CONFIG_DIR: ${{ github.workspace }}/src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}
+      run: |
+        set -euo pipefail
+        case "$CUTOVER_MODE" in online|maintenance) ;; *) exit 1 ;; esac
+        needed=false
+        declared=false
+        if [[ "$APPLY" == true ]]; then
+          declared=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py declares-queue \
+            --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
+            --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto")
+        fi
+        if [[ "$declared" == true ]]; then
+          active=$(python3 .github/workflows/scripts/vid_dispatch_cutover.py is-queued \
+            --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION")
+          if [[ "$active" == false ]]; then needed=true; fi
+        fi
+        if [[ "$needed" == true ]]; then
+          test -z "$EXISTING_IMAGE_TAG" || { echo "::error::Publish the current source for initial dispatch cutover"; exit 1; }
+        fi
+        echo "needed=$needed" >> "$GITHUB_OUTPUT"
+        if [[ "$needed" == true && "$CUTOVER_MODE" == maintenance ]]; then
+          test -n "$PAUSED_AT"
+          python3 .github/workflows/scripts/vid_dispatch_cutover.py preflight \
+            --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" --markers-paused-at="$PAUSED_AT" \
+            --profile-file="$GITHUB_WORKSPACE/.github/env-configs/${{ inputs.environment }}/vid-dispatch-cutover.json" \
+            --vid-labeling-config="$CONFIG_DIR/vid-labeling-dispatcher-config.textproto" \
+            --edpa-target="$METADATA_STORAGE_PUBLIC_API_TARGET" \
+            --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+        fi
 
   pause-requisition-fetcher:
     runs-on: ubuntu-24.04
@@ -231,6 +305,7 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      vid-dispatch-config-mode: preserve
       tee-consumers-enabled: false
       requisition-fetcher-enabled: false
 
@@ -372,9 +447,10 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
 
-  terraform:
+  terraform-prepared-dispatch:
     uses: ./.github/workflows/terraform-cmms-v2.yml
-    needs: [publish-images, update-secure-computation, update-edp-aggregator-service]
+    needs: [publish-images, update-secure-computation, update-edp-aggregator-service, validate-direct-dispatch-config]
+    if: ${{ inputs.apply && inputs.vid-dispatch-cutover-mode != 'maintenance' && needs.validate-direct-dispatch-config.outputs.dispatch-cutover-needed == 'true' }}
     secrets: inherit
     permissions:
       contents: read
@@ -383,6 +459,43 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      vid-dispatch-config-mode: preserve
+      tee-consumers-enabled: true
+      requisition-fetcher-enabled: true
+
+  terraform-dispatch-canary:
+    uses: ./.github/workflows/terraform-cmms-v2.yml
+    needs: [publish-images, terraform-prepared-dispatch, validate-direct-dispatch-config]
+    if: ${{ inputs.apply && inputs.vid-dispatch-cutover-mode != 'maintenance' && needs.validate-direct-dispatch-config.outputs.dispatch-cutover-needed == 'true' }}
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      vid-dispatch-config-mode: canary
+      vid-dispatch-legacy-revisions: ${{ needs.terraform-prepared-dispatch.outputs.legacy_revisions || '[]' }}
+      tee-consumers-enabled: true
+      requisition-fetcher-enabled: true
+
+  terraform:
+    uses: ./.github/workflows/terraform-cmms-v2.yml
+    needs: [publish-images, update-secure-computation, update-edp-aggregator-service, terraform-prepared-dispatch, terraform-dispatch-canary, validate-direct-dispatch-config]
+    if: ${{ always() && needs.publish-images.result == 'success' && needs.update-secure-computation.result == 'success' && needs.update-edp-aggregator-service.result == 'success' && (needs.terraform-prepared-dispatch.result == 'success' || needs.terraform-prepared-dispatch.result == 'skipped') && (needs.terraform-dispatch-canary.result == 'success' || needs.terraform-dispatch-canary.result == 'skipped') }}
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      vid-dispatch-smoke-inputs: ${{ inputs.vid-dispatch-smoke-inputs }}
+      vid-dispatch-legacy-revisions: ${{ needs.terraform-dispatch-canary.outputs.legacy_revisions || '[]' }}
+      require-vid-dispatch-cutover-checks: ${{ needs.validate-direct-dispatch-config.outputs.dispatch-cutover-needed == 'true' }}
+      vid-dispatch-config-mode: ${{ inputs.vid-dispatch-cutover-mode == 'maintenance' && 'maintenance' || 'activate' }}
       tee-consumers-enabled: true
       requisition-fetcher-enabled: true
 
