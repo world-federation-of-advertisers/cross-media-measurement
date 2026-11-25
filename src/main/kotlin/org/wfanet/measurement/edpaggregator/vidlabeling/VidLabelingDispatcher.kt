@@ -258,6 +258,13 @@ class VidLabelingDispatcher(
       val listingPrefix = if (folderPrefix.isEmpty()) "" else "$folderPrefix/"
 
       val committedReplay = findCommittedReplay(doneBlobPath, doneBlobGeneration)
+      // Model lines derived from the operation come only from an accepted exact checkpoint.
+      val replayModelLines =
+        if (committedReplay != null && overrideModelLines.isEmpty()) {
+          committedReplay.steps.map { it.cmmsModelLine }.distinct().sorted()
+        } else {
+          overrideModelLines
+        }
       if (committedReplay != null) {
         val doneMetadata = readBlobVersionMetadata(doneBlobUri.key, doneBlobGeneration)
         check(doneMetadata.generation == doneBlobGeneration) {
@@ -270,7 +277,8 @@ class VidLabelingDispatcher(
             doneMetadata.createTime,
             committedReplay.source.name,
             checkNotNull(recoveryOperationId),
-            committedReplay,
+            modelLines = replayModelLines,
+            committedReplay = committedReplay,
           )
         val files =
           if (recoveryKind == RecoveryKind.EDP_CORRECTION) {
@@ -325,7 +333,7 @@ class VidLabelingDispatcher(
           }
           check(
             listModelLines(existing.name).map { it.cmmsModelLine }.toSet() ==
-              overrideModelLines.toSet()
+              replayModelLines.toSet()
           ) {
             "Registered recovery model lines differ from the plan"
           }
@@ -336,6 +344,7 @@ class VidLabelingDispatcher(
             committedReplay.input,
             committedReplay.source.name,
             checkNotNull(recoveryOperationId),
+            replayModelLines = replayModelLines,
           )
           return complete(UploadOutcome.SUCCEEDED, committedReplay.input.name)
         }
@@ -357,7 +366,7 @@ class VidLabelingDispatcher(
           "Recovery registration belongs to another operation"
         }
         registerRetainedFiles(upload.name, files)
-        val modelLines = resolveModelLines(overrideModelLines)
+        val modelLines = resolveModelLines(replayModelLines)
         createRawImpressionUploadModelLines(upload.name, modelLines)
         markRegistrationComplete(upload)
         dispatchFastPath(upload.name)
@@ -378,6 +387,7 @@ class VidLabelingDispatcher(
             doneBlobMetadata.createTime,
             recoverySourceUpload,
             checkNotNull(recoveryOperationId),
+            modelLines = replayModelLines,
           )
         } else {
           null
@@ -431,6 +441,7 @@ class VidLabelingDispatcher(
           quarantinedRevision,
           checkNotNull(recoverySourceUpload),
           operationId,
+          replayModelLines,
         )
         return complete(UploadOutcome.SUCCEEDED, quarantinedRevision.name)
       }
@@ -699,7 +710,10 @@ class VidLabelingDispatcher(
       )
 
       val resolvedModelLineNames =
-        resolveModelLines(edpReplacementAuthorization?.requiredModelLines.orEmpty())
+        resolveModelLines(
+          if (recoverySourceUpload != null) replayModelLines
+          else edpReplacementAuthorization?.requiredModelLines.orEmpty()
+        )
 
       if (resolvedModelLineNames.isEmpty()) {
         markRegistrationComplete(rawImpressionUpload)
@@ -1012,6 +1026,7 @@ class VidLabelingDispatcher(
     upload: RawImpressionUpload,
     sourceUploadName: String,
     operationId: String,
+    replayModelLines: List<String>,
   ) {
     val uploadKey = requireNotNull(RawImpressionUploadKey.fromName(upload.name))
     val activated =
@@ -1032,7 +1047,7 @@ class VidLabelingDispatcher(
       name = upload.name
       etag = activated.etag
     }
-    val modelLineNames = resolveModelLines(overrideModelLines)
+    val modelLineNames = resolveModelLines(replayModelLines)
     if (modelLineNames.isNotEmpty()) {
       createRawImpressionUploadModelLines(upload.name, modelLineNames)
     }
@@ -1548,16 +1563,22 @@ class VidLabelingDispatcher(
           it.recoveryAction != expectedAction
       }
     ) {
-      if (operation.rawImpressionUploadCorrectionCandidatesCount > 0) {
+      // A request without supplied model lines depends on this checkpoint, so it waits for the
+      // controller to record it instead of falling back to legacy registration.
+      if (
+        operation.rawImpressionUploadCorrectionCandidatesCount > 0 || overrideModelLines.isEmpty()
+      ) {
         throw java.io.IOException("The exact recovery checkpoint is not ready")
       }
       return null
     }
-    require(
-      overrideModelLines.size == overrideModelLines.distinct().size &&
-        overrideModelLines.toSet() == steps.mapTo(mutableSetOf()) { it.cmmsModelLine }
-    ) {
-      "Recovery model lines do not match the committed checkpoint"
+    if (overrideModelLines.isNotEmpty()) {
+      require(
+        overrideModelLines.size == overrideModelLines.distinct().size &&
+          overrideModelLines.toSet() == steps.mapTo(mutableSetOf()) { it.cmmsModelLine }
+      ) {
+        "Recovery model lines do not match the committed checkpoint"
+      }
     }
     val source =
       rpcThrottlers.metadataRead.onReady {
@@ -1734,9 +1755,10 @@ class VidLabelingDispatcher(
     doneBlobCreateTime: Instant,
     sourceUploadName: String,
     operationId: String,
+    modelLines: List<String>,
     committedReplay: CommittedReplay? = null,
   ): RecoveryKind {
-    require(overrideModelLines.isNotEmpty()) {
+    require(modelLines.isNotEmpty()) {
       "A recovery source upload requires at least one override model line"
     }
     val sourceKey =
@@ -1835,9 +1857,9 @@ class VidLabelingDispatcher(
       return RecoveryKind.EDP_CORRECTION
     }
     val rowsByCmmsModelLine = listModelLines(sourceUploadName).associateBy { it.cmmsModelLine }
-    val requestedRows = overrideModelLines.mapNotNull { rowsByCmmsModelLine[it] }
+    val requestedRows = modelLines.mapNotNull { rowsByCmmsModelLine[it] }
     require(
-      requestedRows.size == overrideModelLines.size &&
+      requestedRows.size == modelLines.size &&
         requestedRows.all { it.state == RawImpressionUploadModelLine.State.FAILED }
     ) {
       "Recovery override must identify FAILED source model-line rows"
@@ -1870,9 +1892,9 @@ class VidLabelingDispatcher(
           }
           .filter { it.evictionOperationId == operationId }
           .mapTo(mutableSetOf()) { it.cmmsModelLine }
-      require(overrideModelLines.toSet() == correctionModelLines) {
+      require(modelLines.toSet() == correctionModelLines) {
         "Correction replay must contain the complete set of FAILED correction model lines; " +
-          "requested=$overrideModelLines, recoverable=$correctionModelLines"
+          "requested=$modelLines, recoverable=$correctionModelLines"
       }
       return RecoveryKind.EDP_CORRECTION
     }
@@ -1886,9 +1908,9 @@ class VidLabelingDispatcher(
         .filter { it.evictionOperationId == operationId }
         .filter { hasDeletedSnapshotHistory(sourceUploadName, it.cmmsModelLine) }
         .mapTo(mutableSetOf()) { it.cmmsModelLine }
-    require(overrideModelLines.toSet() == recoverableModelLines) {
+    require(modelLines.toSet() == recoverableModelLines) {
       "Recovery override must contain the complete set of FAILED memoized model lines whose " +
-        "snapshots were deleted; requested=$overrideModelLines, recoverable=$recoverableModelLines"
+        "snapshots were deleted; requested=$modelLines, recoverable=$recoverableModelLines"
     }
     return RecoveryKind.OPERATOR_RECOVERY
   }
