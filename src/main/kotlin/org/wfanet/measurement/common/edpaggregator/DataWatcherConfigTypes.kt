@@ -21,6 +21,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilityCleanupParam
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 
 /** Protobuf message types supported in `DataWatcherConfig` route parameters. */
 object DataWatcherConfigTypes {
@@ -30,5 +32,7 @@ object DataWatcherConfigTypes {
       .add(EventGroupSyncParams.getDescriptor())
       .add(ExternalDataAvailabilitySyncParams.getDescriptor())
       .add(DataAvailabilityCleanupParams.getDescriptor())
+      .add(VidLabelingDispatchWorkItemParams.getDescriptor())
+      .add(VidLabelingDispatcherParams.getDescriptor())
       .build()
 }
