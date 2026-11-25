@@ -1,0 +1,60 @@
+{
+  "backend_bucket": "halo-cmm-dev-tf",
+  "google": {
+    "project_number": "472172784441",
+    "service_account_name": "primus-sa",
+    "trustee_key_name": "edp7-trustee-reencryption-key",
+    "workload_identity_pool_id": "edp-workload-identity-pool",
+    "workload_service_account_names": [
+      "results-fulfiller-sa",
+      "trustee-mill-mig-sa",
+      "subpool-assigner-sa",
+      "vid-rank-builder-sa",
+      "vid-labeler-sa"
+    ],
+    "additional_input_key_members": [
+      "serviceAccount:462363635192-compute@developer.gserviceaccount.com",
+      "serviceAccount:edpa-storage-access@halo-cmm-dev.iam.gserviceaccount.com",
+      "serviceAccount:terraform@halo-cmm-dev.iam.gserviceaccount.com",
+      "serviceAccount:terraform@halo-cmm-head.iam.gserviceaccount.com",
+      "serviceAccount:terraform@halo-cmm-qa.iam.gserviceaccount.com",
+      "serviceAccount:test-kms-sa@halo-cmm-dev-edp.iam.gserviceaccount.com"
+    ],
+    "workloads": {
+      "dev": {
+        "provider_id": "edp-wip-provider-k-res",
+        "signing_keys": [
+          "test"
+        ]
+      },
+      "head": {
+        "provider_id": "edp-wip-provider-head",
+        "signing_keys": [
+          "test"
+        ]
+      },
+      "qa": {
+        "provider_id": "edp-wip-provider-qa",
+        "signing_keys": [
+          "release"
+        ]
+      }
+    }
+  },
+  "aws": {
+    "deployment_role_arn": "arn:aws:iam::010295286036:role/GitHubAction-AssumeRoleWithAction",
+    "region": "us-east-1",
+    "role_name": "AwsSyntheticDataKmsRole",
+    "audience": "https://halo-cmm.confidential-space",
+    "key_alias": "alias/generate-synthetic-data",
+    "oidc_thumbprints": [
+      "08745487e891c19e3078c1f2a07e452950ef36f6"
+    ],
+    "export_role_name": "GcpSyntheticDataKmsRole",
+    "additional_export_google_subjects": [
+      "100675533620541882096",
+      "111088785639849432017",
+      "109474708679978054863"
+    ]
+  }
+}

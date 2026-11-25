@@ -12,8 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-data "google_project" "project" {}
-
 resource "google_kms_key_ring" "edp_key_ring" {
   name     = var.kms_keyring
   location = var.location
@@ -24,30 +22,34 @@ resource "google_kms_crypto_key" "edp_kek" {
   key_ring        = google_kms_key_ring.edp_key_ring.id
   purpose         = "ENCRYPT_DECRYPT"
   rotation_period = var.rotation_period
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
-resource "google_service_account" "edp_service_account" {
-  account_id   = var.service_account_name
-  description  = "EDP Service Account with access to KMS"
-  display_name = var.service_account_display_name
+module "workload_identity" {
+  source = "../confidential-space-workload-identity"
+
+  service_account_name               = var.service_account_name
+  service_account_display_name       = var.service_account_display_name
+  workload_identity_pool_id          = var.workload_identity_pool_id
+  wip_display_name                   = var.wip_display_name
+  workload_identity_pool_provider_id = var.workload_identity_pool_provider_id
+  attribute_condition                = var.attribute_condition
+  allowed_audiences                  = var.allowed_audiences
+  federated_service_account_role     = "roles/iam.workloadIdentityUser"
 }
 
 resource "google_kms_crypto_key_iam_member" "edp_sa_decrypter" {
   crypto_key_id = google_kms_crypto_key.edp_kek.id
-  role          = "roles/cloudkms.cryptoKeyDecrypter"
-  member        = "serviceAccount:${google_service_account.edp_service_account.email}"
+  role          = var.attested_kms_role
+  member        = "serviceAccount:${module.workload_identity.service_account_email}"
 }
 
-resource "google_iam_workload_identity_pool" "edp_workload_identity_pool" {
-  location                  = var.location
-  workload_identity_pool_id = var.workload_identity_pool_id
-  display_name              = var.wip_display_name
-  description               = "EDP workload identity pool."
-  disabled                  = false
-}
-
-resource "google_service_account_iam_member" "edp_sa_workload_identity_user" {
-  service_account_id = google_service_account.edp_service_account.name
-  role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/projects/${data.google_project.project.number}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.edp_workload_identity_pool.workload_identity_pool_id}/*"
+resource "google_kms_crypto_key_iam_member" "additional_access" {
+  for_each      = var.additional_kms_iam_members
+  crypto_key_id = google_kms_crypto_key.edp_kek.id
+  role          = each.value.role
+  member        = each.value.member
 }
