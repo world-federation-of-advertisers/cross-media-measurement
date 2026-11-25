@@ -44,3 +44,14 @@ filegroup(
     ],
     visibility = ["//src/test/python/wfa/measurement/edpaggregator/deploy/gcloud/vidlabeling:__pkg__"],
 )
+
+filegroup(
+    name = "metadata_scale_test_configs",
+    testonly = True,
+    srcs = [
+        "envs/dev/data-availability-sync-config.textproto",
+        "envs/head/data-availability-sync-config.textproto",
+        "envs/qa/data-availability-sync-config.textproto",
+    ],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__"],
+)

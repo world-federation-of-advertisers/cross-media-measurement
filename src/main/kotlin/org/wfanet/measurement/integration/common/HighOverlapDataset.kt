@@ -23,6 +23,9 @@ import org.wfanet.measurement.common.toLocalDate
 
 /** Views of the high overlap dataset derived from its specs. */
 object HighOverlapDataset {
+  /** Population-field contract used by the high overlap fixture. */
+  const val EVENT_TEMPLATE_VERSION = 2
+
   /** Resource path of the high overlap [ImpressionTestDataConfig]. */
   const val CONFIG_RESOURCE_PATH = "high_overlap_impression_test_data_config.textproto"
 

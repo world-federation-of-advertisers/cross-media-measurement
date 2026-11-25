@@ -1554,10 +1554,14 @@ abstract class VidLabelingPipelineTestHarness(
           loadAssigner = { _, uri ->
             VirtualPeopleVidAssigner.fromCompiledNodeBlob(modelBytes(uri))
           },
-          buildImpressionConverter = { _, _ ->
+          buildImpressionConverter = { _, config ->
             ParquetImpressionConverter(
               pipelineConfig.eventDescriptor,
-              PopulationAttributeWriter(pipelineConfig.eventDescriptor, comparisonPopulationSpec),
+              PopulationAttributeWriter(
+                pipelineConfig.eventDescriptor,
+                comparisonPopulationSpec,
+                config.eventTemplateVersion,
+              ),
             )
           },
           rpcThrottlers = throttlers,

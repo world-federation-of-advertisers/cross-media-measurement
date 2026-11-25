@@ -64,7 +64,11 @@ reporting: #Reporting & {
 
 	deployments: {
 		"postgres-internal-reporting-server": {
-			_container: _envVars:                     EnvVars
+			_container: {
+				_envVars: EnvVars
+				// Leave room for report metadata in addition to server startup.
+				_javaOptions: maxHeapSize: "256M"
+			}
 			_updatePostgresSchemaContainer: _envVars: EnvVars
 			spec: template: spec: {
 				_dependencies: ["spanner-emulator"]

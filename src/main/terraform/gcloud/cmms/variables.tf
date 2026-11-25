@@ -288,6 +288,12 @@ variable "results_fulfiller_event_template_type_name" {
   type        = string
 }
 
+variable "high_overlap_model_line" {
+  description = "Version-2 high-overlap model line from the committed CMMS environment config."
+  type        = string
+  default     = ""
+}
+
 variable "edpa_model_line_population_spec_blob_uris" {
   description = "GCS blob uri of the population spec by model line, for each model line the Results Fulfiller should fulfill measurements for."
   type        = map(string)

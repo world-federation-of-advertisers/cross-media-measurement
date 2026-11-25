@@ -37,7 +37,8 @@ import org.wfanet.measurement.common.parseTextProto
  */
 @RunWith(JUnit4::class)
 class HashonlyModelPopulationSpecTest {
-  private val writer = PopulationAttributeWriter(TestEvent.getDescriptor(), SPEC)
+  private val writer =
+    PopulationAttributeWriter(TestEvent.getDescriptor(), SPEC, eventTemplateVersion = 1)
 
   @Test
   fun `spec is accepted by PopulationAttributeWriter`() {

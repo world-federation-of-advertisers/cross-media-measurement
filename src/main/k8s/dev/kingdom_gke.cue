@@ -45,6 +45,19 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
+// The expanded population fixture exceeds the default 64M heap during creation.
+#PublicServerMaxHeapSize: "256M"
+
+#PublicServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "500m"
+		memory: "640Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 #SchemaUpdateResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "10m"
@@ -149,6 +162,10 @@ kingdom: #Kingdom & {
 			}
 		}
 		"v2alpha-public-api-server": {
+			_container: {
+				resources: #PublicServerResourceRequirements
+				_javaOptions: maxHeapSize: #PublicServerMaxHeapSize
+			}
 			_rateLimitConfigPath: "/etc/\(#AppName)/config-files/rate_limit_config.textproto"
 			spec: {
 				replicas: 2

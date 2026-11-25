@@ -274,6 +274,8 @@ class SeedHighOverlapDataset : Runnable {
       this.seededEdps += seededEdps
       modelLine = this@SeedHighOverlapDataset.modelLine
     }
+    provisionModelResources(populationSpec, datesByImpressionPath.values.flatten().min())
+
     val needsSeeding = runBlocking {
       val cleanup = HighOverlapDatasetCleanup(GcsStorageClient(storage, storageBucket), modelLineId)
       if (onlyIfNeeded) {
@@ -288,8 +290,6 @@ class SeedHighOverlapDataset : Runnable {
       return
     }
     logger.info("Seeding $seededEdps for $modelLine with specs $specFingerprint")
-
-    provisionModelResources(populationSpec, datesByImpressionPath.values.flatten().min())
 
     val bigQuery: BigQuery =
       BigQueryOptions.newBuilder().setProjectId(googleProjectId).build().service

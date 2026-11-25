@@ -22,13 +22,12 @@ import "wfa/measurement/api/v2alpha/media_type.proto";
 option java_package = "org.wfanet.measurement.api.v2alpha.event_templates.testing.v1";
 option java_multiple_files = true;
 
-// Common (population) attributes shared by all media types.
+// Common attributes shared by all media types.
 message Common {
   option (.wfa.measurement.api.v2alpha.event_template) = {
     name: "common"
     display_name: "Common"
-    description: "Common population attributes about the person reached by "
-                 "an event."
+    description: "Common attributes about the person reached and the event."
   };
 
   enum Gender {
@@ -159,5 +158,36 @@ message Common {
         reporting_features: FILTERABLE
         reporting_features: GROUPABLE
         version_added: 1
+      }];
+  // Device used for this impression, rather than a property of the person.
+  enum DeviceType {
+    DEVICE_TYPE_UNSPECIFIED = 0;
+    DESKTOP = 1;
+    MOBILE = 2;
+    TABLET = 3;
+    TV = 4;
+    OTHER = 5;
+  }
+  DeviceType device_type = 6 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Device Type"
+    population_attribute: false
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
+    version_added: 2
+  }];
+
+  // Whether the person has children under 18 in their household.
+  enum ParentalStatus {
+    PARENTAL_STATUS_UNSPECIFIED = 0;
+    NOT_PARENT = 1;
+    PARENT = 2;
+  }
+  ParentalStatus parental_status = 7
+      [(.wfa.measurement.api.v2alpha.template_field) = {
+        display_name: "Parental Status"
+        population_attribute: true
+        reporting_features: FILTERABLE
+        reporting_features: GROUPABLE
+        version_added: 2
       }];
 }

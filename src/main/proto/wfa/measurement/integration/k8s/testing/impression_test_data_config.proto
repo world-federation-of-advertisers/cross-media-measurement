@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.integration.k8s.testing;
 
 import "google/protobuf/struct.proto";
+import "google/type/date.proto";
 
 option java_package = "org.measurement.integration.k8s.testing";
 option java_multiple_files = true;
@@ -68,6 +69,13 @@ message ImpressionTestDataConfig {
     // registration (e.g. placement, objective). Used only by test-side code
     // (EdpAggregatorCorrectnessTest); not consumed by GenerateSyntheticData.
     google.protobuf.Struct entity_metadata = 5;
+
+    // High overlap seeding only: attach this many distinct additional ad-unit
+    // keys to existing impressions on each additional_entity_key_date. These
+    // keys have no Kingdom EventGroups. Original entity keys and impressions
+    // are retained, so reach and frequency expectations do not change.
+    uint32 additional_entity_key_count = 8;
+    repeated google.type.Date additional_entity_key_dates = 9;
   }
 
   // A sub-spec within an entity-key event group, mapping an entity key to a
