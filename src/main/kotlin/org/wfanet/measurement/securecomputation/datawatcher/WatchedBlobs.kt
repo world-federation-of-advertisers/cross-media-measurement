@@ -25,6 +25,9 @@ object WatchedBlobs {
   /** GCS custom metadata key identifying the eviction operation that authorized a recovery. */
   const val EVICTION_OPERATION_ID_KEY = "eviction-operation-id"
 
+  /** GCS custom metadata key containing the authorizing UploadHealingOperation resource name. */
+  const val UPLOAD_HEALING_OPERATION_KEY = "upload-healing-operation"
+
   /** GCS custom metadata key identifying the evicted upload that authorizes a recovery override. */
   const val RECOVERY_SOURCE_UPLOAD_KEY = "recovery-source-upload"
 

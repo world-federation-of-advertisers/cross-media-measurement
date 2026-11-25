@@ -16,8 +16,12 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher
 
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 
 /** Validates DataWatcher configuration. */
 object DataWatcherConfigValidator {
@@ -27,15 +31,31 @@ object DataWatcherConfigValidator {
         "DataWatcher path '${watchedPath.identifier}' has a blank event type filter."
       }
       if (!watchedPath.hasControlPlaneQueueSink()) continue
-      require(
-        !watchedPath.controlPlaneQueueSink.allowMissingSourceIdentity ||
-          watchedPath.controlPlaneQueueSink.serializationKey.isEmpty()
-      ) {
+      val sink = watchedPath.controlPlaneQueueSink
+      require(!sink.allowMissingSourceIdentity || sink.serializationKey.isEmpty()) {
         "Legacy events cannot use ordered publication"
       }
-      require(
-        !watchedPath.controlPlaneQueueSink.appParams.`is`(ResultsFulfillerParams::class.java)
+      require(!sink.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java)) {
+        "Dispatch configuration must use VidLabelingDispatcherParams"
+      }
+      if (
+        sink.queue == VidLabelingDispatchWorkItems.QUEUE ||
+          sink.appParams.`is`(VidLabelingDispatcherParams::class.java)
       ) {
+        require(!sink.allowMissingSourceIdentity) {
+          "VID dispatch requires complete source identity"
+        }
+        require(sink.queue == VidLabelingDispatchWorkItems.QUEUE) { "Invalid VID dispatch queue" }
+        require(sink.serializationKey.isEmpty()) { "VID dispatch uses model-line sequencing" }
+        require(sink.appParams.`is`(VidLabelingDispatcherParams::class.java)) {
+          "Dispatch configuration must use VidLabelingDispatcherParams"
+        }
+        val params = sink.appParams.unpack(VidLabelingDispatcherParams::class.java)
+        requireNotNull(DataProviderKey.fromName(params.dataProvider)) {
+          "data_provider must identify a DataProvider"
+        }
+      }
+      require(!sink.appParams.`is`(ResultsFulfillerParams::class.java)) {
         "DataWatcher path '${watchedPath.identifier}' uses legacy ResultsFulfiller dispatch; " +
           "remove it and use RequisitionFetcher 'work_item_dispatch'."
       }
