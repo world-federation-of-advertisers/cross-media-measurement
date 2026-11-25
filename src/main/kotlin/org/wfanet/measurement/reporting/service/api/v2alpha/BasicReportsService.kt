@@ -364,6 +364,20 @@ class BasicReportsService(
 
     authorization.check(request.parent, requiredPermissionIds)
 
+    // ModelLines without an event template version keep the unversioned field contract.
+    if (effectiveModelLine.hasEventTemplateVersion()) {
+      try {
+        CreateBasicReportRequestValidation.validateEventTemplateVersion(
+          request.basicReport,
+          eventTemplateFieldsByPath,
+          effectiveModelLine.eventTemplateVersion,
+          effectiveModelLine.name,
+        )
+      } catch (e: EventTemplateFieldInvalidException) {
+        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
     // Creates ReportingSets, so it must not run until the request is known to be valid and
     // authorized.
     val reportingSetMaps: ReportingSetMaps<*> = buildReportingSetMaps(campaignGroupResolution)

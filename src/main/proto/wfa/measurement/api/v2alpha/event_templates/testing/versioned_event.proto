@@ -42,12 +42,16 @@ message VersionedCommon {
   Segment later = 2 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Later"
     population_attribute: true
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
     version_added: 2
   }];
 
   Segment retired = 3 [(.wfa.measurement.api.v2alpha.template_field) = {
     display_name: "Retired"
     population_attribute: true
+    reporting_features: FILTERABLE
+    reporting_features: GROUPABLE
     version_added: 1
     version_removed: 3
   }];

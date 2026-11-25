@@ -40,6 +40,7 @@ import org.wfanet.measurement.reporting.service.api.FieldUnimplementedException
 import org.wfanet.measurement.reporting.service.api.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.api.RequiredFieldNotSetException
 import org.wfanet.measurement.reporting.service.internal.Normalization
+import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.DimensionSpec
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateField
@@ -157,6 +158,57 @@ object CreateBasicReportRequestValidation {
     )
 
     return ParsedFields(parentKey, impressionQualificationFilterKeyByName)
+  }
+
+  /**
+   * Validates that the population attributes referenced by the [DimensionSpec]s of [basicReport]
+   * are present in [eventTemplateVersion], the Event version of the effective [modelLine].
+   *
+   * Population attributes are only allowed in [DimensionSpec.Grouping] and [DimensionSpec] filters.
+   * This must only be called after [validateRequest], which ensures every referenced path is in
+   * [eventTemplateFieldsByPath].
+   *
+   * @throws EventTemplateFieldInvalidException if a referenced population attribute is not present
+   *   in [eventTemplateVersion]
+   */
+  fun validateEventTemplateVersion(
+    basicReport: BasicReport,
+    eventTemplateFieldsByPath: Map<String, EventMessageDescriptor.EventTemplateFieldInfo>,
+    eventTemplateVersion: Int,
+    modelLine: String,
+  ) {
+    fun validatePresent(eventTemplateFieldPath: String, fieldPath: String) {
+      val eventTemplateFieldInfo = eventTemplateFieldsByPath.getValue(eventTemplateFieldPath)
+      if (
+        eventTemplateFieldInfo.isPopulationAttribute &&
+          !eventTemplateFieldInfo.isPresentIn(eventTemplateVersion)
+      ) {
+        throw EventTemplateFieldInvalidException(eventTemplateFieldPath) { path ->
+          "$path in $fieldPath is not present in event template version $eventTemplateVersion " +
+            "of $modelLine"
+        }
+      }
+    }
+
+    basicReport.resultGroupSpecsList.forEachIndexed { specIndex, resultGroupSpec ->
+      val dimensionSpecFieldPath = "basic_report.result_group_specs[$specIndex].dimension_spec"
+      val dimensionSpec = resultGroupSpec.dimensionSpec
+      dimensionSpec.grouping.eventTemplateFieldsList.forEachIndexed { index, eventTemplateFieldPath
+        ->
+        validatePresent(
+          eventTemplateFieldPath,
+          "$dimensionSpecFieldPath.grouping.event_template_fields[$index]",
+        )
+      }
+      dimensionSpec.filtersList.forEachIndexed { filterIndex, eventFilter ->
+        eventFilter.termsList.forEachIndexed { termIndex, term ->
+          validatePresent(
+            term.path,
+            "$dimensionSpecFieldPath.filters[$filterIndex].terms[$termIndex]",
+          )
+        }
+      }
+    }
   }
 
   /**
