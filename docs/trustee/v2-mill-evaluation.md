@@ -24,8 +24,8 @@ flowchart LR
   M --> I["Subpopulation index<br/>position → subpopulation"]
   I --> E["First pass<br/>all queries"]
   E --> S["Slice test<br/>per cell, per DataProvider"]
-  S -- "a slice dropped" --> C["Corrective pass<br/>affected cells only"]
-  S -- "all or none dropped" --> N["Noise"]
+  S -- "a slice failed" --> C["Corrective pass<br/>affected cells only"]
+  S -- "all or none failed" --> N["Noise"]
   C --> N
   N --> T["Result threshold<br/>per cell"]
   T --> R["MultimeasurementResult<br/>to the Kingdom"]
@@ -150,8 +150,9 @@ Time is linear in the number of positions times the summands and clause sizes
 of all queries. Memory is the chunk of each vector in flight, the accumulators,
 and the subpopulation table, so the vectors never need to be held whole.
 
-The result of evaluation is one unnoised cell per query per group that some VID
-reached, with reach as the sum of the histogram.
+The result of evaluation is one unnoised cell per query per group, with reach as
+the sum of the histogram. Every group the `PopulationSpec`'s subpopulations
+produce has a cell, including groups that no VID reached.
 
 ## Suppression and the corrective pass
 
@@ -164,14 +165,14 @@ pass, each slice of each cell takes the noised minimum-reach test:
 
 *   If every slice passes, the cell is emitted from the histogram it already
     holds.
-*   If no slice passes, the cell is dropped.
+*   If no slice passes, the cell is suppressed.
 *   If some slices fail, the cell is rebuilt in a corrective pass in which each
     failed `DataProvider`'s vectors are read as zero. The zero applies wherever
     the cell's query uses those vectors, in its summands and in its reach
     clauses alike, so a failed `DataProvider` neither adds counts nor shapes
     which VIDs the cell covers. For example, if a cell covers the VIDs reached
     by both A and B and B's slice fails, the rebuilt cell covers no VIDs and is
-    not released. The first-pass histogram cannot be corrected in place, because
+    suppressed. The first-pass histogram cannot be corrected in place, because
     a VID's frequency is a sum across slices that the histogram does not
     separate.
 
@@ -219,9 +220,12 @@ first: it decides which `DataProviders` contribute to the cell, as each
 ## Result
 
 The Mill packs the cells into a `MultimeasurementResult`, echoing each query's
-`id`, and sets it on the computation as an unsigned, unencrypted `result`. A
-multimeasurement `Result` has no aggregator certificate. The Kingdom then
-completes the `Measurement`.
+`id`. Every cell is returned, so each query has the same grid of groups. A cell
+that the slice test or the result threshold suppresses is returned with zero
+metrics and `suppressed` set, which tells it apart from a group no VID reached.
+The Mill sets the result on the computation as an unsigned, unencrypted
+`result`. A multimeasurement `Result` has no aggregator certificate. The Kingdom
+then completes the `Measurement`.
 
 ## Alternatives considered
 
