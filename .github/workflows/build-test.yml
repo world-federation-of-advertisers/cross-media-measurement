@@ -147,7 +147,7 @@ jobs:
       - name: Run Cloud Function deployment retry test
         run: python3 -m unittest discover -s src/test/terraform/gcloud/modules/http-cloud-function -p '*_test.py'
 
-      - name: Run Kubernetes rollout diagnostics test
+      - name: Run workflow script tests
         run: python3 -m unittest discover -s src/test/github/workflows/scripts -p '*_test.py'
 
       - name: Run tests
@@ -171,7 +171,10 @@ jobs:
       - name: Run correctness test
         id: run-correctness-test
         run: >
-          tools/bazel-with-results bazel test
+          python3 .github/workflows/scripts/k8s_test_runner.py
+          --pod=spanner-emulator --pod=postgres
+          --output-dir="${{ env.CLUSTER_LOGS_PATH }}/correctness-emulators"
+          -- tools/bazel-with-results bazel test
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EmptyClusterCorrectnessTest
           --test_output=streamed
 
@@ -184,7 +187,10 @@ jobs:
       - name: Run panelmatch correctness test
         id: run-panelmatch-correctness-test
         run: >
-          tools/bazel-with-results bazel test
+          python3 .github/workflows/scripts/k8s_test_runner.py
+          --pod=spanner-emulator --pod=postgres
+          --output-dir="${{ env.CLUSTER_LOGS_PATH }}/panelmatch-emulators"
+          -- tools/bazel-with-results bazel test
           //src/test/kotlin/org/wfanet/panelmatch/integration/k8s:EmptyClusterPanelMatchCorrectnessTest
           --test_output=streamed
 
@@ -195,6 +201,7 @@ jobs:
         run: >
           python3 .github/workflows/scripts/k8s_rollout_diagnostics.py
           --selector=app
+          --pod=spanner-emulator --pod=postgres
           --output-dir="${{ env.CLUSTER_LOGS_PATH }}/rollout"
 
       - name: Export cluster logs

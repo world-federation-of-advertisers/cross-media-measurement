@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Collect scoped Kubernetes rollout status and bounded init-container logs."""
+"""Collect scoped Kubernetes rollout status and bounded container logs."""
 
 import argparse
 import json
@@ -26,12 +26,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--selector", required=True)
     parser.add_argument("--namespace", default="default")
+    parser.add_argument("--pod", action="append", default=[])
     parser.add_argument("--output-dir", required=True, type=Path)
     args = parser.parse_args()
     args.output_dir.mkdir(parents=True, exist_ok=True)
     errors = []
     status = {"deployments": [], "replica_sets": [], "pods": [], "events": []}
     object_uids = set()
+    pod_uids = set()
+    collected_logs = set()
 
     def kubectl(arguments, log_file):
         command = ["kubectl", "--namespace", args.namespace, "--request-timeout=10s"] + arguments
@@ -76,6 +79,44 @@ def main():
             for kind, details in state.items()
         }
 
+    def collect_pod(pod, include_main_logs):
+        pod_status = pod.get("status", {})
+        containers = []
+        for key in ("initContainerStatuses", "containerStatuses"):
+            for container in pod_status.get(key, []):
+                containers.append({
+                    "name": container["name"],
+                    "init": key == "initContainerStatuses",
+                    "ready": container.get("ready", False),
+                    "restartCount": container.get("restartCount", 0),
+                    "state": container_state(container.get("state", {})),
+                    "lastState": container_state(container.get("lastState", {})),
+                })
+        if pod["metadata"]["uid"] not in pod_uids:
+            pod_uids.add(pod["metadata"]["uid"])
+            status["pods"].append({
+                **identity(pod),
+                "phase": pod_status.get("phase"),
+                "conditions": pod_status.get("conditions", []),
+                "containers": containers,
+            })
+        for container in containers:
+            completed = container["state"].get("terminated", {}).get("exitCode") == 0
+            not_started = "waiting" in container["state"] and not container["lastState"] and not container["restartCount"]
+            if (not container["init"] and not include_main_logs) or not_started or (container["init"] and completed and not container["restartCount"]):
+                continue
+            arguments = [
+                "logs", pod["metadata"]["name"], "--container", container["name"],
+                "--tail=80", "--limit-bytes=16384",
+            ]
+            prefix = pod["metadata"]["name"] + "-" + pod["metadata"]["uid"] + "-" + container["name"]
+            key = (pod["metadata"]["uid"], container["name"])
+            if key not in collected_logs:
+                collected_logs.add(key)
+                kubectl(arguments, args.output_dir / (prefix + ".log"))
+                if container["restartCount"]:
+                    kubectl(arguments + ["--previous"], args.output_dir / (prefix + "-previous.log"))
+
     deployments = kubectl(["get", "deployments", "--selector", args.selector, "-o", "json"], None)
     for deployment in (deployments or {}).get("items", []):
         status["deployments"].append({**identity(deployment), "status": deployment.get("status", {})})
@@ -89,37 +130,12 @@ def main():
             status["replica_sets"].append({**identity(replica_set), "status": replica_set.get("status", {})})
         pods = kubectl(["get", "pods", "--selector", labels, "-o", "json"], None)
         for pod in (pods or {}).get("items", []):
-            pod_status = pod.get("status", {})
-            containers = []
-            for key in ("initContainerStatuses", "containerStatuses"):
-                for container in pod_status.get(key, []):
-                    containers.append({
-                        "name": container["name"],
-                        "init": key == "initContainerStatuses",
-                        "ready": container.get("ready", False),
-                        "restartCount": container.get("restartCount", 0),
-                        "state": container_state(container.get("state", {})),
-                        "lastState": container_state(container.get("lastState", {})),
-                    })
-            status["pods"].append({
-                **identity(pod),
-                "phase": pod_status.get("phase"),
-                "conditions": pod_status.get("conditions", []),
-                "containers": containers,
-            })
-            for container in containers:
-                completed = container["state"].get("terminated", {}).get("exitCode") == 0
-                not_started = "waiting" in container["state"] and not container["lastState"] and not container["restartCount"]
-                if not container["init"] or not_started or (completed and not container["restartCount"]):
-                    continue
-                arguments = [
-                    "logs", pod["metadata"]["name"], "--container", container["name"],
-                    "--tail=80", "--limit-bytes=16384",
-                ]
-                prefix = pod["metadata"]["name"] + "-" + container["name"]
-                kubectl(arguments, args.output_dir / (prefix + ".log"))
-                if container["restartCount"]:
-                    kubectl(arguments + ["--previous"], args.output_dir / (prefix + "-previous.log"))
+            collect_pod(pod, include_main_logs=False)
+
+    for name in dict.fromkeys(args.pod):
+        pods = kubectl(["get", "pods", "--field-selector", f"metadata.name={name}", "-o", "json"], None)
+        for pod in (pods or {}).get("items", []):
+            collect_pod(pod, include_main_logs=True)
 
     events = kubectl(["get", "events", "-o", "json"], None) if object_uids else None
     matching_events = []
@@ -164,7 +180,7 @@ def main():
         summary.append("- No deployments were available for the requested selector.")
     if errors:
         summary.append(f"- Collection incomplete: {len(errors)} read(s) failed; see `errors.json`.")
-    summary.append("- Bounded init-container logs and scoped status are in the rollout diagnostics artifact.")
+    summary.append("- Bounded container logs and scoped status are in the rollout diagnostics artifact.")
     text = "\n".join(summary) + "\n"
     print(text)
     if os.environ.get("GITHUB_STEP_SUMMARY"):
