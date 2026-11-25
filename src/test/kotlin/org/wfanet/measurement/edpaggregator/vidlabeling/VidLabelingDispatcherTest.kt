@@ -1841,64 +1841,142 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
-  fun `recovery derives only its approved source group without a copied model list`() =
-    runBlocking {
-      val sourceName = DATA_PROVIDER_NAME + "/rawImpressionUploads/source-upload"
-      val source = rawImpressionUpload {
-        name = sourceName
-        state = RawImpressionUpload.State.FAILED
-        doneBlobUri = DONE_BLOB_PATH
-        doneBlobGeneration = DONE_BLOB_GENERATION + 100
-        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+  fun `queued recovery waits for its exact checkpoint before deriving model lines`() = runBlocking {
+    val source = operatorRecoverySource()
+    stubRawImpressionUploadCreation()
+    stubRecoverySource(source, recoveryPredecessorUpload = "")
+    val blob = createMockBlob(FOLDER_PREFIX + "/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubOverrideResolutionChain()
+    val operation =
+      operatorRecoveryOperation(
+        source.name,
+        org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.WAITING_FOR_REPLACEMENT,
+      )
+
+    val error =
+      assertFailsWith<java.io.IOException> {
+        createDispatcher(
+            recoverySourceUpload = source.name,
+            recoveryOperationId = EVICTION_OPERATION_ID,
+            getHealingOperation = { operation },
+          )
+          .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
       }
-      stubRawImpressionUploadCreation()
-      stubRecoverySource(source, recoveryPredecessorUpload = "")
-      val blob = createMockBlob(FOLDER_PREFIX + "/file1.parquet")
-      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-      stubOverrideResolutionChain()
-      val operation =
-        org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
-          name = DATA_PROVIDER_NAME + "/uploadHealingOperations/" + EVICTION_OPERATION_ID
-          state =
-            org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
-          steps +=
-            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
-              sourceRawImpressionUpload = sourceName
-              cmmsModelLine = MODEL_LINE_1
-              recoveryTarget = true
-              state =
-                org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
-                  .WAITING_FOR_REPLACEMENT
-              recoveryAction =
-                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
-            }
-          steps +=
-            org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
-              sourceRawImpressionUpload = DATA_PROVIDER_NAME + "/rawImpressionUploads/other-source"
-              cmmsModelLine = MODEL_LINE_2
-              recoveryTarget = true
-              state =
-                org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
-                  .WAITING_FOR_REPLACEMENT
-              recoveryAction =
-                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
-            }
+
+    assertThat(error).hasMessageThat().contains("checkpoint is not ready")
+    verify(storageClient, never()).listBlobs(any())
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    verifyBlocking(rawImpressionUploadFileService, never()) {
+      batchCreateRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+  }
+
+  @Test
+  fun `committed queued recovery derives only its approved source group`() = runBlocking {
+    val source = operatorRecoverySource()
+    stubRawImpressionUploadCreation()
+    stubRecoverySource(source, recoveryPredecessorUpload = "")
+    stubOverrideResolutionChain()
+    val operation =
+      operatorRecoveryOperation(
+        source.name,
+        org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.RECOVERY_STARTED,
+      )
+    val retained =
+      manifestFile(
+        source.name,
+        DONE_BLOB_PATH.substringBeforeLast("/") + "/file1.parquet",
+        RAW_BLOB_GENERATION,
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+      listRawImpressionUploadFilesResponse {
+        if (request.parent == source.name) rawImpressionUploadFiles += retained
+      }
+    }
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      .thenReturn(
+        rawImpressionUpload {
+          name = DATA_PROVIDER_NAME + "/rawImpressionUploads/" + RAW_IMPRESSION_UPLOAD_ID
+          doneBlobUri = DONE_BLOB_PATH
+          doneBlobGeneration = DONE_BLOB_GENERATION
+          uploadHealingOperation = operation.name
+          etag = UPLOAD_ETAG
         }
-      createDispatcher(
-          recoverySourceUpload = sourceName,
-          recoveryOperationId = EVICTION_OPERATION_ID,
-          getHealingOperation = { operation },
-        )
-        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
-      val requests = argumentCaptor<BatchCreateRawImpressionUploadModelLinesRequest>()
-      verifyBlocking(rawImpressionUploadModelLineService) {
-        batchCreateRawImpressionUploadModelLines(requests.capture())
-      }
-      assertThat(
-          requests.firstValue.requestsList.map { it.rawImpressionUploadModelLine.cmmsModelLine }
-        )
-        .containsExactly(MODEL_LINE_1)
-      verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+      )
+
+    createDispatcher(
+        recoverySourceUpload = source.name,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+        getHealingOperation = { operation },
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val modelLines = argumentCaptor<BatchCreateRawImpressionUploadModelLinesRequest>()
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      batchCreateRawImpressionUploadModelLines(modelLines.capture())
+    }
+    assertThat(
+        modelLines.firstValue.requestsList.map { it.rawImpressionUploadModelLine.cmmsModelLine }
+      )
+      .containsExactly(MODEL_LINE_1)
+    val files = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileService) {
+      batchCreateRawImpressionUploadFiles(files.capture())
+    }
+    assertThat(files.firstValue.requestsList.map { it.rawImpressionUploadFile.blobUri })
+      .containsExactly(retained.blobUri)
+    verify(storageClient, never()).listBlobs(any())
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  private fun operatorRecoverySource(): RawImpressionUpload = rawImpressionUpload {
+    name = DATA_PROVIDER_NAME + "/rawImpressionUploads/source-upload"
+    state = RawImpressionUpload.State.FAILED
+    doneBlobUri = DONE_BLOB_PATH
+    doneBlobGeneration = DONE_BLOB_GENERATION + 100
+    doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+  }
+
+  /** Operator recovery of [sourceName] alongside an unrelated source group in the same plan. */
+  private fun operatorRecoveryOperation(
+    sourceName: String,
+    sourceStepState: org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State,
+  ) =
+    org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+      name = DATA_PROVIDER_NAME + "/uploadHealingOperations/" + EVICTION_OPERATION_ID
+      state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+      steps +=
+        org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+          sourceRawImpressionUpload = sourceName
+          cmmsModelLine = MODEL_LINE_1
+          recoveryTarget = true
+          state = sourceStepState
+          if (
+            sourceStepState ==
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.RECOVERY_STARTED
+          ) {
+            recoveryDoneBlobGeneration = DONE_BLOB_GENERATION
+          }
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+      steps +=
+        org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+          sourceRawImpressionUpload = DATA_PROVIDER_NAME + "/rawImpressionUploads/other-source"
+          cmmsModelLine = MODEL_LINE_2
+          recoveryTarget = true
+          state =
+            org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State
+              .WAITING_FOR_REPLACEMENT
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
     }
 
   @Test
