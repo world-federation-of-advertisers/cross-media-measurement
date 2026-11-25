@@ -144,9 +144,42 @@ class StreamEventGroups(
       if (filter.metadataSearchQuery.isNotEmpty()) {
         add(
           if (enableEntityMetadataSearch) {
-            "(SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY) " +
-              "OR SEARCH(EntityMetadata_Tokens, @$METADATA_SEARCH_QUERY) " +
-              "OR SEARCH(EntityType_Tokens, @$METADATA_SEARCH_QUERY))"
+            // DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4543):
+            // Validate cross-row TOKENLIST concatenation and index eligibility on real Spanner.
+            """
+            SEARCH(
+              TOKENLIST_CONCAT([
+                Metadata_Tokens,
+                EntityType_Tokens,
+                TOKENLIST_CONCAT(ARRAY(
+                  SELECT Source.EntityMetadata_Tokens
+                  FROM EventGroups AS Source
+                  WHERE Source.DataProviderId = EventGroups.DataProviderId
+                    AND Source.MeasurementConsumerId = EventGroups.MeasurementConsumerId
+                    AND (Source.EventGroupId = EventGroups.EventGroupId OR (
+                      Source.State = ${EventGroup.State.ACTIVE.number}
+                      AND EventGroups.State = ${EventGroup.State.ACTIVE.number}
+                      AND Source.EntityPath != EventGroups.EntityPath
+                      AND STARTS_WITH(EventGroups.EntityPath, Source.EntityPath)
+                      AND EXISTS (
+                        SELECT 1 FROM EventGroupHierarchies AS Hierarchies,
+                          UNNEST(Hierarchies.EventGroupHierarchyDetails.levels) AS Level
+                        WHERE Hierarchies.DataProviderId = EventGroups.DataProviderId
+                          AND Hierarchies.State = $ACTIVE_HIERARCHY_STATE
+                          AND Level.entity_type = EventGroups.EntityType
+                          AND STARTS_WITH(EventGroups.EntityPath, CONCAT(
+                            Hierarchies.EventGroupHierarchyDetails.levels[SAFE_OFFSET(0)].entity_type,
+                            '/'
+                          ))
+                      )
+                    ))
+                  ORDER BY Source.EntityPath, Source.EventGroupId
+                ))
+              ]),
+              @$METADATA_SEARCH_QUERY
+            )
+            """
+              .trimIndent()
           } else {
             "SEARCH(Metadata_Tokens, @$METADATA_SEARCH_QUERY)"
           }
@@ -249,6 +282,7 @@ class StreamEventGroups(
   }
 
   companion object {
+    private const val ACTIVE_HIERARCHY_STATE = 2L
     const val LIMIT = "limit"
     const val DATA_PROVIDER_ID = "dataProviderId"
     const val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"

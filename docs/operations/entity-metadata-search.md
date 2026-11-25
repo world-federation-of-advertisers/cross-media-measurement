@@ -3,14 +3,30 @@
 `metadata_search_query` can search the existing brand/campaign metadata,
 flattened `entity_metadata` values, and `EntityType`. The latter two sources are
 enabled by the Kingdom data server's `--enable-entity-metadata-search` flag,
-which defaults to false. Search evaluates the query against each source and
-returns their union, subject to the other EventGroup filters.
+which defaults to false. The prototype combines these tokens with ancestor
+entity-metadata tokens in active hierarchies, within the same DataProvider and
+MeasurementConsumer. Search applies to the combined values before ordering and
+pagination; ancestor entity types and legacy metadata are not inherited.
 
 The values representation recursively includes string, number, and boolean
 values from structs and lists. It excludes field names, nulls, and unset
 values. Each scalar is a separate array element; booleans use lowercase text
 and numbers use the protobuf double's string representation. Struct fields are
 traversed in sorted key order and list order is preserved.
+
+## Inherited-search prototype
+
+`SpannerInheritedMetadataSearchTest` seeds normalized metadata and hierarchy
+paths, then calls the EventGroups service. It covers cross-level terms, native
+search operators, isolation, pagination, and ancestor renames without leaf
+rewrites. Existing schema columns are reused.
+
+The query is marked `DO_NOT_SUBMIT`: emulator results do not establish that
+Spanner can execute or index cross-row `TOKENLIST_CONCAT`. Validate the query
+plan and performance on real Spanner before adopting this approach. Normalized
+writes, inherited read responses, and migration remain separate work. Keep the
+search flag disabled for this prototype; the rollout below is not sufficient
+for enabling inherited search.
 
 ## Deployment order
 
@@ -48,8 +64,8 @@ traversed in sorted key order and list order is preserved.
    and key-only queries. Existing metadata must still match; a key alone must
    not match unless it also appears as a searchable value or entity type.
 
-This rollout is independent of hierarchy activation and ancestor metadata
-operations. Neither is required for entity metadata search.
+Local entity-metadata search does not require hierarchy activation. Inherited
+search requires an active hierarchy and normalized metadata on its owners.
 
 ## Backfill and rollback behavior
 
