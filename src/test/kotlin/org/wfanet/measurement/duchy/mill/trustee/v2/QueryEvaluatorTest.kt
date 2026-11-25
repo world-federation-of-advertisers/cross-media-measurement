@@ -153,14 +153,136 @@ class QueryEvaluatorTest {
   }
 
   @Test
-  fun `cells omits grouping combinations no VID reached`() {
+  fun `cells returns an empty cell for a grouping combination no VID reached`() {
     // Vector 0 only reaches even positions.
     val cells =
       evaluate(
         testQuery(summands = listOf(0), maxFrequency = 1, groupingPaths = listOf(AGE_GROUP_PATH))
       )
 
-    assertThat(cells.map { it.attributeValues }).containsExactly(listOf(YOUNG))
+    assertThat(cells.map { it.attributeValues })
+      .containsExactly(listOf(YOUNG), listOf(OLD))
+      .inOrder()
+    assertThat(cells.last().frequencyHistogram).containsExactly(0L)
+    assertThat(cells.last().impressions).isEqualTo(0L)
+    assertThat(cells.last().sliceReach).isEmpty()
+  }
+
+  @Test
+  fun `cells reports the DataProviders of the summand vectors`() {
+    val evaluator =
+      QueryEvaluator(
+        listOf(testQuery(summands = listOf(0, 2), maxFrequency = 1)),
+        DATA_PROVIDERS,
+        ParitySubpopulationIndex,
+      )
+
+    assertThat(evaluator.cells().single().summandDataProviders)
+      .containsExactly(DATA_PROVIDER_A, DATA_PROVIDER_B)
+  }
+
+  @Test
+  fun `fingerprint changes when a summand count changes`() {
+    val query = testQuery(summands = listOf(0, 1, 2), maxFrequency = 3)
+    val changed = VECTORS.map { it.copyOf() }
+    changed[2][3] = 1
+
+    assertThat(evaluateCells(VECTORS, query).single().fingerprint)
+      .isNotEqualTo(evaluateCells(changed, query).single().fingerprint)
+  }
+
+  @Test
+  fun `fingerprint ignores counts of vectors outside the summands`() {
+    val query = testQuery(summands = listOf(0, 1), maxFrequency = 3)
+    val changed = VECTORS.map { it.copyOf() }
+    changed[2][3] = 1
+
+    assertThat(evaluateCells(VECTORS, query).single().fingerprint)
+      .isEqualTo(evaluateCells(changed, query).single().fingerprint)
+  }
+
+  @Test
+  fun `corrective pass reads failed DataProviders' summand vectors as zero`() {
+    val query = testQuery(summands = listOf(0, 1, 2), maxFrequency = 3)
+
+    val cells = evaluateCorrective(query, mapOf(cellKey() to setOf(DATA_PROVIDER_B)))
+
+    // Summed counts without vector 2 by position: 1, 1, 3, 0, 3, 0.
+    assertThat(cells)
+      .containsExactly(
+        CellView(
+          queryId = QUERY_ID,
+          attributeValues = listOf(),
+          frequencyHistogram = listOf(2L, 0L, 2L),
+          impressions = 8L,
+          sliceReach = mapOf(DATA_PROVIDER_A to 4L),
+        )
+      )
+  }
+
+  @Test
+  fun `corrective pass reads failed DataProviders' reach clause vectors as zero`() {
+    val filter = vidFilter {
+      reachClauses += VidFilterKt.reachClause { reachedSets += vectorSet { baseVectors += 2 } }
+    }
+    val query = testQuery(summands = listOf(0, 1), maxFrequency = 3, filter = filter)
+
+    val cells = evaluateCorrective(query, mapOf(cellKey() to setOf(DATA_PROVIDER_B)))
+
+    assertThat(cells.single().frequencyHistogram).containsExactly(0L, 0L, 0L).inOrder()
+  }
+
+  @Test
+  fun `corrective pass evaluates only the given cells`() {
+    val query =
+      testQuery(
+        summands = listOf(0, 1, 2),
+        maxFrequency = 3,
+        groupingPaths = listOf(AGE_GROUP_PATH),
+      )
+
+    val cells = evaluateCorrective(query, mapOf(cellKey(YOUNG) to setOf(DATA_PROVIDER_B)))
+
+    // Even positions without vector 2: 1, 3, 3.
+    assertThat(cells)
+      .containsExactly(
+        CellView(
+          queryId = QUERY_ID,
+          attributeValues = listOf(YOUNG),
+          frequencyHistogram = listOf(1L, 0L, 2L),
+          impressions = 7L,
+          sliceReach = mapOf(DATA_PROVIDER_A to 3L),
+        )
+      )
+  }
+
+  @Test
+  fun `corrective fingerprint matches a first pass over the zeroed vectors`() {
+    val query = testQuery(summands = listOf(0, 1, 2), maxFrequency = 3)
+    val zeroed = listOf(VECTORS[0], VECTORS[1], IntArray(VECTORS[2].size))
+    val evaluator =
+      QueryEvaluator.corrective(
+        listOf(query),
+        DATA_PROVIDERS,
+        ParitySubpopulationIndex,
+        mapOf(cellKey() to setOf(DATA_PROVIDER_B)),
+      )
+    evaluator.add(QueryEvaluator.VectorChunk(0, VECTORS))
+
+    assertThat(evaluator.cells().single().fingerprint)
+      .isEqualTo(evaluateCells(zeroed, query).single().fingerprint)
+  }
+
+  @Test
+  fun `corrective throws for a cell that is not a cell of any query`() {
+    assertFailsWith<IllegalArgumentException> {
+      QueryEvaluator.corrective(
+        listOf(testQuery(summands = listOf(0), maxFrequency = 1)),
+        DATA_PROVIDERS,
+        ParitySubpopulationIndex,
+        mapOf(cellKey(YOUNG) to setOf(DATA_PROVIDER_B)),
+      )
+    }
   }
 
   @Test
@@ -195,6 +317,8 @@ class QueryEvaluatorTest {
     }
 
     assertThat(evaluator.cells().map { CellView(it) }).isEqualTo(evaluate(query))
+    assertThat(evaluator.cells().single().fingerprint)
+      .isEqualTo(evaluateCells(VECTORS, query).single().fingerprint)
   }
 
   @Test
@@ -335,10 +459,34 @@ class QueryEvaluatorTest {
       }
     }
 
-    private fun evaluate(vararg queries: Query): List<CellView> {
+    private fun evaluate(vararg queries: Query): List<CellView> =
+      evaluateCells(VECTORS, *queries).map { CellView(it) }
+
+    private fun evaluateCells(
+      vectors: List<IntArray>,
+      vararg queries: Query,
+    ): List<QueryEvaluator.Cell> {
       val evaluator = QueryEvaluator(queries.toList(), DATA_PROVIDERS, ParitySubpopulationIndex)
+      evaluator.add(QueryEvaluator.VectorChunk(0, vectors))
+      return evaluator.cells()
+    }
+
+    private fun evaluateCorrective(
+      query: Query,
+      failedDataProviders: Map<QueryEvaluator.CellKey, Set<String>>,
+    ): List<CellView> {
+      val evaluator =
+        QueryEvaluator.corrective(
+          listOf(query),
+          DATA_PROVIDERS,
+          ParitySubpopulationIndex,
+          failedDataProviders,
+        )
       evaluator.add(QueryEvaluator.VectorChunk(0, VECTORS))
       return evaluator.cells().map { CellView(it) }
     }
+
+    private fun cellKey(vararg attributeValues: String?) =
+      QueryEvaluator.CellKey(QUERY_ID, attributeValues.toList())
   }
 }

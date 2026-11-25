@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.v2
 
+import java.nio.ByteBuffer
+import java.security.MessageDigest
 import org.wfanet.measurement.internal.duchy.Query
 import org.wfanet.measurement.internal.duchy.VectorSet
 import org.wfanet.measurement.internal.duchy.VidFilter
@@ -25,28 +27,49 @@ import org.wfanet.measurement.internal.duchy.VidFilter
  *
  * Each [Query] reads as `SELECT reach, frequency, impressions FROM summands WHERE vid_filter GROUP
  * BY grouping_paths`. The vectors are walked in position order in aligned chunks passed to [add],
- * and [cells] returns one [Cell] per query per grouping combination that some position reached.
+ * and [cells] returns one [Cell] per query per grouping combination that the subpopulations
+ * produce, including combinations no VID reached.
+ *
+ * An evaluator built by [corrective] evaluates only the cells it is given, reading the vectors of
+ * each cell's failed `DataProvider`s as zero.
  *
  * @param queries the queries to evaluate
  * @param dataProviders the resource name of the `DataProvider` that fulfilled each base vector,
  *   indexed by vector index
  * @param subpopulations the subpopulation of each position and its attribute values
+ * @param failedDataProviders for a corrective pass, the `DataProvider`s whose vectors read as zero
+ *   in each cell to evaluate; `null` for a first pass over every cell
  */
-class QueryEvaluator(
+class QueryEvaluator
+private constructor(
   queries: List<Query>,
   private val dataProviders: List<String>,
   private val subpopulations: SubpopulationIndex,
+  failedDataProviders: Map<CellKey, Set<String>>?,
 ) {
+  /** Creates an evaluator for the first pass, which evaluates every cell of [queries]. */
+  constructor(
+    queries: List<Query>,
+    dataProviders: List<String>,
+    subpopulations: SubpopulationIndex,
+  ) : this(queries, dataProviders, subpopulations, null)
+
   private val vectorCount: Int = dataProviders.size
   private val compiledQueries: List<CompiledQuery>
 
   init {
     require(queries.map { it.id }.toSet().size == queries.size) { "Query ids must be distinct" }
-    compiledQueries = queries.map { CompiledQuery(it) }
+    compiledQueries = queries.map { CompiledQuery(it, failedDataProviders) }
+    if (failedDataProviders != null) {
+      val knownCells: Set<CellKey> = compiledQueries.flatMap { it.cellKeys }.toSet()
+      for (key in failedDataProviders.keys) {
+        require(key in knownCells) { "Cell $key is not a cell of any query" }
+      }
+    }
   }
 
   /**
-   * Adds the positions in [chunk] to every query's cells.
+   * Adds the positions in [chunk] to every evaluated cell.
    *
    * @throws IllegalArgumentException if [chunk] does not hold one aligned array per base vector
    */
@@ -57,18 +80,22 @@ class QueryEvaluator(
     val length = chunk.counts.firstOrNull()?.size ?: 0
     require(chunk.counts.all { it.size == length }) { "Chunk vectors must have the same length" }
     for (offset in 0 until length) {
-      val subpopulation = subpopulations.subpopulationOf(chunk.startPosition + offset)
+      val position = chunk.startPosition + offset
+      val subpopulation = subpopulations.subpopulationOf(position)
       for (query in compiledQueries) {
-        query.add(chunk.counts, offset, subpopulation)
+        query.add(chunk.counts, offset, position, subpopulation)
       }
     }
   }
 
-  /** Returns the cells accumulated so far, in query order, then grouping-combination order. */
+  /** Returns the evaluated cells so far, in query order, then grouping-combination order. */
   fun cells(): List<Cell> = compiledQueries.flatMap { it.cells() }
 
   /** A [Query] with its per-subpopulation filter and grouping resolved. */
-  private inner class CompiledQuery(private val query: Query) {
+  private inner class CompiledQuery(
+    private val query: Query,
+    failedDataProviders: Map<CellKey, Set<String>>?,
+  ) {
     private val summands: IntArray = query.summands.toIndexes()
     private val reachClauses: List<CompiledReachClause> =
       query.vidFilter.reachClausesList.map { CompiledReachClause(it) }
@@ -79,7 +106,17 @@ class QueryEvaluator(
     /** The grouping combination of each subpopulation, as an index into [groups]. */
     private val groupOfSubpopulation: IntArray
     private val groups: List<List<String?>>
+    /** Whether each group is evaluated in this pass. */
+    private val evaluated: BooleanArray
+    /** For each group, the vectors read as zero in it, or `null` if none are. */
+    private val zeroedVectors: Array<BooleanArray?>
     private val accumulators: Array<CellAccumulator>
+    /** Scratch buffer for folding a position and its summand counts into a fingerprint. */
+    private val fingerprintBuffer: ByteBuffer =
+      ByteBuffer.allocate(Int.SIZE_BYTES * (1 + summands.size))
+
+    val cellKeys: List<CellKey>
+      get() = groups.map { CellKey(query.id, it) }
 
     init {
       require(maxFrequency >= 1) { "Query ${query.id} has max_frequency $maxFrequency" }
@@ -105,24 +142,49 @@ class QueryEvaluator(
           groupIndexes.getOrPut(combination) { groupIndexes.size }
         }
       groups = groupIndexes.entries.sortedBy { it.value }.map { it.key }
+      evaluated =
+        BooleanArray(groups.size) { group ->
+          failedDataProviders == null || CellKey(query.id, groups[group]) in failedDataProviders
+        }
+      zeroedVectors =
+        Array(groups.size) { group ->
+          val failed: Set<String> =
+            failedDataProviders?.get(CellKey(query.id, groups[group])) ?: emptySet()
+          if (failed.isEmpty()) null else BooleanArray(vectorCount) { dataProviders[it] in failed }
+        }
       accumulators = Array(groups.size) { CellAccumulator(maxFrequency) }
     }
 
-    fun add(counts: List<IntArray>, offset: Int, subpopulation: Int) {
+    fun add(counts: List<IntArray>, offset: Int, position: Int, subpopulation: Int) {
       if (!passesAttributes[subpopulation]) return
-      if (reachClauses.isNotEmpty() && reachClauses.none { it.holds(counts, offset) }) return
+      val group = groupOfSubpopulation[subpopulation]
+      if (!evaluated[group]) return
+      val zeroed: BooleanArray? = zeroedVectors[group]
+      if (reachClauses.isNotEmpty() && reachClauses.none { it.holds(counts, offset, zeroed) }) {
+        return
+      }
       var frequency = 0L
       for (vector in summands) {
-        frequency += counts[vector][offset]
+        frequency += countAt(counts, vector, offset, zeroed)
       }
       if (frequency == 0L) return
-      val accumulator = accumulators[groupOfSubpopulation[subpopulation]]
+      val accumulator = accumulators[group]
       accumulator.addFrequency(frequency)
+
+      fingerprintBuffer.clear()
+      fingerprintBuffer.putInt(position)
+      for (vector in summands) {
+        fingerprintBuffer.putInt(countAt(counts, vector, offset, zeroed))
+      }
+      accumulator.fingerprint.update(fingerprintBuffer.array(), 0, fingerprintBuffer.position())
+
       // A VID counts once toward each DataProvider's slice, however many of that DataProvider's
       // vectors reached it.
       val reachedDataProviders = mutableSetOf<String>()
       for (vector in summands) {
-        if (counts[vector][offset] > 0) reachedDataProviders.add(dataProviders[vector])
+        if (countAt(counts, vector, offset, zeroed) > 0) {
+          reachedDataProviders.add(dataProviders[vector])
+        }
       }
       for (dataProvider in reachedDataProviders) {
         accumulator.addSliceReach(dataProvider)
@@ -131,7 +193,7 @@ class QueryEvaluator(
 
     fun cells(): List<Cell> =
       groups.indices
-        .filter { accumulators[it].reach > 0 }
+        .filter { evaluated[it] }
         .map { group ->
           val accumulator = accumulators[group]
           Cell(
@@ -141,6 +203,8 @@ class QueryEvaluator(
             frequencyHistogram = accumulator.histogram.copyOf(),
             impressions = accumulator.impressions,
             sliceReach = accumulator.sliceReach.toMap(),
+            summandDataProviders = summands.map { dataProviders[it] }.toSet(),
+            fingerprint = accumulator.fingerprintDigest(),
           )
         }
   }
@@ -150,10 +214,19 @@ class QueryEvaluator(
     private val reachedSets: List<IntArray> = clause.reachedSetsList.map { it.toIndexes() }
     private val unreachedSet: IntArray = clause.unreachedSet.toIndexes()
 
-    fun holds(counts: List<IntArray>, offset: Int): Boolean =
-      reachedSets.all { set -> set.any { counts[it][offset] > 0 } } &&
-        unreachedSet.none { counts[it][offset] > 0 }
+    fun holds(counts: List<IntArray>, offset: Int, zeroed: BooleanArray?): Boolean =
+      reachedSets.all { set -> set.any { countAt(counts, it, offset, zeroed) > 0 } } &&
+        unreachedSet.none { countAt(counts, it, offset, zeroed) > 0 }
   }
+
+  /** Returns the count of [vector] at [offset], or zero if [zeroed] marks the vector. */
+  private fun countAt(
+    counts: List<IntArray>,
+    vector: Int,
+    offset: Int,
+    zeroed: BooleanArray?,
+  ): Int =
+    if (zeroed != null && zeroed[vector]) 0 else counts[vector][offset]
 
   private fun VectorSet.toIndexes(): IntArray {
     val indexes = baseVectorsList.toIntArray()
@@ -171,20 +244,22 @@ class QueryEvaluator(
     var impressions = 0L
       private set
 
-    var reach = 0L
-      private set
-
     val sliceReach = mutableMapOf<String, Long>()
+
+    /** Running SHA-256 over each reached VID's position and summand counts, in position order. */
+    val fingerprint: MessageDigest = MessageDigest.getInstance(FINGERPRINT_ALGORITHM)
 
     fun addFrequency(frequency: Long) {
       histogram[(minOf(frequency, histogram.size.toLong()) - 1).toInt()]++
       impressions += frequency
-      reach++
     }
 
     fun addSliceReach(dataProvider: String) {
       sliceReach[dataProvider] = (sliceReach[dataProvider] ?: 0L) + 1L
     }
+
+    /** Returns the fingerprint so far, leaving the running digest unchanged. */
+    fun fingerprintDigest(): ByteArray = (fingerprint.clone() as MessageDigest).digest()
   }
 
   /**
@@ -196,6 +271,13 @@ class QueryEvaluator(
   class VectorChunk(val startPosition: Int, val counts: List<IntArray>)
 
   /**
+   * Identifies a cell: a query and one of its grouping combinations.
+   *
+   * @property attributeValues the enum symbol of each grouping path, or `null` where unset
+   */
+  data class CellKey(val queryId: String, val attributeValues: List<String?>)
+
+  /**
    * The unnoised figures for one query and grouping combination.
    *
    * @property attributeValues the enum symbol of each of [groupingPaths] for this cell, or `null`
@@ -204,6 +286,10 @@ class QueryEvaluator(
    *   higher frequencies; reach is its sum
    * @property impressions the sum of the summed counts over reached VIDs
    * @property sliceReach the VIDs in this cell reached by each `DataProvider`'s summand vectors
+   * @property summandDataProviders the `DataProvider`s with a vector among the query's summands,
+   *   whose slices the suppression test covers
+   * @property fingerprint SHA-256 over each reached VID's position and summand counts, in position
+   *   order, which seeds the cell's noise
    */
   class Cell(
     val queryId: String,
@@ -212,12 +298,33 @@ class QueryEvaluator(
     val frequencyHistogram: LongArray,
     val impressions: Long,
     val sliceReach: Map<String, Long>,
+    val summandDataProviders: Set<String>,
+    val fingerprint: ByteArray,
   ) {
     val reach: Long
       get() = frequencyHistogram.sum()
+
+    val key: CellKey
+      get() = CellKey(queryId, attributeValues)
   }
 
   companion object {
+    private const val FINGERPRINT_ALGORITHM = "SHA-256"
+
+    /**
+     * Creates an evaluator for the corrective pass, which evaluates only the cells in
+     * [failedDataProviders] and reads the vectors of each cell's failed `DataProvider`s as zero, in
+     * its summands and reach clauses alike.
+     *
+     * @throws IllegalArgumentException if a key of [failedDataProviders] is not a cell of [queries]
+     */
+    fun corrective(
+      queries: List<Query>,
+      dataProviders: List<String>,
+      subpopulations: SubpopulationIndex,
+      failedDataProviders: Map<CellKey, Set<String>>,
+    ): QueryEvaluator = QueryEvaluator(queries, dataProviders, subpopulations, failedDataProviders)
+
     /**
      * Requires that [vectorIndexes], the indexes of the base vectors held, cover `0 until
      * vectorIndexes.size` exactly once.

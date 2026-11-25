@@ -67,3 +67,91 @@ java_test(
     test_class = "org.wfanet.measurement.duchy.mill.trustee.v2.HashRankSubpopulationIndexTest",
     runtime_deps = [":hash_rank_subpopulation_index_test"],
 )
+
+kt_jvm_library(
+    name = "cell_noise_test",
+    srcs = ["CellNoiseTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:multimeasurement_evaluator",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:query_evaluator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+java_test(
+    name = "CellNoiseTest",
+    test_class = "org.wfanet.measurement.duchy.mill.trustee.v2.CellNoiseTest",
+    runtime_deps = [":cell_noise_test"],
+)
+
+kt_jvm_library(
+    name = "slice_suppression_test",
+    srcs = ["SliceSuppressionTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:multimeasurement_evaluator",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:query_evaluator",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+java_test(
+    name = "SliceSuppressionTest",
+    test_class = "org.wfanet.measurement.duchy.mill.trustee.v2.SliceSuppressionTest",
+    runtime_deps = [":slice_suppression_test"],
+)
+
+kt_jvm_library(
+    name = "cell_releaser_test",
+    srcs = ["CellReleaserTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:multimeasurement_evaluator",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:query_evaluator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:query_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+java_test(
+    name = "CellReleaserTest",
+    test_class = "org.wfanet.measurement.duchy.mill.trustee.v2.CellReleaserTest",
+    runtime_deps = [":cell_releaser_test"],
+)
+
+kt_jvm_library(
+    name = "multimeasurement_evaluator_test",
+    srcs = ["MultimeasurementEvaluatorTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:multimeasurement_evaluator",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:query_evaluator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:query_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:query_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+java_test(
+    name = "MultimeasurementEvaluatorTest",
+    test_class = "org.wfanet.measurement.duchy.mill.trustee.v2.MultimeasurementEvaluatorTest",
+    runtime_deps = [":multimeasurement_evaluator_test"],
+)
