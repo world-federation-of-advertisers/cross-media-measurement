@@ -27,7 +27,8 @@ flowchart LR
   S -- "a slice dropped" --> C["Corrective pass<br/>affected cells only"]
   S -- "all or none dropped" --> N["Noise"]
   C --> N
-  N --> R["MultimeasurementResult<br/>to the Kingdom"]
+  N --> T["Result threshold<br/>per cell"]
+  T --> R["MultimeasurementResult<br/>to the Kingdom"]
 ```
 
 ## Inputs
@@ -198,6 +199,22 @@ the corrective pass's otherwise, which reads failed `DataProviders`' vectors as
 zero. A failed `DataProvider` therefore never influences the noise. This step
 also scales impressions to the reported impression counts and computes each
 cell's variance.
+
+## Result thresholding
+
+Each noised cell is then thresholded as a result in its own right, the same way
+TrusTEE v1 and the EDP Aggregator threshold a result:
+
+*   If the cell's noised reach is below `min_users`, or its noised impressions
+    are below `min_impressions`, its reach and impressions are zero.
+*   Its frequency histogram is folded down from the top bin. A bin whose noised
+    count is below `min_users`, or whose frequency times count is below
+    `min_impressions`, is zeroed and its count is added to the next lower bin,
+    which is then tested in turn.
+
+This is the second of two levels. The slice test in the previous section is the
+first: it decides which `DataProviders` contribute to the cell, as each
+`DataProvider` decides whether it contributes to a TrusTEE v1 measurement.
 
 ## Result
 
