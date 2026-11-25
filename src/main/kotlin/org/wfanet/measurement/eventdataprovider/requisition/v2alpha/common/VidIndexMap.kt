@@ -14,13 +14,11 @@
 
 package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 
-import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
-import java.nio.ByteOrder
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
-import org.wfanet.measurement.common.toByteString
+import org.wfanet.measurement.common.VidHashing
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
 
 class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
@@ -50,7 +48,7 @@ interface VidIndexMap {
   operator fun iterator(): Iterator<VidIndexMapEntry>
 
   companion object {
-    val HASH_SALT: ByteString = (1_618_033L + 20_240_417L).toByteString(ByteOrder.BIG_ENDIAN)
+    val HASH_SALT: ByteString = VidHashing.SALT
 
     val EMPTY: VidIndexMap =
       object : VidIndexMap {
@@ -69,10 +67,8 @@ interface VidIndexMap {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
     }
 
-    fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString = HASH_SALT): Long {
-      val hashInput = vid.toByteString(ByteOrder.BIG_ENDIAN).concat(salt)
-      return Hashing.farmHashFingerprint64().hashBytes(hashInput.toByteArray()).asLong()
-    }
+    fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString = HASH_SALT): Long =
+      VidHashing.hash(vid, salt)
 
     @VisibleForTesting
     fun collectVids(populationSpec: PopulationSpec): IntArray {

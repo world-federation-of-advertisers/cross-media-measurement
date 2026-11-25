@@ -1,0 +1,44 @@
+load("@wfa_common_jvm//build:defs.bzl", "test_target")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(
+    default_visibility = [
+        test_target(":__pkg__"),
+    ],
+)
+
+kt_jvm_library(
+    name = "query_evaluator",
+    srcs = [
+        "QueryEvaluator.kt",
+        "SubpopulationIndex.kt",
+    ],
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:query_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "subpopulation_attributes",
+    srcs = ["SubpopulationAttributes.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_templates",
+        "//src/main/proto/wfa/measurement/api/v2alpha:event_annotations_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_v2_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "hash_rank_subpopulation_index",
+    srcs = ["HashRankSubpopulationIndex.kt"],
+    deps = [
+        ":query_evaluator",
+        ":subpopulation_attributes",
+        "//imports/it/unimi/dsi/fastutil",
+        "//src/main/kotlin/org/wfanet/measurement/common:vid_hashing",
+        "//src/main/proto/wfa/measurement/internal/duchy:population_spec_kt_jvm_proto",
+    ],
+)
