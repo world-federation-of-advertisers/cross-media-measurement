@@ -18,6 +18,7 @@ package wfa.measurement.internal.reporting.v2;
 
 import "google/protobuf/timestamp.proto";
 import "wfa/measurement/internal/reporting/v2/basic_report.proto";
+import "wfa/measurement/internal/reporting/v2/report_computation.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
 option java_multiple_files = true;
@@ -36,7 +37,9 @@ service BasicReports {
   // * `BASIC_REPORT_ALREADY_EXISTS`
   rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
 
-  // Creates a `BasicReport` in the `BasicReport.State.CREATED` state.
+  // Creates a `BasicReport` in the `BasicReport.State.CREATED_LEGACY` state, or
+  // in the `BasicReport.State.CREATED_MULTIMEASUREMENT` state if
+  // `multimeasurement` is set.
   //
   // Error reasons:
   // * `REPORTING_SET_NOT_FOUND`
@@ -46,7 +49,7 @@ service BasicReports {
   // Sets the `BasicReport.external_report_id` field and transitions the
   // `BasicReport` to the `BasicReport.State.REPORT_CREATED` state.
   //
-  // The `BasicReport` must be in the `BasicReport.State.CREATED` state.
+  // The `BasicReport` must be in the `BasicReport.State.CREATED_LEGACY` state.
   //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
@@ -75,6 +78,76 @@ service BasicReports {
   // * `BASIC_REPORT_NOT_FOUND`
   // * `BASIC_REPORT_STATE_INVALID`
   rpc FailBasicReport(FailBasicReportRequest) returns (BasicReport);
+
+  // Creates the `ReportComputation`s of a `BasicReport`, one per impression
+  // qualification filter.
+  //
+  // The `BasicReport` must be in the
+  // `BasicReport.State.CREATED_MULTIMEASUREMENT` state.
+  //
+  // Idempotent per impression qualification filter: where the `BasicReport`
+  // already has a `ReportComputation` for a requested
+  // `impression_qualification_filter_id`, that `ReportComputation` is returned
+  // unchanged, including the `cmms_create_measurement_request_id` it was first
+  // created with.
+  //
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `INVALID_FIELD_VALUE`
+  // * `BASIC_REPORT_NOT_FOUND`
+  // * `BASIC_REPORT_STATE_INVALID`
+  rpc BatchCreateReportComputations(BatchCreateReportComputationsRequest)
+      returns (BatchCreateReportComputationsResponse);
+
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `BASIC_REPORT_NOT_FOUND`
+  // * `REPORT_COMPUTATION_NOT_FOUND`
+  rpc GetReportComputation(GetReportComputationRequest)
+      returns (ReportComputation);
+
+  // Lists every `ReportComputation` of a `BasicReport`.
+  //
+  // Ordered by `impression_qualification_filter_id` ascending.
+  //
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `BASIC_REPORT_NOT_FOUND`
+  rpc ListReportComputations(ListReportComputationsRequest)
+      returns (ListReportComputationsResponse);
+
+  // Sets the `ReportComputation.cmms_measurement_id` field.
+  //
+  // If the field already has the requested value, returns the
+  // `ReportComputation` unchanged. Otherwise the `BasicReport` must be in the
+  // `BasicReport.State.CREATED_MULTIMEASUREMENT` state and the field must be
+  // unset.
+  //
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `BASIC_REPORT_NOT_FOUND`
+  // * `BASIC_REPORT_STATE_INVALID`
+  // * `REPORT_COMPUTATION_NOT_FOUND`
+  // * `REPORT_COMPUTATION_STATE_INVALID` if the field is already set to a
+  //   different value
+  rpc SetReportComputationMeasurementId(
+      SetReportComputationMeasurementIdRequest) returns (ReportComputation);
+
+  // Transitions the `BasicReport` to the
+  // `BasicReport.State.MEASUREMENTS_CREATED` state.
+  //
+  // The `BasicReport` must be in the
+  // `BasicReport.State.CREATED_MULTIMEASUREMENT` state, and have at least one
+  // `ReportComputation`, every one of which has `cmms_measurement_id` set.
+  //
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `BASIC_REPORT_NOT_FOUND`
+  // * `BASIC_REPORT_STATE_INVALID`
+  // * `REPORT_COMPUTATION_NOT_FOUND` if the `BasicReport` has none
+  // * `REPORT_COMPUTATION_STATE_INVALID` if one has no `cmms_measurement_id`
+  rpc SetMeasurementsCreated(SetMeasurementsCreatedRequest)
+      returns (BasicReport);
 }
 
 message InsertBasicReportRequest {
@@ -84,6 +157,8 @@ message InsertBasicReportRequest {
 message CreateBasicReportRequest {
   BasicReport basic_report = 1;
   string request_id = 2;
+  // Whether the `BasicReport` takes the multimeasurement path.
+  bool multimeasurement = 3;
 }
 
 message SetExternalReportIdRequest {
@@ -147,6 +222,52 @@ message ListBasicReportsResponse {
 }
 
 message FailBasicReportRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+}
+
+message BatchCreateReportComputationsRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+
+  // The `ReportComputation`s to create. At least one is required, and their
+  // `impression_qualification_filter_id` values must be distinct.
+  //
+  // `cmms_measurement_consumer_id` and `external_basic_report_id` may be left
+  // unset; if set they must match the parent. `cmms_measurement_id` must not
+  // be set.
+  repeated ReportComputation report_computations = 3;
+}
+
+message BatchCreateReportComputationsResponse {
+  // The `ReportComputation`s, in request order.
+  repeated ReportComputation report_computations = 1;
+}
+
+message GetReportComputationRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+  int64 impression_qualification_filter_id = 3;
+}
+
+message ListReportComputationsRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+}
+
+message ListReportComputationsResponse {
+  repeated ReportComputation report_computations = 1;
+}
+
+message SetReportComputationMeasurementIdRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+  int64 impression_qualification_filter_id = 3;
+  // ID of the `Measurement` from the CMMS public API. Required.
+  string cmms_measurement_id = 4;
+}
+
+message SetMeasurementsCreatedRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
 }

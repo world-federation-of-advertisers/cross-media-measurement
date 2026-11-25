@@ -45,6 +45,8 @@ object Errors {
     REPORTING_WINDOW_RESULT_NOT_FOUND,
     BASIC_REPORT_STATE_INVALID,
     INVALID_BASIC_REPORT,
+    REPORT_COMPUTATION_NOT_FOUND,
+    REPORT_COMPUTATION_STATE_INVALID,
   }
 
   enum class Metadata(val key: String) {
@@ -337,6 +339,82 @@ class InvalidBasicReportException(
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+    ),
+    cause,
+  )
+
+class ReportComputationNotFoundException
+private constructor(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  impressionQualificationFilterId: Long?,
+  cause: Throwable?,
+) :
+  ServiceException(
+    Errors.Reason.REPORT_COMPUTATION_NOT_FOUND,
+    if (impressionQualificationFilterId == null) {
+      "BasicReport with external key ($cmmsMeasurementConsumerId, $externalBasicReportId) has " +
+        "no ReportComputation"
+    } else {
+      "ReportComputation with key ($cmmsMeasurementConsumerId, $externalBasicReportId, " +
+        "$impressionQualificationFilterId) not found"
+    },
+    buildMap {
+      put(Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID, cmmsMeasurementConsumerId)
+      put(Errors.Metadata.EXTERNAL_BASIC_REPORT_ID, externalBasicReportId)
+      if (impressionQualificationFilterId != null) {
+        put(
+          Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID,
+          impressionQualificationFilterId.toString(),
+        )
+      }
+    },
+    cause,
+  ) {
+  /** Constructs an exception for a missing ReportComputation of a single impression filter. */
+  constructor(
+    cmmsMeasurementConsumerId: String,
+    externalBasicReportId: String,
+    impressionQualificationFilterId: Long,
+    cause: Throwable? = null,
+  ) : this(
+    cmmsMeasurementConsumerId,
+    externalBasicReportId,
+    impressionQualificationFilterId as Long?,
+    cause,
+  )
+
+  companion object {
+    /** Returns an exception for a BasicReport that has no ReportComputation at all. */
+    fun forBasicReport(
+      cmmsMeasurementConsumerId: String,
+      externalBasicReportId: String,
+    ): ReportComputationNotFoundException =
+      ReportComputationNotFoundException(
+        cmmsMeasurementConsumerId,
+        externalBasicReportId,
+        null,
+        null,
+      )
+  }
+}
+
+class ReportComputationStateInvalidException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  impressionQualificationFilterId: Long,
+  message: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REPORT_COMPUTATION_STATE_INVALID,
+    "ReportComputation with key ($cmmsMeasurementConsumerId, $externalBasicReportId, " +
+      "$impressionQualificationFilterId) is invalid for the operation: $message",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+      Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID to
+        impressionQualificationFilterId.toString(),
     ),
     cause,
   )
