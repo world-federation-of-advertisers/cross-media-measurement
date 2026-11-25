@@ -16,12 +16,9 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
-import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
@@ -31,10 +28,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
-import org.wfanet.measurement.edpaggregator.vidlabeling.HistoricalAvailabilitySnapshots
+import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadRevisions
+import org.wfanet.measurement.edpaggregator.vidlabeling.RecoveryPredecessorResolver
+import org.wfanet.measurement.edpaggregator.vidlabeling.RecoveryPredecessorResolver.FailureReason as RecoveryPredecessorFailure
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMetadataReader
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
 /** Starts or resumes one memoized recovery upload. */
@@ -58,6 +55,20 @@ class RecoverUploader(
   private val rewriteDoneBlob:
     suspend (doneBlobUri: String, expectedGeneration: Long, metadata: Map<String, String>) -> Long,
 ) : RecoveryExecutor {
+
+  private val recoveryPredecessorResolver =
+    RecoveryPredecessorResolver(
+      getUpload = { name ->
+        rpcThrottlers.metadataRead.onReady {
+          uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { this.name = name })
+        }
+      },
+      listModelLines = ::listModelLines,
+      listSnapshots = ::historicalSnapshots,
+      hasActiveSnapshot = ::hasActiveSnapshot,
+      getHealingOperation = getHealingOperation,
+    )
+
   data class Result(
     val sourceUpload: String,
     val doneBlobUri: String,
@@ -92,7 +103,7 @@ class RecoverUploader(
       "$sourceUploadName does not have a valid done-object generation"
     }
 
-    val latest = findLatestUpload(sourceKey.parentKey.toName(), source.doneBlobUri)
+    val latest = findLatestUploadByDoneBlob(sourceKey.parentKey.toName(), source.doneBlobUri)
     val isResumableIncompleteRecovery =
       latest != null &&
         latest.replacesRawImpressionUpload == source.name &&
@@ -196,41 +207,25 @@ class RecoverUploader(
     return Result(source.name, source.doneBlobUri, generation, cmmsModelLines)
   }
 
-  private suspend fun findLatestUpload(parent: String, doneBlobUri: String): RawImpressionUpload? {
+  private suspend fun findLatestUploadByDoneBlob(
+    parent: String,
+    doneBlobUri: String,
+  ): RawImpressionUpload? {
     var pageToken = ""
     var latest: RawImpressionUpload? = null
     do {
       val response =
-        rpcThrottlers.metadataRead.onReady {
-          uploadsStub.listRawImpressionUploads(
-            listRawImpressionUploadsRequest {
-              this.parent = parent
-              filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
-              this.pageToken = pageToken
-            }
-          )
-        }
-      latest = findLatestUpload(response.rawImpressionUploadsList + listOfNotNull(latest))
+        VidLabelingMetadataReader.uploadRevisionsPage(
+          uploadsStub,
+          rpcThrottlers.metadataRead,
+          parent,
+          doneBlobUri,
+          pageToken,
+        )
+      latest = RawImpressionUploadRevisions.latest(response.resources + listOfNotNull(latest))
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return latest
-  }
-
-  private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload? {
-    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
-    return if (timestamped.isNotEmpty()) {
-      timestamped.maxWithOrNull { left, right ->
-        val doneTime = Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
-        if (doneTime != 0) {
-          doneTime
-        } else {
-          val createTime = Timestamps.compare(left.createTime, right.createTime)
-          if (createTime != 0) createTime else left.name.compareTo(right.name)
-        }
-      }
-    } else {
-      uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
-    }
   }
 
   private fun isRegistrationComplete(upload: RawImpressionUpload): Boolean =
@@ -270,252 +265,82 @@ class RecoverUploader(
         "Recovery model line is not part of the active operation"
       }
     }
-    val plannedPredecessor =
-      operation?.stepsList?.singleOrNull {
-        it.sourceRawImpressionUpload == predecessorName &&
-          it.cmmsModelLine == row.cmmsModelLine &&
-          it.recoveryTarget &&
-          it.state == UploadHealingStep.State.COMPLETE
-      }
-    if (
-      operation?.stepsList?.any {
-        it.sourceRawImpressionUpload == predecessorName && it.cmmsModelLine == row.cmmsModelLine
-      } == true
-    ) {
-      require(plannedPredecessor != null) { "The planned recovery predecessor has not completed" }
-    }
-    val historicalPredecessor = historicalRecoveryPredecessor(predecessor, row, operation)
-    val latest =
-      plannedPredecessor
-        ?.replacementRawImpressionUpload
-        ?.takeIf { it.isNotEmpty() }
-        ?.let { replacementName ->
-          checkNotNull(revisions.singleOrNull { it.name == replacementName }) {
-              "Planned recovery predecessor replacement is missing"
-            }
-            .also {
-              require(it.uploadHealingOperation == operationName) {
-                "Planned predecessor replacement belongs to another operation"
-              }
-            }
-        }
-        ?: historicalPredecessor
-        ?: requireNotNull(
-          findLatestUpload(
-            if (operation != null) {
-              revisions.filter {
-                it.registrationComplete && it.state == RawImpressionUpload.State.COMPLETED
-              }
-            } else {
-              revisions
-            }
+    val result =
+      recoveryPredecessorResolver.resolve(predecessor, row, revisions, operationName, operation)
+    if (result is RecoveryPredecessorResolver.Result.NotReady) {
+      when (result.reason) {
+        RecoveryPredecessorFailure.PLANNED_PREDECESSOR_INCOMPLETE ->
+          throw IllegalArgumentException("The planned recovery predecessor has not completed")
+        RecoveryPredecessorFailure.PLANNED_REPLACEMENT_MISSING ->
+          error("Planned recovery predecessor replacement is missing")
+        RecoveryPredecessorFailure.REPLACEMENT_OPERATION_MISMATCH ->
+          throw IllegalArgumentException(
+            "Planned predecessor replacement belongs to another operation"
           )
-        ) {
-          "No upload revision found for recovery predecessor $predecessorName"
-        }
-    require(
-      latest.name == predecessorName || replacesUpload(latest.name, predecessorName, revisions)
-    ) {
-      "Latest upload ${latest.name} does not replace recovery predecessor $predecessorName"
-    }
-    val replacementRow =
-      listModelLines(latest.name).firstOrNull { it.cmmsModelLine == row.cmmsModelLine }
-    require(
-      replacementRow?.state in
-        setOf(
-          RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
-          RawImpressionUploadModelLine.State.COMPLETED,
-        )
-    ) {
-      "Recovery predecessor $predecessorName has not produced durable labeled output for " +
-        row.cmmsModelLine
-    }
-    require(hasActiveSnapshot(latest.name, row.cmmsModelLine)) {
-      "Recovery predecessor $predecessorName has no live replacement snapshot for " +
-        row.cmmsModelLine
-    }
-  }
-
-  private suspend fun listUploads(parent: String, doneBlobUri: String): List<RawImpressionUpload> {
-    val uploads = mutableListOf<RawImpressionUpload>()
-    var pageToken = ""
-    do {
-      val response =
-        rpcThrottlers.metadataRead.onReady {
-          uploadsStub.listRawImpressionUploads(
-            listRawImpressionUploadsRequest {
-              this.parent = parent
-              filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
-              this.pageToken = pageToken
-            }
+        RecoveryPredecessorFailure.NO_REVISION ->
+          throw IllegalArgumentException(
+            "No upload revision found for recovery predecessor $predecessorName"
           )
-        }
-      uploads += response.rawImpressionUploadsList
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return uploads
-  }
-
-  private fun replacesUpload(
-    candidateName: String,
-    predecessorName: String,
-    revisions: List<RawImpressionUpload>,
-  ): Boolean {
-    val revisionsByName = revisions.associateBy { it.name }
-    val visited = mutableSetOf<String>()
-    var current = revisionsByName[candidateName]?.replacesRawImpressionUpload.orEmpty()
-    while (current.isNotEmpty() && visited.add(current)) {
-      if (current == predecessorName) return true
-      current = revisionsByName[current]?.replacesRawImpressionUpload.orEmpty()
-    }
-    return false
-  }
-
-  private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> {
-    val rows = mutableListOf<RawImpressionUploadModelLine>()
-    var pageToken = ""
-    do {
-      val response =
-        rpcThrottlers.metadataRead.onReady {
-          modelLinesStub.listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = uploadName
-              this.pageToken = pageToken
-            }
+        RecoveryPredecessorFailure.NOT_A_REPLACEMENT ->
+          throw IllegalArgumentException(
+            "Latest upload ${result.latestUploadName} does not replace recovery predecessor $predecessorName"
           )
-        }
-      rows += response.rawImpressionUploadModelLinesList
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return rows
+        RecoveryPredecessorFailure.OUTPUT_NOT_DURABLE ->
+          throw IllegalArgumentException(
+            "Recovery predecessor $predecessorName has not produced durable labeled output for ${row.cmmsModelLine}"
+          )
+        RecoveryPredecessorFailure.NO_LIVE_SNAPSHOT ->
+          throw IllegalArgumentException(
+            "Recovery predecessor $predecessorName has no live replacement snapshot for ${row.cmmsModelLine}"
+          )
+      }
+    }
   }
 
-  private suspend fun historicalRecoveryPredecessor(
-    predecessor: RawImpressionUpload,
-    row: RawImpressionUploadModelLine,
-    operation: UploadHealingOperation?,
-  ): RawImpressionUpload? {
-    if (
-      operation == null ||
-        operation.state !in
-          setOf(UploadHealingOperation.State.REPLAYING, UploadHealingOperation.State.RECOVERING) ||
-        !predecessor.registrationComplete
+  private suspend fun listUploads(parent: String, doneBlobUri: String): List<RawImpressionUpload> =
+    VidLabelingMetadataReader.uploadRevisions(
+      uploadsStub,
+      rpcThrottlers.metadataRead,
+      parent,
+      doneBlobUri,
     )
-      return null
-    if (
-      operation.stepsList.any {
-        it.sourceRawImpressionUpload == predecessor.name && it.cmmsModelLine == row.cmmsModelLine
-      }
+
+  private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> =
+    VidLabelingMetadataReader.uploadModelLines(
+      modelLinesStub,
+      rpcThrottlers.metadataRead,
+      uploadName,
     )
-      return null
-    val target =
-      operation.stepsList.singleOrNull {
-        it.rawImpressionUploadModelLine == row.name &&
-          it.cmmsModelLine == row.cmmsModelLine &&
-          it.recoveryTarget &&
-          it.memoized &&
-          it.recoveryAction == row.recoveryAction
-      } ?: return null
-    val predecessorRow =
-      listModelLines(predecessor.name).singleOrNull { it.cmmsModelLine == row.cmmsModelLine }
-        ?: return null
-    if (predecessorRow.state != RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING) return null
-    val priorName = predecessor.uploadHealingOperation
-    if (priorName.isNotEmpty()) {
-      val prior = getHealingOperation(priorName) ?: return null
-      if (prior.name != priorName || prior.state != UploadHealingOperation.State.COMPLETE)
-        return null
-    }
-    val source =
-      rpcThrottlers.metadataRead.onReady {
-        uploadsStub.getRawImpressionUpload(
-          getRawImpressionUploadRequest { name = target.sourceRawImpressionUpload }
-        )
-      }
-    return if (
-      HistoricalAvailabilitySnapshots.hasHistoricalBasis(
-        source,
-        historicalSnapshots(source.name, row.cmmsModelLine, showDeleted = true),
-        historicalSnapshots(predecessor.name, row.cmmsModelLine, showDeleted = false),
-      )
-    )
-      predecessor
-    else null
-  }
 
   private suspend fun historicalSnapshots(
     uploadName: String,
     cmmsModelLine: String,
     showDeleted: Boolean,
-  ): List<RankIndexBlob> {
-    val result = mutableListOf<RankIndexBlob>()
-    var page = ""
-    do {
-      val response =
-        rpcThrottlers.metadataRead.onReady {
-          rankIndexBlobsStub.listRankIndexBlobs(
-            listRankIndexBlobsRequest {
-              parent = uploadName
-              this.showDeleted = showDeleted
-              filter =
-                ListRankIndexBlobsRequestKt.filter {
-                  blobType = RankIndexBlob.BlobType.SNAPSHOT
-                  this.cmmsModelLine = cmmsModelLine
-                }
-              pageToken = page
-            }
-          )
-        }
-      result += response.rankIndexBlobsList
-      page = response.nextPageToken
-    } while (page.isNotEmpty())
-    return result
-  }
+  ): List<RankIndexBlob> =
+    VidLabelingMetadataReader.snapshots(
+      rankIndexBlobsStub,
+      rpcThrottlers.metadataRead,
+      uploadName,
+      cmmsModelLine,
+      showDeleted,
+    )
 
   private suspend fun hasDeletedSnapshotHistory(
     uploadName: String,
     cmmsModelLine: String,
-  ): Boolean {
-    var pageToken = ""
-    var found = false
-    do {
-      val response =
-        rpcThrottlers.metadataRead.onReady {
-          rankIndexBlobsStub.listRankIndexBlobs(
-            listRankIndexBlobsRequest {
-              parent = uploadName
-              showDeleted = true
-              filter =
-                ListRankIndexBlobsRequestKt.filter {
-                  blobType = RankIndexBlob.BlobType.SNAPSHOT
-                  this.cmmsModelLine = cmmsModelLine
-                }
-              this.pageToken = pageToken
-            }
-          )
-        }
-      if (response.rankIndexBlobsList.any { !it.hasDeleteTime() }) return false
-      found = found || response.rankIndexBlobsCount > 0
-      pageToken = response.nextPageToken
-    } while (pageToken.isNotEmpty())
-    return found
-  }
+  ): Boolean =
+    VidLabelingMetadataReader.hasDeletedSnapshotHistory(
+      rankIndexBlobsStub,
+      rpcThrottlers.metadataRead,
+      uploadName,
+      cmmsModelLine,
+    )
 
-  private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
-    val response =
-      rpcThrottlers.metadataRead.onReady {
-        rankIndexBlobsStub.listRankIndexBlobs(
-          listRankIndexBlobsRequest {
-            parent = uploadName
-            pageSize = 1
-            filter =
-              ListRankIndexBlobsRequestKt.filter {
-                blobType = RankIndexBlob.BlobType.SNAPSHOT
-                this.cmmsModelLine = cmmsModelLine
-              }
-          }
-        )
-      }
-    return response.rankIndexBlobsCount > 0
-  }
+  private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean =
+    VidLabelingMetadataReader.hasActiveSnapshot(
+      rankIndexBlobsStub,
+      rpcThrottlers.metadataRead,
+      uploadName,
+      cmmsModelLine,
+    )
 }

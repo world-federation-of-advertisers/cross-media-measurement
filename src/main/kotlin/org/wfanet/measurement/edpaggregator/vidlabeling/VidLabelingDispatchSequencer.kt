@@ -47,7 +47,6 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinP
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
-import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
@@ -75,9 +74,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
@@ -357,27 +354,14 @@ class VidLabelingDispatchSequencer(
       snapshotLists[key]?.let {
         return it
       }
-      val result = mutableListOf<RankIndexBlob>()
-      var page = ""
-      do {
-        val response =
-          rpcThrottlers.metadataRead.onReady {
-            rankIndexBlobStub.listRankIndexBlobs(
-              listRankIndexBlobsRequest {
-                parent = uploadName
-                this.showDeleted = showDeleted
-                filter =
-                  ListRankIndexBlobsRequestKt.filter {
-                    blobType = RankIndexBlob.BlobType.SNAPSHOT
-                    this.cmmsModelLine = cmmsModelLine
-                  }
-                pageToken = page
-              }
-            )
-          }
-        result += response.rankIndexBlobsList
-        page = response.nextPageToken
-      } while (page.isNotEmpty())
+      val result =
+        VidLabelingMetadataReader.snapshots(
+          rankIndexBlobStub,
+          rpcThrottlers.metadataRead,
+          uploadName,
+          cmmsModelLine,
+          showDeleted,
+        )
       snapshotLists[key] = result
       return result
     }
@@ -487,21 +471,12 @@ class VidLabelingDispatchSequencer(
         return it
       }
       val found =
-        rpcThrottlers.metadataRead
-          .onReady {
-            rankIndexBlobStub.listRankIndexBlobs(
-              listRankIndexBlobsRequest {
-                parent = uploadName
-                pageSize = 1
-                filter =
-                  ListRankIndexBlobsRequestKt.filter {
-                    blobType = RankIndexBlob.BlobType.SNAPSHOT
-                    this.cmmsModelLine = cmmsModelLine
-                  }
-              }
-            )
-          }
-          .rankIndexBlobsCount > 0
+        VidLabelingMetadataReader.hasActiveSnapshot(
+          rankIndexBlobStub,
+          rpcThrottlers.metadataRead,
+          uploadName,
+          cmmsModelLine,
+        )
       liveSnapshots[key] = found
       return found
     }
@@ -1162,18 +1137,12 @@ class VidLabelingDispatchSequencer(
   private suspend fun listUploadModelLines(uploadName: String): List<RawImpressionUploadModelLine> =
     rawImpressionUploadModelLineStub
       .listResources { pageToken: String ->
-        val response =
-          rpcThrottlers.metadataRead.onReady {
-            rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
-              listRawImpressionUploadModelLinesRequest {
-                parent = uploadName
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
-                }
-              }
-            )
-          }
-        ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
+        VidLabelingMetadataReader.uploadModelLinesPage(
+          rawImpressionUploadModelLineStub,
+          rpcThrottlers.metadataRead,
+          uploadName,
+          pageToken,
+        )
       }
       .flattenConcat()
       .toList()

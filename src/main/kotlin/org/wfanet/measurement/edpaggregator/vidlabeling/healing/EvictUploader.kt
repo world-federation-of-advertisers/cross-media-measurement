@@ -61,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
+import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadRevisions
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
 /**
@@ -198,7 +199,9 @@ class EvictUploader(
     val candidateSupersedingUploads =
       uploadsByName.keys.filter { candidate ->
         candidate !in badUploads &&
-          badUploads.any { owner -> replacesUpload(candidate, owner, uploadsByName) }
+          badUploads.any { owner ->
+            RawImpressionUploadRevisions.replaces(candidate, owner, uploadsByName)
+          }
       }
     val candidateSupersedingRows = candidateSupersedingUploads.associateWith { listModelLines(it) }
     val supersedingUploads =
@@ -251,7 +254,7 @@ class EvictUploader(
           val candidateUploadName = uploadNameOf(candidate.name)
           candidateUploadName !in requestedNames &&
             hasDurableLabeledOutput(candidate.state) &&
-            replacesUpload(candidateUploadName, badUploadName, uploadsByName)
+            RawImpressionUploadRevisions.replaces(candidateUploadName, badUploadName, uploadsByName)
         }
       }
     require(completedReplacements.isEmpty()) {
@@ -605,20 +608,6 @@ class EvictUploader(
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return uploads
-  }
-
-  private fun replacesUpload(
-    candidateUploadName: String,
-    ancestorUploadName: String,
-    uploadsByName: Map<String, RawImpressionUpload>,
-  ): Boolean {
-    val visited = mutableSetOf<String>()
-    var current = uploadsByName[candidateUploadName]?.replacesRawImpressionUpload.orEmpty()
-    while (current.isNotEmpty() && visited.add(current)) {
-      if (current == ancestorUploadName) return true
-      current = uploadsByName[current]?.replacesRawImpressionUpload.orEmpty()
-    }
-    return false
   }
 
   private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload {
