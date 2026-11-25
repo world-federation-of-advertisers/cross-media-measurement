@@ -87,6 +87,9 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
  *   generated output.
  * @param getBlobGeneration returns the live generation of a labeled output or sidecar.
  * @param deleteBlob deletes one exact labeled-output generation and returns whether it existed.
+ * @param readBlobDetails reads one exact labeled-output sidecar generation.
+ * @param listBlobGenerations returns the live generation of every labeled-output object whose URI
+ *   starts with the given prefix.
  */
 class EvictUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
@@ -98,6 +101,7 @@ class EvictUploader(
   private val getBlobGeneration: suspend (String) -> Long?,
   private val deleteBlob: suspend (String, Long) -> Boolean,
   private val readBlobDetails: suspend (String, Long) -> BlobDetails?,
+  private val listBlobGenerations: suspend (String) -> Map<String, Long>,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
 ) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
@@ -864,7 +868,36 @@ class EvictUploader(
         .awaitAll()
         .sum()
     }
-    return OutputCleanupResult(activeMetadata.size, deletedBlobs)
+    // Attempt data that no sidecar references (a lost publication race or a crash before the
+    // sidecar write) is absent from the approved manifest. It is unreachable once its output is
+    // evicted, and the fence keeps writers out, so remove every remaining attempt of the input.
+    val unreferencedAttempts = coroutineScope {
+      val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
+      expectedMetadataBlobUris
+        .map { metadataBlobUri ->
+          async {
+            semaphore.withPermit {
+              val canonicalUri = metadataBlobUri.removeSuffix(LABELED_OUTPUT_METADATA_SUFFIX)
+              listBlobGenerations(LabeledImpressionsBlobKeys.attemptPrefix(canonicalUri))
+                .filterKeys { LabeledImpressionsBlobKeys.matchesInputUri(it, canonicalUri) }
+                .toList()
+            }
+          }
+        }
+        .awaitAll()
+        .flatten()
+        .filter { (blobUri, _) -> cleanedBlobUris.add(blobUri) }
+    }
+    val deletedAttempts = coroutineScope {
+      val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
+      unreferencedAttempts
+        .map { (blobUri, generation) ->
+          async { semaphore.withPermit { if (deleteBlob(blobUri, generation)) 1 else 0 } }
+        }
+        .awaitAll()
+        .sum()
+    }
+    return OutputCleanupResult(activeMetadata.size, deletedBlobs + deletedAttempts)
   }
 
   private suspend fun listRawImpressionUploadFiles(

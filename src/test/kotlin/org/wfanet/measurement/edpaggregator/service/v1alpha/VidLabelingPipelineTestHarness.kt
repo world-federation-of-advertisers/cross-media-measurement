@@ -68,6 +68,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -982,6 +984,16 @@ abstract class VidLabelingPipelineTestHarness(
             val bytes = blob.read().flatten()
             if (fileStorage.getFreshnessToken(key)?.toLong() != generation) null
             else BlobDetails.parseFrom(bytes)
+          }
+        },
+        listBlobGenerations = { prefixUri ->
+          val prefixKey = blobKey(prefixUri)
+          val root = prefixUri.removeSuffix(prefixKey)
+          buildMap {
+            fileStorage.listBlobs(prefixKey).collect { blob ->
+              val generation = fileStorage.getFreshnessToken(blob.blobKey)?.toLong()
+              if (generation != null) put(root + blob.blobKey, generation)
+            }
           }
         },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
@@ -2216,6 +2228,12 @@ abstract class VidLabelingPipelineTestHarness(
 
   protected fun blobKey(blobUri: String): String = SelectedStorageClient.parseBlobUri(blobUri).key
 
+  /** Returns the data URI that the sidecar of [canonicalUri] references, if the sidecar exists. */
+  protected suspend fun sidecarDataUri(canonicalUri: String): String? =
+    fileStorage.getBlob(blobKey("$canonicalUri.metadata.binpb"))?.let {
+      BlobDetails.parseFrom(it.read().flatten()).blobUri
+    }
+
   protected suspend fun snapshotOutputArtifacts(
     metadata: Collection<ImpressionMetadata>
   ): Map<String, OutputArtifact> = metadata.associate { it.blobUri to snapshotOutputArtifact(it) }
@@ -2836,8 +2854,18 @@ abstract class VidLabelingPipelineTestHarness(
     override suspend fun getBlob(blobKey: String): StorageClient.Blob? =
       delegate.getBlob(blobKey)?.let { wrap(it) }
 
-    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> =
-      delegate.listBlobs(prefix).map { wrap(it) }
+    /** Lists like an object store: a prefix naming no existing path never walks the root. */
+    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
+      if (prefix.isNullOrEmpty() || File(rootDirectory, prefix).exists()) {
+        return delegate.listBlobs(prefix).map { wrap(it) }
+      }
+      val parent = prefix.substringBeforeLast('/', missingDelimiterValue = "")
+      if (parent.isEmpty() || !File(rootDirectory, parent).isDirectory) return emptyFlow()
+      return delegate
+        .listBlobs("$parent/")
+        .filter { it.blobKey.startsWith(prefix) }
+        .map { wrap(it) }
+    }
 
     override suspend fun listBlobKeysAndPrefixes(prefix: String): Flow<String> =
       delegate.listBlobKeysAndPrefixes(prefix)
