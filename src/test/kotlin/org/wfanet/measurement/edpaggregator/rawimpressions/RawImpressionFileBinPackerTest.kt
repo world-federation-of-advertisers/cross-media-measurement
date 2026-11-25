@@ -118,4 +118,31 @@ class RawImpressionFileBinPackerTest {
       RawImpressionFileBinPacker.pack(listOf(file("a", 10)), maxFileBatchSizeBytes = -1)
     }
   }
+
+  @Test
+  fun `file count limits otherwise tiny files`() {
+    val files = (0..4).map { file("f$it", 1) }
+    val result = RawImpressionFileBinPacker.pack(files, 100, maxFilesPerBatch = 2)
+    assertThat(result)
+      .containsExactly(listOf("f0", "f1"), listOf("f2", "f3"), listOf("f4"))
+      .inOrder()
+    assertThat(RawImpressionFileBinPacker.pack(files.reversed(), 100, maxFilesPerBatch = 2))
+      .isEqualTo(result)
+  }
+
+  @Test
+  fun `raw size and file count constraints apply together`() {
+    val files = listOf(file("a", 60), file("b", 40), file("c", 30), file("d", 20))
+    val result = RawImpressionFileBinPacker.pack(files, 100, maxFilesPerBatch = 2)
+    assertThat(result).containsExactly(listOf("a", "b"), listOf("c", "d")).inOrder()
+    assertThat(RawImpressionFileBinPacker.pack(files.reversed(), 100, maxFilesPerBatch = 2))
+      .isEqualTo(result)
+  }
+
+  @Test
+  fun `default packing does not impose a file name limit on other callers`() {
+    val names = listOf("a".repeat(8_000), "é")
+    val result = RawImpressionFileBinPacker.pack(names.map { file(it, 1) }, 100)
+    assertThat(result).containsExactly(names)
+  }
 }

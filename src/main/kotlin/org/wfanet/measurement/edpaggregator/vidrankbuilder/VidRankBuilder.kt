@@ -30,11 +30,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
-import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
@@ -46,26 +44,20 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRankerJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.edpaggregator.vidlabeling.MemoizedVidLabelingJobDispatcher
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /**
  * Phase-1 per-WorkItem logic for the memoized VID assignment pipeline (analog of
@@ -123,6 +115,7 @@ class VidRankBuilder(
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
+  private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val workItemsStub: WorkItemsCoroutineStub,
   private val rawImpressionUpload: String,
@@ -366,14 +359,10 @@ class VidRankBuilder(
    * Runs [fanOutLabeling] on BOTH first delivery and recovery (a redelivered already-`SUCCEEDED`
    * job whose parent is still `RANKING`). Re-running is safe — and, crucially, re-CREATES any
    * `VidLabelingJob` batches a crashed prior last-job-out never got to — because of the
-   * **file-list-frozen-after-CREATED** invariant: a `RawImpressionUploadFile` list is written once
-   * by the dispatcher at upload registration and never mutated once the upload is past `CREATED`,
-   * so re-listing yields the same files, [RawImpressionFileBinPacker.pack] is deterministic over
-   * them, and the batch-index-keyed `request_id` (see [createVidLabelingJobs]) makes
-   * `BatchCreateVidLabelingJobs` an AIP-155 replay for rows already created while still creating
-   * any missed. (A prior recovery-only re-publish of existing rows silently lost batches when the
-   * original crashed mid-`createVidLabelingJobs`.) If a future change could mutate the file list
-   * post-`CREATED`, recovery would need a different strategy.
+   * registration-complete immutable-manifest invariant: the shared dispatcher checks the upload
+   * before listing files, and metadata services prohibit later manifest mutation. Identical files
+   * and packing limits yield identical batch slots; create replay validates file/model-line
+   * membership and rejects a changed slot rather than adopting its old job.
    */
   private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine): String =
     Tracing.traceSuspending(
@@ -493,132 +482,56 @@ class VidRankBuilder(
     }
   }
 
-  /**
-   * Creates the Phase-2 `VidLabelingJob`s for the (upload, model line) — one per bin-packed group
-   * of the upload's `RawImpressionUploadFile`s — and publishes a memoized-`VidLabelerParams`
-   * WorkItem for each. Returns the number of WorkItems published.
-   */
+  /** Creates and publishes the complete registered file batches for Phase 2. */
   private suspend fun fanOutLabeling(): Int {
-    val files = listUploadFiles()
-    if (files.isEmpty()) {
+    val published =
+      MemoizedVidLabelingJobDispatcher(
+          rawImpressionUploadsStub = rawImpressionUploadsStub,
+          rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+          vidLabelingJobsStub = vidLabelingJobsStub,
+          workItemsStub = workItemsStub,
+          rawImpressionUpload = rawImpressionUpload,
+          modelLine = modelLine,
+          vidLabelerParamsTemplate = vidLabelerParamsTemplate,
+          vidLabelerQueue = vidLabelerQueue,
+          maxFileBatchSizeBytes = maxFileBatchSizeBytes,
+          rpcThrottlers = rpcThrottlers,
+          traceContextProvider = traceContextProvider,
+          maxJobsPerBatchCreate = maxJobsPerBatchCreate,
+          onJobResolved = ::recordLabelingJob,
+          onWorkItemPublished = ::recordLabelingWorkItem,
+        )
+        .dispatch()
+    if (published == 0) {
       logger.warning(
         "Last-job-out for $modelLine: no RawImpressionUploadFiles under $rawImpressionUpload; " +
           "nothing to label"
       )
-      return 0
     }
-
-    val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
-    val labelingJobs = createVidLabelingJobs(batches)
-    labelingJobs.forEach { job -> publishVidLabelerWorkItem(job) }
-    return labelingJobs.size
+    return published
   }
 
-  /** Lists every (non-deleted) `RawImpressionUploadFile` under this upload. */
-  private suspend fun listUploadFiles(): List<RawImpressionUploadFile> {
-    val files = mutableListOf<RawImpressionUploadFile>()
-    rawImpressionUploadFilesStub
-      .listResources { pageToken: String ->
-        val response =
-          rpcThrottlers.metadataRead.onReady {
-            rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
-              listRawImpressionUploadFilesRequest {
-                parent = rawImpressionUpload
-                this.pageToken = pageToken
-              }
-            )
-          }
-        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
-      }
-      .collect { page -> files.addAll(page) }
-    return files
+  private fun recordLabelingJob(job: VidLabelingJob) {
+    Span.current()
+      .addEvent(
+        "edpa.vid_labeling.rank.vid_labeling_job",
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, job.name)
+          .put(XmmTraceAttributes.OUTCOME, "resolved")
+          .build(),
+      )
+    logRankLifecycle(
+      Level.INFO,
+      "edpa.vid_labeling.rank.vid_labeling_job",
+      "rank_finalize",
+      "resolved",
+      VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to job.name,
+    )
   }
 
-  /**
-   * Creates a `VidLabelingJob` per [batches] entry via `BatchCreateVidLabelingJobs` (chunked to
-   * [maxJobsPerBatchCreate]). Each request carries a deterministic `request_id` keyed by the
-   * batch's **index** (stable across redeliveries even if the upload's file list changed), so a
-   * redelivered last-job-out reuses the existing rows. Each chunk is checked to return exactly as
-   * many jobs as requested so a partial response can't silently drop a batch. Returns each created
-   * job.
-   */
-  private suspend fun createVidLabelingJobs(batches: List<List<String>>): List<VidLabelingJob> {
-    val created = mutableListOf<VidLabelingJob>()
-    for (group in batches.withIndex().chunked(maxJobsPerBatchCreate)) {
-      val response =
-        rpcThrottlers.metadataWrite.onReady {
-          vidLabelingJobsStub.batchCreateVidLabelingJobs(
-            batchCreateVidLabelingJobsRequest {
-              parent = rawImpressionUpload
-              for ((batchIndex, batch) in group) {
-                requests += createVidLabelingJobRequest {
-                  parent = rawImpressionUpload
-                  vidLabelingJob = vidLabelingJob {
-                    cmmsModelLines += modelLine
-                    rawImpressionUploadFiles += batch
-                  }
-                  requestId = labelingJobRequestId(batchIndex)
-                }
-              }
-            }
-          )
-        }
-      check(response.vidLabelingJobsList.size == group.size) {
-        "BatchCreateVidLabelingJobs returned ${response.vidLabelingJobsList.size} jobs for " +
-          "${group.size} requests"
-      }
-      created.addAll(response.vidLabelingJobsList)
-      for (job in response.vidLabelingJobsList) {
-        Span.current()
-          .addEvent(
-            "edpa.vid_labeling.rank.vid_labeling_job",
-            Attributes.builder()
-              .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, job.name)
-              .put(XmmTraceAttributes.OUTCOME, "resolved")
-              .build(),
-          )
-        logRankLifecycle(
-          Level.INFO,
-          "edpa.vid_labeling.rank.vid_labeling_job",
-          "rank_finalize",
-          "resolved",
-          VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to job.name,
-        )
-      }
-    }
-    return created
-  }
-
-  /**
-   * Publishes one Phase-2 WorkItem for [job], copying [vidLabelerParamsTemplate] with the job's
-   * name. The TEE resolves the job's `raw_impression_upload_files` by getting the `VidLabelingJob`,
-   * so they are not duplicated onto the WorkItem params. Tolerates `ALREADY_EXISTS` so a
-   * redelivered last-job-out is a no-op.
-   */
-  private suspend fun publishVidLabelerWorkItem(job: VidLabelingJob) {
-    val params = vidLabelerParamsTemplate.copy { vidLabelingJob = job.name }
+  private fun recordLabelingWorkItem(job: VidLabelingJob, outcome: String) {
     val workItemId = WorkItemIds.forVidLabeler(job.name)
-    var outcome = "created"
-    try {
-      rpcThrottlers.controlPlane.onReady {
-        workItemsStub.createWorkItem(
-          createWorkItemRequest {
-            this.workItemId = workItemId
-            workItem = workItem {
-              queue = vidLabelerQueue
-              workItemParams =
-                workItemParams {
-                    appParams = params.pack()
-                    traceContext.putAll(traceContextProvider())
-                  }
-                  .pack()
-            }
-          }
-        )
-      }
-    } catch (e: StatusException) {
-      if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
-      outcome = "already_exists"
+    if (outcome == "already_exists") {
       logger.warning(
         "WorkItem " +
           workItemId +
@@ -645,15 +558,6 @@ class VidRankBuilder(
       VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to job.name,
     )
   }
-
-  /**
-   * Deterministic `VidLabelingJob` `request_id` for the batch at [batchIndex], keyed by (upload,
-   * model line, batch index). Keying by index (rather than a filename) keeps batch slot N stable
-   * across redeliveries even if a `RawImpressionUploadFile` was added/removed in between, so the
-   * create reuses the existing row instead of duplicating it.
-   */
-  private fun labelingJobRequestId(batchIndex: Int): String =
-    deterministicUuid("$rawImpressionUpload|$modelLine|labelingJob|$batchIndex")
 
   /** Flips the parent `RANKING` -> `LABELING`, swallowing the benign "already advanced" races. */
   private suspend fun markParentLabeling(

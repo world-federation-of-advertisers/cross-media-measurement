@@ -38,7 +38,7 @@ object RawImpressionFileBinPacker {
    * when none has room. A single file whose `size_bytes` meets or exceeds the limit fits in no
    * batch and lands in its own (best-effort) batch.
    *
-   * The result is a pure function of [files] and [maxFileBatchSizeBytes] and is **deterministic**
+   * The result is a pure function of [files] and its packing limits and is **deterministic**
    * regardless of input order — so a job's batch-index-keyed `request_id` / `work_item_id` stays
    * stable across redeliveries even if the upload's file set is re-listed.
    *
@@ -46,12 +46,18 @@ object RawImpressionFileBinPacker {
    *   populated (the value the producer reads from storage metadata).
    * @param maxFileBatchSizeBytes the bin-packing threshold: the maximum total `size_bytes` per
    *   batch; must be `> 0`.
+   * @param maxFilesPerBatch maximum whole files per batch; defaults to unbounded.
    * @return batches of `RawImpressionUploadFile` resource names, in deterministic order.
    */
-  fun pack(files: List<RawImpressionUploadFile>, maxFileBatchSizeBytes: Long): List<List<String>> {
+  fun pack(
+    files: List<RawImpressionUploadFile>,
+    maxFileBatchSizeBytes: Long,
+    maxFilesPerBatch: Int = Int.MAX_VALUE,
+  ): List<List<String>> {
     require(maxFileBatchSizeBytes > 0) {
       "maxFileBatchSizeBytes must be > 0, got $maxFileBatchSizeBytes"
     }
+    require(maxFilesPerBatch > 0) { "maxFilesPerBatch must be > 0" }
     val batchFiles = mutableListOf<MutableList<String>>()
     val batchBytes = mutableListOf<Long>()
     val ordered =
@@ -59,7 +65,11 @@ object RawImpressionFileBinPacker {
         compareByDescending<RawImpressionUploadFile> { it.sizeBytes }.thenBy { it.name }
       )
     for (file in ordered) {
-      val fit = batchBytes.indexOfFirst { it + file.sizeBytes <= maxFileBatchSizeBytes }
+      val fit =
+        batchBytes.indices.firstOrNull { index ->
+          batchBytes[index] + file.sizeBytes <= maxFileBatchSizeBytes &&
+            batchFiles[index].size < maxFilesPerBatch
+        } ?: -1
       if (fit >= 0) {
         batchFiles[fit].add(file.name)
         batchBytes[fit] += file.sizeBytes

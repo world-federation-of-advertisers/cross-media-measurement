@@ -122,8 +122,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param workItemAttemptsClient gRPC stub for WorkItemAttempts service.
  * @param kmsClients per-`DataProvider` [KmsClient]s (each the EDP's own KEK), used for BOTH the
  *   raw-impression PME decrypt and the labeled-output encrypt — exactly one client per EDP.
- * @param encryptKekUris per-`DataProvider` KEK URI used to wrap the labeled output on the
- *   non-memoized path; the memoized path instead reuses the KEK carried on the rank-index blobs.
+ * @param encryptKekUris configured labeled-output KEK URIs keyed by DataProvider.
  * @param getStorageConfig builds a [StorageConfig] from [VidLabelerParams.StorageParams].
  * @param vidLabelingJobsStub stub to mark this WorkItem's `VidLabelingJob` `SUCCEEDED` and learn
  *   whether it is the last job out for one or more model lines.
@@ -490,28 +489,44 @@ class VidLabelerApp(
     kmsClient: KmsClient,
     inputFiles: List<String>,
   ): Set<LocalDate> {
-    val rankIndexStore =
-      RankIndexStore(
-        buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
-        kmsClient,
-      )
-    // Resolve the current snapshot set every WorkItem (cheap listing); reuse the process-wide
-    // cached index when the exact same blobs would load, else build it (evicting the old one
-    // first). New Phase-1 output changes the chosen blob URIs -> a new cache key -> a rebuild.
-    // TODO: resolveLatestBlobs runs a metadata-list RPC on every WorkItem, even on a cache hit, so
-    // a metadata-service roll (UNAVAILABLE / DEADLINE_EXCEEDED) fails every WorkItem's fast path
-    // until it recovers. If it becomes a hotspot, cache the result with a short TTL to share one
-    // call across a burst of WorkItems, or retry-on-transient before falling through to a rebuild.
-    val resolvedBlobs =
-      MemoizedRankIndex.resolveLatestBlobs(
-        rankIndexBlobsStub,
-        dataProvider,
-        modelLine,
-        rpcThrottlers.metadataRead,
-      )
+    val parent =
+      listAllModelLines(parentUpload(params.vidLabelingJob)).singleOrNull {
+        it.cmmsModelLine == modelLine
+      }
     val rankIndex =
-      memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
-        MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
+      if (parent != null && parent.poolAssignmentComplete && parent.poolOffsetsList.isEmpty()) {
+        check(!parent.hasMaxEventDate()) {
+          "Empty Phase-0 completion for ${parent.name} has a ranked event date"
+        }
+        check(parent.state == RawImpressionUploadModelLine.State.LABELING) {
+          "Parent ${parent.name} is ${parent.state}; empty-index labeling requires LABELING"
+        }
+        val outputKekUri =
+          requireNotNull(encryptKekUris[dataProvider]) {
+            "encrypt KEK URI not found for $dataProvider"
+          }
+        MemoizedRankIndex.empty(outputKekUri)
+      } else {
+        val rankIndexStore =
+          RankIndexStore(
+            buildVidRankMapStorageClient(getStorageConfig(mp.vidRankMapStorageParams)),
+            kmsClient,
+          )
+        val resolvedBlobs =
+          MemoizedRankIndex.resolveLatestBlobs(
+            rankIndexBlobsStub,
+            dataProvider,
+            modelLine,
+            rpcThrottlers.metadataRead,
+          )
+        val expectedOffsets = parent?.poolOffsetsList.orEmpty().toSet()
+        val missingOffsets = expectedOffsets - resolvedBlobs.blobs.map { it.poolOffset }.toSet()
+        check(missingOffsets.isEmpty()) {
+          "Missing SNAPSHOT rank-index blobs for expected pool offsets $missingOffsets in $modelLine"
+        }
+        memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
+          MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
+        }
       }
 
     // The raw event-id column is the raw-impression field mapped to LabelerInput's `event_id.id`.
@@ -582,8 +597,6 @@ class VidLabelerApp(
         vidModelLoader = vidModelLoader,
         impressionConverter = impressionConverter,
         encryptKmsClient = kmsClient,
-        // The labeled output is wrapped with the EDP's KEK, the same one the rank-index blobs were
-        // written with; read it from the loaded RankIndexBlobs so there is no separate KEK field.
         encryptKekUri = rankIndex.kekUri,
         newSink = {
           inputBlobUri,
