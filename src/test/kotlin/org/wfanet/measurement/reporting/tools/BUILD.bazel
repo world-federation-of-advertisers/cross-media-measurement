@@ -1,0 +1,49 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+package(default_testonly = True)
+
+kt_jvm_test(
+    name = "BasicReportConverterTest",
+    srcs = [
+        "BasicReportConverterTest.kt",
+        "ReportFixtures.kt",
+    ],
+    data = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/tools:examples/compact.textproto",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/tools:examples/full.textproto",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/tools:basic_report_converter",
+        "//src/main/proto/wfa/measurement/reporting/tools:compact_basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/devtools/build/runfiles",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_test(
+    name = "ConvertBasicReportTest",
+    srcs = [
+        "ConvertBasicReportTest.kt",
+        "ReportFixtures.kt",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/tools:basic_report_converter",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/tools:convert_basic_report",
+        "//src/main/proto/wfa/measurement/reporting/tools:compact_basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
