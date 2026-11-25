@@ -670,6 +670,9 @@ fun InternalModelLine.toModelLine(): ModelLine {
       activeEndTime = source.activeEndTime
     }
     type = source.type.toType()
+    if (source.hasEventTemplateVersion()) {
+      eventTemplateVersion = source.eventTemplateVersion
+    }
     if (source.externalHoldbackModelLineId != 0L) {
       holdbackModelLine =
         ModelLineKey(
@@ -698,6 +701,9 @@ fun ModelLine.toInternal(modelSuiteKey: ModelSuiteKey): InternalModelLine {
       activeEndTime = publicModelLine.activeEndTime
     }
     type = publicModelLine.type.toInternalType()
+    if (publicModelLine.hasEventTemplateVersion()) {
+      eventTemplateVersion = publicModelLine.eventTemplateVersion
+    }
     if (publicModelLine.holdbackModelLine.isNotEmpty()) {
       val modelLineKey =
         requireNotNull(ModelLineKey.fromName(publicModelLine.holdbackModelLine)) {

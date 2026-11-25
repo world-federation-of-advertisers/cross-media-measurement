@@ -65,13 +65,562 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
   private lateinit var measurementConsumersService: MeasurementConsumersCoroutineImplBase
 
   /** Constructs the services being tested. */
-  protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
+  protected abstract fun newServices(
+    idGenerator: IdGenerator,
+    validateCreateReportingSet: Boolean,
+  ): Services<T>
 
   @Before
   fun initService() {
-    val services = newServices(idGenerator)
+    val services = newServices(idGenerator, validateCreateReportingSet = true)
     service = services.reportingSetsService
     measurementConsumersService = services.measurementConsumersService
+  }
+
+  @Test
+  fun `createReportingSet validation rejects malformed primitive and composite inserts`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, true)
+      seedReportingSetValidationInputs(services)
+      for ((scenario, malformed) in reportingSetValidationCases()) {
+        val exception =
+          assertFailsWith<StatusRuntimeException>(scenario) {
+            services.reportingSetsService.createReportingSet(
+              createReportingSetRequest {
+                reportingSet = malformed
+                externalReportingSetId = scenario
+              }
+            )
+          }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        val missing =
+          assertFailsWith<StatusRuntimeException>(scenario) {
+            services.reportingSetsService.batchGetReportingSets(
+              batchGetReportingSetsRequest {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalReportingSetIds += scenario
+              }
+            )
+          }
+        assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      }
+    }
+
+  @Test
+  fun `createReportingSet disabled validation permits malformed legacy primitive and composite inserts`():
+    Unit = runBlocking {
+    val services = newServices(idGenerator, false)
+    seedReportingSetValidationInputs(services)
+    for ((scenario, malformed) in
+      reportingSetValidationCases().filterKeys { it !in EMPTY_INSERT_SCENARIOS }) {
+      val inserted =
+        services.reportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            reportingSet = malformed
+            externalReportingSetId = scenario
+          }
+        )
+      val persisted =
+        services.reportingSetsService
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportingSetIds += scenario
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(inserted.externalReportingSetId).isEqualTo(scenario)
+      assertThat(persisted.externalReportingSetId).isEqualTo(scenario)
+      assertThat(persisted.externalCampaignGroupId).isEqualTo(malformed.externalCampaignGroupId)
+      assertThat(persisted.filter).isEqualTo(malformed.filter)
+      if (malformed.hasPrimitive()) {
+        assertThat(persisted.primitive).isEqualTo(malformed.primitive)
+      } else {
+        assertThat(persisted.composite.operationValue).isEqualTo(malformed.composite.operationValue)
+        assertThat(persisted.weightedSubsetUnionsList)
+          .ignoringRepeatedFieldOrder()
+          .containsExactlyElementsIn(malformed.weightedSubsetUnionsList)
+      }
+    }
+  }
+
+  @Test
+  fun `createReportingSet disabled validation preserves empty insert failures from main`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, false)
+      seedReportingSetValidationInputs(services)
+      for ((scenario, malformed) in
+        reportingSetValidationCases().filterKeys { it in EMPTY_INSERT_SCENARIOS }) {
+        val exception =
+          assertFailsWith<RuntimeException>(scenario) {
+            services.reportingSetsService.createReportingSet(
+              createReportingSetRequest {
+                reportingSet = malformed
+                externalReportingSetId = scenario
+              }
+            )
+          }
+        assertThat(exception).isNotInstanceOf(StatusRuntimeException::class.java)
+        val missing =
+          assertFailsWith<StatusRuntimeException>(scenario) {
+            services.reportingSetsService.batchGetReportingSets(
+              batchGetReportingSetsRequest {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalReportingSetIds += scenario
+              }
+            )
+          }
+        assertThat(missing.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      }
+    }
+
+  @Test
+  fun `createReportingSet validation accepts standalone custom sets and valid Campaign Group membership`():
+    Unit = runBlocking {
+    val services = newServices(idGenerator, true)
+    seedReportingSetValidationInputs(services)
+    val primitive = reportingSetValidationPrimitive().copy { filter = "person.age_group == 1" }
+    val composite = reportingSetValidationComposite()
+    for ((id, set) in
+      listOf(
+        "standalone-primitive" to primitive,
+        "standalone-composite" to composite,
+        "copied-output-id" to primitive.copy { externalReportingSetId = "old-output-id" },
+        "group-primitive" to primitive.copy { externalCampaignGroupId = "validation-campaign" },
+        "group-composite" to composite.copy { externalCampaignGroupId = "validation-campaign" },
+      )) {
+      val inserted =
+        services.reportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            reportingSet = set
+            externalReportingSetId = id
+          }
+        )
+      val persisted =
+        services.reportingSetsService
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportingSetIds += id
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(persisted).ignoringRepeatedFieldOrder().isEqualTo(inserted)
+      assertThat(persisted.externalCampaignGroupId).isEqualTo(set.externalCampaignGroupId)
+      assertThat(persisted.filter).isEqualTo(set.filter)
+    }
+  }
+
+  @Test
+  fun `createReportingSet validation rejects a composite referencing a malformed legacy primitive`():
+    Unit = runBlocking {
+    val legacy = newServices(idGenerator, false)
+    seedReportingSetValidationInputs(legacy)
+    legacy.reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        externalReportingSetId = "legacy-bad-group"
+        reportingSet =
+          reportingSetValidationPrimitive().copy {
+            externalCampaignGroupId = "validation-campaign"
+            primitive =
+              primitive.copy {
+                eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsEventGroupId = "outside" }
+              }
+          }
+      }
+    )
+    val request = createReportingSetRequest {
+      externalReportingSetId = "new-composite"
+      reportingSet =
+        reportingSetValidationComposite().copy {
+          composite =
+            composite.copy {
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = "legacy-bad-group"
+                }
+            }
+        }
+    }
+    val strict = newServices(idGenerator, true)
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        strict.reportingSetsService.createReportingSet(request)
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val inserted = legacy.reportingSetsService.createReportingSet(request)
+    assertThat(inserted.externalReportingSetId).isEqualTo("new-composite")
+  }
+
+  @Test
+  fun `createReportingSet validation resolves nested and shared composite references`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, true)
+      seedReportingSetValidationInputs(services)
+      fun unionSet(lhsId: String, rhsId: String): ReportingSet = reportingSet {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        externalCampaignGroupId = "validation-campaign"
+        composite =
+          ReportingSetKt.setExpression {
+            operation = ReportingSet.SetExpression.Operation.UNION
+            lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = lhsId }
+            rhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = rhsId }
+          }
+        weightedSubsetUnions +=
+          ReportingSetKt.weightedSubsetUnion {
+            weight = 1
+            binaryRepresentation = 3
+            for (id in listOf("primitive-a", "primitive-b")) {
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = id }
+            }
+          }
+      }
+      val child = unionSet("primitive-a", "primitive-b")
+      val middle =
+        unionSet("batch-child", "primitive-a").copy {
+          composite =
+            composite.copy {
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  expression =
+                    ReportingSetKt.setExpression {
+                      operation = ReportingSet.SetExpression.Operation.UNION
+                      lhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          externalReportingSetId = "primitive-a"
+                        }
+                      rhs =
+                        ReportingSetKt.SetExpressionKt.operand {
+                          externalReportingSetId = "primitive-b"
+                        }
+                    }
+                }
+            }
+        }
+      val root = unionSet("batch-middle", "primitive-a")
+      for ((id, set) in
+        listOf("batch-child" to child, "batch-middle" to middle, "batch-root" to root)) {
+        services.reportingSetsService.createReportingSet(
+          createReportingSetRequest {
+            externalReportingSetId = id
+            reportingSet = set
+          }
+        )
+      }
+      val persisted =
+        services.reportingSetsService
+          .batchGetReportingSets(
+            batchGetReportingSetsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportingSetIds += "batch-root"
+            }
+          )
+          .reportingSetsList
+          .single()
+      assertThat(persisted.composite).isEqualTo(root.composite)
+      assertThat(persisted.externalCampaignGroupId).isEqualTo(root.externalCampaignGroupId)
+      assertThat(persisted.weightedSubsetUnionsList)
+        .ignoringRepeatedFieldOrder()
+        .containsExactlyElementsIn(root.weightedSubsetUnionsList)
+    }
+
+  @Test
+  fun `createReportingSet validation preserves compiled unions and cancelling expressions`(): Unit =
+    runBlocking {
+      val services = newServices(idGenerator, true)
+      seedReportingSetValidationInputs(services)
+      val union = reportingSetValidationUnion()
+      val cancellation =
+        union.copy {
+          composite =
+            composite.copy {
+              operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+              rhs = lhs
+            }
+          weightedSubsetUnions.clear()
+        }
+      val inlineCancellation =
+        union.copy {
+          composite =
+            composite.copy {
+              lhs = ReportingSetKt.SetExpressionKt.operand { expression = cancellation.composite }
+              clearRhs()
+            }
+          weightedSubsetUnions.clear()
+        }
+      val referencedCancellation =
+        union.copy {
+          composite =
+            composite.copy {
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = "direct-cancellation"
+                }
+              rhs = lhs
+            }
+          weightedSubsetUnions.clear()
+        }
+      val unaryUnion =
+        union.copy {
+          composite = composite.copy { clearRhs() }
+          weightedSubsetUnions[0] =
+            weightedSubsetUnions[0].copy {
+              binaryRepresentation = 1
+              val first = primitiveReportingSetBases[0]
+              primitiveReportingSetBases.clear()
+              primitiveReportingSetBases += first
+            }
+        }
+      val alternateCompilation =
+        union.copy {
+          val compiled = weightedSubsetUnions[0]
+          weightedSubsetUnions.clear()
+          weightedSubsetUnions += compiled.copy { weight = 2 }
+          weightedSubsetUnions += compiled.copy { weight = -1 }
+        }
+      for ((id, set) in
+        listOf(
+          "compiled-union" to union,
+          "unary-union" to unaryUnion,
+          "direct-cancellation" to cancellation,
+          "inline-cancellation" to inlineCancellation,
+          "referenced-cancellation" to referencedCancellation,
+          "alternate-compilation" to alternateCompilation,
+        )) {
+        val inserted =
+          services.reportingSetsService.createReportingSet(
+            createReportingSetRequest {
+              externalReportingSetId = id
+              reportingSet = set
+            }
+          )
+        val persisted =
+          services.reportingSetsService
+            .batchGetReportingSets(
+              batchGetReportingSetsRequest {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                externalReportingSetIds += id
+              }
+            )
+            .reportingSetsList
+            .single()
+        assertThat(persisted).ignoringRepeatedFieldOrder().isEqualTo(inserted)
+        assertThat(persisted.composite).isEqualTo(set.composite)
+        assertThat(persisted.externalCampaignGroupId).isEmpty()
+        assertThat(persisted.weightedSubsetUnionsList)
+          .ignoringRepeatedFieldOrder()
+          .containsExactlyElementsIn(set.weightedSubsetUnionsList)
+      }
+    }
+
+  private fun reportingSetValidationCases(): Map<String, ReportingSet> {
+    val primitive = reportingSetValidationPrimitive()
+    val composite = reportingSetValidationComposite()
+    val union = reportingSetValidationUnion()
+    return linkedMapOf(
+      "union-without-compilation" to union.copy { weightedSubsetUnions.clear() },
+      "unary-union-without-compilation" to
+        union.copy {
+          this.composite = this.composite.copy { clearRhs() }
+          weightedSubsetUnions.clear()
+        },
+      "nested-union-without-compilation" to
+        union.copy {
+          this.composite =
+            this.composite.copy {
+              lhs =
+                ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "existing-union" }
+            }
+          weightedSubsetUnions.clear()
+        },
+      "inline-union-without-compilation" to
+        union.copy {
+          this.composite =
+            this.composite.copy {
+              lhs = ReportingSetKt.SetExpressionKt.operand { expression = union.composite }
+            }
+          weightedSubsetUnions.clear()
+        },
+      "empty-primitive" to primitive.copy { this.primitive = ReportingSetKt.primitive {} },
+      "missing-provider-id" to
+        primitive.copy {
+          this.primitive =
+            this.primitive.copy {
+              eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsDataProviderId = "" }
+            }
+        },
+      "missing-event-group-id" to
+        primitive.copy {
+          this.primitive =
+            this.primitive.copy {
+              eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsEventGroupId = "" }
+            }
+        },
+      "primitive-outside-campaign" to
+        primitive.copy {
+          externalCampaignGroupId = "validation-campaign"
+          this.primitive =
+            this.primitive.copy {
+              eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsEventGroupId = "outside" }
+            }
+        },
+      "unspecified-operation" to
+        composite.copy {
+          this.composite =
+            this.composite.copy {
+              operation = ReportingSet.SetExpression.Operation.OPERATION_UNSPECIFIED
+            }
+        },
+      "unknown-operation" to
+        composite.copy { this.composite = this.composite.copy { operationValue = 99 } },
+      "empty-right-operand" to
+        composite.copy {
+          this.composite = this.composite.copy { rhs = ReportingSetKt.SetExpressionKt.operand {} }
+        },
+      "baseless-union" to
+        composite.copy {
+          weightedSubsetUnions.clear()
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+            }
+        },
+      "composite-basis" to
+        composite.copy {
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "existing-composite"
+                }
+            }
+        },
+      "basis-wrong-existing-identity" to
+        composite.copy {
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "same-membership-other-id"
+                }
+            }
+        },
+      "basis-outside-expression" to
+        composite.copy {
+          weightedSubsetUnions +=
+            ReportingSetKt.weightedSubsetUnion {
+              weight = 1
+              binaryRepresentation = 1
+              primitiveReportingSetBases +=
+                ReportingSetKt.primitiveReportingSetBasis {
+                  externalReportingSetId = "outside-primitive"
+                }
+            }
+        },
+      "composite-outside-campaign" to
+        composite.copy {
+          externalCampaignGroupId = "validation-campaign"
+          this.composite =
+            this.composite.copy {
+              rhs =
+                ReportingSetKt.SetExpressionKt.operand {
+                  externalReportingSetId = "outside-primitive"
+                }
+            }
+        },
+    )
+  }
+
+  private fun reportingSetValidationPrimitive(): ReportingSet = reportingSet {
+    cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+    primitive =
+      ReportingSetKt.primitive {
+        eventGroupKeys +=
+          ReportingSetKt.PrimitiveKt.eventGroupKey {
+            cmmsDataProviderId = "1235"
+            cmmsEventGroupId = "eg1"
+          }
+      }
+  }
+
+  private fun reportingSetValidationComposite(): ReportingSet = reportingSet {
+    cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+    composite =
+      ReportingSetKt.setExpression {
+        operation = ReportingSet.SetExpression.Operation.DIFFERENCE
+        lhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive-a" }
+        rhs = ReportingSetKt.SetExpressionKt.operand { externalReportingSetId = "primitive-b" }
+      }
+    weightedSubsetUnions +=
+      ReportingSetKt.weightedSubsetUnion {
+        weight = 1
+        binaryRepresentation = 3
+        for (id in listOf("primitive-a", "primitive-b")) {
+          primitiveReportingSetBases +=
+            ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = id }
+        }
+      }
+    weightedSubsetUnions +=
+      ReportingSetKt.weightedSubsetUnion {
+        weight = -1
+        binaryRepresentation = 2
+        primitiveReportingSetBases +=
+          ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = "primitive-b" }
+      }
+  }
+
+  private fun reportingSetValidationUnion(): ReportingSet =
+    reportingSetValidationComposite().copy {
+      composite = composite.copy { operation = ReportingSet.SetExpression.Operation.UNION }
+      weightedSubsetUnions.clear()
+      weightedSubsetUnions +=
+        ReportingSetKt.weightedSubsetUnion {
+          weight = 1
+          binaryRepresentation = 3
+          for (id in listOf("primitive-a", "primitive-b")) {
+            primitiveReportingSetBases +=
+              ReportingSetKt.primitiveReportingSetBasis { externalReportingSetId = id }
+          }
+        }
+    }
+
+  private suspend fun seedReportingSetValidationInputs(services: Services<T>) {
+    services.measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    val primitive = reportingSetValidationPrimitive()
+    val sets =
+      listOf(
+        "validation-campaign" to primitive.copy { externalCampaignGroupId = "validation-campaign" },
+        "primitive-a" to primitive,
+        "primitive-b" to primitive,
+        "same-membership-other-id" to primitive.copy { filter = "person.age_group == 1" },
+        "outside-primitive" to
+          primitive.copy {
+            this.primitive =
+              this.primitive.copy {
+                eventGroupKeys[0] = eventGroupKeys[0].copy { cmmsEventGroupId = "outside" }
+              }
+          },
+        "existing-composite" to reportingSetValidationComposite(),
+        "existing-union" to reportingSetValidationUnion(),
+      )
+    for ((id, set) in sets) {
+      services.reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = set
+          externalReportingSetId = id
+        }
+      )
+    }
   }
 
   @Test
@@ -2705,6 +3254,15 @@ abstract class ReportingSetsServiceTest<T : ReportingSetsCoroutineImplBase> {
       .toList()
 
   companion object {
+    private val EMPTY_INSERT_SCENARIOS =
+      setOf(
+        "empty-primitive",
+        "union-without-compilation",
+        "unary-union-without-compilation",
+        "nested-union-without-compilation",
+        "inline-union-without-compilation",
+        "baseless-union",
+      )
     private val REPORTING_SET_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
   }
 }

@@ -9,6 +9,12 @@ load("//build/grpc_gateway:defs.bzl", "go_grpc_gateway_proto_library")
 
 package(default_visibility = ["//visibility:public"])
 
+filegroup(
+    name = "360m_population_spec_us",
+    testonly = True,
+    srcs = ["population_specs/360m_population_spec_us.textproto"],
+)
+
 MAVEN_COORDINATES = "org.wfanet.measurement.api:v2alpha-kotlin:" + artifact_version()
 
 GRPC_MAVEN_COORDINATES = "org.wfanet.measurement.api:v2alpha-grpc-kotlin:" + artifact_version()

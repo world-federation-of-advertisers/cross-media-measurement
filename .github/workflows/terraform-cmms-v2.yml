@@ -138,6 +138,13 @@ jobs:
         mkdir -p ~/.m2
         cat > ~/.m2/settings.xml <<EOF
         <settings>
+          <mirrors>
+            <mirror>
+              <id>google-maven-central</id>
+              <url>https://maven-central.storage-download.googleapis.com/maven2</url>
+              <mirrorOf>central</mirrorOf>
+            </mirror>
+          </mirrors>
           <servers>
             <server>
               <id>github</id>
@@ -207,14 +214,14 @@ jobs:
       env:
         BAZEL_TARGET_LABEL: "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_descriptor_set"
       run: |
-        bazelisk build "$BAZEL_TARGET_LABEL"
+        tools/bazel-with-results bazelisk build "$BAZEL_TARGET_LABEL"
         RELATIVE_PROTO_DESCRIPTORS_PATH=$(bazelisk cquery "$BAZEL_TARGET_LABEL" --output=files)
         ABSOLUTE_PROTO_DESCRIPTORS_PATH="$(realpath "$RELATIVE_PROTO_DESCRIPTORS_PATH")"
         echo "event_proto_descriptors_path=$ABSOLUTE_PROTO_DESCRIPTORS_PATH" >> "$GITHUB_OUTPUT"
 
     - name: Generate and copy trusted certs
       run: |
-        bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
+        tools/bazel-with-results bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
         cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
     - name: Validate DataWatcher configuration
@@ -300,9 +307,6 @@ jobs:
         POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
         RESULTS_FULFILLER_TRUSTED_CA_FILE: ${{ runner.temp }}/results-fulfiller-trusted-root-ca.pem
         IMAGE_TAG: ${{ inputs.image-tag }}
-        VID_LABELING_HEALING_CONTROLLER_ENV_VAR: ${{ vars.VID_LABELING_HEALING_CONTROLLER_ENV_VAR }}
-        VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING: ${{ vars.VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING }}
-        VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES: ${{ vars.VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES }}
         DUCHY_WORKER1_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).WORKER2_PUBLIC_API_TARGET }}
         DUCHY_AGGREGATOR_TARGET: ${{ fromJSON(steps.cmms-config.outputs.config).AGGREGATOR_PUBLIC_API_TARGET }}
@@ -329,13 +333,11 @@ jobs:
         -var="vid_labeling_dispatcher_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_dispatcher_source_path }}"
         -var="vid_labeling_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_monitor_source_path }}"
         -var="vid_labeling_healing_controller_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_healing_controller_source_path }}"
-        -var="vid_labeling_healing_controller_env_var=$VID_LABELING_HEALING_CONTROLLER_ENV_VAR"
-        -var="vid_labeling_healing_controller_secret_mapping=$VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING"
-        -var="vid_labeling_healing_labeled_output_object_prefixes=$VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES"
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
         -var="requisition_fetcher_enabled=${{ inputs.requisition-fetcher-enabled }}"
+        -var="requisition_fetcher_scheduler_job_name=$REQUISITION_FETCHER_SCHEDULER_JOB_NAME"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="duchy_worker1_target=$DUCHY_WORKER1_TARGET"
         -var="duchy_worker2_target=$DUCHY_WORKER2_TARGET"

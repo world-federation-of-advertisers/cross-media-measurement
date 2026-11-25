@@ -50,6 +50,7 @@ import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
@@ -252,7 +253,12 @@ class RequisitionFetcherFunction : HttpFunction {
     val eventGroupsStub = EventGroupsCoroutineStub(instrumentedCmmsChannel)
     val edpPrivateKey = checkNotNull(File(dataProviderConfig.edpPrivateKeyPath))
 
-    val requisitionsValidator = RequisitionsValidator(loadPrivateKey(edpPrivateKey))
+    val requisitionsValidator =
+      RequisitionsValidator(
+        privateEncryptionKey = loadPrivateKey(edpPrivateKey),
+        allowMixedEventGroupSelectors =
+          dispatchConfig.resultsFulfillerParams.hasEventGroupReferenceIdEntityKeyMapping(),
+      )
 
     val kingdomMutationThrottler = MinimumIntervalThrottler(Clock.systemUTC(), grpcRequestInterval)
     val kingdomEventGroupThrottler =
@@ -300,6 +306,8 @@ class RequisitionFetcherFunction : HttpFunction {
       workItemDispatcher = workItemDispatcher,
       requisitionRefusalDuration = requisitionRefusalDuration,
       clock = Clock.systemUTC(),
+      modelLineCutovers = dispatchConfig.modelLineCutoversList.map(ModelLineCutover::from),
+      legacyModelLineMap = dispatchConfig.resultsFulfillerParams.modelLineMapMap,
       responsePageSize = pageSize,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,

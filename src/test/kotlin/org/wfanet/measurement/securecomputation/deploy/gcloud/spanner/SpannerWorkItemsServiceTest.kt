@@ -117,7 +117,7 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
 
       assertThat(newer.state).isEqualTo(WorkItem.State.QUEUED)
       assertThat(older.state).isEqualTo(WorkItem.State.SUCCEEDED)
-      assertThat(publisher.resourceIds).containsExactly("newer-work-item")
+      assertThat(publisher.workItemNames).containsExactly("workItems/newer-work-item")
     }
 
   @Test
@@ -176,7 +176,6 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
                 dataPath = SOURCE_DATA_PATH
                 this.generation = generation
                 this.createTime = createTime.toProtoTime()
-                eventType = PublicWorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
               }
             }
             .pack()
@@ -184,10 +183,10 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
     }
 
   private class RecordingPublisher : WorkItemPublisher {
-    val resourceIds = mutableListOf<String>()
+    val workItemNames = mutableListOf<String>()
 
     override suspend fun publishMessage(queueName: String, message: Message) {
-      resourceIds += (message as WorkItem).workItemResourceId
+      workItemNames += (message as PublicWorkItem).name
     }
   }
 

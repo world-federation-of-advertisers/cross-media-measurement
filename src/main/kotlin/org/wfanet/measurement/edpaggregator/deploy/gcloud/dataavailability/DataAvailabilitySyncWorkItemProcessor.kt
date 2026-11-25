@@ -23,11 +23,13 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -40,15 +42,18 @@ import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseContext
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
+import org.wfanet.measurement.edpaggregator.dataavailability.ObsoleteDataAvailabilityWorkItemException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -66,6 +71,9 @@ internal data class DataAvailabilitySyncWorkItem(
   val appParams: DataAvailabilitySyncParams,
   val dataPathParams: WorkItem.WorkItemParams.DataPathParams,
 ) {
+  val isExternal: Boolean
+    get() = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+
   val workItemName: String
     get() = workItem.name
 
@@ -77,6 +85,9 @@ internal data class DataAvailabilitySyncWorkItem(
 
   val doneBlobGeneration: Long
     get() = dataPathParams.generation
+
+  val doneBlobCreateTime: Instant
+    get() = dataPathParams.createTime.toInstant()
 
   val eventDate: LocalDate
     get() =
@@ -104,31 +115,44 @@ internal data class DataAvailabilitySyncWorkItem(
           throw IllegalArgumentException("work_item_params cannot be unpacked", e)
         }
       require(workItemParams.hasAppParams()) { "app_params is required" }
-      require(workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
-        "app_params must contain DataAvailabilitySyncParams"
+      val isExternal = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+      require(isExternal || workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
+        "app_params must contain internal or external DataAvailabilitySyncParams"
       }
       val appParams =
         try {
-          workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          if (isExternal) {
+            DataAvailabilitySyncParams.newBuilder()
+              .setDataProvider(
+                workItemParams.appParams
+                  .unpack(ExternalDataAvailabilitySyncParams::class.java)
+                  .dataProvider
+              )
+              .build()
+          } else {
+            workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          }
         } catch (e: InvalidProtocolBufferException) {
           throw IllegalArgumentException("app_params cannot be unpacked", e)
         }
       requireNotNull(DataProviderKey.fromName(appParams.dataProvider)) {
         "data_provider must be a DataProvider resource name"
       }
-      requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
-        "raw_impression_upload must be a RawImpressionUpload resource name"
+      if (!isExternal) {
+        requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
+          "raw_impression_upload must be a RawImpressionUpload resource name"
+        }
+        requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
+          "model_line must be a ModelLine resource name"
+        }
+        requireNotNull(
+          RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
+        ) {
+          "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
+        }
+        require(appParams.hasEventDate()) { "event_date is required" }
+        LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
       }
-      requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
-        "model_line must be a ModelLine resource name"
-      }
-      requireNotNull(
-        RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
-      ) {
-        "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
-      }
-      require(appParams.hasEventDate()) { "event_date is required" }
-      LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
 
       require(workItemParams.hasDataPathParams()) { "data_path_params is required" }
       val dataPathParams = workItemParams.dataPathParams
@@ -136,12 +160,7 @@ internal data class DataAvailabilitySyncWorkItem(
       require(dataPathParams.hasGeneration() && dataPathParams.generation > 0L) {
         "data path generation must be positive"
       }
-      require(
-        dataPathParams.eventType ==
-          WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-      ) {
-        "event_type must be FINALIZED"
-      }
+      require(dataPathParams.hasCreateTime()) { "data path create_time is required" }
       return DataAvailabilitySyncWorkItem(workItem, workItemParams, appParams, dataPathParams)
     }
   }
@@ -224,30 +243,28 @@ internal class DataAvailabilitySyncWorkItemProcessor(
                       nextStage.name.lowercase(),
                     )
                 }
-              if (
-                result == DataAvailabilitySync.Outcome.PUBLISHED ||
-                  result == DataAvailabilitySync.Outcome.NO_WORK
-              ) {
+              if (result.canCompleteTrigger) {
                 lease()
-                markAvailabilitySynchronized(input)
+                if (!input.isExternal) markAvailabilitySynchronized(input)
               }
               result
             }
-          if (
-            synchronized == DataAvailabilitySync.Outcome.PUBLISHED ||
-              synchronized == DataAvailabilitySync.Outcome.NO_WORK
-          ) {
+          if (synchronized.canCompleteTrigger) {
             completeWorkItemAttempt(attempt)
           }
           synchronized
         }
 
-      if (
-        outcome == DataAvailabilitySync.Outcome.PUBLISHED ||
-          outcome == DataAvailabilitySync.Outcome.NO_WORK
-      ) {
+      if (outcome.canCompleteTrigger) {
         val traceOutcome =
-          if (outcome == DataAvailabilitySync.Outcome.NO_WORK) "no_work" else "succeeded"
+          when (outcome) {
+            DataAvailabilitySync.Outcome.NO_WORK -> "no_work"
+            DataAvailabilitySync.Outcome.PARTIALLY_PUBLISHED -> "partially_published"
+            DataAvailabilitySync.Outcome.PUBLISHED -> "succeeded"
+            DataAvailabilitySync.Outcome.BLOCKED_GAPS,
+            DataAvailabilitySync.Outcome.PUBLISHED_OTHER_IDENTITIES ->
+              error("Blocked trigger cannot complete")
+          }
         Span.current().setAttribute(XmmTraceAttributes.OUTCOME, traceOutcome)
         logLifecycle(input, attempt, outcome = traceOutcome, stage = stage, leaseName = leaseName)
         return
@@ -266,6 +283,10 @@ internal class DataAvailabilitySyncWorkItemProcessor(
       )
     } catch (e: CancellationException) {
       throw e
+    } catch (e: ObsoleteDataAvailabilityWorkItemException) {
+      completeWorkItemAttempt(attempt)
+      Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "superseded")
+      logLifecycle(input, attempt, outcome = "superseded")
     } catch (e: IllegalArgumentException) {
       failTerminal(input, attempt, failureMessage(stage, e))
       Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "failed")
@@ -333,12 +354,14 @@ internal class DataAvailabilitySyncWorkItemProcessor(
     if (!attempt.hasLeaseExpirationTime()) {
       return@coroutineScope block()
     }
-    val renewalJob = launch {
-      while (isActive) {
-        attemptLeaseRenewalDelay()
-        renewWorkItemAttempt(attempt)
+    // Keep attempt lease renewal independent of blocking or CPU-bound sync work.
+    val renewalJob =
+      launch(Dispatchers.IO) {
+        while (isActive) {
+          attemptLeaseRenewalDelay()
+          renewWorkItemAttempt(attempt)
+        }
       }
-    }
     try {
       block()
     } finally {

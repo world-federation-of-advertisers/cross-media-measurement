@@ -87,10 +87,28 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "model_line_cutover_config_proto",
+    srcs = ["model_line_cutover_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:duration_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "model_line_cutover_config_kt_jvm_proto",
+    deps = [":model_line_cutover_config_proto"],
+)
+
+proto_library(
     name = "requisition_fetcher_config_proto",
     srcs = ["requisition_fetcher_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":model_line_cutover_config_proto",
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_proto",
@@ -124,6 +142,7 @@ proto_library(
     srcs = ["data_availability_sync_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":model_line_cutover_config_proto",
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
@@ -177,6 +196,7 @@ proto_library(
     srcs = ["data_availability_monitor_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":model_line_cutover_config_proto",
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
         "@com_google_protobuf//:duration_proto",

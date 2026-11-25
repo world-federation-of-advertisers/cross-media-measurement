@@ -238,7 +238,7 @@ abstract class InProcessEdpAggregatorOnboardingTest(
         .createBasicReport(createBasicReportRequest)
 
     executeBasicReportsReportsJob(createdBasicReport.name)
-    executeReportProcessorJob()
+    executeReportProcessorJob(enableValidation = true, enableCorrection = true)
 
     val completedBasicReport =
       reportingBasicReportsClient

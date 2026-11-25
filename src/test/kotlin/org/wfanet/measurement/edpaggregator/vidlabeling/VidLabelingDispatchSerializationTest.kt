@@ -24,24 +24,23 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class VidLabelingDispatchSerializationTest {
   @Test
-  fun `availability does not block the next step in the same healing operation`() {
-    val operation = "dataProviders/dp/uploadHealingOperations/op"
+  fun `availability does not block an authorized predecessor replacement`() {
+    val predecessor = "dataProviders/dp/rawImpressionUploads/predecessor"
 
-    assertThat(availabilitySyncingBlocksDispatch(operation, operation)).isFalse()
+    assertThat(availabilitySyncingBlocksDispatch(predecessor, setOf(predecessor))).isFalse()
   }
 
   @Test
-  fun `availability still blocks normal and unrelated uploads`() {
-    val operation = "dataProviders/dp/uploadHealingOperations/op"
+  fun `availability blocks uploads outside the resolved predecessor set`() {
+    val predecessor = "dataProviders/dp/rawImpressionUploads/predecessor"
 
-    assertThat(availabilitySyncingBlocksDispatch(operation, "")).isTrue()
+    assertThat(availabilitySyncingBlocksDispatch(predecessor, emptySet())).isTrue()
     assertThat(
         availabilitySyncingBlocksDispatch(
-          operation,
-          "dataProviders/dp/uploadHealingOperations/other",
+          predecessor,
+          setOf("dataProviders/dp/rawImpressionUploads/other"),
         )
       )
       .isTrue()
-    assertThat(availabilitySyncingBlocksDispatch("", operation)).isTrue()
   }
 }

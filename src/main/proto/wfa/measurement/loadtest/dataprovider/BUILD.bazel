@@ -5,7 +5,6 @@ package(
 
 HIGH_OVERLAP_SPECS = [
     "high_overlap_impression_test_data_config.textproto",
-    "high_overlap_population_spec.textproto",
     "high_overlap_seg_all4_1.textproto",
     "high_overlap_seg_all4_2.textproto",
     "high_overlap_seg_all4_3.textproto",
@@ -34,8 +33,8 @@ HIGH_OVERLAP_SPECS = [
     "high_overlap_seg_videoonly_3.textproto",
 ]
 
-# Changing these specs changes the high overlap dataset, so every environment that
-# runs the EDPA reporting integration test must be re-seeded. See
+# Keep seeded population/model resources and dataset manifests in sync with the fixture.
+# Changes to reached VIDs or impression specs require reseeding impressions. See
 # //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/README.md.
 genrule(
     name = "gen_high_overlap_specs",
@@ -46,5 +45,8 @@ genrule(
 
 filegroup(
     name = "specs",
-    srcs = glob(["*.textproto"]) + [":gen_high_overlap_specs"],
+    srcs = glob(["*.textproto"]) + [
+        ":gen_high_overlap_specs",
+        "//src/main/proto/wfa/measurement/api/v2alpha:360m_population_spec_us",
+    ],
 )

@@ -1369,6 +1369,7 @@ class EventProcessingIntegrationTest {
     }
 
     return StorageEventReader(
+      blobGeneration = 0L,
       blobDetails = testBlobDetails,
       kmsClient = null, // Unencrypted test data
       impressionsStorageConfig = StorageConfig(rootDirectory = impressionsRoot),

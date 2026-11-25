@@ -83,6 +83,18 @@ variable "trigger_event_type" {
   }
 }
 
+variable "additional_trigger_event_types" {
+  description = "Additional GCS events delivered to the same function."
+  type        = set(string)
+  nullable    = false
+  default     = []
+
+  validation {
+    condition     = alltrue([for event_type in var.additional_trigger_event_types : contains(["finalized", "deleted", "archived"], event_type)])
+    error_message = "additional_trigger_event_types must contain only finalized, deleted or archived."
+  }
+}
+
 variable "max_delivery_attempts" {
   description = "Maximum number of delivery attempts before a message is sent to the dead letter topic."
   type        = number

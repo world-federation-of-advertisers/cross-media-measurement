@@ -43,6 +43,7 @@ import org.wfanet.measurement.storage.ParquetValue
 class EventMessageMapper(
   private val eventDescriptor: Descriptors.Descriptor,
   eventTemplateFieldMapping: Map<String, String>,
+  eventTemplateVersion: Int,
 ) {
   private val bindings: List<ProtoRowProjector.Binding> =
     ProtoRowProjector.bind(eventDescriptor, eventTemplateFieldMapping)
@@ -54,7 +55,10 @@ class EventMessageMapper(
     // is silently dead. Declared demographics belong in labeler_input_field_mapping, which feeds
     // the correction model itself.
     val populationFields: Set<Descriptors.FieldDescriptor> =
-      EventTemplates.getPopulationFieldsByTemplateType(eventDescriptor).values.flatten().toSet()
+      EventTemplates.getPopulationFieldsByTemplateType(eventDescriptor, eventTemplateVersion)
+        .values
+        .flatten()
+        .toSet()
     for ((fieldPath, column) in eventTemplateFieldMapping) {
       val leaf = ProtoRowProjector.resolvePath(eventDescriptor, fieldPath).last()
       require(leaf !in populationFields) {

@@ -32,7 +32,10 @@ class DataAvailabilitySyncReplay(
   private val sync: suspend (doneBlobUri: String) -> DataAvailabilitySync.Outcome,
 ) {
   sealed interface Selection {
-    data class BlobPrefix(val value: String) : Selection {
+    data class BlobPrefix(
+      val value: String,
+      val completionBlobType: CompletionBlobType = CompletionBlobType.EXTERNAL,
+    ) : Selection {
       init {
         require(value.isNotBlank()) { "blob prefix must not be blank" }
         require(!value.startsWith('/')) { "blob prefix must not start with a slash" }
@@ -60,6 +63,7 @@ class DataAvailabilitySyncReplay(
     val noWork: Int,
     val blockedByGaps: Int,
     val errors: List<ReplayError>,
+    val partiallyPublished: Int = 0,
   )
 
   /** Replays completion blobs sequentially to avoid overwhelming downstream services. */
@@ -67,6 +71,7 @@ class DataAvailabilitySyncReplay(
     val doneBlobUris = listDoneBlobUris()
 
     var published = 0
+    var partiallyPublished = 0
     var noWork = 0
     var blockedByGaps = 0
     val errors = mutableListOf<ReplayError>()
@@ -74,6 +79,15 @@ class DataAvailabilitySyncReplay(
       try {
         when (sync(doneBlobUri)) {
           DataAvailabilitySync.Outcome.PUBLISHED -> published++
+          DataAvailabilitySync.Outcome.PARTIALLY_PUBLISHED -> {
+            published++
+            partiallyPublished++
+          }
+          DataAvailabilitySync.Outcome.PUBLISHED_OTHER_IDENTITIES -> {
+            published++
+            partiallyPublished++
+            blockedByGaps++
+          }
           DataAvailabilitySync.Outcome.NO_WORK -> noWork++
           DataAvailabilitySync.Outcome.BLOCKED_GAPS -> blockedByGaps++
         }
@@ -90,6 +104,7 @@ class DataAvailabilitySyncReplay(
       noWork = noWork,
       blockedByGaps = blockedByGaps,
       errors = errors,
+      partiallyPublished = partiallyPublished,
     )
   }
 
@@ -99,16 +114,17 @@ class DataAvailabilitySyncReplay(
         val normalizedBlobPrefix = "${selection.value.trimEnd('/')}/"
         storageClient
           .listBlobs(normalizedBlobPrefix)
-          .filter { it.blobKey.substringAfterLast('/') == DONE_BLOB_FILE_NAME }
+          .filter {
+            CompletionBlobNames.matches(
+              selection.completionBlobType,
+              it.blobKey.substringAfterLast('/'),
+            )
+          }
           .map { BlobUris.buildUri(storageRootUri, it.blobKey) }
           .toList()
           .sorted()
       }
       is Selection.DoneBlobUris -> selection.values.sorted()
     }
-  }
-
-  companion object {
-    private const val DONE_BLOB_FILE_NAME = "done"
   }
 }

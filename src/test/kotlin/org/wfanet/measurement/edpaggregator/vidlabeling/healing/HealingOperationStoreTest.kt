@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat as assertThatProto
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -25,8 +26,6 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.junit.runners.JUnit4
 import org.mockito.Mockito.mockingDetails
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
@@ -37,260 +36,219 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.FinalizeUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.ReconcileUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
-import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt as PublicServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.reconcileUploadHealingOperationResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
-import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingOperationRequest as InternalAdvanceOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest as InternalAdvanceStepRequest
-import org.wfanet.measurement.internal.edpaggregator.FinalizeUploadHealingOperationRequest as InternalFinalizeOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.ReconcileUploadHealingOperationRequest as InternalReconcileRequest
-import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalServiceGrpcKt
-import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
-import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
 
-@RunWith(JUnit4::class)
 class HealingOperationStoreTest {
-  private val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
-
-  @After
-  fun verifyRpcPacing() {
-    val calls =
-      listOf(readService, mutationService)
-        .flatMap { mockingDetails(it).invocations }
-        .filter { it.method.parameterCount == 2 }
-        .filter {
-          it.method.name.startsWith("get") ||
-            it.method.name.startsWith("list") ||
-            it.method.name.startsWith("acquire") ||
-            it.method.name.startsWith("advance") ||
-            it.method.name.startsWith("release") ||
-            it.method.name.startsWith("mark") ||
-            it.method.name.startsWith("delete") ||
-            it.method.name.startsWith("batchDelete") ||
-            it.method.name.startsWith("reconcile") ||
-            it.method.name.startsWith("finalize")
-        }
-    val reads =
-      calls.count { it.method.name.startsWith("get") || it.method.name.startsWith("list") }
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(reads)
-    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(calls.size - reads)
-    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
-  }
-
-  private val readService =
-    mockService<PublicServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase>()
-  private val mutationService =
-    mockService<InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase>()
-
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule {
-    addService(readService)
-    addService(mutationService)
-  }
-
+  private val recording = VidLabelingRpcThrottlersTestHelper.recording()
+  private val service =
+    mockService<
+      UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
+    >()
+  @get:Rule val server = GrpcTestServerRule { addService(service) }
   private val store by lazy {
     GrpcHealingOperationStore(
-      PublicServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(grpcTestServerRule.channel),
-      InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(grpcTestServerRule.channel),
-      rpcThrottlers = recordingThrottlers.throttlers,
+      UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+        server.channel
+      ),
+      recording.throttlers,
     )
   }
 
-  @Test
-  fun `reconcile translates candidate graph and reads persisted operation`() =
-    runBlocking<Unit> {
-      whenever(mutationService.reconcileUploadHealingOperation(any()))
-        .thenReturn(internalOperation {})
-      whenever(readService.getUploadHealingOperation(any())).thenReturn(PUBLIC_OPERATION)
+  @After
+  fun verifyPacing() {
+    val calls = mockingDetails(service).invocations.filter { it.method.parameterCount == 2 }
+    val reads =
+      calls.count { it.method.name.startsWith("get") || it.method.name.startsWith("list") }
+    assertThat(recording.metadataRead.invocationCount).isEqualTo(reads)
+    assertThat(recording.metadataWrite.invocationCount).isEqualTo(calls.size - reads)
+  }
 
+  @Test
+  fun `reconcile sends the complete controller plan through the public API`() =
+    runBlocking<Unit> {
+      whenever(service.reconcileUploadHealingOperation(any()))
+        .thenReturn(
+          reconcileUploadHealingOperationResponse { uploadHealingOperation = OPERATION_RESOURCE }
+        )
       val result =
         store.reconcileUploadHealingOperation(
           ReconcileUploadHealingOperationCommand(
-            parent = DATA_PROVIDER,
-            uploadHealingOperationId = OPERATION_ID,
-            requestId = REQUEST_ID,
-            uploadHealingOperation =
-              uploadHealingOperation {
-                planFormatVersion = 2
-                outputManifestState =
-                  UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_FINALIZED
-                reason = "correction"
-                rawImpressionUploadCorrectionCandidates += CANDIDATE
-                steps += PUBLIC_STEP
-              },
+            PARENT,
+            DRAFT_RESOURCE,
+            OPERATION_ID,
+            "draft-etag",
+            REQUEST_ID,
           )
         )
-
-      val request = argumentCaptor<InternalReconcileRequest>()
-      verify(mutationService).reconcileUploadHealingOperation(request.capture())
-      assertThat(request.firstValue.dataProviderResourceId).isEqualTo("dp")
-      assertThat(request.firstValue.uploadHealingOperation.state)
-        .isEqualTo(
-          org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation.State
-            .UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
-        )
-      assertThat(request.firstValue.uploadHealingOperation.planFormatVersion).isEqualTo(2)
-      assertThat(request.firstValue.uploadHealingOperation.outputManifestState)
-        .isEqualTo(
-          org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation.OutputManifestState
-            .UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
-        )
-      assertThat(
-          request.firstValue.uploadHealingOperation.rawImpressionUploadCorrectionCandidateIdsList
-        )
-        .containsExactly("candidate")
-      val step = request.firstValue.uploadHealingOperation.stepsList.single()
-      assertThat(step.sourceRawImpressionUploadResourceId).isEqualTo("source")
-      assertThat(step.rawImpressionUploadModelLineResourceId).isEqualTo("row")
-      assertThat(step.recoveryPredecessorRawImpressionUploadResourceId).isEqualTo("previous")
-      assertThat(step.rawImpressionUploadCorrectionCandidateId).isEqualTo("candidate")
-      assertThat(step.labeledOutputManifest.blobsList)
-        .containsExactly(
-          org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest.BlobVersion
-            .newBuilder()
-            .setBlobUri("gs://output/file.avro")
-            .setGeneration(42L)
-            .build()
-        )
-      assertThat(result).isEqualTo(PUBLIC_OPERATION)
+      val requests = argumentCaptor<ReconcileUploadHealingOperationRequest>()
+      verify(service).reconcileUploadHealingOperation(requests.capture())
+      val request = requests.firstValue
+      assertThat(request.parent).isEqualTo(PARENT)
+      assertThat(request.uploadHealingOperationId).isEqualTo(OPERATION_ID)
+      assertThat(request.etag).isEqualTo("draft-etag")
+      assertThat(request.requestId).isEqualTo(REQUEST_ID)
+      assertThat(request.plan.reason).isEqualTo(OPERATION_RESOURCE.reason)
+      assertThat(request.plan.rawImpressionUploadCorrectionCandidatesList)
+        .containsExactly(CANDIDATE)
+      val step = request.plan.stepsList.single()
+      assertThat(step.sourceRawImpressionUpload).isEqualTo(SOURCE)
+      assertThat(step.rawImpressionUploadModelLine).isEqualTo(MODEL_LINE_ROW)
+      assertThat(step.cmmsModelLine).isEqualTo(CMMS_MODEL_LINE)
+      assertThat(step.recoveryPredecessorRawImpressionUpload).isEqualTo(PREVIOUS)
+      assertThat(step.rawImpressionUploadCorrectionCandidate).isEqualTo(CANDIDATE)
+      assertThat(step.recoveryAction).isEqualTo(STEP_RESOURCE.recoveryAction)
+      assertThat(step.recoveryTarget).isTrue()
+      assertThatProto(step.labeledOutputManifest)
+        .isEqualTo(DRAFT_RESOURCE.stepsList.single().labeledOutputManifest)
+      assertThatProto(result).isEqualTo(OPERATION_RESOURCE)
     }
 
   @Test
-  fun `advance operation maps state and reads persisted operation`() =
+  fun `advance operation preserves state etag and request identity`() =
     runBlocking<Unit> {
-      whenever(mutationService.advanceUploadHealingOperation(any()))
-        .thenReturn(internalOperation {})
-      whenever(readService.getUploadHealingOperation(any())).thenReturn(PUBLIC_OPERATION)
-
-      store.advanceUploadHealingOperation(
-        AdvanceUploadHealingOperationCommand(
-          name = OPERATION,
-          etag = "etag",
-          state = UploadHealingOperation.State.EVICTING,
-          requestId = REQUEST_ID,
+      whenever(service.advanceUploadHealingOperation(any())).thenReturn(OPERATION_RESOURCE)
+      val result =
+        store.advanceUploadHealingOperation(
+          AdvanceUploadHealingOperationCommand(
+            OPERATION,
+            "etag",
+            UploadHealingOperation.State.EVICTING,
+            REQUEST_ID,
+          )
         )
-      )
-
-      val request = argumentCaptor<InternalAdvanceOperationRequest>()
-      verify(mutationService).advanceUploadHealingOperation(request.capture())
-      assertThat(request.firstValue.dataProviderResourceId).isEqualTo("dp")
-      assertThat(request.firstValue.uploadHealingOperationId).isEqualTo(OPERATION_ID)
-      assertThat(request.firstValue.requestId).isEqualTo(REQUEST_ID)
-      assertThat(request.firstValue.state)
-        .isEqualTo(
-          org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation.State
-            .UPLOAD_HEALING_OPERATION_STATE_EVICTING
-        )
+      val requests = argumentCaptor<AdvanceUploadHealingOperationRequest>()
+      verify(service).advanceUploadHealingOperation(requests.capture())
+      assertThat(requests.firstValue.name).isEqualTo(OPERATION)
+      assertThat(requests.firstValue.state).isEqualTo(UploadHealingOperation.State.EVICTING)
+      assertThat(requests.firstValue.etag).isEqualTo("etag")
+      assertThat(requests.firstValue.requestId).isEqualTo(REQUEST_ID)
+      assertThatProto(result).isEqualTo(OPERATION_RESOURCE)
     }
 
   @Test
-  fun `finalize maps exact step manifests and reads persisted operation`() =
+  fun `finalize preserves exact generations and absent generation markers`() =
     runBlocking<Unit> {
-      whenever(mutationService.finalizeUploadHealingOperation(any()))
-        .thenReturn(internalOperation {})
-      whenever(readService.getUploadHealingOperation(any())).thenReturn(PUBLIC_OPERATION)
-
+      whenever(service.finalizeUploadHealingOperation(any())).thenReturn(OPERATION_RESOURCE)
       val result =
         store.finalizeUploadHealingOperation(
           FinalizeUploadHealingOperationCommand(
-            name = OPERATION,
-            stepManifests =
-              listOf(UploadHealingStepManifest(STEP, PUBLIC_STEP.labeledOutputManifest)),
-            etag = "etag",
-            requestId = REQUEST_ID,
+            OPERATION,
+            listOf(UploadHealingStepManifest(STEP, STEP_RESOURCE.labeledOutputManifest)),
+            "etag",
+            REQUEST_ID,
           )
         )
+      val requests = argumentCaptor<FinalizeUploadHealingOperationRequest>()
+      verify(service).finalizeUploadHealingOperation(requests.capture())
+      assertThat(requests.firstValue.name).isEqualTo(OPERATION)
+      assertThat(requests.firstValue.etag).isEqualTo("etag")
+      assertThat(requests.firstValue.requestId).isEqualTo(REQUEST_ID)
+      assertThat(requests.firstValue.stepManifestsList.single().uploadHealingStep).isEqualTo(STEP)
+      assertThatProto(requests.firstValue.stepManifestsList.single().labeledOutputManifest)
+        .isEqualTo(STEP_RESOURCE.labeledOutputManifest)
+      assertThat(
+          requests.firstValue.stepManifestsList
+            .single()
+            .labeledOutputManifest
+            .blobsList[1]
+            .hasGeneration()
+        )
+        .isFalse()
+      assertThatProto(result).isEqualTo(OPERATION_RESOURCE)
+    }
 
-      val request = argumentCaptor<InternalFinalizeOperationRequest>()
-      verify(mutationService).finalizeUploadHealingOperation(request.capture())
-      assertThat(request.firstValue.uploadHealingOperationId).isEqualTo(OPERATION_ID)
-      assertThat(request.firstValue.stepManifestsList.single().uploadHealingStepId).isEqualTo(1L)
-      assertThat(request.firstValue.stepManifestsList.single().labeledOutputManifest)
-        .isEqualTo(
-          org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest.newBuilder()
-            .addBlobs(
-              org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest.BlobVersion
-                .newBuilder()
-                .setBlobUri("gs://output/file.avro")
-                .setGeneration(42L)
+  @Test
+  fun `step checkpoints preserve all actions and evidence`() =
+    runBlocking<Unit> {
+      whenever(service.advanceUploadHealingStep(any())).thenReturn(STEP_RESOURCE)
+      for (action in UploadHealingStepAction.entries) {
+        val result =
+          store.advanceUploadHealingStep(
+            AdvanceUploadHealingStepCommand(
+              STEP,
+              "step-etag",
+              action,
+              if (action == UploadHealingStepAction.CONFIRM_REPLACEMENT) REPLACEMENT else "",
+              if (action == UploadHealingStepAction.RECORD_RECOVERY) 73L else 0L,
+              REQUEST_ID,
             )
-            .build()
-        )
-      assertThat(result).isEqualTo(PUBLIC_OPERATION)
-    }
-
-  @Test
-  fun `advance step maps action resources and reads persisted step`() =
-    runBlocking<Unit> {
-      whenever(mutationService.advanceUploadHealingStep(any())).thenReturn(internalStep {})
-      whenever(readService.getUploadHealingOperation(any())).thenReturn(PUBLIC_OPERATION)
-
-      val result =
-        store.advanceUploadHealingStep(
-          AdvanceUploadHealingStepCommand(
-            name = STEP,
-            etag = "step-etag",
-            action = UploadHealingStepAction.CONFIRM_REPLACEMENT,
-            replacementRawImpressionUpload = REPLACEMENT,
-            requestId = REQUEST_ID,
           )
+        assertThatProto(result).isEqualTo(STEP_RESOURCE)
+      }
+      val requests = argumentCaptor<AdvanceUploadHealingStepRequest>()
+      verify(service, org.mockito.kotlin.times(3)).advanceUploadHealingStep(requests.capture())
+      assertThat(requests.allValues.map { it.action })
+        .containsExactly(
+          AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION,
+          AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
+          AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT,
         )
-
-      val request = argumentCaptor<InternalAdvanceStepRequest>()
-      verify(mutationService).advanceUploadHealingStep(request.capture())
-      assertThat(request.firstValue.uploadHealingStepId).isEqualTo(1L)
-      assertThat(request.firstValue.action)
-        .isEqualTo(InternalAdvanceStepRequest.Action.CONFIRM_REPLACEMENT)
-      assertThat(request.firstValue.replacementRawImpressionUploadResourceId)
-        .isEqualTo("replacement")
-      assertThat(result.name).isEqualTo(STEP)
+        .inOrder()
+      for (request in requests.allValues) {
+        assertThat(request.name).isEqualTo(STEP)
+        assertThat(request.etag).isEqualTo("step-etag")
+        assertThat(request.requestId).isEqualTo(REQUEST_ID)
+        assertThat(request.replacementRawImpressionUpload)
+          .isEqualTo(
+            if (request.action == AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT)
+              REPLACEMENT
+            else ""
+          )
+        assertThat(request.recoveryDoneBlobGeneration)
+          .isEqualTo(
+            if (request.action == AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY) 73L
+            else 0L
+          )
+      }
     }
 
   @Test
-  fun `public get and successive list pages use the read budget`() =
+  fun `get and successive list pages use the read budget`() =
     runBlocking<Unit> {
-      whenever(readService.getUploadHealingOperation(any())).thenReturn(PUBLIC_OPERATION)
-      whenever(readService.listUploadHealingOperations(any()))
+      whenever(service.getUploadHealingOperation(any())).thenReturn(OPERATION_RESOURCE)
+      whenever(service.listUploadHealingOperations(any()))
         .thenReturn(
           listUploadHealingOperationsResponse {
-            uploadHealingOperations += PUBLIC_OPERATION
+            uploadHealingOperations += OPERATION_RESOURCE
             nextPageToken = "next"
           },
           listUploadHealingOperationsResponse {},
         )
-
-      assertThat(
+      assertThatProto(
           store.getUploadHealingOperation(getUploadHealingOperationRequest { name = OPERATION })
         )
-        .isEqualTo(PUBLIC_OPERATION)
+        .isEqualTo(OPERATION_RESOURCE)
       val first =
-        store.listUploadHealingOperations(
-          listUploadHealingOperationsRequest { parent = DATA_PROVIDER }
-        )
+        store.listUploadHealingOperations(listUploadHealingOperationsRequest { parent = PARENT })
       val last =
         store.listUploadHealingOperations(
           listUploadHealingOperationsRequest {
-            parent = DATA_PROVIDER
+            parent = PARENT
             pageToken = first.nextPageToken
           }
         )
-
-      assertThat(first.uploadHealingOperationsList).containsExactly(PUBLIC_OPERATION)
+      assertThat(first.uploadHealingOperationsList).containsExactly(OPERATION_RESOURCE)
       assertThat(last.uploadHealingOperationsList).isEmpty()
-      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
-      assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(0)
+      assertThat(recording.metadataRead.invocationCount).isEqualTo(3)
     }
 
   @Test
-  fun `cancelling a read waiting for a permit does not issue the RPC`() =
+  fun `cancellation while waiting for a read permit sends no RPC`() =
     runBlocking<Unit> {
       val entered = CompletableDeferred<Unit>()
       val release = CompletableDeferred<Unit>()
@@ -299,42 +257,38 @@ class HealingOperationStoreTest {
           override suspend fun <T> onReady(block: suspend () -> T): T {
             entered.complete(Unit)
             release.await()
-            return recordingThrottlers.metadataRead.onReady(block)
+            return recording.metadataRead.onReady(block)
           }
         }
-      val gatedStore =
+      val gated =
         GrpcHealingOperationStore(
-          PublicServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-            grpcTestServerRule.channel
+          UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+            server.channel
           ),
-          InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-            grpcTestServerRule.channel
-          ),
-          recordingThrottlers.throttlers.copy(metadataRead = gate),
+          recording.throttlers.copy(metadataRead = gate),
         )
       val request = async {
-        gatedStore.getUploadHealingOperation(getUploadHealingOperationRequest { name = OPERATION })
+        gated.getUploadHealingOperation(getUploadHealingOperationRequest { name = OPERATION })
       }
       entered.await()
-      verify(readService, never()).getUploadHealingOperation(any())
       request.cancel()
       assertFailsWith<CancellationException> { request.await() }
-      verify(readService, never()).getUploadHealingOperation(any())
+      verify(service, never()).getUploadHealingOperation(any())
     }
 
   companion object {
-    private const val DATA_PROVIDER = "dataProviders/dp"
+    private const val PARENT = "dataProviders/dp"
     private const val OPERATION_ID = "11111111-1111-4111-8111-111111111111"
-    private const val OPERATION = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+    private const val REQUEST_ID = "22222222-2222-4222-8222-222222222222"
+    private const val OPERATION = "$PARENT/uploadHealingOperations/$OPERATION_ID"
     private const val STEP = "$OPERATION/uploadHealingSteps/1"
-    private const val SOURCE = "$DATA_PROVIDER/rawImpressionUploads/source"
-    private const val PREVIOUS = "$DATA_PROVIDER/rawImpressionUploads/previous"
-    private const val REPLACEMENT = "$DATA_PROVIDER/rawImpressionUploads/replacement"
+    private const val SOURCE = "$PARENT/rawImpressionUploads/source"
+    private const val PREVIOUS = "$PARENT/rawImpressionUploads/previous"
+    private const val REPLACEMENT = "$PARENT/rawImpressionUploads/replacement"
     private const val MODEL_LINE_ROW = "$SOURCE/rawImpressionUploadModelLines/row"
     private const val CMMS_MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
-    private const val CANDIDATE = "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/candidate"
-    private const val REQUEST_ID = "22222222-2222-4222-8222-222222222222"
-    private val PUBLIC_STEP = uploadHealingStep {
+    private const val CANDIDATE = "$PARENT/rawImpressionUploadCorrectionCandidates/candidate"
+    private val STEP_RESOURCE = uploadHealingStep {
       name = STEP
       sourceRawImpressionUpload = SOURCE
       rawImpressionUploadModelLine = MODEL_LINE_ROW
@@ -349,17 +303,35 @@ class HealingOperationStoreTest {
             blobUri = "gs://output/file.avro"
             generation = 42L
           }
+        blobs += LabeledOutputManifestKt.blobVersion { blobUri = "gs://output/absent.avro" }
       }
     }
-    private val PUBLIC_OPERATION = uploadHealingOperation {
+    private val OPERATION_RESOURCE = uploadHealingOperation {
       name = OPERATION
       state = UploadHealingOperation.State.EVICTING
+      reason = "correction"
       planFormatVersion = 2
       outputManifestState =
         UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_FINALIZED
-      reason = "correction"
       rawImpressionUploadCorrectionCandidates += CANDIDATE
-      steps += PUBLIC_STEP
+      steps += STEP_RESOURCE
     }
+    private val DRAFT_RESOURCE =
+      OPERATION_RESOURCE.copy {
+        outputManifestState =
+          UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_PROVISIONAL
+        steps.clear()
+        steps +=
+          STEP_RESOURCE.copy {
+            labeledOutputManifest =
+              STEP_RESOURCE.labeledOutputManifest.copy {
+                blobs.clear()
+                blobs +=
+                  STEP_RESOURCE.labeledOutputManifest.blobsList.map {
+                    it.copy { clearGeneration() }
+                  }
+              }
+          }
+      }
   }
 }

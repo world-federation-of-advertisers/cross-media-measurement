@@ -40,6 +40,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequest
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
@@ -48,12 +49,12 @@ import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep
 
 data class UploadHealingOperationResult(
   val uploadHealingOperation: UploadHealingOperation,
-  val createRequestId: String,
+  val reconcileRequestId: String,
   val mutationRequestIds: List<String>,
   val mutationRequestFingerprints: List<ByteString>,
 )
 
-/** Returns whether a nonterminal healing operation must defer ordinary VID-labeling dispatch. */
+/** Returns whether healing still gates ordinary computation before its unfenced handoff. */
 suspend fun AsyncDatabaseClient.ReadContext.hasVidLabelingHealingDispatchGate(
   dataProviderResourceId: String
 ): Boolean {
@@ -69,6 +70,7 @@ suspend fun AsyncDatabaseClient.ReadContext.hasVidLabelingHealingDispatchGate(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING,
       )
       .map { it.number.toLong() }
+  val fenced = getVidLabelingEvictionFence(dataProviderResourceId) != null
   val query =
     statement(
       """
@@ -76,16 +78,49 @@ suspend fun AsyncDatabaseClient.ReadContext.hasVidLabelingHealingDispatchGate(
       FROM UploadHealingOperation
       WHERE DataProviderResourceId = @dataProviderResourceId
         AND State IN UNNEST(@gateStates)
+        AND (
+          @fenced OR NOT (
+            State = @handoffState
+            OR (State = @attentionState AND COALESCE(ResumeState, 0) = @handoffState)
+          )
+        )
       LIMIT 1
       """
         .trimIndent()
     ) {
       bind("dataProviderResourceId").to(dataProviderResourceId)
       bind("gateStates").toInt64Array(gateStates)
+      bind("fenced").to(fenced)
+      bind("handoffState")
+        .to(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_AVAILABILITY_HANDOFF_PENDING
+            .number
+            .toLong()
+        )
+      bind("attentionState")
+        .to(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION.number
+            .toLong()
+        )
     }
   return executeQuery(query, Options.tag("action=hasVidLabelingHealingDispatchGate"))
     .firstOrNull() != null
 }
+
+/** Returns whether an unplanned correction still gates ordinary input. */
+suspend fun AsyncDatabaseClient.ReadContext.hasPendingVidLabelingCorrection(
+  dataProviderResourceId: String
+): Boolean =
+  executeQuery(
+      statement(
+        "SELECT RawImpressionUploadCorrectionCandidateId FROM RawImpressionUploadCorrectionCandidate WHERE DataProviderResourceId = @provider AND State = @pending LIMIT 1"
+      ) {
+        bind("provider").to(dataProviderResourceId)
+        bind("pending")
+          .to(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING.number.toLong())
+      }
+    )
+    .firstOrNull() != null
 
 /** Reads an upload-healing operation and all of its ordered steps. */
 suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperation(
@@ -97,18 +132,16 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperation(
     SELECT
       DataProviderResourceId,
       UploadHealingOperationId,
-      CreateRequestId,
+      ReconcileRequestId,
       State,
       ResumeState,
       PlanFormatVersion,
       OutputManifestState,
       Reason,
       LabeledImpressionsBlobPrefix,
-      BadRawImpressionUploadResourceIds,
       RawImpressionUploadCorrectionCandidateIds,
       MutationRequestIds,
       MutationRequestFingerprints,
-      CutoffTime,
       CompleteTime,
       CreateTime,
       UpdateTime,
@@ -173,18 +206,16 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadHealingOperationByMutation
     SELECT
       DataProviderResourceId,
       UploadHealingOperationId,
-      CreateRequestId,
+      ReconcileRequestId,
       State,
       ResumeState,
       PlanFormatVersion,
       OutputManifestState,
       Reason,
       LabeledImpressionsBlobPrefix,
-      BadRawImpressionUploadResourceIds,
       RawImpressionUploadCorrectionCandidateIds,
       MutationRequestIds,
       MutationRequestFingerprints,
-      CutoffTime,
       CompleteTime,
       CreateTime,
       UpdateTime,
@@ -225,18 +256,16 @@ fun AsyncDatabaseClient.ReadContext.readUploadHealingOperations(
       SELECT
         DataProviderResourceId,
         UploadHealingOperationId,
-        CreateRequestId,
+        ReconcileRequestId,
         State,
         ResumeState,
         PlanFormatVersion,
         OutputManifestState,
         Reason,
         LabeledImpressionsBlobPrefix,
-        BadRawImpressionUploadResourceIds,
         RawImpressionUploadCorrectionCandidateIds,
         MutationRequestIds,
         MutationRequestFingerprints,
-        CutoffTime,
         CompleteTime,
         CreateTime,
         UpdateTime,
@@ -319,12 +348,12 @@ private suspend fun AsyncDatabaseClient.ReadContext.readUploadHealingStepRows(
 /** Buffers one operation and all of its steps in the caller's transaction. */
 fun AsyncDatabaseClient.TransactionContext.insertUploadHealingOperation(
   operation: UploadHealingOperation,
-  createRequestId: String,
+  reconcileRequestId: String,
 ) {
   bufferInsertMutation("UploadHealingOperation") {
     set("DataProviderResourceId").to(operation.dataProviderResourceId)
     set("UploadHealingOperationId").to(operation.uploadHealingOperationId)
-    set("CreateRequestId").to(createRequestId)
+    set("ReconcileRequestId").to(reconcileRequestId)
     set("State")
       .to(
         if (
@@ -355,13 +384,10 @@ fun AsyncDatabaseClient.TransactionContext.insertUploadHealingOperation(
     }
     set("Reason").to(operation.reason)
     set("LabeledImpressionsBlobPrefix").to(operation.labeledImpressionsBlobPrefix)
-    set("BadRawImpressionUploadResourceIds")
-      .toStringArray(operation.badRawImpressionUploadResourceIdsList)
     set("RawImpressionUploadCorrectionCandidateIds")
       .toStringArray(operation.rawImpressionUploadCorrectionCandidateIdsList)
     set("MutationRequestIds").toStringArray(emptyList())
     set("MutationRequestFingerprints").toBytesArray(emptyList())
-    set("CutoffTime").to(operation.cutoffTime.toGcloudTimestamp())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -371,16 +397,14 @@ fun AsyncDatabaseClient.TransactionContext.insertUploadHealingOperation(
 /** Replaces the mutable fields and steps of a draft upload-healing operation. */
 fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
   operation: UploadHealingOperation,
-  mutationRequestIds: List<String>? = null,
-  mutationRequestFingerprints: List<ByteString>? = null,
+  mutationRequestIds: List<String>,
+  mutationRequestFingerprints: List<ByteString>,
 ) {
   bufferUpdateMutation("UploadHealingOperation") {
     set("DataProviderResourceId").to(operation.dataProviderResourceId)
     set("UploadHealingOperationId").to(operation.uploadHealingOperationId)
     set("Reason").to(operation.reason)
     set("LabeledImpressionsBlobPrefix").to(operation.labeledImpressionsBlobPrefix)
-    set("BadRawImpressionUploadResourceIds")
-      .toStringArray(operation.badRawImpressionUploadResourceIdsList)
     set("RawImpressionUploadCorrectionCandidateIds")
       .toStringArray(operation.rawImpressionUploadCorrectionCandidateIdsList)
     set("State").to(operation.state.number.toLong())
@@ -405,14 +429,9 @@ fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
     } else {
       set("OutputManifestState").to(operation.outputManifestState.number.toLong())
     }
-    if (mutationRequestIds != null) {
-      set("MutationRequestIds").toStringArray(mutationRequestIds)
-    }
-    if (mutationRequestFingerprints != null) {
-      set("MutationRequestFingerprints")
-        .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
-    }
-    set("CutoffTime").to(operation.cutoffTime.toGcloudTimestamp())
+    set("MutationRequestIds").toStringArray(mutationRequestIds)
+    set("MutationRequestFingerprints")
+      .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   buffer(
@@ -652,17 +671,14 @@ private fun buildUploadHealingOperationResult(
       }
       reason = operationRow.getString("Reason")
       labeledImpressionsBlobPrefix = operationRow.getString("LabeledImpressionsBlobPrefix")
-      badRawImpressionUploadResourceIds +=
-        operationRow.getStringList("BadRawImpressionUploadResourceIds")
       rawImpressionUploadCorrectionCandidateIds +=
         operationRow.getStringList("RawImpressionUploadCorrectionCandidateIds")
-      cutoffTime = operationRow.getTimestamp("CutoffTime").toProto()
       createTime = operationRow.getTimestamp("CreateTime").toProto()
       updateTime = operationUpdateTime
       etag = ETags.computeETag(operationUpdateTime.toInstant())
       steps += stepRows.map { buildUploadHealingStep(it) }
     },
-    createRequestId = operationRow.getString("CreateRequestId"),
+    reconcileRequestId = operationRow.getString("ReconcileRequestId"),
     mutationRequestIds = operationRow.getStringList("MutationRequestIds"),
     mutationRequestFingerprints =
       operationRow.getBytesList("MutationRequestFingerprints").map {

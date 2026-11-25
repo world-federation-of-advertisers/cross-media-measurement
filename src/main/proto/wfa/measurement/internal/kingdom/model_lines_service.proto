@@ -38,6 +38,9 @@ service ModelLines {
 
   rpc SetModelLineType(SetModelLineTypeRequest) returns (ModelLine);
 
+  rpc SetModelLineEventTemplateVersion(SetModelLineEventTemplateVersionRequest)
+      returns (ModelLine);
+
   // Lists `ModelLine`s that are valid given an `Interval` representing the time
   // range and a set of `ExternalDataProviderId`s. Ordered by `type` from `PROD`
   // to `HOLDBACK` to `DEV`, `active_start_time` descending.
@@ -124,4 +127,11 @@ message EnumerateValidModelLinesRequest {
 message EnumerateValidModelLinesResponse {
   // The `ModelLine`s that met all the criteria.
   repeated ModelLine model_lines = 1;
+}
+
+message SetModelLineEventTemplateVersionRequest {
+  fixed64 external_model_provider_id = 1;
+  fixed64 external_model_suite_id = 2;
+  fixed64 external_model_line_id = 3;
+  int32 event_template_version = 4;
 }

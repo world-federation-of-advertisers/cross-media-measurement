@@ -49,8 +49,8 @@ object ComputationProtocolStageDetails :
         )
       ComputationStage.StageCase.TRUS_TEE ->
         TrusTeeProtocol.ComputationStages.Details.validateRoleForStage(stage, computationDetails)
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Implement TrusTEE v2.
-      ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+      ComputationStage.StageCase.TRUS_TEE_V2 ->
+        TrusTeeV2Protocol.ComputationStages.Details.validateRoleForStage(stage, computationDetails)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -69,8 +69,8 @@ object ComputationProtocolStageDetails :
         HonestMajorityShareShuffleProtocol.ComputationStages.Details.afterTransitionForStage(stage)
       ComputationStage.StageCase.TRUS_TEE ->
         TrusTeeProtocol.ComputationStages.Details.afterTransitionForStage(stage)
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Implement TrusTEE v2.
-      ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+      ComputationStage.StageCase.TRUS_TEE_V2 ->
+        TrusTeeV2Protocol.ComputationStages.Details.afterTransitionForStage(stage)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -92,10 +92,13 @@ object ComputationProtocolStageDetails :
           stage,
           computationDetails,
         )
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Implement TrusTEE v2.
-      ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
       ComputationStage.StageCase.TRUS_TEE ->
         TrusTeeProtocol.ComputationStages.Details.outputBlobNumbersForStage(
+          stage,
+          computationDetails,
+        )
+      ComputationStage.StageCase.TRUS_TEE_V2 ->
+        TrusTeeV2Protocol.ComputationStages.Details.outputBlobNumbersForStage(
           stage,
           computationDetails,
         )
@@ -126,8 +129,8 @@ object ComputationProtocolStageDetails :
         )
       ComputationStage.StageCase.TRUS_TEE ->
         TrusTeeProtocol.ComputationStages.Details.detailsFor(stage, computationDetails)
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Implement TrusTEE v2.
-      ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+      ComputationStage.StageCase.TRUS_TEE_V2 ->
+        TrusTeeV2Protocol.ComputationStages.Details.detailsFor(stage, computationDetails)
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -144,8 +147,7 @@ object ComputationProtocolStageDetails :
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.Details.parseDetails(bytes)
       ComputationType.TRUS_TEE -> TrusTeeProtocol.ComputationStages.Details.parseDetails(bytes)
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Implement TrusTEE v2.
-      ComputationType.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
+      ComputationType.TRUS_TEE_V2 -> TrusTeeV2Protocol.ComputationStages.Details.parseDetails(bytes)
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("invalid protocol")
     }

@@ -84,13 +84,13 @@ services:
 ```
 EDP uploads                          Operator services                     TEE
 -----------                          -----------------                     ---
-event-groups/*  ── finalize ──► DataWatcher ──► EventGroupSync ──► Kingdom public API
+event-groups/*  ── finalize ──► DataWatcher ──► WorkItem ──► EventGroupSync ──► Kingdom public API
                                                                        │
 Kingdom requisitions ◄── Cloud Scheduler ──► RequisitionFetcher ──────┘
         writes requisitions/* ──► Secure Computation API ──► Pub/Sub
                                                                   │
 edp/<edp-id>/<date>/{impressions,metadata,done}                               ▼
-        done ── finalize ──► DataWatcher ──► DataAvailabilitySync ──► ResultsFulfiller MIG
+        done ── finalize ──► DataWatcher ──► WorkItem ──► DataAvailabilitySync ──► ResultsFulfiller MIG
                                                     │                    (Confidential Space)
                                                     ▼                         │
                                         EDP Aggregator (Metadata) API ◄───────┘
@@ -185,8 +185,8 @@ the correct pipeline.
 
 The two watched-path types per EDP:
 
-1. **Event group detection** — an event-group blob invokes EventGroupSync.
-2. **Impressions / data availability** — a `done` marker invokes DataAvailabilitySync.
+1. **Event group detection** — an event-group blob creates an EventGroupSync WorkItem.
+2. **Impressions / data availability** — an external `done` marker creates a DataAvailabilitySync WorkItem.
 
 Requisition blobs are not watched in the recommended configuration. RequisitionFetcher creates
 their WorkItems directly after the blob and all associated metadata rows are durable.
@@ -203,12 +203,26 @@ DataWatcher.
 
 ### EventGroupSync
 
-A Cloud Function invoked by the DataWatcher when a new event-group file is written.
+A Cloud Function consuming WorkItems created by DataWatcher when a new event-group file is
+written. DataWatcher returns after durable task creation. The consumer renews its attempt lease
+during the sync, publishes the mapping, and records completion; terminal task redeliveries skip
+the sync. Legacy HTTP invocation remains supported.
 It registers or updates the EDP's event groups in the Kingdom public API. To onboard
 a new EDP, add an `event-groups` watched path in the DataWatcher config and a
 per-EDP entry in the EventGroupSync config.
 
+The function lists Kingdom EventGroups once and applies successful changes from the
+upload to that snapshot before publishing the Mesos RecordIO mapping at
+`event_group_map_blob_uri`. The map includes nondeleted EventGroups returned for the
+configured DataProvider and entity types, including groups absent from the upload, and
+successfully synchronized input groups. Unrelated concurrent Kingdom changes appear on
+the next sync. A failed listing or sync leaves the previous map intact.
+
 Config: [`EventGroupSyncConfigs`](#eventgroupsync-config-eventgroupsyncconfigs).
+Deploy the lease-aware control plane and queue registry, then the consumer infrastructure,
+then the DataWatcher routes. Drain legacy HTTP deliveries before cutover. See the
+[WorkItem deployment instructions](../../src/main/terraform/gcloud/modules/edp-aggregator/README.md#durable-eventgroupsync-workitems)
+for invocation IAM, TLS, and task outcome monitoring.
 
 ### RequisitionFetcher
 
@@ -230,11 +244,22 @@ Config: [`RequisitionFetcherConfig`](#requisitionfetcher-config-requisitionfetch
 
 ### DataAvailabilitySync
 
-A Cloud Function invoked by the DataWatcher when an empty `done` file is written
-under an impressions date directory, signaling that a day's impressions and metadata
-have finished uploading. It locates the directory, scans metadata (including
-subfolders), records impression availability in the Metadata Storage database, and
-notifies the Kingdom that impressions for that day are available.
+A Cloud Function consuming external done-blob WorkItems from DataWatcher and internal
+WorkItems created directly by VID Labeler. DataWatcher returns after durable task creation.
+External tasks scan the finalized date folder; internal tasks use their raw-upload contract.
+Both publish metadata and Kingdom availability under the provider synchronization lease and
+record durable attempt completion. External tasks do not update VID Labeler pipeline rows.
+
+External WorkItems retain the metadata and impression object generations finalized by `done`.
+These generations come from storage; external writers keep the existing `BlobDetails` format.
+Fulfillment rejects an overwritten object instead of following unfinalized contents. Legacy
+records without these generations retain current-object reads. Apply the
+`add-impression-metadata-blob-generations.sql` migration and deploy the updated metadata service,
+DataAvailabilitySync, and fulfillment consumers before enabling external WorkItem routes.
+Write a new `done` marker after an intentional overwrite to register the new snapshot.
+Gap checks include both configured output prefixes. Legacy HTTP invocation remains supported
+for external folders with unversioned metadata; use WorkItems or snapshot-aware replay for
+metadata that already has stored generations.
 When `event_group_activity_publishing` is configured, the same sync also derives
 positive EventGroup activity from the finalized metadata and appends it in the Kingdom.
 
@@ -332,6 +357,9 @@ A gRPC service on GKE, backed by Spanner, that stores impression metadata
 DataAvailabilitySync, DataAvailabilityCleanup, and DataAvailabilityMonitor talk to
 it. Deployed to GKE with a Spanner database (default name `edp-aggregator`) and an
 internal service account bound via Workload Identity.
+
+The Halo-managed GKE configuration runs multiple internal and system API replicas
+with PodDisruptionBudgets. Ensure all replicas are ready before proceeding.
 
 ### Pub/Sub
 
@@ -564,7 +592,8 @@ the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER
 | `data_availability_sync` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_cleanup` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_monitor` | `IMPRESSION_METADATA_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |
-| `vid_labeling_healing_controller` | `RAW_IMPRESSION_UPLOAD_TARGET`, `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY`, `DATA_WATCHER_CONFIG_BLOB_KEY`, `HEALING_RETENTION_DAYS`, `HEALING_STALL_MINUTES` |
+| `vid_labeling_dispatcher` | `RAW_IMPRESSION_UPLOAD_TARGET`, `RAW_IMPRESSION_UPLOAD_CERT_HOST` (optional), `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY` |
+| `vid_labeling_healing_controller` | `RAW_IMPRESSION_UPLOAD_TARGET`, `RAW_IMPRESSION_UPLOAD_CERT_HOST` (optional), `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY`, `DATA_WATCHER_CONFIG_BLOB_KEY`, `HEALING_RETENTION_DAYS`, `HEALING_STALL_MINUTES` |
 
 **`secret_mappings` — path/secret consistency is critical.** Each mounted path must
 match, character for character, the path referenced in the corresponding config
@@ -676,6 +705,8 @@ provided; override as needed:
 * `spanner_database_name` — defaults to `edp-aggregator`.
 * `edp_aggregator_service_account_name` — internal API server SA (bound to the GKE
   service account `internal-edp-aggregator-server` via Workload Identity).
+  This identity can consume the VID-labeling and Data Availability dead-letter
+  subscriptions and publish to their origin topics for `vid-labeling-heal redeliver-dlq`.
 * `edp_aggregator_api_server_ip_address` — optional static IP for the API server.
 
 ### Service accounts
@@ -724,6 +755,15 @@ supply:
 Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
 entries only once your market has adopted VID labeling.
 
+Each `VidLabelingConfig` must set `raw_impressions_blob_prefix` to that DataProvider's dedicated,
+bucket-relative raw-only root, without leading or trailing `/` characters. Keep labeled output,
+rank-index, and temporary work prefixes outside it. Configured labeled-output descendants are
+explicitly excluded from classification, while the storage-config preflight rejects overlapping
+raw roots. The daily Monitor lists object metadata below this prefix to detect upload directories
+that never reached the metadata service. Its
+`staleness_threshold` is also the quiet period before an unfinalized raw directory or late file
+becomes alertable.
+
 Set `vid_labeling_healing_labeled_output_object_prefixes` to the bucket-relative
 `edp_impression_path` values from `VidLabelingConfigs`, each ending in `/`. The controller can read
 the shared EDPA bucket but can delete objects only below these prefixes; its dedicated environment
@@ -734,6 +774,38 @@ The module creates alerts for approval pending, stalled controllers, manifest mi
 out-of-retention candidates, and plans in `NEEDS_ATTENTION`. Configure
 `vid_labeling_healing_alert_notification_channels`; each incident links its condition to the plan
 inspection or retry action, while approval remains a separate operator decision.
+
+Availability recovery uses the same notification channels. The dispatch and health passes emit
+per-DataProvider gauges for pending age, failed execution generations, terminal task
+failures, publication silence while work is pending, and incomplete monitoring. Retries preserve
+the original labeled done-object creation time and execution history. Publication timestamps are
+stored under the `.availability-publication` directory in each contributor's configured output root,
+keyed by the full provider and model-line identities, only after a successful Kingdom publication. Failed,
+blocked, and no-work executions do not advance them. Before a timestamp exists, publication
+silence is measured from the oldest pending done object. Ages and failed execution counts take
+the worst pending model line; terminal failures count pending tasks. Idle and empty scans emit zero.
+
+DataAvailabilitySync needs access to create and update these status objects in every configured
+source. The managed EDPA bucket's existing object-user grant covers its roots. For additional GCS
+buckets, set `data_availability_publication_status_storage_roots` to a map of bucket names to
+bucket-relative output-prefix sets; use an empty prefix for a bucket root. Terraform grants the
+runtime identity object-user access only below each prefix's `.availability-publication` directory.
+Additional buckets must use uniform bucket-level access for these conditional grants. Configure
+equivalent status-object write access for non-GCS sources.
+
+The `vid_labeling_availability_alert_thresholds` defaults are 24 hours for pending age, three failed
+execution generations, and one hour of publication silence. Terminal failures and monitoring
+errors alert at one. Each observed threshold breach is evaluated without an additional retest
+window: the ages and execution counts already include the relevant persistence. Configure the existing
+`vid_labeling_healing_alert_notification_channels` to deliver these incidents. An empty list
+creates incidents without sending notifications. Before relying on delivery, verify the channel
+in Cloud Monitoring and confirm that a test notification reaches the intended operator.
+
+With Terraform 1.7 or newer, check the alert policy module without creating cloud resources with
+`terraform test` in
+`src/main/terraform/gcloud/modules/edp-aggregator-availability-monitoring`. Its mocked-provider tests
+verify thresholds, metric filters and notification-channel wiring; they do not verify actual
+notification delivery.
 
 #### VID Labeling outbound RPC rate limits
 
@@ -758,7 +830,10 @@ The dispatcher, monitor, and healing controller each load one throttler bundle s
 their helpers. Healing metadata pagination, fence/step mutations, and availability WorkItem calls
 use the same metadata-read, metadata-write, and control-plane budgets, respectively.
 
-The Terraform module caps the dispatcher, monitor, and healing controller at one instance. The checked-in Kingdom
+The Terraform module caps the dispatcher, monitor, and healing controller at one instance. Monitor
+health requests have a 29-minute function timeout, 2 GiB of memory (and therefore one vCPU), and the
+Cloud Scheduler HTTP maximum of 30 minutes; dispatch requests retain their shorter 660-second
+deadline. The checked-in Kingdom
 `RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
 so the two functions' worst-case 4 QPS leaves 20 percent headroom without competing with
 ResultsFulfiller, RequisitionFetcher, EventGroupSync, or DataAvailabilitySync in the shared default
@@ -811,37 +886,32 @@ exactly one sink — either an `http_endpoint_sink` (JSON `app_params`) or a
 # proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
 # proto-message: wfa.measurement.config.securecomputation.DataWatcherConfig
 
-# 1) Event groups -> EventGroupSync (HTTP)
+# 1) Event groups -> EventGroupSync (durable WorkItem)
 watched_paths {
   identifier: "event-groups"
   source_path_regex: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups/(.*)"
-  http_endpoint_sink {
-    endpoint_uri: "https://REGION-PROJECT_ID.cloudfunctions.net/event-group-sync"
+  control_plane_queue_sink {
+    queue: "event-group-sync-queue"
+    serialization_key: "event-group-sync:dataProviders/DATA_PROVIDER_ID"
     app_params {
-      fields { key: "dataProvider" value { string_value: "dataProviders/DATA_PROVIDER_ID" } }
-      fields { key: "eventGroupMapBlobUri"
-               value { string_value: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb" } }
-      fields { key: "cmmsConnection" value { struct_value {
-        fields { key: "certFilePath"           value { string_value: "/secrets/cert/<edp-id>_tls.pem" } }
-        fields { key: "privateKeyFilePath"     value { string_value: "/secrets/key/<edp-id>_tls.key" } }
-        fields { key: "certCollectionFilePath" value { string_value: "/secrets/ca/kingdom_root.pem" } }
-      } } }
-      # eventGroupStorage / eventGroupMapStorage: gcs { projectId, bucketName }
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.EventGroupSyncParams] {
+        data_provider: "dataProviders/DATA_PROVIDER_ID"
+      }
     }
   }
 }
 
-# 2) Data availability -> DataAvailabilitySync (HTTP), fires on the `done` marker
+# 2) External data availability -> DataAvailabilitySync (durable WorkItem)
 watched_paths {
   identifier: "data-availability"
-  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/.+/done$"
-  http_endpoint_sink {
-    endpoint_uri: "https://REGION-PROJECT_ID.cloudfunctions.net/data-availability-sync"
+  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/model-line/[^/]+/[^/]+/done$"
+  control_plane_queue_sink {
+    queue: "data-availability-sync-queue"
+    serialization_key: "data-availability:dataProviders/DATA_PROVIDER_ID"
     app_params {
-      fields { key: "dataProvider" value { string_value: "dataProviders/DATA_PROVIDER_ID" } }
-      # dataAvailabilityStorage.gcs { projectId, bucketName }
-      # cmmsConnection.{certFilePath, privateKeyFilePath, certCollectionFilePath}
-      # impressionMetadataStorageConnection.{certFilePath, privateKeyFilePath, certCollectionFilePath}
+      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams] {
+        data_provider: "dataProviders/DATA_PROVIDER_ID"
+      }
     }
   }
 }
@@ -904,7 +974,32 @@ configs {
         client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
       }
       noise_params { noise_type: CONTINUOUS_GAUSSIAN }
+      # Required for each contributor when model_line_cutovers is configured.
+      # The prefix is immediately above the model-line directory.
+      # model_line_data_sources {
+      #   key: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+      #   value {
+      #     blob_uri_prefix: "gs://LEGACY_BUCKET/edp/<edp-id>/legacy-impressions"
+      #     valid_end_date { year: 2027 month: 1 day: 3 }
+      #   }
+      # }
+      # model_line_data_sources {
+      #   key: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+      #   value {
+      #     blob_uri_prefix: "gs://VID_LABELER_BUCKET/edp/<edp-id>/vid-labeled-impressions"
+      #     valid_start_date { year: 2026 month: 10 day: 5 }
+      #   }
+      # }
     }
+    # Optional report-level model-line cutover.
+    # model_line_cutovers {
+    #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+    #   historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+    #   replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+    #   cutover_date { year: 2026 month: 10 day: 5 }
+    #   legacy_required_through_date { year: 2027 month: 1 day: 3 }
+    #   maximum_report_duration { seconds: 7776000 } # 90 days
+    # }
   }
 }
 ```
@@ -966,6 +1061,8 @@ One `configs` entry per EDP (each `data_provider` must be unique).
 # proto-message: wfa.measurement.config.edpaggregator.EventGroupSyncConfigs
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
+  # Queued GCS sources must be beneath this object's bucket and directory, including subfolders.
+  event_groups_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups/event_groups.json"
   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
   cmms_connection {
     cert_file_path: "/secrets/cert/<edp-id>_tls.pem"
@@ -992,14 +1089,13 @@ Use this rollout order:
 2. Ensure every EventGroupSync input with the mapped entity type supplies both
    a non-blank `event_group_reference_id` and a non-blank `entity_key.entity_id`.
    The two values must be exactly equivalent after prefix conversion.
-3. Prevent reports from selecting a partially migrated EventGroup cohort. Pause
-   report creation during a batched migration, or migrate every EventGroup that
-   can occur in one report before allowing that report. RequisitionFetcher
-   refuses a report as `UNFULFILLABLE` when some selected EventGroups have entity
-   keys and others are still reference-ID-only; the ResultsFulfiller mapping
-   cannot bypass that validation.
+3. Verify that the deployed RequisitionFetcher supports mixed selectors and
+   that every affected EDP's `work_item_dispatch.results_fulfiller_params`
+   contains the mapping. With it configured, one requisition may select both
+   reference-ID-only and entity-key EventGroups during a batched migration.
+   Without it, RequisitionFetcher refuses mixed selections as `UNFULFILLABLE`.
 4. Configure and run EventGroupSync with the same mapping, then verify the
-   targeted EventGroups have entity keys before resuming report creation.
+   targeted EventGroups retain their resource names and have entity keys.
 
 EventGroupSync uses both supplied identifiers to find and update the existing
 EventGroup instead of creating a second resource. It does not derive a missing
@@ -1021,8 +1117,31 @@ configs {
   secure_computation_control_plane_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   edp_impression_path: "edp/<edp-id>"
   vid_labeled_impression_path: "vid-labeled-impressions/edp/<edp-id>"  # required when VID labeling is enabled
-  # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
+  # model_line_map { key: "modelProviders/MP/modelSuites/MS/modelLines/INTERNAL" value { model_lines: ["modelProviders/MP/modelSuites/MS/modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
+  # model_line_cutovers {
+  #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+  #   historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  #   replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  #   cutover_date { year: 2026 month: 10 day: 5 }
+  #   legacy_required_through_date { year: 2027 month: 1 day: 3 }
+  #   maximum_report_duration { seconds: 7776000 } # 90 days
+  # }
+  # Required for each contributor when model_line_cutovers is configured.
+  # model_line_data_sources {
+  #   key: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  #   value {
+  #     storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  #     edp_impression_path: "edp/<edp-id>"
+  #   }
+  # }
+  # model_line_data_sources {
+  #   key: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  #   value {
+  #     storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  #     edp_impression_path: "vid-labeled-impressions/edp/<edp-id>"
+  #   }
+  # }
   # event_group_activity_publishing {
   #   market_time_zone { id: "America/New_York" }
   #   event_group_map_blob_uri: "gs://EDPA_STORAGE_BUCKET/<edp-id>/event-groups-map/groups.pb"
@@ -1042,10 +1161,172 @@ retains metadata while a live object version exists. Configure a DataAvailabilit
 each root.
 
 Retain the external root to process queued WorkItems and existing uploads at their original paths.
-Recovery scans both roots, and replay accepts completion blobs from either root. Providers with
+Recovery scans both roots, and replay accepts completion blobs from either root. The configured
+VID Labeler root accepts upload-specific `done-<hash>` and legacy `done` markers. External roots
+use `done` and snapshot-aware replay. Align each contributor's `model_line_data_sources` path with
+its configured external or VID Labeler root. Providers with
 VID labeling disabled may omit `vid_labeled_impression_path` and use only `edp_impression_path`.
 Upload the matching configuration and deploy the updated availability functions before resuming
 VidLabeler output at the new root.
+
+The deployment validator checks HTTP and queued external routes for overlap. Drain active tasks
+before migrating dispatcher, monitor, and sync configs together, and keep historical impression
+metadata. When `external_impression_path` is empty, external and legacy HTTP syncs use
+`edp_impression_path`.
+
+Configure the same cutover in RequisitionFetcher and DataAvailabilitySync. RequisitionFetcher
+selects one internal model line from the immutable Report start and persists that choice before
+dispatching the first WorkItem. Every later batch and retry for that Report reuses the persisted
+choice. Do not enable the cutover until the `ReportRoutingDecision` schema migration is deployed and
+pre-cutover WorkItems and unfulfilled Requisitions whose signed MeasurementSpec lacks
+`report_interval` have drained.
+
+`maximum_report_duration` must be a positive whole number of days.
+`legacy_required_through_date` must be at least `cutover_date + maximum_report_duration`,
+ensuring that every Report starting before the cutover can finish on the historical line.
+
+DataAvailabilitySync calculates each published identity from its own required source coverage.
+An explicit contributor alias exposes that source's native interval, including synchronized,
+finalized zero-impression boundary dates. Missing dates or unfinished completion markers block
+the affected identity even if the cutover does not yet require that contributor. A blocked
+identity retains its previous interval only while that interval remains valid; healthy identities
+can still publish in the same provider-wide replacement.
+
+| Phase | Advertiser-visible legacy identity | Replacement comparison alias |
+| --- | --- | --- |
+| Before the UTC cutover date | Native historical coverage; a replacement gap does not block valid publication | Native replacement coverage; a historical gap does not block valid publication |
+| Cutover through `legacy_required_through_date`, inclusive | Historical and replacement coverage over their cutover-required ranges | Native replacement coverage, independent of historical gaps |
+| After `legacy_required_through_date` | Replacement coverage advances the end without new historical uploads; required historical coverage for earlier Reports remains validated | Native replacement coverage, independent of historical gaps |
+
+For example, with a cutover next year and both sources active today, a missing replacement day
+blocks its DEV comparison alias while the legacy PROD interval can advance. A missing legacy
+day blocks the legacy interval while complete replacement coverage can advance the DEV alias.
+During overlap, a missing required day in either source blocks the advertiser-visible projection.
+These coverage requirements apply even when `error_if_gaps_exist` is false.
+
+A producer's completion marker counts only after DataAvailabilitySync has persisted that marker's
+metadata, or validated a finalized zero-output date; prior Kingdom publication by the contributor
+is not required. Each contributor can use a different bucket and path through
+`model_line_data_sources`. Replay uses each configured model line's completion semantics,
+including shared base paths and separate buckets. DataAvailabilitySync publishes the configured
+advertiser-visible identity and explicit aliases; distinct contributor identities remain hidden.
+Aliases must be unique to one source and must not name a contributor, a hidden source, or the
+cutover's advertiser-visible identity.
+
+#### Compare EDP-labeled and EDPA-labeled impressions before cutover
+
+Use three ModelLines in the same market:
+
+| Identity | Type | Impression source and purpose |
+| --- | --- | --- |
+| L1 | PROD | EDP-labeled impressions; normal advertiser-visible reporting identity |
+| R1 | PROD | EDPA VID-labeling pipeline output; hidden physical replacement source, never selectable for reporting |
+| D1 | DEV | Temporary comparison alias of R1; selectable only by an authorized explicit DEV request |
+
+D1 is independent of the L1/R1 cutover relationship. It creates no labeling jobs, impression files,
+or ImpressionMetadata of its own. R1 remains PROD so the labeling pipeline can process it; hiding
+it is enforced by omitting its native identity from Kingdom's ModelLine-keyed data availability.
+For a single participating EDP, omission must hold for that EDP too. Do not rely on another EDP
+having no R1 availability to keep it hidden.
+
+1. Create D1 as DEV. D1 and R1 must share the same PopulationSpec, including VID ranges and
+   subpopulation attributes, and equivalent event-template descriptors, including referenced
+   messages and enums. Create a ModelRollout for D1 covering the comparison interval, using R1's
+   compatible ModelRelease/Population; a DEV line without a rollout cannot fulfill population
+   requisitions used by Reporting. Before the cutover date, also validate that L1 and R1 have
+   matching PopulationSpecs and equivalent descriptors: R1 will serve advertiser-visible L1
+   Reports after cutover. Use compatible VID index maps. Configure the dispatcher to
+   process only R1 for the comparison; keep D1 out of dispatcher overrides and labeling inputs.
+
+2. Keep the cutover in the future while comparing today's data. Configure the same L1/R1 cutover
+   in RequisitionFetcher and DataAvailabilitySync, with L1 as both the external and historical
+   identity. Retain both contributor storage roots. Add the availability alias and persistent
+   suppression to the affected provider's DataAvailabilitySync configuration. Replace the ID
+   placeholders below with full canonical resource names:
+
+   ```textproto
+   # In the provider's DataAvailabilitySyncConfig.
+   hidden_model_lines: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/R1_ID"
+   model_line_map {
+     key: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/R1_ID"
+     value {
+       model_lines: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/D1_ID"
+     }
+   }
+   ```
+
+3. Add the inverse mapping to the provider's ResultsFulfillerParams, including the parameters
+   embedded in RequisitionFetcher's `work_item_dispatch` configuration:
+
+   ```textproto
+   # In the provider's ResultsFulfillerParams.
+   model_line_map {
+     key: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/D1_ID"
+     value: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/R1_ID"
+   }
+   ```
+
+   Configure D1's model-line information and R1's physical storage root consistently.
+   RequisitionFetcher uses this mapping to persist R1 as D1's selected source; ResultsFulfiller
+   reads that source. Uploading data or creating availability WorkItems for D1 is unnecessary.
+   Deploy fulfillment configuration before enabling D1 availability.
+
+4. Grant the comparison caller `reporting.basicReports.createWithDevModelLine` on the
+   MeasurementConsumer, in addition to ordinary BasicReport create/read permissions. With
+   permission-valued authorization scopes, include both `reporting.basicReports.create` and
+   `reporting.basicReports.createWithDevModelLine` (or an authorized `reporting.*` scope). Create two otherwise-identical BasicReports with the same
+   campaign, UTC interval, filters, and metric specifications. Select L1 explicitly for the PROD
+   report and D1 explicitly for the DEV report:
+
+   ```textproto
+   # Fragment of the DEV CreateBasicReportRequest; preserve the other PROD fields.
+   parent: "measurementConsumers/MEASUREMENT_CONSUMER_ID"
+   basic_report_id: "replacement-comparison"
+   basic_report {
+     model_line: "modelProviders/MP_ID/modelSuites/MS_ID/modelLines/D1_ID"
+     # Use the same campaign, reporting_interval, filters and result_group_specs
+     # as the PROD request, with a distinct basic_report_id.
+   }
+   ```
+
+   `CreateBasicReportRequest.basic_report.model_line = D1` is required for DEV selection. Automatic selection
+   considers eligible PROD identities, so it must choose L1 rather than D1 or R1. A caller without
+   the DEV permission cannot explicitly select D1. Use the interval common to L1 and D1
+   availability; `report_end` is exclusive and must be the day after the last desired
+   reporting day.
+
+5. Verify before comparing results:
+   * Kingdom publishes separate availability entries for L1 and D1 and no entry for R1.
+   * Both `effective_model_line` values match the explicit requests.
+   * RequisitionFetcher persists L1 for the pre-cutover PROD Report and R1 for the DEV Report;
+     retries retain these choices.
+   * ResultsFulfiller reads EDP-labeled L1 objects for PROD and EDPA-labeled R1 objects for DEV.
+   * Reporting creates separate ModelLine-keyed MetricCalculationSpecs, Metrics, and Kingdom
+     Measurements. Equal dates and metric specifications must not reuse the PROD computation.
+   * An interior missing or unsynchronized R1 date prevents D1 availability from spanning the
+     gap while valid pre-cutover L1 coverage can still publish.
+
+6. To roll back comparison access, stop creating D1 Reports and revoke the DEV permission. Drain
+   or complete existing D1 Reports and WorkItems before removing fulfillment configuration; their
+   persisted routing decisions still select R1. Restore the last known working configuration as a
+   unit if routing or descriptor validation fails.
+
+7. To retire D1, remove `R1 -> D1` from DataAvailabilitySync, run synchronization or replay,
+   and verify Kingdom no longer exposes D1. After existing Reports and WorkItems drain, remove
+   `D1 -> R1` and unused D1 model information from fulfillment configuration, then end
+   D1's active period. Retain R1 impressions needed by historical Reports.
+
+Keep R1 in `hidden_model_lines` when moving, replacing, or removing the cutover
+configuration, and after D1 retires. Removing that suppression can publish R1 as an ordinary native
+PROD identity, making it selectable. Verify that R1 remains absent from every participating EDP's
+Kingdom availability after each configuration change.
+
+For cutover-routed groups, ResultsFulfiller verifies every requested UTC event date against the
+selected internal line's configured validity window and completion marker. An invalid or
+unfinalized date fails fulfillment instead of silently returning a partial result. A finalized date
+with no active ImpressionMetadata is valid and contributes zero impressions. DataAvailabilityMonitor
+continues to detect spurious soft deletions separately, so a legitimate deletion does not block an
+unrelated Report.
 
 `event_group_activity_publishing` is optional. When present, `DataAvailabilitySync`:
 
@@ -1096,16 +1377,45 @@ One `configs` entry per monitored impression path.
 # proto-message: wfa.measurement.config.edpaggregator.DataAvailabilityMonitorConfigs
 configs {
   storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
-  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"
-  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/ML" }
+  edp_impression_path: "edp/<edp-id>"
+  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL" }
   max_stale_days: 3                       # optional (default 3)
   time_zone: "UTC"
-  data_provider_name: "dataProviders/DATA_PROVIDER_ID"          # required for the spurious-deletion check
+  data_provider_name: "dataProviders/DATA_PROVIDER_ID"
   impression_metadata_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   # spurious_deletion_lookback_days: 7    # optional; > 0 enables the spurious-deletion check
   # unprocessed_done_threshold { seconds: 86400 }   # optional (default 24h)
 }
+configs {
+  storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
+  edp_impression_path: "vid-labeled-impressions/edp/<edp-id>"
+  model_line_configs { model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT" }
+  max_stale_days: 3
+  time_zone: "UTC"
+  data_provider_name: "dataProviders/DATA_PROVIDER_ID"
+  impression_metadata_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
+}
+model_line_cutovers {
+  external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/VISIBLE"
+  historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  cutover_date { year: 2026 month: 10 day: 5 }
+  legacy_required_through_date { year: 2027 month: 1 day: 3 }
+  maximum_report_duration { seconds: 7776000 }
+}
 ```
+
+For every nonempty DataAvailabilitySync `external_impression_path`, configure the same
+`data_provider_name`, storage backend and root, and normalized `edp_impression_path` here.
+`data_provider_name` is also required when the spurious-deletion check is enabled. VidLabelingMonitor retains internal pipeline recovery. DataAvailabilityMonitor may also
+inspect internal cutover contributors with the matching data provider ownership.
+
+Configure the same cutover in RequisitionFetcher, DataAvailabilitySync, and
+DataAvailabilityMonitor. Monitor both contributing model lines. The replacement line is required
+from `cutover_date`; the historical line remains required through
+`legacy_required_through_date`. Contributors may be placed in separate `configs` entries so each
+uses its own storage client and `edp_impression_path`. Dates outside the configured windows do not
+produce cutover alerts.
 
 ### EDP config (`event_data_provider_configs`)
 
@@ -1156,8 +1466,13 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
   multi-party suppression is disabled as described below. When this is configured,
   `noise_params.noise_type` must be `NONE`.
 * `impression_max_frequency_per_user` — direct impression measurements only.
-* `model_line_map` — optional external→internal model-line remapping for impression
-  lookup.
+* `model_line_map` — optional external→internal model-line remapping for requisition model lines
+  without a report-level cutover. Report-level cutovers belong in
+  `work_item_dispatch.model_line_cutovers`; ResultsFulfiller consumes the internal line persisted
+  in each `GroupedRequisitions` blob rather than evaluating the cutover again.
+* `model_line_data_sources` — required for both internal contributors of each report-level cutover.
+  It defines the completion-marker prefix and inclusive validity bound that ResultsFulfiller checks
+  before reading the selected line.
 * `trustee_params.kek_uri_to_key_name` — required for TrusTEE support; maps an input
   KEK URI to a re-encryption key in the same GCP key ring or AWS account and region
   (see the EDP-side
@@ -1172,7 +1487,9 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
 
 * `event_group_reference_id_entity_key_mapping` — optional equivalence between
   legacy event-group reference IDs and one entity-key type. Presence enables
-  lookup and filtering through both representations. Its two prefixes are
+  lookup and filtering through both representations, and permits mixed
+  reference-ID-only and entity-key selectors in a requisition when included in
+  the RequisitionFetcher's dispatched params. Its two prefixes are
   independent and optional; leave either blank when that representation is
   unprefixed.
 * `whole_blob_entity_types` — entity types whose `BlobDetails.entity_keys` group
@@ -1187,6 +1504,9 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
 ---
 
 ## Deployment
+
+For the VID Labeling release upgrade, see the
+[v0.5.53 migration guide](vid-labeling-migration-v0.5.53.md).
 
 ### Prerequisites
 
@@ -1307,33 +1627,39 @@ exclusion and required control-plane settings. An environment-scoped concurrency
 two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
 performs the required order:
 
-1. Roll `secure-computation-internal-api-server` and
+1. Pause the RequisitionFetcher scheduler after image publication and configuration validation.
+   Record the confirmed pause time; control-plane and Terraform preparation count toward the
+   existing ten-minute drain window.
+2. Roll `secure-computation-internal-api-server` and
    `secure-computation-public-api-server` with WorkItem publication, legacy reconciliation, and
    dead-letter consumption paused. The APIs remain available to producers and existing workers;
    transactions continue creating durable outbox rows without publishing them.
-2. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
+3. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
    its autoscaler, sets its target size to zero, and writes a process-level consumption gate into
    the replacement instance template so a surge instance cannot pull work while quiescing.
-3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
-   then verify that each has target size zero and no remaining instances.
-4. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
+4. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
+   then verify that each has target size zero and no remaining instances. Wait only the remaining
+   part of the RequisitionFetcher drain window before rolling Kingdom. For an initial deployment,
+   Terraform creates the scheduler paused and the full window starts after that apply.
+5. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
    reconciliation, and dead-letter consumption enabled. The DLQ listener defers a delivery while a
    current-generation WorkItem still has a valid leased attempt; otherwise it terminalizes the
    exhausted WorkItem.
-5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
-6. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
+6. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
+7. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
    the TEE autoscalers, changes both process-level gates to enabled, and starts only the new worker
    version.
-7. Continue the remaining deployment and tests normally.
+8. Continue the remaining deployment and tests normally.
 
-If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
-consumers disabled and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
+If the workflow fails after pausing RequisitionFetcher but before the final Terraform apply, leave
+RequisitionFetcher and any quiesced TEE consumers paused and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
 independently. Do not manually scale the API deployments to zero: their manifests do not
 explicitly restore replica counts, so manual scaling can leave them stopped.
 
-DataWatcher and Pub/Sub remain running during this process. Terraform pauses the RequisitionFetcher
-Cloud Scheduler job, and the workflow then waits for invocations that started before the pause to
-finish. Unclaimed messages remain queued and must not be drained. Old
+DataWatcher and Pub/Sub remain running during this process. The workflow pauses the RequisitionFetcher
+Cloud Scheduler job early and Terraform keeps it paused during preparation. The existing ten-minute
+wait is measured from the confirmed pause, with preparation time deducted; it does not shorten the
+drain window or treat a Cloud Run request timeout as proof that application work has stopped. Unclaimed messages remain queued and must not be drained. Old
 and new API replicas may overlap in the first Kubernetes rolling update while old TEE workers are
 still running. Publication and legacy reconciliation are disabled on every new internal API replica
 during that rollout, preventing a new replica from introducing duplicate legacy deliveries. After
@@ -1612,7 +1938,7 @@ needs. The following examples use `time_zone = "UTC"`:
 
 | Deployment | Dispatch schedule | Purpose |
 |---|---|---|
-| CMMS development/cloud tests | `*/5 * * * *` | Allow another dispatch attempt during the 30-minute setup timeout |
+| CMMS development/cloud tests | `*/5 * * * *` | Allow another dispatch attempt during the bounded fixture setup wait |
 | Long-lived deployment, four runs per day | `0 */6 * * *` | Check every six hours |
 | Long-lived deployment, one run per day | `0 0 * * *` | Check daily |
 

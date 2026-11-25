@@ -31,6 +31,7 @@ import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.toWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationClaimResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.claimWorkItemPublication
@@ -214,7 +215,7 @@ class WorkItemPublicationRunner(
     try {
       workItemPublisher.publishMessage(
         publication.queueResourceId,
-        publication.workItem,
+        publication.workItem.toWorkItem(),
         publication.workItem.serializationKey,
       )
     } catch (e: CancellationException) {

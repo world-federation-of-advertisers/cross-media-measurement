@@ -110,6 +110,7 @@ class VidLabelingDispatcherFunctionTest {
           val request = invocation.getArgument<CreateRawImpressionUploadRequest>(0)
           RawImpressionUpload.newBuilder()
             .setName("${request.parent}/rawImpressionUploads/upload-1")
+            .setUploadHealingOperation(request.rawImpressionUpload.uploadHealingOperation)
             .setDoneBlobUri("file:////edp/edp_name/timestamp/done")
             .setEtag(UPLOAD_ETAG)
             .build()
@@ -247,6 +248,7 @@ class VidLabelingDispatcherFunctionTest {
           "MODEL_SHARDS_CERT_HOST" to "localhost",
           "RAW_IMPRESSION_UPLOAD_TARGET" to "localhost:${grpcServer.port}",
           "RAW_IMPRESSION_UPLOAD_CERT_HOST" to "localhost",
+          "CORRECTION_DETECTION_CERT_HOST" to "localhost",
           "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
           "CONTROL_PLANE_CERT_HOST" to "localhost",
           "VID_LABELER_QUEUE_NAME" to "queues/vid-labeler",
@@ -285,6 +287,7 @@ class VidLabelingDispatcherFunctionTest {
     runBlocking {
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
+      // Finalize the upload only after every raw file has been written.
       storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
     }
     val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
@@ -596,6 +599,7 @@ class VidLabelingDispatcherFunctionTest {
       eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       requiredEntityKeyFieldMapping["person"] = "person_col"
       populationSpecBlobUri = "gs://configs/population-spec.textproto"
+      eventTemplateVersion = 1
     }
     modelSuite = MODEL_SUITE
     numberOfShards = 2

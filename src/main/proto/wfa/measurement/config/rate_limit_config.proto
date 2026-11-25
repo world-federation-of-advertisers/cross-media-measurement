@@ -22,12 +22,12 @@ option java_multiple_files = true;
 // Configuration for gRPC rate limiting.
 //
 // Rate limit resolution:
-// 1. Look for an entry for the principal identifier in
-// [RateLimitConfig.principal_rate_limit_override][].
-//    a. If not present, use [RateLimitConfig.rate_limit][].
-// 2. Within the [RateLimitConfig.RateLimit][] resolved in (1), look for an
-// entry for the method in [RateLimitConfig.RateLimit.per_method_rate_limit][].
-//    a. If not present, use [RateLimitConfig.RateLimit.default_rate_limit][].
+// 1. If the principal's [RateLimitConfig.principal_rate_limit_override][] has a
+//    per-method limit for the requested method, use it.
+// 2. Otherwise, if the principal override has a default rate limit, use it.
+// 3. Otherwise, use the per-method limit from [RateLimitConfig.rate_limit][] if
+//    present, or its default rate limit. These regular buckets remain shared
+//    with other principals using the regular policy.
 message RateLimitConfig {
   // Rate limit configuration for an RPC method.
   //
@@ -41,7 +41,8 @@ message RateLimitConfig {
   }
   message RateLimit {
     // Default rate limit that applies when there is not a per-method limit.
-    // Required.
+    // Required in [RateLimitConfig.rate_limit][]. If omitted in a principal
+    // override, methods without an override use the regular rate limit.
     //
     // This limit is shared across all methods for which there is not a
     // per-method limit.
@@ -61,6 +62,10 @@ message RateLimitConfig {
   RateLimit rate_limit = 1;
 
   // Map of principal identifier to the rate limit override for that principal.
+  //
+  // An override with a default rate limit replaces the regular policy. An
+  // override without a default changes only its explicitly configured methods;
+  // other methods use the regular shared buckets.
   //
   // The principal identifier comes from the gRPC context. The format of the
   // identifier depends on how the server implementation identifies a principal.

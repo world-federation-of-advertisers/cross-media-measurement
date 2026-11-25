@@ -1,0 +1,14 @@
+# proto-file: wfa/measurement/api/v2alpha/population_spec.proto
+# proto-message: PopulationSpec
+
+# Version 3 omits the removed `retired` population attribute.
+
+subpopulations {
+  attributes {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.VersionedCommon] {
+      original: SEGMENT_A
+      later: SEGMENT_A
+    }
+  }
+  vid_ranges { start_vid: 1 end_vid_inclusive: 1000 }
+}

@@ -18,6 +18,8 @@ package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
+import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -41,6 +43,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -211,6 +214,42 @@ class RecoverUploaderTest {
       assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
       assertThat(deferred.processingDeferred).isTrue()
     }
+
+  @Test
+  fun `recover retains the source marker when a newer source revision is deferred`() = runBlocking {
+    val deferred = rawImpressionUpload {
+      name = REPLACEMENT_UPLOAD
+      doneBlobUri = DONE_BLOB_URI
+      doneBlobGeneration = NEW_GENERATION
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+      replacesRawImpressionUpload = UPLOAD
+      processingDeferred = true
+      state = RawImpressionUpload.State.CORRECTION_REQUIRED
+    }
+    stubSourceUpload(deferred)
+    stubModelLine(RawImpressionUploadModelLine.State.FAILED, recoveryPredecessorUpload = "")
+    stubSnapshot()
+    val operation = uploadHealingOperation {
+      name = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
+      state = UploadHealingOperation.State.RECOVERING
+      steps += uploadHealingStep {
+        sourceRawImpressionUpload = UPLOAD
+        cmmsModelLine = MODEL_LINE
+        recoveryTarget = true
+        state = UploadHealingStep.State.WAITING_FOR_REPLACEMENT
+        recoveryAction =
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+      }
+    }
+    val uploader =
+      recoverUploader(
+        getHealingOperation = { operation },
+        rewriteDoneBlob = { _, _, _ -> error("A newer EDP marker must be preserved") },
+      )
+
+    assertThat(uploader.recover(UPLOAD, listOf(MODEL_LINE)).doneBlobGeneration)
+      .isEqualTo(GENERATION)
+  }
 
   @Test
   fun `recover rejects a superseded upload`() = runBlocking {
@@ -419,6 +458,413 @@ class RecoverUploaderTest {
 
     assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
     assertThat(rewriteCalled).isTrue()
+  }
+
+  @Test
+  fun `recover accepts exact historical AS predecessor without a completed replacement revision`():
+    Unit = runBlocking {
+    val fixture = historicalFixture()
+    var rewritten = false
+    val result =
+      recoverUploader(
+          getHealingOperation = { fixture },
+          rewriteDoneBlob = { _, _, _ ->
+            rewritten = true
+            NEW_GENERATION
+          },
+        )
+        .recover(UPLOAD, listOf(MODEL_LINE))
+    assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+    assertThat(rewritten).isTrue()
+  }
+
+  @Test
+  fun `recover reads every original and historical snapshot page before rewrite`(): Unit =
+    runBlocking {
+      val fixture = historicalFixture(paginated = true)
+      val result =
+        recoverUploader(
+            getHealingOperation = { fixture },
+            rewriteDoneBlob = { _, _, _ -> NEW_GENERATION },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+    }
+
+  @Test
+  fun `recover rejects historical AS when approved target is not memoized`(): Unit = runBlocking {
+    val fixture = historicalFixture(memoized = false)
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader(
+            getHealingOperation = { fixture },
+            rewriteDoneBlob = { _, _, _ -> error("No rewrite") },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+    assertThat(error).hasMessageThat().contains("No upload revision")
+  }
+
+  @Test
+  fun `recover rejects historical AS when its model row is missing`(): Unit = runBlocking {
+    val fixture = historicalFixture(missingPredecessorRow = true)
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader(
+            getHealingOperation = { fixture },
+            rewriteDoneBlob = { _, _, _ -> error("No rewrite") },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+    assertThat(error).hasMessageThat().contains("No upload revision")
+  }
+
+  @Test
+  fun `recover leaves marker unchanged when historical source lookup is unavailable`(): Unit =
+    runBlocking {
+      val fixture = historicalFixture(sourceLookupError = Status.UNAVAILABLE)
+      val failure =
+        assertFailsWith<StatusException> {
+          recoverUploader(
+              getHealingOperation = { fixture },
+              rewriteDoneBlob = { _, _, _ -> error("No rewrite") },
+            )
+            .recover(UPLOAD, listOf(MODEL_LINE))
+        }
+      assertThat(failure.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    }
+
+  @Test
+  fun `recover propagates cancelled historical source metadata lookup`(): Unit = runBlocking {
+    val fixture = historicalFixture(sourceLookupError = Status.CANCELLED)
+    val failure =
+      assertFailsWith<StatusException> {
+        recoverUploader(
+            getHealingOperation = { fixture },
+            rewriteDoneBlob = { _, _, _ -> error("No rewrite") },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+    assertThat(failure.status.code).isEqualTo(Status.Code.CANCELLED)
+  }
+
+  @Test
+  fun `recover preserves exact completed external predecessor without historical exemption`():
+    Unit = runBlocking {
+    val fixture = historicalFixture(predecessorCompleted = true)
+    assertThat(
+        recoverUploader(
+            getHealingOperation = { fixture },
+            rewriteDoneBlob = { _, _, _ -> NEW_GENERATION },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+          .doneBlobGeneration
+      )
+      .isEqualTo(NEW_GENERATION)
+  }
+
+  @Test
+  fun `recover rejects exact AS predecessor with a later unapproved snapshot basis`(): Unit =
+    runBlocking {
+      val fixture = historicalFixture(laterSnapshot = true)
+      val failure =
+        assertFailsWith<IllegalArgumentException> {
+          recoverUploader(
+              getHealingOperation = { fixture },
+              rewriteDoneBlob = { _, _, _ -> error("No rewrite") },
+            )
+            .recover(UPLOAD, listOf(MODEL_LINE))
+        }
+      assertThat(failure).hasMessageThat().contains("No upload revision")
+    }
+
+  @Test
+  fun `recover rejects exact AS predecessor owned by another healing operation`(): Unit =
+    runBlocking {
+      val fixture = historicalFixture(foreignPredecessor = true)
+      val failure =
+        assertFailsWith<IllegalArgumentException> {
+          recoverUploader(
+              getHealingOperation = { fixture },
+              rewriteDoneBlob = { _, _, _ -> error("No rewrite") },
+            )
+            .recover(UPLOAD, listOf(MODEL_LINE))
+        }
+      assertThat(failure).hasMessageThat().contains("No upload revision")
+    }
+
+  @Test
+  fun `recover historical proof filters mismatched model target and recovery action`(): Unit =
+    runBlocking {
+      val fixture = historicalFixture(scopeDecoys = true)
+      assertThat(
+          recoverUploader(
+              getHealingOperation = { fixture },
+              rewriteDoneBlob = { _, _, _ -> NEW_GENERATION },
+            )
+            .recover(UPLOAD, listOf(MODEL_LINE))
+            .doneBlobGeneration
+        )
+        .isEqualTo(NEW_GENERATION)
+    }
+
+  @Test
+  fun `recover accepts pending predecessor from its completed healing operation`(): Unit =
+    runBlocking {
+      val active = historicalFixture(foreignPredecessor = true)
+      val prior = completedHistoricalOperation()
+      val operations = mapOf(active.name to active, prior.name to prior)
+      var rewritten = false
+      val result =
+        recoverUploader(
+            getHealingOperation = { operations[it] },
+            rewriteDoneBlob = { _, _, _ ->
+              rewritten = true
+              NEW_GENERATION
+            },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+      assertThat(rewritten).isTrue()
+    }
+
+  @Test
+  fun `recover rejects pending predecessor with missing healing operation`(): Unit = runBlocking {
+    verifyPriorOperationRejected(null)
+  }
+
+  @Test
+  fun `recover rejects pending predecessor with mismatched healing operation`(): Unit =
+    runBlocking {
+      verifyPriorOperationRejected(
+        completedHistoricalOperation().copy {
+          name = "$DATA_PROVIDER/uploadHealingOperations/wrong"
+        }
+      )
+    }
+
+  @Test
+  fun `recover rejects pending predecessor from unfinished healing operation`(): Unit =
+    runBlocking {
+      verifyPriorOperationRejected(
+        completedHistoricalOperation().copy { state = UploadHealingOperation.State.RECOVERING }
+      )
+    }
+
+  @Test
+  fun `recover preserves completed predecessor without looking up its prior operation`(): Unit =
+    runBlocking {
+      val active = historicalFixture(foreignPredecessor = true, predecessorCompleted = true)
+      val result =
+        recoverUploader(
+            getHealingOperation = { name ->
+              check(name == active.name) {
+                "Completed predecessor needs no historical operation lookup"
+              }
+              active
+            },
+            rewriteDoneBlob = { _, _, _ -> NEW_GENERATION },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+    }
+
+  private fun completedHistoricalOperation() = uploadHealingOperation {
+    name = "$DATA_PROVIDER/uploadHealingOperations/foreign"
+    state = UploadHealingOperation.State.COMPLETE
+  }
+
+  private suspend fun verifyPriorOperationRejected(prior: UploadHealingOperation?) {
+    val active = historicalFixture(foreignPredecessor = true)
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader(
+            getHealingOperation = { name -> if (name == active.name) active else prior },
+            rewriteDoneBlob = { _, _, _ -> error("No rewrite") },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+    assertThat(failure).hasMessageThat().contains("No upload revision")
+  }
+
+  @Test
+  fun `recover leaves marker unchanged when prior operation lookup is unavailable`(): Unit =
+    runBlocking {
+      verifyPriorOperationLookupFailure(Status.UNAVAILABLE)
+    }
+
+  @Test
+  fun `recover leaves marker unchanged when prior operation lookup is cancelled`(): Unit =
+    runBlocking {
+      verifyPriorOperationLookupFailure(Status.CANCELLED)
+    }
+
+  private suspend fun verifyPriorOperationLookupFailure(status: Status) {
+    val active = historicalFixture(foreignPredecessor = true)
+    var rewritten = false
+    val failure =
+      assertFailsWith<StatusException> {
+        recoverUploader(
+            getHealingOperation = { name ->
+              if (name == active.name) active else throw status.asException()
+            },
+            rewriteDoneBlob = { _, _, _ ->
+              rewritten = true
+              NEW_GENERATION
+            },
+          )
+          .recover(UPLOAD, listOf(MODEL_LINE))
+      }
+    assertThat(failure.status.code).isEqualTo(status.code)
+    assertThat(rewritten).isFalse()
+  }
+
+  private suspend fun historicalFixture(
+    paginated: Boolean = false,
+    memoized: Boolean = true,
+    missingPredecessorRow: Boolean = false,
+    sourceLookupError: Status? = null,
+    predecessorCompleted: Boolean = false,
+    laterSnapshot: Boolean = false,
+    foreignPredecessor: Boolean = false,
+    scopeDecoys: Boolean = false,
+  ): UploadHealingOperation {
+    val source = rawImpressionUpload {
+      name = UPLOAD
+      state = RawImpressionUpload.State.FAILED
+      registrationComplete = true
+      doneBlobUri = DONE_BLOB_URI
+      doneBlobGeneration = GENERATION
+      createTime = DONE_BLOB_CREATE_TIME.minusSeconds(10).toProtoTime()
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+    }
+    val predecessor = rawImpressionUpload {
+      name = PREDECESSOR_UPLOAD
+      if (foreignPredecessor)
+        uploadHealingOperation = "$DATA_PROVIDER/uploadHealingOperations/foreign"
+      state =
+        if (predecessorCompleted) RawImpressionUpload.State.COMPLETED
+        else RawImpressionUpload.State.ACTIVE
+      registrationComplete = true
+      doneBlobUri = PREDECESSOR_DONE_BLOB_URI
+      doneBlobGeneration = GENERATION - 2
+      createTime = DONE_BLOB_CREATE_TIME.minusSeconds(20).toProtoTime()
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+    }
+    var sourceGets = 0
+    whenever(uploadsService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
+        >(
+          0
+        )
+      if (request.name == UPLOAD) {
+        sourceGets++
+        if (sourceGets == 2 && sourceLookupError != null)
+          throw sourceLookupError.asRuntimeException()
+        source
+      } else predecessor
+    }
+    whenever(uploadsService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
+        >(
+          0
+        )
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads +=
+          if (request.filter.doneBlobUri == DONE_BLOB_URI) source else predecessor
+      }
+    }
+    stubModelLine(
+      RawImpressionUploadModelLine.State.FAILED,
+      predecessorState =
+        if (predecessorCompleted) RawImpressionUploadModelLine.State.COMPLETED
+        else RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+    )
+    if (missingPredecessorRow)
+      whenever(modelLinesService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation
+        ->
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+          >(
+            0
+          )
+        listRawImpressionUploadModelLinesResponse {
+          if (request.parent == UPLOAD)
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "$UPLOAD/rawImpressionUploadModelLines/rml1"
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.FAILED
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              evictionOperationId = EVICTION_OPERATION_ID
+              recoveryPredecessorRawImpressionUpload = PREDECESSOR_UPLOAD
+            }
+        }
+      }
+    whenever(rankIndexBlobsService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+        >(
+          0
+        )
+      listRankIndexBlobsResponse {
+        rankIndexBlobs += rankIndexBlob {
+          name = "${request.parent}/rankIndexBlobs/${request.pageToken.ifEmpty { "first" }}"
+          cmmsModelLine = MODEL_LINE
+          blobType = RankIndexBlob.BlobType.SNAPSHOT
+          poolOffset = if (request.pageToken.isEmpty()) 0L else 1L
+          createTime =
+            DONE_BLOB_CREATE_TIME.plusSeconds(
+                if (request.parent == UPLOAD) 10 else if (laterSnapshot) 15 else -5
+              )
+              .toProtoTime()
+          if (request.parent == UPLOAD)
+            deleteTime = DONE_BLOB_CREATE_TIME.plusSeconds(20).toProtoTime()
+        }
+        if (paginated && request.pageSize != 1 && request.pageToken.isEmpty())
+          nextPageToken = "second"
+      }
+    }
+    return uploadHealingOperation {
+      name = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
+      state = UploadHealingOperation.State.RECOVERING
+      steps += uploadHealingStep {
+        sourceRawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/other"
+        rawImpressionUploadModelLine = "other-model-row"
+        cmmsModelLine = MODEL_LINE_2
+        recoveryTarget = true
+        this.memoized = true
+      }
+      if (scopeDecoys) {
+        for (kind in listOf("model", "target", "action")) steps += uploadHealingStep {
+          sourceRawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/decoy-$kind"
+          rawImpressionUploadModelLine = "$UPLOAD/rawImpressionUploadModelLines/rml1"
+          cmmsModelLine = if (kind == "model") MODEL_LINE_2 else MODEL_LINE
+          recoveryTarget = kind != "target"
+          this.memoized = true
+          recoveryAction =
+            if (kind == "action")
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            else RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+      }
+      steps += uploadHealingStep {
+        sourceRawImpressionUpload = UPLOAD
+        rawImpressionUploadModelLine = "$UPLOAD/rawImpressionUploadModelLines/rml1"
+        cmmsModelLine = MODEL_LINE
+        recoveryTarget = true
+        this.memoized = memoized
+        recoveryAction =
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+      }
+    }
   }
 
   private fun recoverUploader(

@@ -17,7 +17,6 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/api/field_behavior.proto";
-import "google/protobuf/empty.proto";
 import "wfa/measurement/internal/edpaggregator/data_availability_sync_lease.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -28,10 +27,6 @@ option java_outer_classname = "DataAvailabilitySyncLeaseServiceProto";
 service DataAvailabilitySyncLeaseService {
   // Acquires a lease for a synchronization attempt.
   rpc AcquireDataAvailabilitySyncLease(AcquireDataAvailabilitySyncLeaseRequest)
-      returns (DataAvailabilitySyncLease);
-
-  // Retrieves a synchronization lease.
-  rpc GetDataAvailabilitySyncLease(GetDataAvailabilitySyncLeaseRequest)
       returns (DataAvailabilitySyncLease);
 
   // Validates that a synchronization lease remains active.
@@ -46,15 +41,6 @@ service DataAvailabilitySyncLeaseService {
   // Releases an active synchronization lease.
   rpc ReleaseDataAvailabilitySyncLease(ReleaseDataAvailabilitySyncLeaseRequest)
       returns (DataAvailabilitySyncLease);
-
-  // Marks every elapsed active lease as expired.
-  rpc ExpireDataAvailabilitySyncLeases(ExpireDataAvailabilitySyncLeasesRequest)
-      returns (google.protobuf.Empty);
-
-  // Reports whether a data provider has any unexpired active lease.
-  rpc HasActiveDataAvailabilitySyncLeases(
-      HasActiveDataAvailabilitySyncLeasesRequest)
-      returns (HasActiveDataAvailabilitySyncLeasesResponse);
 }
 
 message AcquireDataAvailabilitySyncLeaseRequest {
@@ -62,12 +48,6 @@ message AcquireDataAvailabilitySyncLeaseRequest {
   string synchronization_attempt_id = 2
       [(google.api.field_behavior) = REQUIRED];
   string request_id = 3 [(google.api.field_behavior) = REQUIRED];
-}
-
-message GetDataAvailabilitySyncLeaseRequest {
-  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
-  string synchronization_attempt_id = 2
-      [(google.api.field_behavior) = REQUIRED];
 }
 
 message ValidateDataAvailabilitySyncLeaseRequest {
@@ -91,16 +71,4 @@ message ReleaseDataAvailabilitySyncLeaseRequest {
       [(google.api.field_behavior) = REQUIRED];
   string etag = 3 [(google.api.field_behavior) = REQUIRED];
   string request_id = 4 [(google.api.field_behavior) = REQUIRED];
-}
-
-message ExpireDataAvailabilitySyncLeasesRequest {
-  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
-}
-
-message HasActiveDataAvailabilitySyncLeasesRequest {
-  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
-}
-
-message HasActiveDataAvailabilitySyncLeasesResponse {
-  bool has_active_leases = 1;
 }

@@ -78,7 +78,10 @@ class SingleRequisitionGrouperTest {
 
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1L))
   private val validator by lazy {
-    RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    RequisitionsValidator(
+      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+      allowMixedEventGroupSelectors = false,
+    )
   }
   private val requisitionsStub by lazy {
     RequisitionsGrpcKt.RequisitionsCoroutineStub(grpcTestServerRule.channel)
