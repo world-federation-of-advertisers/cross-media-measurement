@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryStageAtte
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
+import org.wfanet.measurement.internal.kingdom.PopulationDetails
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
@@ -49,6 +50,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.system.v1alpha.PopulationSpec
+import org.wfanet.measurement.system.v1alpha.PopulationSpecKt
 import org.wfanet.measurement.system.v1alpha.Query
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
@@ -56,6 +59,7 @@ import org.wfanet.measurement.system.v1alpha.RequisitionKt
 import org.wfanet.measurement.system.v1alpha.StageAttempt
 import org.wfanet.measurement.system.v1alpha.computation
 import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.populationSpec
 import org.wfanet.measurement.system.v1alpha.requisition
 
 /** Converts a kingdom internal Requisition to system Api Requisition. */
@@ -282,9 +286,31 @@ private fun InternalMeasurement.toSystemMultimeasurement(): Computation.Multimea
     // The system `Query` is wire-compatible with the public API `Query` that
     // `MeasurementDetails.queries` holds.
     queries += source.details.queriesList.map { Query.parseFrom(it) }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Set `population_spec`
-    //   and `event_descriptor` resolved from the `MeasurementSpec`'s model line, which needs the
-    //   Kingdom to look up the `Population` and event template for a `ModelLine`.
+  }
+}
+
+/**
+ * Converts this internal [PopulationDetails.PopulationSpec] to a system [PopulationSpec].
+ *
+ * The two messages number their `SubPopulation` fields differently, so they are not
+ * wire-compatible.
+ */
+fun PopulationDetails.PopulationSpec.toSystemPopulationSpec(): PopulationSpec {
+  val source = this
+  return populationSpec {
+    subpopulations +=
+      source.subpopulationsList.map { subpopulation ->
+        PopulationSpecKt.subPopulation {
+          attributes += subpopulation.attributesList
+          vidRanges +=
+            subpopulation.vidRangesList.map {
+              PopulationSpecKt.vidRange {
+                startVid = it.startVid
+                endVidInclusive = it.endVidInclusive
+              }
+            }
+        }
+      }
   }
 }
 

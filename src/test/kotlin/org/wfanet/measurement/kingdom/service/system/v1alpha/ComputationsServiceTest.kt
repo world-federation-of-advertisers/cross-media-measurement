@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
@@ -27,6 +28,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -42,6 +44,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.times
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -59,6 +62,14 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase as InternalModelReleasesCoroutineService
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub as InternalModelReleasesCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase as InternalModelRolloutsCoroutineService
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub as InternalModelRolloutsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt
+import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt.PopulationSpecKt as InternalPopulationSpecKt
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase as InternalPopulationsCoroutineService
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub as InternalPopulationsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
@@ -68,6 +79,7 @@ import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.TrusTeeParams
 import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.computationParticipantDetails
@@ -75,13 +87,20 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
+import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
+import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails
+import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
+import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
+import org.wfanet.measurement.internal.kingdom.population as internalPopulation
+import org.wfanet.measurement.internal.kingdom.populationDetails
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
@@ -94,6 +113,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.requisitionParams
 import org.wfanet.measurement.system.v1alpha.GetComputationRequest
+import org.wfanet.measurement.system.v1alpha.PopulationSpecKt
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
@@ -102,6 +122,7 @@ import org.wfanet.measurement.system.v1alpha.computation
 import org.wfanet.measurement.system.v1alpha.computationParticipant
 import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.getComputationRequest
+import org.wfanet.measurement.system.v1alpha.populationSpec
 import org.wfanet.measurement.system.v1alpha.query
 import org.wfanet.measurement.system.v1alpha.requisition
 import org.wfanet.measurement.system.v1alpha.stageAttempt
@@ -340,10 +361,70 @@ private val QUERY = query {
   maxFrequency = 10
 }
 
+private const val EXTERNAL_MODEL_PROVIDER_ID = 8L
+private const val EXTERNAL_MODEL_SUITE_ID = 9L
+private const val EXTERNAL_MODEL_LINE_ID = 10L
+private const val EXTERNAL_MODEL_RELEASE_ID = 11L
+private const val EXTERNAL_POPULATION_ID = 12L
+private val MODEL_LINE_NAME =
+  "modelProviders/${externalIdToApiId(EXTERNAL_MODEL_PROVIDER_ID)}/" +
+    "modelSuites/${externalIdToApiId(EXTERNAL_MODEL_SUITE_ID)}/" +
+    "modelLines/${externalIdToApiId(EXTERNAL_MODEL_LINE_ID)}"
+private val MULTIMEASUREMENT_SPEC: ByteString =
+  measurementSpec { modelLine = MODEL_LINE_NAME }.toByteString()
+
+private val INTERNAL_MODEL_ROLLOUT = internalModelRollout {
+  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+  externalModelLineId = EXTERNAL_MODEL_LINE_ID
+  externalModelRolloutId = 1L
+  rolloutPeriodStartTime = timestamp { seconds = 1000 }
+  createTime = timestamp { seconds = 100 }
+  externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID
+}
+private val INTERNAL_MODEL_RELEASE = internalModelRelease {
+  externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+  externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+  externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalPopulationId = EXTERNAL_POPULATION_ID
+}
+private val POPULATION_ATTRIBUTE: ProtoAny = ProtoAny.pack(timestamp { seconds = 42 })
+private val INTERNAL_POPULATION = internalPopulation {
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalPopulationId = EXTERNAL_POPULATION_ID
+  details = populationDetails {
+    populationSpec =
+      PopulationDetailsKt.populationSpec {
+        subpopulations +=
+          InternalPopulationSpecKt.subPopulation {
+            vidRanges +=
+              InternalPopulationSpecKt.vidRange {
+                startVid = 1L
+                endVidInclusive = 100L
+              }
+            attributes += POPULATION_ATTRIBUTE
+          }
+      }
+  }
+}
+private val SYSTEM_POPULATION_SPEC = populationSpec {
+  subpopulations +=
+    PopulationSpecKt.subPopulation {
+      attributes += POPULATION_ATTRIBUTE
+      vidRanges +=
+        PopulationSpecKt.vidRange {
+          startVid = 1L
+          endVidInclusive = 100L
+        }
+    }
+}
+
 private val INTERNAL_TRUS_TEE_V2_MEASUREMENT =
   INTERNAL_TRUS_TEE_MEASUREMENT.copy {
     details =
       details.copy {
+        measurementSpec = MULTIMEASUREMENT_SPEC
         protocolConfig = protocolConfig {
           trusTeeV2 = ProtocolConfig.TrusTeeV2.getDefaultInstance()
         }
@@ -366,13 +447,32 @@ class ComputationsServiceTest {
   private val duchyIdProvider = { DuchyIdentity(DUCHY_ID) }
 
   private val internalMeasurementsServiceMock: InternalMeasurementsCoroutineService = mockService()
+  private val internalModelRolloutsServiceMock: InternalModelRolloutsCoroutineService =
+    mockService {
+      onBlocking { streamModelRollouts(any()) }.thenReturn(flowOf(INTERNAL_MODEL_ROLLOUT))
+    }
+  private val internalModelReleasesServiceMock: InternalModelReleasesCoroutineService =
+    mockService {
+      onBlocking { getModelRelease(any()) }.thenReturn(INTERNAL_MODEL_RELEASE)
+    }
+  private val internalPopulationsServiceMock: InternalPopulationsCoroutineService = mockService {
+    onBlocking { getPopulation(any()) }.thenReturn(INTERNAL_POPULATION)
+  }
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(internalMeasurementsServiceMock) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalMeasurementsServiceMock)
+    addService(internalModelRolloutsServiceMock)
+    addService(internalModelReleasesServiceMock)
+    addService(internalPopulationsServiceMock)
+  }
 
   private val service =
     ComputationsService(
       InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
+      InternalModelRolloutsCoroutineStub(grpcTestServerRule.channel),
+      InternalModelReleasesCoroutineStub(grpcTestServerRule.channel),
+      InternalPopulationsCoroutineStub(grpcTestServerRule.channel),
       duchyIdentityProvider = duchyIdProvider,
     )
   private lateinit var openTelemetry: OpenTelemetrySdk
@@ -672,6 +772,7 @@ class ComputationsServiceTest {
 
       assertThat(response.mpcProtocolConfig.hasTrusTeeV2()).isTrue()
       assertThat(response.multimeasurement.queriesList).containsExactly(QUERY)
+      assertThat(response.multimeasurement.populationSpec).isEqualTo(SYSTEM_POPULATION_SPEC)
       assertThat(response.requisitionsList)
         .containsExactly(
           requisition {
@@ -682,6 +783,120 @@ class ComputationsServiceTest {
             vectorIndex = 1
           }
         )
+    }
+
+  @Test
+  fun `getComputation resolves TrusTEE v2 population from model line`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+    service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+
+    verifyProtoArgument(
+        internalModelRolloutsServiceMock,
+        InternalModelRolloutsCoroutineService::streamModelRollouts,
+      )
+      .isEqualTo(
+        streamModelRolloutsRequest {
+          filter =
+            StreamModelRolloutsRequestKt.filter {
+              externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+              externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+              externalModelLineId = EXTERNAL_MODEL_LINE_ID
+            }
+        }
+      )
+    verifyProtoArgument(
+        internalModelReleasesServiceMock,
+        InternalModelReleasesCoroutineService::getModelRelease,
+      )
+      .isEqualTo(
+        getModelReleaseRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID
+        }
+      )
+    verifyProtoArgument(
+        internalPopulationsServiceMock,
+        InternalPopulationsCoroutineService::getPopulation,
+      )
+      .isEqualTo(
+        getPopulationRequest {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID
+        }
+      )
+  }
+
+  @Test
+  fun `getComputation resolves TrusTEE v2 population from latest ModelRollout`() = runBlocking {
+    val latestExternalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID + 1
+    whenever(internalModelRolloutsServiceMock.streamModelRollouts(any()))
+      .thenReturn(
+        flowOf(
+          INTERNAL_MODEL_ROLLOUT,
+          INTERNAL_MODEL_ROLLOUT.copy {
+            externalModelRolloutId = 2L
+            createTime = timestamp { seconds = 200 }
+            externalModelReleaseId = latestExternalModelReleaseId
+          },
+          INTERNAL_MODEL_ROLLOUT.copy {
+            externalModelRolloutId = 3L
+            rolloutPeriodStartTime = timestamp { seconds = 500 }
+            createTime = timestamp { seconds = 300 }
+            externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID + 2
+          },
+        )
+      )
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+    service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+
+    verifyProtoArgument(
+        internalModelReleasesServiceMock,
+        InternalModelReleasesCoroutineService::getModelRelease,
+      )
+      .isEqualTo(
+        getModelReleaseRequest {
+          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
+          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
+          externalModelReleaseId = latestExternalModelReleaseId
+        }
+      )
+  }
+
+  @Test
+  fun `getComputation throws FAILED_PRECONDITION when TrusTEE v2 model line has no rollout`() =
+    runBlocking {
+      whenever(internalModelRolloutsServiceMock.streamModelRollouts(any()))
+        .thenReturn(emptyFlow())
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `getComputation throws FAILED_PRECONDITION when TrusTEE v2 population is not found`() =
+    runBlocking {
+      whenever(internalPopulationsServiceMock.getPopulation(any()))
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     }
 
   @Test

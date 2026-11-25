@@ -153,7 +153,12 @@ class InProcessKingdom(
     ) {
       logger.info("Building Kingdom's system API services")
       listOf(
-          SystemComputationsService(internalMeasurementsClient),
+          SystemComputationsService(
+            internalMeasurementsClient,
+            internalModelRolloutsClient,
+            internalModelReleasesClient,
+            internalPopulationsClient,
+          ),
           SystemComputationLogEntriesService(internalMeasurementLogEntriesClient),
           SystemComputationParticipantsService(internalComputationParticipantsClient),
           SystemRequisitionsService(internalRequisitionsClient),
