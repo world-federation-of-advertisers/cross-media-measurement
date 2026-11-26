@@ -197,6 +197,11 @@ class SpannerMeasurementsService(
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: RequiredFieldNotSetException) {
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: MeasurementStateIllegalException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Measurement state illegal.",
+      )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }

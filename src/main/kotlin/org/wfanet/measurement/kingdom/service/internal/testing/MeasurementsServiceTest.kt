@@ -44,10 +44,12 @@ import org.wfanet.measurement.internal.kingdom.Certificate
 import org.wfanet.measurement.internal.kingdom.CertificatesGrpcKt
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
+import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DataProvider
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.DeleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.computedRequisitionParams
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
@@ -66,6 +68,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCo
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
+import org.wfanet.measurement.internal.kingdom.TrusTeeParams
 import org.wfanet.measurement.internal.kingdom.batchCancelMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchCreateMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.batchDeleteMeasurementsRequest
@@ -79,6 +82,7 @@ import org.wfanet.measurement.internal.kingdom.deleteMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.duchyMeasurementLogEntryStageAttempt
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
+import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurement
@@ -92,6 +96,7 @@ import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.internal.kingdom.revokeCertificateRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
+import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.stateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
@@ -198,6 +203,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val certificatesService: CertificatesGrpcKt.CertificatesCoroutineImplBase,
     val accountsService: AccountsCoroutineImplBase,
     val requisitionsService: RequisitionsCoroutineImplBase,
+    val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
   )
 
   protected val clock: Clock = Clock.systemUTC()
@@ -225,6 +231,9 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   protected lateinit var requisitionsService: RequisitionsCoroutineImplBase
     private set
 
+  protected lateinit var computationParticipantsService: ComputationParticipantsCoroutineImplBase
+    private set
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -237,6 +246,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     certificatesService = services.certificatesService
     accountsService = services.accountsService
     requisitionsService = services.requisitionsService
+    computationParticipantsService = services.computationParticipantsService
   }
 
   @Test
@@ -1436,6 +1446,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           }
         )
       val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+      val pendingMeasurement = fulfillRequisitions(measurement)
       val request = setMeasurementResultRequest {
         externalComputationId = measurement.externalComputationId
         externalAggregatorDuchyId = aggregatorDuchyId
@@ -1449,7 +1460,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .ignoringFields(Measurement.UPDATE_TIME_FIELD_NUMBER, Measurement.ETAG_FIELD_NUMBER)
         .ignoringRepeatedFieldOrder()
         .isEqualTo(
-          measurement.copy {
+          pendingMeasurement.copy {
             state = Measurement.State.SUCCEEDED
             details =
               details.copy {
@@ -1476,6 +1487,127 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         )
       assertThat(succeededMeasurement).ignoringRepeatedFieldOrder().isEqualTo(response)
     }
+
+  @Test
+  fun `setMeasurementResult throws FAILED_PRECONDITION when TrusTEE v2 result is already set`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val measurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              TRUS_TEE_V2_MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                multimeasurementVectors +=
+                  testVector(dataProvider.externalDataProviderId, index = 0)
+              }
+          }
+        )
+      fulfillRequisitions(measurement)
+      val request = setMeasurementResultRequest {
+        externalComputationId = measurement.externalComputationId
+        externalAggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+        result = ByteString.copyFromUtf8("result")
+        publicApiVersion = Version.V2_ALPHA.string
+      }
+      measurementsService.setMeasurementResult(request)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementsService.setMeasurementResult(
+            request.copy { result = ByteString.copyFromUtf8("other result") }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `setMeasurementResult throws FAILED_PRECONDITION when TrusTEE v2 Measurement is pending fulfillment`() =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val measurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              TRUS_TEE_V2_MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                multimeasurementVectors +=
+                  testVector(dataProvider.externalDataProviderId, index = 0)
+              }
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          measurementsService.setMeasurementResult(
+            setMeasurementResultRequest {
+              externalComputationId = measurement.externalComputationId
+              externalAggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+              result = ByteString.copyFromUtf8("result")
+              publicApiVersion = Version.V2_ALPHA.string
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  /**
+   * Sets the aggregator's requisition params for the multimeasurement [measurement] and fulfills
+   * each of its Requisitions there, returning [measurement] as it then reads.
+   */
+  private suspend fun fulfillRequisitions(measurement: Measurement): Measurement {
+    val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+    computationParticipantsService.setParticipantRequisitionParams(
+      setParticipantRequisitionParamsRequest {
+        externalComputationId = measurement.externalComputationId
+        externalDuchyId = aggregatorDuchyId
+        externalDuchyCertificateId =
+          population
+            .createDuchyCertificate(certificatesService, aggregatorDuchyId)
+            .externalCertificateId
+        trusTee = TrusTeeParams.getDefaultInstance()
+      }
+    )
+    val requisitions: List<Requisition> =
+      requisitionsService
+        .streamRequisitions(
+          streamRequisitionsRequest {
+            filter =
+              StreamRequisitionsRequestKt.filter {
+                externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                externalMeasurementId = measurement.externalMeasurementId
+              }
+          }
+        )
+        .toList()
+    for (requisition in requisitions) {
+      requisitionsService.fulfillRequisition(
+        fulfillRequisitionRequest {
+          externalRequisitionId = requisition.externalRequisitionId
+          computedParams = computedRequisitionParams {
+            externalComputationId = measurement.externalComputationId
+            externalFulfillingDuchyId = aggregatorDuchyId
+          }
+        }
+      )
+    }
+    return measurementsService.getMeasurement(
+      getMeasurementRequest {
+        externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+        externalMeasurementId = measurement.externalMeasurementId
+      }
+    )
+  }
 
   @Test
   fun `setMeasurementResult throws INVALID_ARGUMENT when TrusTEE v2 sets encrypted_result`() =

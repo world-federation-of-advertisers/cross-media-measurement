@@ -36,6 +36,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
@@ -164,12 +165,25 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
    *
    * The result is stored in the `MeasurementDetails` rather than in `DuchyMeasurementResults`,
    * whose primary key requires a certificate.
+   *
+   * @throws MeasurementStateIllegalException if [measurement] is not in state `PENDING_COMPUTATION`
    */
   private fun TransactionScope.setPlaintextResult(
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     measurement: Measurement,
   ): Measurement {
+    // Unlike an encrypted result, nothing else keys a plaintext result, so a late or repeated call
+    // would otherwise overwrite it or revive a terminal Measurement.
+    if (measurement.state != Measurement.State.PENDING_COMPUTATION) {
+      throw MeasurementStateIllegalException(
+        ExternalId(measurement.externalMeasurementConsumerId),
+        ExternalId(measurement.externalMeasurementId),
+        measurement.state,
+      ) {
+        "Expected ${Measurement.State.PENDING_COMPUTATION}, got ${measurement.state}"
+      }
+    }
     val details: MeasurementDetails =
       measurement.details.copy {
         plaintextResult =
