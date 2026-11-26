@@ -78,6 +78,44 @@ message UnsupportedReportingFeature {
   }];
 }
 
+message VersionAddedAfterCurrentVersion {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "version_added_after_current_version"
+    display_name: "Version added after current version"
+  };
+
+  int32 added_field = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Added field"
+    version_added: 3
+  }];
+}
+
+message VersionRemovedNotAfterAdded {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "version_removed_not_after_added"
+    display_name: "Version removed not after added"
+  };
+
+  int32 removed_field = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Removed field"
+    version_added: 2
+    version_removed: 2
+  }];
+}
+
+message VersionRemovedAfterCurrentVersion {
+  option (.wfa.measurement.api.v2alpha.event_template) = {
+    name: "version_removed_after_current_version"
+    display_name: "Version removed after current version"
+  };
+
+  int32 removed_field = 1 [(.wfa.measurement.api.v2alpha.template_field) = {
+    display_name: "Removed field"
+    version_added: 1
+    version_removed: 3
+  }];
+}
+
 message MissingTemplateAnnotationEvent {
   MissingTemplateAnnotation missing_template_annotation = 1;
 }
@@ -100,4 +138,28 @@ message UnsupportedRepeatedFieldEvent {
 
 message UnsupportedReportingFeatureEvent {
   UnsupportedReportingFeature unsupported_reporting_feature = 1;
+}
+
+message VersionAddedAfterCurrentVersionEvent {
+  option (.wfa.measurement.api.v2alpha.event) = {
+    current_version: 2
+  };
+
+  VersionAddedAfterCurrentVersion version_added_after_current_version = 1;
+}
+
+message VersionRemovedNotAfterAddedEvent {
+  option (.wfa.measurement.api.v2alpha.event) = {
+    current_version: 2
+  };
+
+  VersionRemovedNotAfterAdded version_removed_not_after_added = 1;
+}
+
+message VersionRemovedAfterCurrentVersionEvent {
+  option (.wfa.measurement.api.v2alpha.event) = {
+    current_version: 2
+  };
+
+  VersionRemovedAfterCurrentVersion version_removed_after_current_version = 1;
 }

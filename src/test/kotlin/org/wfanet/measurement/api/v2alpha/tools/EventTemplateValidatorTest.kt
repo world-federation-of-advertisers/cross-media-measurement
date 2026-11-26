@@ -133,6 +133,64 @@ class EventTemplateValidatorTest {
     assertThat(capturedOutput).out().contains("repeated_field")
   }
 
+  @Test
+  fun `runs successfully when template field versions are valid`() {
+    val args =
+      arrayOf(
+        "--descriptor-set=$VERSIONED_EVENT_DESCRIPTOR_SET_RUNTIME_PATH",
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.VersionedEvent",
+      )
+
+    val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isEqualTo(0)
+  }
+
+  @Test
+  fun `exits with error when version_added is greater than current_version`() {
+    val args =
+      arrayOf(
+        "--descriptor-set=$BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH",
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.VersionAddedAfterCurrentVersionEvent",
+      )
+
+    val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).out().contains("VersionAddedAfterCurrentVersion.added_field")
+    assertThat(capturedOutput).out().contains("version_added")
+  }
+
+  @Test
+  fun `exits with error when version_removed is not greater than version_added`() {
+    val args =
+      arrayOf(
+        "--descriptor-set=$BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH",
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.VersionRemovedNotAfterAddedEvent",
+      )
+
+    val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).out().contains("VersionRemovedNotAfterAdded.removed_field")
+    assertThat(capturedOutput).out().contains("version_removed")
+  }
+
+  @Test
+  fun `exits with error when version_removed is greater than current_version`() {
+    val args =
+      arrayOf(
+        "--descriptor-set=$BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH",
+        "--event-proto=$TEST_TEMPLATES_PACKAGE.VersionRemovedAfterCurrentVersionEvent",
+      )
+
+    val capturedOutput: CommandLineTesting.CapturedOutput = callCli(args)
+
+    assertThat(capturedOutput).status().isNotEqualTo(0)
+    assertThat(capturedOutput).out().contains("VersionRemovedAfterCurrentVersion.removed_field")
+    assertThat(capturedOutput).out().contains("current_version")
+  }
+
   companion object {
     init {
       System.setSecurityManager(ExitInterceptingSecurityManager)
@@ -159,6 +217,9 @@ class EventTemplateValidatorTest {
 
     private val BAD_TEMPLATES_DESCRIPTOR_SET_RUNTIME_PATH by lazy {
       TEST_TEMPLATES_RUNTIME_PATH.resolve("bad_templates_proto-$DESCRIPTOR_SET_SUFFIX")
+    }
+    private val VERSIONED_EVENT_DESCRIPTOR_SET_RUNTIME_PATH by lazy {
+      TEST_TEMPLATES_RUNTIME_PATH.resolve("versioned_event_proto-$DESCRIPTOR_SET_SUFFIX")
     }
     private val TEST_EVENT_DESCRIPTOR_SET_RUNTIME_PATHS by lazy {
       listOf(
