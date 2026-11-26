@@ -24,7 +24,6 @@ import com.google.type.date
 import com.google.type.dateTime
 import com.google.type.timeZone
 import io.grpc.Status
-import kotlin.random.Random
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -180,7 +179,6 @@ class BasicReportsMeasurementsJobTest {
           emitCelNullGuardsForNestedMembers = false,
         ),
         IMPRESSION_QUALIFICATION_FILTER_IDS,
-        Random(1),
       )
   }
 
@@ -320,7 +318,7 @@ class BasicReportsMeasurementsJobTest {
   }
 
   @Test
-  fun `execute sets the MeasurementConsumer key and a nonce in every RequisitionSpec`(): Unit =
+  fun `execute sets the MeasurementConsumer key and no nonce in every RequisitionSpec`(): Unit =
     runBlocking {
       job.execute()
 
@@ -333,8 +331,8 @@ class BasicReportsMeasurementsJobTest {
       assertThat(requisitionSpecs).isNotEmpty()
       for (requisitionSpec in requisitionSpecs) {
         assertThat(requisitionSpec.measurementPublicKey).isEqualTo(MEASUREMENT_PUBLIC_KEY)
+        assertThat(requisitionSpec.nonce).isEqualTo(0L)
       }
-      assertThat(requisitionSpecs.map { it.nonce }.toSet()).hasSize(requisitionSpecs.size)
     }
 
   @Test
@@ -473,7 +471,6 @@ class BasicReportsMeasurementsJobTest {
           emitCelNullGuardsForNestedMembers = false,
         ),
         IMPRESSION_QUALIFICATION_FILTER_IDS,
-        Random(1),
       )
 
     job.execute()

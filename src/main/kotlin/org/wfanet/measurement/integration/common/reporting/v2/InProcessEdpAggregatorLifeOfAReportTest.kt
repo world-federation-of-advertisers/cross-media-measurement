@@ -42,7 +42,6 @@ import java.time.ZoneId
 import java.util.logging.Logger
 import kotlin.math.abs
 import kotlin.math.ceil
-import kotlin.random.Random
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -1426,7 +1425,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         IMPRESSION_QUALIFICATION_FILTER_CONFIG.impressionQualificationFiltersList.associate {
           it.externalImpressionQualificationFilterId to it.impressionQualificationFilterId
         },
-        Random.Default,
       )
       .execute()
   }

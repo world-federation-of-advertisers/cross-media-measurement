@@ -18,9 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common.job
 
 import io.grpc.Channel
 import java.io.File
-import java.security.SecureRandom
 import java.time.Duration
-import kotlin.random.asKotlinRandom
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as CmmsMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as CmmsMeasurementsCoroutineStub
@@ -129,7 +127,6 @@ private fun run(
       impressionQualificationFilterConfig.impressionQualificationFiltersList.associate {
         it.externalImpressionQualificationFilterId to it.impressionQualificationFilterId
       },
-      SecureRandom().asKotlinRandom(),
     )
 
   runBlocking { job.execute() }

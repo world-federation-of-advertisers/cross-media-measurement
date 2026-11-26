@@ -22,7 +22,6 @@ import io.grpc.StatusException
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlin.random.Random
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
@@ -78,7 +77,6 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
  *
  * @param impressionQualificationFilterIds map of external impression qualification filter ID to its
  *   internal ID
- * @param random source of `RequisitionSpec` nonces
  */
 class BasicReportsMeasurementsJob(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
@@ -88,7 +86,6 @@ class BasicReportsMeasurementsJob(
   private val measurementsStub: MeasurementsCoroutineStub,
   private val compiler: MultimeasurementCompiler,
   private val impressionQualificationFilterIds: Map<String, Long>,
-  private val random: Random,
 ) {
   suspend fun execute() {
     for ((measurementConsumerName, measurementConsumerConfig) in
@@ -420,8 +417,9 @@ class BasicReportsMeasurementsJob(
   }
 
   /**
-   * Returns this multimeasurement with [measurementPublicKey] and a fresh nonce in each
-   * `RequisitionSpec`.
+   * Returns this multimeasurement with [measurementPublicKey] in each `RequisitionSpec`.
+   *
+   * A multimeasurement `RequisitionSpec` is plaintext, so it has no nonce.
    */
   private fun Measurement.Multimeasurement.withRequisitionSpecKeys(
     measurementPublicKey: ProtoAny
@@ -437,10 +435,7 @@ class BasicReportsMeasurementsJob(
               entry.vectorsList.map { vector ->
                 vector.copy {
                   requisitionSpec =
-                    vector.requisitionSpec.copy {
-                      this.measurementPublicKey = measurementPublicKey
-                      nonce = random.nextLong()
-                    }
+                    vector.requisitionSpec.copy { this.measurementPublicKey = measurementPublicKey }
                 }
               }
           }
