@@ -66,7 +66,7 @@ locals {
     aggregator_cs_private      = local.aggregator_cs_private
     terraform_service_account  = var.terraform_service_account
 
-    app_flags = [
+    app_flags = concat([
       "--google-project-id", data.google_client_config.default.project,
       "--tls-cert-secret-id", local.aggregator_tls_cert.secret_id,
       "--tls-key-secret-id", local.aggregator_tls_key.secret_id,
@@ -94,7 +94,7 @@ locals {
 
       "--google-cloud-storage-project", data.google_client_config.default.project,
       "--google-cloud-storage-bucket", "${var.storage_bucket_name}",
-    ]
+    ], var.trustee_v2_mill_flags)
   }
 }
 
