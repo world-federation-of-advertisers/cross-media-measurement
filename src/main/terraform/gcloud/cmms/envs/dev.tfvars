@@ -28,6 +28,13 @@ edpa_model_line_population_spec_blob_uris = {
   "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NY6atJUixwk" = "gs://edpa-configs-storage-dev-bucket/high-overlap-population-spec.textproto"
 }
 
+# Fallback event template versions for model lines whose Kingdom ModelLine has
+# no event_template_version. The Kingdom version is the source of truth.
+edpa_model_line_event_template_versions = {
+  "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A" = 1
+  "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NY6atJUixwk" = 1
+}
+
 data_watcher_env_var                         = "CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=34.31.144.81:8443,CONTROL_PLANE_CERT_HOST=v1alpha.secure-computation.dev.halo-cmm.org,GOOGLE_PROJECT_ID=halo-cmm-dev,EDPA_CONFIG_STORAGE_BUCKET=gs://edpa-configs-storage-dev-bucket,OTEL_SERVICE_NAME=edpa.data_watcher,OTEL_METRICS_EXPORTER=google_cloud_monitoring,OTEL_TRACES_EXPORTER=google_cloud_trace,OTEL_LOGS_EXPORTER=logging,OTEL_METRIC_EXPORT_INTERVAL=60000"
 data_watcher_secret_mapping                  = "/secrets/key/data_watcher_tls.key=edpa-data-watcher-tls-key:latest,/secrets/cert/data_watcher_tls.pem=edpa-data-watcher-tls-pem:latest,/secrets/ca/secure_computation_root.pem=securecomputation-root-ca:latest"
 data_watcher_delete_env_var                  = "CERT_FILE_PATH=/secrets/cert/data_watcher_tls.pem,PRIVATE_KEY_FILE_PATH=/secrets/key/data_watcher_tls.key,CERT_COLLECTION_FILE_PATH=/secrets/ca/secure_computation_root.pem,CONTROL_PLANE_TARGET=v1alpha.secure-computation.dev.halo-cmm.org:8443,CONTROL_PLANE_CERT_HOST=data-watcher.secure-computation.dev.halo-cmm.org,GOOGLE_PROJECT_ID=halo-cmm-dev,EDPA_CONFIG_STORAGE_BUCKET=gs://edpa-configs-storage-dev-bucket,OTEL_SERVICE_NAME=edpa.data_watcher_delete,OTEL_METRICS_EXPORTER=google_cloud_monitoring,OTEL_TRACES_EXPORTER=google_cloud_trace,OTEL_LOGS_EXPORTER=logging,OTEL_METRIC_EXPORT_INTERVAL=60000"

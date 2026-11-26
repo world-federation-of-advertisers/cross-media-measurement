@@ -1714,6 +1714,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
         eventDescriptor = TestEvent.getDescriptor(),
         localAlias = null,
+        eventTemplateVersion = 1,
       )
     val modelLineInfoMap: MutableMap<String, ModelLineInfo> = mutableMapOf()
     private val PASSTHROUGH_IMPRESSION_QUALIFICATION_FILTER =

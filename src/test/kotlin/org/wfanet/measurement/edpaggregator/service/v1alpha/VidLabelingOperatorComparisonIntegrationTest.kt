@@ -617,6 +617,7 @@ class VidLabelingOperatorComparisonIntegrationTest :
           TestEvent.getDescriptor(),
           InMemoryVidIndexMap.build(comparisonPopulationSpec),
           localAlias = null,
+          eventTemplateVersion = 1,
         )
       val groupCount =
         ResultsFulfillerTestHelper.fulfillTestRequisitions(

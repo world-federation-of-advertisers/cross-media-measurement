@@ -23,6 +23,7 @@ import com.google.protobuf.Parser
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
@@ -128,6 +129,9 @@ class ResultsFulfillerApp(
     val groupedRequisitions =
       loadGroupedRequisitions(requisitionsBlobUri, requisitionsStorageConfig)
     val requisitionsStub = requisitionStubFactory.buildRequisitionsStub(fulfillerParams)
+    // Shares the Requisitions stub's Kingdom channel and caller credentials.
+    val modelLinesStub =
+      ModelLinesCoroutineStub(requisitionsStub.channel, requisitionsStub.callOptions)
 
     val requisitionFulfillmentStubsMap =
       requisitionStubFactory.buildRequisitionFulfillmentStubs(fulfillerParams)
@@ -272,6 +276,7 @@ class ResultsFulfillerApp(
         requisitionsStub = requisitionsStub,
         requisitionsThrottler = requisitionsThrottler,
         kingdomThrottler = kingdomThrottler,
+        modelLinesStub = modelLinesStub,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
         modelLineInfoMap = modelLineInfoMapWithAliases,

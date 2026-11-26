@@ -33,20 +33,34 @@ import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters
  * Batch-level selector dispatch (reference-id vs entity-key) is handled by [FilterSpec.matchBatch],
  * which returns a [BatchMatchResult].
  *
+ * Construction fails with the exception thrown by [EventFilters.compileProgram] or
+ * [EventFilters.compileVersionedProgram] if the CEL expression is not valid, or if
+ * [eventTemplateVersion] is not supported by [eventDescriptor].
+ *
  * @param filterSpec immutable specification containing all filtering criteria
  * @param eventDescriptor descriptor of the event message type.
+ * @param eventTemplateVersion event template version of the model line, or `null` if unknown. When
+ *   specified, the CEL expression may not reference population fields that are not present in this
+ *   version.
  */
 class FilterProcessor<T : Message>(
   val filterSpec: FilterSpec,
   val eventDescriptor: Descriptors.Descriptor,
+  val eventTemplateVersion: Int? = null,
 ) {
 
   /** Compiled CEL program for event filtering. */
   private val program: Program =
     if (filterSpec.celExpression.isEmpty()) {
       Program { Program.newEvalResult(BoolT.True, null) }
-    } else {
+    } else if (eventTemplateVersion == null) {
       EventFilters.compileProgram(eventDescriptor, filterSpec.celExpression)
+    } else {
+      EventFilters.compileVersionedProgram(
+        eventDescriptor,
+        filterSpec.celExpression,
+        eventTemplateVersion,
+      )
     }
 
   /**

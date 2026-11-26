@@ -18,18 +18,23 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Descriptors
 import com.google.protobuf.TypeRegistry
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 
 /**
  * A model line to build [ModelLineInfo] for, decoupled from how its configuration was obtained
  * (e.g. CLI flags, Terraform-generated arguments).
+ *
+ * @property eventTemplateVersion event template version of the model line, or `null` if not
+ *   configured. See [ModelLineInfo.eventTemplateVersion].
  */
 data class ModelLineSource(
   val modelLine: String,
   val populationSpecFileBlobUri: String,
   val eventTemplateDescriptorBlobUri: String,
   val eventTemplateTypeName: String,
+  val eventTemplateVersion: Int? = null,
 )
 
 /**
@@ -85,7 +90,8 @@ class ModelLineInfoMapBuilder(
   /**
    * Builds the model line -> [ModelLineInfo] map for [modelLines].
    *
-   * @throws IllegalArgumentException if [modelLines] contains duplicate model line names.
+   * @throws IllegalArgumentException if [modelLines] contains duplicate model line names, or an
+   *   event template version that is not positive or exceeds the event's current version.
    */
   suspend fun build(modelLines: List<ModelLineSource>): Map<String, ModelLineInfo> {
     val duplicateModelLines: Set<String> =
@@ -103,6 +109,14 @@ class ModelLineInfoMapBuilder(
             source.eventTemplateTypeName,
           )
       }
+    for (source in modelLines) {
+      val eventTemplateVersion = source.eventTemplateVersion ?: continue
+      // Rejects an invalid version at startup rather than when a filter is compiled.
+      EventTemplates.getPopulationFields(
+        eventDescriptorByModelLine.getValue(source.modelLine),
+        eventTemplateVersion,
+      )
+    }
 
     data class PopulationSpecResources(
       val populationSpec: PopulationSpec,
@@ -130,6 +144,7 @@ class ModelLineInfoMapBuilder(
           vidIndexMap = resources.vidIndexMap,
           eventDescriptor = eventDescriptorByModelLine.getValue(source.modelLine),
           localAlias = null,
+          eventTemplateVersion = source.eventTemplateVersion,
         )
     }
   }

@@ -44,11 +44,14 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.ExceptionDiagnostics
@@ -93,9 +96,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param requisitionsThrottler paces outbound `GetRequisition` calls to Kingdom. Shared with the
  *   fulfillers this class dispatches to via [fulfillerSelector], so the throttle budget covers all
  *   `GetRequisition` traffic this process makes, not just [shouldBeProcessed]'s.
- * @param kingdomThrottler paces outbound `RefuseRequisition` calls to Kingdom, which share
- *   Kingdom's default per-principal rate-limit bucket with other Kingdom RPC methods without a
- *   dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have their own).
+ * @param kingdomThrottler paces outbound `RefuseRequisition` and `GetModelLine` calls to Kingdom,
+ *   which share Kingdom's default per-principal rate-limit bucket with other Kingdom RPC methods
+ *   without a dedicated per-method limit (`GetRequisition` and `ListRequisitions` each have their
+ *   own).
  * @param privateEncryptionKey Private key used to decrypt `RequisitionSpec`s.
  * @param groupedRequisitions The grouped requisitions to fulfill.
  * @param modelLineInfoMap Map of model line to [ModelLineInfo] providing descriptors and indexes.
@@ -105,6 +109,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMe
  * @param impressionsStorageConfig Storage configuration for impression/event ingestion.
  * @param fulfillerSelector Selector for choosing the appropriate fulfiller based on protocol.
  * @param wholeBlobEntityTypes entity types whose blob metadata IDs are exhaustive at that level.
+ * @param modelLinesStub used to read the event template version of the [ModelLine] whose events are
+ *   read for the grouped requisitions: the selected model line if configured, otherwise the
+ *   requisitions' model line. The Kingdom's version is the source of truth;
+ *   [ModelLineInfo.eventTemplateVersion] is only used when the Kingdom has no version for the
+ *   [ModelLine]. If `null`, only [ModelLineInfo.eventTemplateVersion] is used.
  * @param responsePageSize
  * @param listMaxAttempts maximum total attempts for each `ListRequisitionMetadata` page before
  *   giving up. Transient gRPC failures (`UNAVAILABLE` / `DEADLINE_EXCEEDED`, e.g. a server-side
@@ -127,6 +136,7 @@ class ResultsFulfiller(
   private val impressionsStorageConfig: StorageConfig,
   private val fulfillerSelector: FulfillerSelector,
   private val wholeBlobEntityTypes: Set<String>,
+  private val modelLinesStub: ModelLinesCoroutineStub? = null,
   private val eventGroupReferenceIdEntityKeyMapping: EventGroupReferenceIdEntityKeyMapping? = null,
   private val responsePageSize: Int? = null,
   private val listMaxAttempts: Int = DEFAULT_LIST_MAX_ATTEMPTS,
@@ -356,6 +366,14 @@ class ResultsFulfiller(
     val selectedModelLine = groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
     val modelLine = selectedModelLine ?: modelInfo.localAlias ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
+    // Events are read from the selected model line when it is configured, so its version governs.
+    val versionModelLine: String =
+      selectedModelLine?.takeIf { it in modelLineInfoMap } ?: modelLineKey
+    val eventTemplateVersion: Int =
+      resolveEventTemplateVersion(
+        versionModelLine,
+        modelLineInfoMap.getValue(versionModelLine).eventTemplateVersion,
+      )
 
     val populationSpec = modelInfo.populationSpec
     val vidIndexMap = modelInfo.vidIndexMap
@@ -403,6 +421,7 @@ class ResultsFulfiller(
             resolvedEventGroups = resolvedEventGroups,
             config = pipelineConfiguration,
             eventDescriptor = eventDescriptor,
+            eventTemplateVersion = eventTemplateVersion,
           )
         }
       span.addEvent(
@@ -492,6 +511,57 @@ class ResultsFulfiller(
           )
           .setAttribute(ReportTraceAttributes.OUTCOME, "refused")
       }
+    }
+  }
+
+  /**
+   * Resolves the event template version of [modelLine].
+   *
+   * The Kingdom is the source of truth. [configuredVersion] is only used when the Kingdom has no
+   * version for [modelLine], either because the [ModelLine] does not specify one or because the
+   * Kingdom does not have the [ModelLine]. A [configuredVersion] that differs from the Kingdom's
+   * version is ignored.
+   *
+   * @throws IllegalStateException if neither the Kingdom nor [configuredVersion] specifies a
+   *   version
+   */
+  private suspend fun resolveEventTemplateVersion(modelLine: String, configuredVersion: Int?): Int {
+    val kingdomVersion: Int? = getKingdomEventTemplateVersion(modelLine)
+    if (kingdomVersion == null) {
+      return checkNotNull(configuredVersion) {
+        "event_template_version missing from the Kingdom and local configuration for $modelLine"
+      }
+    }
+    if (configuredVersion != null && configuredVersion != kingdomVersion) {
+      logger.warning {
+        "Configured event_template_version $configuredVersion for $modelLine differs from " +
+          "Kingdom version $kingdomVersion; using the Kingdom version"
+      }
+    }
+    return kingdomVersion
+  }
+
+  /**
+   * Returns the event template version the Kingdom specifies for [modelLine], or `null` if the
+   * [ModelLine] does not specify one, the Kingdom does not have the [ModelLine], or
+   * [modelLinesStub] is `null`.
+   */
+  private suspend fun getKingdomEventTemplateVersion(modelLine: String): Int? {
+    val stub = modelLinesStub ?: return null
+    val kingdomModelLine: ModelLine =
+      try {
+        kingdomThrottler.onReady { stub.getModelLine(getModelLineRequest { name = modelLine }) }
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.NOT_FOUND) {
+          throw e
+        }
+        logger.warning { "ModelLine $modelLine not found in the Kingdom" }
+        return null
+      }
+    return if (kingdomModelLine.hasEventTemplateVersion()) {
+      kingdomModelLine.eventTemplateVersion
+    } else {
+      null
     }
   }
 

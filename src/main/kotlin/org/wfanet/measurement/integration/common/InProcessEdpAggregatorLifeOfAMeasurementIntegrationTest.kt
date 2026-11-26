@@ -446,6 +446,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
             vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
             eventDescriptor = TestEvent.getDescriptor(),
             localAlias = null,
+            eventTemplateVersion = 1,
           )
       )
 

@@ -129,6 +129,18 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
       required = true,
     )
     lateinit var eventTemplateTypeName: String
+
+    @CommandLine.Option(
+      names = ["--event-template-version"],
+      description =
+        [
+          "Fallback event template version of the model line, used only when the Kingdom has no " +
+            "version for it. The Kingdom version is the source of truth. Requisition filters " +
+            "may not reference population fields that are not present in the resolved version."
+        ],
+      required = false,
+    )
+    var eventTemplateVersion: Int? = null
   }
 
   @CommandLine.Option(
@@ -279,6 +291,7 @@ class ResultsFulfillerAppRunner : BaseTeeAppRunner() {
               populationSpecFileBlobUri = it.populationSpecFileBlobUri,
               eventTemplateDescriptorBlobUri = it.eventTemplateDescriptorBlobUri,
               eventTemplateTypeName = it.eventTemplateTypeName,
+              eventTemplateVersion = it.eventTemplateVersion,
             )
           }
         )

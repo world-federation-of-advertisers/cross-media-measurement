@@ -184,6 +184,9 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param requisitions Requisitions to fulfill
    * @param resolvedEventGroups Event groups normalized for storage lookup and filtering.
    * @param eventDescriptor Descriptor of the packed event messages (for CEL evaluation).
+   * @param eventTemplateVersion Event template version of the model line, or `null` if unknown.
+   *   When specified, a filter that references a population field not present in this version fails
+   *   to compile.
    * @return Map from requisition name to computed [StripedByteFrequencyVector].
    * @throws ImpressionReadException on impression read failures
    * @throws IllegalArgumentException if a requisition has no event groups or groups are
@@ -197,6 +200,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     resolvedEventGroups: ResolvedEventGroups,
     config: PipelineConfiguration,
     eventDescriptor: Descriptors.Descriptor,
+    eventTemplateVersion: Int? = null,
   ): Map<String, StripedByteFrequencyVector> {
     logger.info(
       """
@@ -226,6 +230,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
           vidIndexMap = vidIndexMap,
           populationSpec = populationSpec,
           eventDescriptor = eventDescriptor,
+          eventTemplateVersion = eventTemplateVersion,
         )
 
       val pipeline = createPipeline(config)
@@ -343,6 +348,7 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
    * @param vidIndexMap Mapping from VID to population index for frequency vectors.
    * @param populationSpec Population describing the vector size.
    * @param eventDescriptor Descriptor of the packed event messages.
+   * @param eventTemplateVersion Event template version of the model line, or `null` if unknown.
    * @return Map from [FilterSpec] to a configured [StripedByteFrequencyVectorSink].
    */
   fun createSinksFromFilterSpecs(
@@ -350,9 +356,10 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
     vidIndexMap: VidIndexMap,
     populationSpec: PopulationSpec,
     eventDescriptor: Descriptors.Descriptor,
+    eventTemplateVersion: Int? = null,
   ): Map<FilterSpec, FrequencyVectorSink<T>> {
     return filterSpecs.associateWith { spec ->
-      val filterProcessor = FilterProcessor<T>(spec, eventDescriptor)
+      val filterProcessor = FilterProcessor<T>(spec, eventDescriptor, eventTemplateVersion)
       val frequencyVector = StripedByteFrequencyVector(populationSpec.size.toInt())
       FrequencyVectorSink<T>(
         filterProcessor = filterProcessor,

@@ -293,6 +293,22 @@ variable "edpa_model_line_population_spec_blob_uris" {
   type        = map(string)
 }
 
+variable "edpa_model_line_event_template_versions" {
+  description = "Fallback event template version by model line, for model lines in edpa_model_line_population_spec_blob_uris. Only used when the Kingdom has no version for the model line; the Kingdom version is the source of truth. Results fulfillment fails for a model line with neither."
+  type        = map(number)
+  default     = {}
+
+  validation {
+    condition     = alltrue([for v in values(var.edpa_model_line_event_template_versions) : v > 0 && floor(v) == v])
+    error_message = "edpa_model_line_event_template_versions values must be positive integers."
+  }
+
+  validation {
+    condition     = alltrue([for k in keys(var.edpa_model_line_event_template_versions) : contains(keys(var.edpa_model_line_population_spec_blob_uris), k)])
+    error_message = "edpa_model_line_event_template_versions keys must be keys of edpa_model_line_population_spec_blob_uris."
+  }
+}
+
 variable "duchy_worker1_id" {
   description = "ID of duchy worker 1."
   type        = string

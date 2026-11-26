@@ -73,6 +73,7 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
@@ -95,7 +96,9 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -211,6 +214,9 @@ class ResultsFulfillerAppTest {
   }
 
   private val requisitionFulfillmentMock = FakeRequisitionFulfillmentService()
+  private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
+    onBlocking { getModelLine(any()) }.thenReturn(modelLine { name = "some-model-line" })
+  }
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -221,6 +227,7 @@ class ResultsFulfillerAppTest {
     addService(requisitionMetadataServiceMock)
     addService(impressionMetadataServiceMock)
     addService(requisitionFulfillmentMock)
+    addService(modelLinesServiceMock)
   }
 
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
@@ -422,6 +429,9 @@ class ResultsFulfillerAppTest {
 
     assertThat(result.frequency.relativeFrequencyDistribution)
       .isEqualTo(mapOf(1L to 0.75, 2L to 0.25))
+    verifyBlocking(modelLinesServiceMock) {
+      getModelLine(getModelLineRequest { name = "some-model-line" })
+    }
   }
 
   @Test
@@ -1987,6 +1997,7 @@ class ResultsFulfillerAppTest {
         populationSpec = POPULATION_SPEC,
         vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
         localAlias = null,
+        eventTemplateVersion = 1,
       )
   }
 }
