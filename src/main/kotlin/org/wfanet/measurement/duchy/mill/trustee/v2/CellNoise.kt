@@ -18,7 +18,6 @@ package org.wfanet.measurement.duchy.mill.trustee.v2
 
 import java.nio.ByteBuffer
 import java.security.MessageDigest
-import kotlin.math.exp
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
@@ -36,6 +35,13 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
  * @param measurementName resource name of the `Measurement` the computation belongs to
  */
 class CellNoise(private val params: CellPrivacyParams, private val measurementName: String) {
+  /**
+   * Whether cells are noised, with deterministic truncated-Laplace noise. [CellPrivacyParams]
+   * allows no other mechanism than `NONE`.
+   */
+  private val noised: Boolean =
+    params.noiseMechanism == NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+
   /** Returns the noiser for the released figures of [cell], seeded from its fingerprint. */
   fun cellNoiser(cell: QueryEvaluator.Cell): ResultNoiser = noiser {
     seed(CELL_DOMAIN, cell, dataProvider = null)
@@ -47,18 +53,12 @@ class CellNoise(private val params: CellPrivacyParams, private val measurementNa
   }
 
   /** The mechanism every cell is noised with, as the public API reports it. */
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   val publicNoiseMechanism: ProtocolConfig.NoiseMechanism
     get() =
-      when (params.noiseMechanism) {
-        NoiseMechanism.NONE -> ProtocolConfig.NoiseMechanism.NONE
-        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
-          ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
-        NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-        NoiseMechanism.GEOMETRIC,
-        NoiseMechanism.DISCRETE_GAUSSIAN,
-        NoiseMechanism.CONTINUOUS_GAUSSIAN,
-        NoiseMechanism.UNRECOGNIZED -> error("Unsupported noise mechanism ${params.noiseMechanism}")
+      if (noised) {
+        ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+      } else {
+        ProtocolConfig.NoiseMechanism.NONE
       }
 
   /** Variance of the noise on a reach or a frequency bin, each of which a VID moves by 1. */
@@ -69,37 +69,25 @@ class CellNoise(private val params: CellPrivacyParams, private val measurementNa
   val impressionVariance: Double
     get() = variance(params.maxFrequencyPerUser.toDouble())
 
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   private fun noiser(computeSeed: () -> ByteArray): ResultNoiser =
-    when (params.noiseMechanism) {
-      NoiseMechanism.NONE -> NoNoise
-      NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
-        DeterministicTruncatedLaplaceResultNoiser.fromSeed(
-          seed = computeSeed(),
-          maxFrequencyPerUser = params.maxFrequencyPerUser,
-        )
-      NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-      NoiseMechanism.GEOMETRIC,
-      NoiseMechanism.DISCRETE_GAUSSIAN,
-      NoiseMechanism.CONTINUOUS_GAUSSIAN,
-      NoiseMechanism.UNRECOGNIZED -> error("Unsupported noise mechanism ${params.noiseMechanism}")
+    if (noised) {
+      DeterministicTruncatedLaplaceResultNoiser.fromSeed(
+        seed = computeSeed(),
+        maxFrequencyPerUser = params.maxFrequencyPerUser,
+      )
+    } else {
+      NoNoise
     }
 
   /** Returns the variance of a draw of L1 [sensitivity]. */
-  @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   private fun variance(sensitivity: Double): Double =
-    when (params.noiseMechanism) {
-      NoiseMechanism.NONE -> 0.0
-      NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE ->
-        truncatedLaplaceVariance(
-          scale = sensitivity / DeterministicTruncatedLaplaceParams.EPSILON,
-          bound = DeterministicTruncatedLaplaceParams.truncationBound(sensitivity),
-        )
-      NoiseMechanism.NOISE_MECHANISM_UNSPECIFIED,
-      NoiseMechanism.GEOMETRIC,
-      NoiseMechanism.DISCRETE_GAUSSIAN,
-      NoiseMechanism.CONTINUOUS_GAUSSIAN,
-      NoiseMechanism.UNRECOGNIZED -> error("Unsupported noise mechanism ${params.noiseMechanism}")
+    if (noised) {
+      DeterministicTruncatedLaplaceParams.variance(
+        scale = sensitivity / DeterministicTruncatedLaplaceParams.EPSILON,
+        bound = DeterministicTruncatedLaplaceParams.truncationBound(sensitivity),
+      )
+    } else {
+      0.0
     }
 
   /**
@@ -142,21 +130,5 @@ class CellNoise(private val params: CellPrivacyParams, private val measurementNa
     private const val SLICE_DOMAIN = "slice"
     private const val UNSET_LENGTH = -1
     private const val UNIT_SENSITIVITY = 1.0
-
-    /**
-     * Variance of a Laplace distribution of [scale] `b` confined to `[-bound, bound]`:
-     * ```
-     * [2b^2 - exp(-bound/b) * (bound^2 + 2*bound*b + 2b^2)] / (1 - exp(-bound/b))
-     * ```
-     *
-     * This mirrors the reporting server's derivation in `measurementconsumer.stats.Variances`,
-     * which keeps it private. It describes the continuous draw; the draws are rounded to integers,
-     * which the reporting server ignores as well.
-     */
-    private fun truncatedLaplaceVariance(scale: Double, bound: Double): Double {
-      val tail = exp(-bound / scale)
-      return (2 * scale * scale - tail * (bound * bound + 2 * bound * scale + 2 * scale * scale)) /
-        (1 - tail)
-    }
   }
 }
