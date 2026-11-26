@@ -106,6 +106,8 @@ private constructor(
     /** The grouping combination of each subpopulation, as an index into [groups]. */
     private val groupOfSubpopulation: IntArray
     private val groups: List<List<String?>>
+    /** The number of VIDs in each group that pass [VidFilter.getAttributesMap]. */
+    private val populationSizes: LongArray
     /** Whether each group is evaluated in this pass. */
     private val evaluated: BooleanArray
     /** For each group, the vectors read as zero in it, or `null` if none are. */
@@ -142,6 +144,13 @@ private constructor(
           groupIndexes.getOrPut(combination) { groupIndexes.size }
         }
       groups = groupIndexes.entries.sortedBy { it.value }.map { it.key }
+      populationSizes = LongArray(groups.size)
+      for (subpopulation in 0 until subpopulationCount) {
+        if (passesAttributes[subpopulation]) {
+          populationSizes[groupOfSubpopulation[subpopulation]] +=
+            subpopulations.populationSize(subpopulation)
+        }
+      }
       evaluated =
         BooleanArray(groups.size) { group ->
           failedDataProviders == null || CellKey(query.id, groups[group]) in failedDataProviders
@@ -202,6 +211,7 @@ private constructor(
             attributeValues = groups[group],
             frequencyHistogram = accumulator.histogram.copyOf(),
             impressions = accumulator.impressions,
+            populationSize = populationSizes[group],
             sliceReach = accumulator.sliceReach.toMap(),
             summandDataProviders = summands.map { dataProviders[it] }.toSet(),
             fingerprint = accumulator.fingerprintDigest(),
@@ -284,6 +294,8 @@ private constructor(
    * @property frequencyHistogram bin `k - 1` counts VIDs reached `k` times, the last bin folding in
    *   higher frequencies; reach is its sum
    * @property impressions the sum of the summed counts over reached VIDs
+   * @property populationSize the number of VIDs in this cell's subpopulations that pass the query's
+   *   attribute filter, across the whole population
    * @property sliceReach the VIDs in this cell reached by each `DataProvider`'s summand vectors
    * @property summandDataProviders the `DataProvider`s with a vector among the query's summands,
    *   whose slices the suppression test covers
@@ -296,6 +308,7 @@ private constructor(
     val attributeValues: List<String?>,
     val frequencyHistogram: LongArray,
     val impressions: Long,
+    val populationSize: Long,
     val sliceReach: Map<String, Long>,
     val summandDataProviders: Set<String>,
     val fingerprint: ByteArray,

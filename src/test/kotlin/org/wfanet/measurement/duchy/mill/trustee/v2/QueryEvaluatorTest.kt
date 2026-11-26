@@ -122,6 +122,30 @@ class QueryEvaluatorTest {
   }
 
   @Test
+  fun `cells carry the population of their subpopulations`() {
+    val cells =
+      evaluateCells(
+        VECTORS,
+        testQuery(summands = listOf(0), maxFrequency = 2, groupingPaths = listOf(AGE_GROUP_PATH)),
+      )
+
+    assertThat(cells.associate { it.attributeValues to it.populationSize })
+      .containsExactly(listOf(YOUNG), YOUNG_POPULATION_SIZE, listOf(OLD), OLD_POPULATION_SIZE)
+  }
+
+  @Test
+  fun `cells carry the population of only the subpopulations matching the attribute filter`() {
+    val filter = vidFilter {
+      attributes.put(AGE_GROUP_PATH, populationAttributeValue { enumValue = OLD })
+    }
+
+    val cells =
+      evaluateCells(VECTORS, testQuery(summands = listOf(0), maxFrequency = 2, filter = filter))
+
+    assertThat(cells.single().populationSize).isEqualTo(OLD_POPULATION_SIZE)
+  }
+
+  @Test
   fun `cells returns one cell per grouping combination`() {
     val cells =
       evaluate(
@@ -423,6 +447,9 @@ class QueryEvaluatorTest {
 
     override fun attributeValue(subpopulation: Int, path: String): String? =
       if (path == AGE_GROUP_PATH) listOf(YOUNG, OLD)[subpopulation] else null
+
+    override fun populationSize(subpopulation: Int): Long =
+      listOf(YOUNG_POPULATION_SIZE, OLD_POPULATION_SIZE)[subpopulation]
   }
 
   companion object {
@@ -431,6 +458,8 @@ class QueryEvaluatorTest {
     private const val UNSET_PATH = "person.gender"
     private const val YOUNG = "YEARS_18_TO_34"
     private const val OLD = "YEARS_35_TO_54"
+    private const val YOUNG_POPULATION_SIZE = 100L
+    private const val OLD_POPULATION_SIZE = 200L
     private const val DATA_PROVIDER_A = "dataProviders/a"
     private const val DATA_PROVIDER_B = "dataProviders/b"
 

@@ -36,4 +36,7 @@ interface SubpopulationIndex {
    * @param path `<event template name>.<field name>`, e.g. `person.age_group`
    */
   fun attributeValue(subpopulation: Int, path: String): String?
+
+  /** Returns the number of VIDs in [subpopulation], across the whole population. */
+  fun populationSize(subpopulation: Int): Long
 }

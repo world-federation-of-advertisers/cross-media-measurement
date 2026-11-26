@@ -172,6 +172,7 @@ class CellNoiseTest {
         attributeValues = attributeValues,
         frequencyHistogram = longArrayOf(1L),
         impressions = 1L,
+        populationSize = 1L,
         sliceReach = mapOf(),
         summandDataProviders = setOf(DATA_PROVIDER_A, DATA_PROVIDER_B),
         fingerprint = fingerprint,

@@ -192,6 +192,7 @@ class BasicReportsMultimeasurementResultsJobTest {
               impressionVariance = 9.0
               frequencyBins += listOf(60L, 40L)
               frequencyBinVariance += listOf(1.0, 4.0)
+              populationSize = POPULATION_SIZE
             }
         }
       )
@@ -219,6 +220,7 @@ class BasicReportsMultimeasurementResultsJobTest {
                   ReportingSetResultKt.DimensionKt.grouping {},
                   TOTAL_FREQUENCY,
                 )
+              populationSize = POPULATION_SIZE
               reportingWindowResults +=
                 ReportingSetResultKt.reportingWindowEntry {
                   key = ReportingSetResultKt.reportingWindow { end = REPORT_END_DATE }
@@ -428,6 +430,7 @@ class BasicReportsMultimeasurementResultsJobTest {
   }
 
   companion object {
+    private const val POPULATION_SIZE = 5000L
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "mc"
     private const val MEASUREMENT_CONSUMER_NAME =
       "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID"

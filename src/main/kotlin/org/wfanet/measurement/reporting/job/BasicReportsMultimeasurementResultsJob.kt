@@ -227,6 +227,7 @@ class BasicReportsMultimeasurementResultsJob(
     val resultGroupSpecs: List<ResultGroupSpec> = basicReport.details.resultGroupSpecsList
     val reportingUnitResolver = ReportingUnitResolver(basicReport)
     val windowsByDimension = mutableMapOf<ReportingSetResult.Dimension, MutableMap<Date, Window>>()
+    val populationSizeByDimension = mutableMapOf<ReportingSetResult.Dimension, Long>()
 
     for ((reportComputation, measurement) in computedMeasurements) {
       val externalImpressionQualificationFilterId: String? =
@@ -281,6 +282,7 @@ class BasicReportsMultimeasurementResultsJob(
               eventFilters +=
                 Normalization.normalizeEventFilters(resultGroupSpec.dimensionSpec.filtersList)
             }
+          populationSizeByDimension.putIfAbsent(dimension, cell.populationSize)
           val window: Window =
             windowsByDimension
               .getOrPut(dimension) { mutableMapOf() }
@@ -303,6 +305,7 @@ class BasicReportsMultimeasurementResultsJob(
     return windowsByDimension.map { (dimension, windowsByEnd) ->
       reportingSetResult {
         this.dimension = dimension
+        populationSize = populationSizeByDimension.getValue(dimension)
         for ((end, window) in windowsByEnd) {
           reportingWindowResults +=
             ReportingSetResultKt.reportingWindowEntry {

@@ -68,6 +68,14 @@ class HashRankSubpopulationIndexTest {
   }
 
   @Test
+  fun `populationSize counts every VID of the subpopulation regardless of sampling`() {
+    val index = buildIndex(samplingStart = 0.2f, samplingWidth = 0.5f)
+
+    assertThat(index.populationSize(0)).isEqualTo(60L)
+    assertThat(index.populationSize(1)).isEqualTo(40L)
+  }
+
+  @Test
   fun `subpopulationOf throws for a position outside the vector`() {
     val index = buildIndex(samplingStart = 0.0f, samplingWidth = 0.5f)
 

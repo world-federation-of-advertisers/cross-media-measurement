@@ -35,6 +35,8 @@ class HashRankSubpopulationIndex
 private constructor(
   /** Subpopulation of each global index. */
   private val subpopulationByGlobalIndex: IntArray,
+  /** Number of VIDs in each subpopulation. */
+  private val subpopulationSizes: LongArray,
   private val globalStartIndex: Int,
   val vectorSize: Int,
   private val attributes: SubpopulationAttributes,
@@ -62,6 +64,8 @@ private constructor(
    */
   override fun attributeValue(subpopulation: Int, path: String): String? =
     attributes.attributeValue(subpopulation, path)
+
+  override fun populationSize(subpopulation: Int): Long = subpopulationSizes[subpopulation]
 
   /** A VID range and the subpopulation it belongs to. */
   private data class SubpopulationRange(val first: Long, val last: Long, val subpopulation: Int)
@@ -136,8 +140,14 @@ private constructor(
       val wrappedCount =
         if (globalEndIndex >= populationSize) globalEndIndex - populationSize + 1 else 0
 
+      val subpopulationSizes = LongArray(attributes.subpopulationCount)
+      for (range in ranges) {
+        subpopulationSizes[range.subpopulation] += range.last - range.first + 1
+      }
+
       return HashRankSubpopulationIndex(
         vids,
+        subpopulationSizes,
         globalStartIndex,
         maxOf(primaryCount, 0) + wrappedCount,
         attributes,

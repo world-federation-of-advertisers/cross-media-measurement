@@ -130,6 +130,9 @@ class MultimeasurementEvaluatorTest {
 
     override fun attributeValue(subpopulation: Int, path: String): String? =
       if (path == AGE_GROUP_PATH) listOf(YOUNG, OLD)[subpopulation] else null
+
+    override fun populationSize(subpopulation: Int): Long =
+      listOf(YOUNG_POPULATION_SIZE, OLD_POPULATION_SIZE)[subpopulation]
   }
 
   companion object {
@@ -138,6 +141,8 @@ class MultimeasurementEvaluatorTest {
     private const val AGE_GROUP_PATH = "person.age_group"
     private const val YOUNG = "YEARS_18_TO_34"
     private const val OLD = "YEARS_35_TO_54"
+    private const val YOUNG_POPULATION_SIZE = 100L
+    private const val OLD_POPULATION_SIZE = 200L
     private const val DATA_PROVIDER_A = "dataProviders/a"
     private const val DATA_PROVIDER_B = "dataProviders/b"
     private val NO_NOISE = CellPrivacyParams(NoiseMechanism.NONE, resultMinimumThresholds = null)

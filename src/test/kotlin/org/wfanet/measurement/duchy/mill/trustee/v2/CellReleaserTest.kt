@@ -46,6 +46,7 @@ class CellReleaserTest {
           impressionVariance = 0.0
           frequencyBins += listOf(3L, 1L, 2L)
           frequencyBinVariance += listOf(0.0, 0.0, 0.0)
+          populationSize = POPULATION_SIZE
         }
       )
   }
@@ -132,6 +133,7 @@ class CellReleaserTest {
 
   companion object {
     private const val YOUNG = "YEARS_18_TO_34"
+    private const val POPULATION_SIZE = 1000L
     private val NO_NOISE = CellPrivacyParams(NoiseMechanism.NONE, resultMinimumThresholds = null)
     private val TRUNCATED_LAPLACE =
       CellPrivacyParams(
@@ -149,6 +151,7 @@ class CellReleaserTest {
         attributeValues = listOf(YOUNG, null),
         frequencyHistogram = histogram,
         impressions = impressions,
+        populationSize = POPULATION_SIZE,
         sliceReach = mapOf(),
         summandDataProviders = setOf(),
         fingerprint = byteArrayOf(0),
@@ -162,6 +165,7 @@ class CellReleaserTest {
         impressions = 0L
         frequencyBins += List(binCount) { 0L }
         suppressed = true
+        populationSize = POPULATION_SIZE
       }
   }
 }

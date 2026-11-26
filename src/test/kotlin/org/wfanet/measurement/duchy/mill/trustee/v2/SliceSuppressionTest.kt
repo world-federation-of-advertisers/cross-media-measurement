@@ -87,6 +87,7 @@ class SliceSuppressionTest {
         attributeValues = listOf(),
         frequencyHistogram = longArrayOf(sliceReach.values.sum()),
         impressions = sliceReach.values.sum(),
+        populationSize = 1L,
         sliceReach = sliceReach,
         summandDataProviders = setOf(DATA_PROVIDER_A, DATA_PROVIDER_B),
         fingerprint = byteArrayOf(0),

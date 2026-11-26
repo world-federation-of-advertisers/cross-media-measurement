@@ -68,6 +68,7 @@ class CellReleaser(
       impressionVariance = noise.impressionVariance
       frequencyBins += bins.toList()
       frequencyBinVariance += binVariances.toList()
+      populationSize = cell.populationSize
     }
   }
 
@@ -79,6 +80,7 @@ class CellReleaser(
       impressions = 0L
       frequencyBins += List(cell.frequencyHistogram.size) { 0L }
       suppressed = true
+      populationSize = cell.populationSize
     }
   }
 
