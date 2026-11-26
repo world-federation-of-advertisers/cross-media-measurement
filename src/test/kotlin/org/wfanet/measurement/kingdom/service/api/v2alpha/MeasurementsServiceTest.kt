@@ -78,6 +78,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
@@ -161,6 +162,7 @@ import org.wfanet.measurement.internal.kingdom.measurement as internalMeasuremen
 import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.measurementFailure as internalMeasurementFailure
 import org.wfanet.measurement.internal.kingdom.measurementKey
+import org.wfanet.measurement.internal.kingdom.modelLineKey as internalModelLineKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
@@ -4051,6 +4053,14 @@ class MeasurementsServiceTest {
           trusTeeV2 = InternalProtocolConfig.TrusTeeV2.getDefaultInstance()
         }
         queries += QUERY.toByteString()
+        modelLine =
+          ModelLineKey.fromName(MODEL_LINE_NAME)!!.let {
+            internalModelLineKey {
+              externalModelProviderId = apiIdToExternalId(it.modelProviderId)
+              externalModelSuiteId = apiIdToExternalId(it.modelSuiteId)
+              externalModelLineId = apiIdToExternalId(it.modelLineId)
+            }
+          }
       }
     }
 

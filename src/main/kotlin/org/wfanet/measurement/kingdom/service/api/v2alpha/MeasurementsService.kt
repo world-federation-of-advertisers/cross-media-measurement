@@ -55,6 +55,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementPrincipal
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.batchCreateMeasurementsResponse
@@ -100,6 +101,7 @@ import org.wfanet.measurement.internal.kingdom.copy as internalCopy
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurementKey
+import org.wfanet.measurement.internal.kingdom.modelLineKey as internalModelLineKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
@@ -854,12 +856,28 @@ class MeasurementsService(
     }
     validateSamplingInterval(measurementSpec, internalProtocolConfig)
 
+    // The Kingdom pins the PopulationSpec of the model line's latest ModelRollout at creation.
+    val modelLineKey: ModelLineKey =
+      grpcRequireNotNull(ModelLineKey.fromName(measurementSpec.modelLine)) {
+        "$measurementFieldPath.unsigned_measurement_spec.model_line is unspecified or invalid"
+      }
     val internalMeasurement =
-      measurement.toInternalMultimeasurement(
-        measurementConsumerCertificateKey,
-        multimeasurementVectors,
-        internalProtocolConfig,
-      )
+      measurement
+        .toInternalMultimeasurement(
+          measurementConsumerCertificateKey,
+          multimeasurementVectors,
+          internalProtocolConfig,
+        )
+        .internalCopy {
+          details =
+            details.internalCopy {
+              modelLine = internalModelLineKey {
+                externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
+                externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
+                externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
+              }
+            }
+        }
 
     val requestId = this.requestId
     return internalCreateMeasurementRequest {

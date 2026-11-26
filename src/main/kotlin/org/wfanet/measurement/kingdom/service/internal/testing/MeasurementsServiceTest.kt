@@ -59,6 +59,12 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.Requisition.DuchyValue
@@ -90,6 +96,8 @@ import org.wfanet.measurement.internal.kingdom.measurementKey
 import org.wfanet.measurement.internal.kingdom.measurementLogEntry
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
+import org.wfanet.measurement.internal.kingdom.modelLineKey
+import org.wfanet.measurement.internal.kingdom.modelRollout
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
@@ -203,6 +211,12 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     val accountsService: AccountsCoroutineImplBase,
     val requisitionsService: RequisitionsCoroutineImplBase,
     val computationParticipantsService: ComputationParticipantsCoroutineImplBase,
+    val modelProvidersService: ModelProvidersCoroutineImplBase,
+    val modelSuitesService: ModelSuitesCoroutineImplBase,
+    val modelLinesService: ModelLinesCoroutineImplBase,
+    val modelReleasesService: ModelReleasesCoroutineImplBase,
+    val modelRolloutsService: ModelRolloutsCoroutineImplBase,
+    val populationsService: PopulationsCoroutineImplBase,
   )
 
   protected val clock: Clock = Clock.systemUTC()
@@ -233,6 +247,8 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   protected lateinit var computationParticipantsService: ComputationParticipantsCoroutineImplBase
     private set
 
+  private lateinit var services: Services<T>
+
   protected abstract fun newServices(idGenerator: IdGenerator): Services<T>
 
   @Before
@@ -246,6 +262,42 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     accountsService = services.accountsService
     requisitionsService = services.requisitionsService
     computationParticipantsService = services.computationParticipantsService
+    this.services = services
+  }
+
+  /**
+   * Returns [TRUS_TEE_V2_MEASUREMENT] for a new model line that has a ModelRollout, whose
+   * Population the Kingdom pins when the Measurement is created.
+   */
+  private suspend fun trusTeeV2Measurement(): Measurement {
+    val modelSuite =
+      population.createModelSuite(services.modelProvidersService, services.modelSuitesService)
+    val modelLine = population.createModelLine(services.modelLinesService, modelSuite)
+    val populationDataProvider = population.createDataProvider(dataProvidersService)
+    val createdPopulation =
+      population.createPopulation(populationDataProvider, services.populationsService)
+    val modelRelease =
+      population.createModelRelease(modelSuite, createdPopulation, services.modelReleasesService)
+    services.modelRolloutsService.createModelRollout(
+      modelRollout {
+        externalModelProviderId = modelLine.externalModelProviderId
+        externalModelSuiteId = modelLine.externalModelSuiteId
+        externalModelLineId = modelLine.externalModelLineId
+        rolloutPeriodStartTime = modelLine.activeStartTime
+        rolloutPeriodEndTime = modelLine.activeStartTime
+        externalModelReleaseId = modelRelease.externalModelReleaseId
+      }
+    )
+    return TRUS_TEE_V2_MEASUREMENT.copy {
+      details =
+        details.copy {
+          this.modelLine = modelLineKey {
+            externalModelProviderId = modelLine.externalModelProviderId
+            externalModelSuiteId = modelLine.externalModelSuiteId
+            externalModelLineId = modelLine.externalModelLineId
+          }
+        }
+    }
   }
 
   @Test
@@ -675,7 +727,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       val dataProvider1 = population.createDataProvider(dataProvidersService)
       val dataProvider2 = population.createDataProvider(dataProvidersService)
       val measurement =
-        TRUS_TEE_V2_MEASUREMENT.copy {
+        trusTeeV2Measurement().copy {
           externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
           externalMeasurementConsumerCertificateId =
             measurementConsumer.certificate.externalCertificateId
@@ -730,6 +782,68 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
 
   @Test
+  fun `createMeasurement pins the Population of the latest ModelRollout for TrusTEE v2`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+
+      val created =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              trusTeeV2Measurement().copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                multimeasurementVectors +=
+                  testVector(dataProvider.externalDataProviderId, index = 0)
+              }
+          }
+        )
+
+      assertThat(created.details.hasPopulation()).isTrue()
+      assertThat(created.details.population.externalPopulationId).isNotEqualTo(0L)
+    }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION when TrusTEE v2 model line has no rollout`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val modelSuite =
+      population.createModelSuite(services.modelProvidersService, services.modelSuitesService)
+    val modelLine = population.createModelLine(services.modelLinesService, modelSuite)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              TRUS_TEE_V2_MEASUREMENT.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                details =
+                  details.copy {
+                    this.modelLine = modelLineKey {
+                      externalModelProviderId = modelLine.externalModelProviderId
+                      externalModelSuiteId = modelLine.externalModelSuiteId
+                      externalModelLineId = modelLine.externalModelLineId
+                    }
+                  }
+                multimeasurementVectors +=
+                  testVector(dataProvider.externalDataProviderId, index = 0)
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
   fun `getMeasurement returns the vectors of a TrusTEE v2 multimeasurement`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -738,7 +852,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
       measurementsService.createMeasurement(
         createMeasurementRequest {
           measurement =
-            TRUS_TEE_V2_MEASUREMENT.copy {
+            trusTeeV2Measurement().copy {
               externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
               externalMeasurementConsumerCertificateId =
                 measurementConsumer.certificate.externalCertificateId
@@ -1435,7 +1549,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementsService.createMeasurement(
           createMeasurementRequest {
             measurement =
-              TRUS_TEE_V2_MEASUREMENT.copy {
+              trusTeeV2Measurement().copy {
                 externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
                 externalMeasurementConsumerCertificateId =
                   measurementConsumer.certificate.externalCertificateId
@@ -1488,7 +1602,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementsService.createMeasurement(
           createMeasurementRequest {
             measurement =
-              TRUS_TEE_V2_MEASUREMENT.copy {
+              trusTeeV2Measurement().copy {
                 externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
                 externalMeasurementConsumerCertificateId =
                   measurementConsumer.certificate.externalCertificateId
@@ -1526,7 +1640,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementsService.createMeasurement(
           createMeasurementRequest {
             measurement =
-              TRUS_TEE_V2_MEASUREMENT.copy {
+              trusTeeV2Measurement().copy {
                 externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
                 externalMeasurementConsumerCertificateId =
                   measurementConsumer.certificate.externalCertificateId
@@ -1609,7 +1723,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         measurementsService.createMeasurement(
           createMeasurementRequest {
             measurement =
-              TRUS_TEE_V2_MEASUREMENT.copy {
+              trusTeeV2Measurement().copy {
                 externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
                 externalMeasurementConsumerCertificateId =
                   measurementConsumer.certificate.externalCertificateId

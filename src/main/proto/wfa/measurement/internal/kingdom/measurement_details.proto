@@ -18,6 +18,8 @@ package wfa.measurement.internal.kingdom;
 
 import "wfa/measurement/internal/kingdom/duchy_protocol_config.proto";
 import "wfa/measurement/internal/kingdom/measurement_failure.proto";
+import "wfa/measurement/internal/kingdom/model_line_key.proto";
+import "wfa/measurement/internal/kingdom/population_key.proto";
 import "wfa/measurement/internal/kingdom/protocol_config.proto";
 
 option java_package = "org.wfanet.measurement.internal.kingdom";
@@ -42,4 +44,11 @@ message MeasurementDetails {
   // Serialized `Query` messages from the public API
   // `Measurement.Multimeasurement.queries`. Set only for a multimeasurement.
   repeated bytes queries = 10;
+
+  // The `ModelLine` of a multimeasurement, from its `MeasurementSpec`.
+  ModelLineKey model_line = 11;
+
+  // The `Population` of a multimeasurement: that of the latest `ModelRollout`
+  // of `model_line` when the `Measurement` was created. Output-only.
+  PopulationKey population = 12;
 }

@@ -20,6 +20,7 @@ import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.time.Duration
@@ -32,12 +33,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.isActive
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.Measurement.Result as MeasurementResult
-import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -47,27 +45,20 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelRelease
-import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelRollout
-import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.Population
+import org.wfanet.measurement.internal.kingdom.PopulationKey
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
-import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.computationKey
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
-import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
-import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase
@@ -84,13 +75,11 @@ import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 /**
  * System API `Computations` service.
  *
- * @param modelRolloutsClient used with [modelReleasesClient] and [populationsClient] to resolve the
- *   `PopulationSpec` of a TrusTEE v2 multimeasurement from its model line
+ * @param populationsClient used to read the `PopulationSpec` of a TrusTEE v2 multimeasurement's
+ *   pinned `Population`
  */
 class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,
-  private val modelRolloutsClient: ModelRolloutsCoroutineStub,
-  private val modelReleasesClient: ModelReleasesCoroutineStub,
   private val populationsClient: PopulationsCoroutineStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
@@ -98,6 +87,9 @@ class ComputationsService(
   private val streamingThrottle: Duration = 1.seconds,
   private val streamingLimit: Int = DEFAULT_STREAMING_LIMIT,
 ) : ComputationsCoroutineImplBase(coroutineContext) {
+  /** System `PopulationSpec` of each `Population` read so far. */
+  private val populationSpecs: MutableMap<PopulationKey, PopulationSpec> = ConcurrentHashMap()
+
   override suspend fun getComputation(request: GetComputationRequest): Computation {
     val computationKey =
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {
@@ -316,81 +308,35 @@ class ComputationsService(
     }
   }
 
-  /**
-   * Returns the `PopulationSpec` of the `Population` of the latest `ModelRollout` of the model line
-   * of [measurement].
-   */
+  /** Returns the `PopulationSpec` of the `Population` pinned when [measurement] was created. */
   private suspend fun getPopulationSpec(measurement: Measurement): PopulationSpec {
-    val measurementSpec: MeasurementSpec =
-      try {
-        MeasurementSpec.parseFrom(measurement.details.measurementSpec)
-      } catch (e: InvalidProtocolBufferException) {
-        throw Status.INTERNAL.withDescription("MeasurementSpec is invalid")
-          .withCause(e)
-          .asRuntimeException()
-      }
-    val modelLineKey: ModelLineKey =
-      ModelLineKey.fromName(measurementSpec.modelLine)
-        ?: throw Status.FAILED_PRECONDITION.withDescription(
-            "MeasurementSpec model_line unspecified or invalid"
-          )
-          .asRuntimeException()
-
-    val modelRollouts: List<ModelRollout> =
-      try {
-        modelRolloutsClient
-          .streamModelRollouts(
-            streamModelRolloutsRequest {
-              filter =
-                StreamModelRolloutsRequestKt.filter {
-                  externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
-                  externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
-                  externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
-                }
-            }
-          )
-          .toList()
-      } catch (e: StatusException) {
-        throw e.toSystemStatusRuntimeException()
-      }
-    // Matches how the Population DataProvider resolves the Population for a model line.
-    val latestModelRollout: ModelRollout =
-      modelRollouts.maxWithOrNull(MODEL_ROLLOUT_RECENCY_COMPARATOR)
-        ?: throw Status.FAILED_PRECONDITION.withDescription(
-            "ModelLine ${measurementSpec.modelLine} has no ModelRollout"
-          )
-          .asRuntimeException()
-
-    val modelRelease: ModelRelease =
-      try {
-        modelReleasesClient.getModelRelease(
-          getModelReleaseRequest {
-            externalModelProviderId = latestModelRollout.externalModelProviderId
-            externalModelSuiteId = latestModelRollout.externalModelSuiteId
-            externalModelReleaseId = latestModelRollout.externalModelReleaseId
-          }
-        )
-      } catch (e: StatusException) {
-        throw e.toSystemStatusRuntimeException()
-      }
+    if (!measurement.details.hasPopulation()) {
+      throw Status.FAILED_PRECONDITION.withDescription("Multimeasurement has no Population")
+        .asRuntimeException()
+    }
+    val key: PopulationKey = measurement.details.population
+    // A Population is immutable, so each is read once.
+    populationSpecs[key]?.let {
+      return it
+    }
     val population: Population =
       try {
         populationsClient.getPopulation(
           getPopulationRequest {
-            externalDataProviderId = modelRelease.externalDataProviderId
-            externalPopulationId = modelRelease.externalPopulationId
+            externalDataProviderId = key.externalDataProviderId
+            externalPopulationId = key.externalPopulationId
           }
         )
       } catch (e: StatusException) {
         throw e.toSystemStatusRuntimeException()
       }
     if (!population.details.hasPopulationSpec()) {
-      throw Status.FAILED_PRECONDITION.withDescription(
-          "Population for ModelLine ${measurementSpec.modelLine} has no PopulationSpec"
-        )
+      throw Status.FAILED_PRECONDITION.withDescription("Population has no PopulationSpec")
         .asRuntimeException()
     }
-    return population.details.populationSpec.toSystemPopulationSpec()
+    val populationSpec: PopulationSpec = population.details.populationSpec.toSystemPopulationSpec()
+    populationSpecs[key] = populationSpec
+    return populationSpec
   }
 
   private fun streamMeasurements(
@@ -433,10 +379,6 @@ class ComputationsService(
      * messages.
      */
     const val DEFAULT_STREAMING_LIMIT = 50
-
-    /** Orders [ModelRollout]s from least to most recent. */
-    private val MODEL_ROLLOUT_RECENCY_COMPARATOR: Comparator<ModelRollout> =
-      compareBy({ it.rolloutPeriodStartTime.toInstant() }, { it.createTime.toInstant() })
 
     private val STATES_SUBSCRIBED =
       listOf(

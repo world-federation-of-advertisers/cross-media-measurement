@@ -44,6 +44,12 @@ class SpannerMeasurementsServiceTest : MeasurementsServiceTest<SpannerMeasuremen
       spannerServices.accountsService,
       spannerServices.requisitionsService,
       spannerServices.computationParticipantsService,
+      spannerServices.modelProvidersService,
+      spannerServices.modelSuitesService,
+      spannerServices.modelLinesService,
+      spannerServices.modelReleasesService,
+      spannerServices.modelRolloutsService,
+      spannerServices.populationsService,
     )
   }
 

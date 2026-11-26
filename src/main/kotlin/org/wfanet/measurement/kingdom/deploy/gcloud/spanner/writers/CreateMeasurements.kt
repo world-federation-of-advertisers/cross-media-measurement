@@ -17,8 +17,11 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers
 import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import java.time.Clock
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -29,10 +32,15 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ModelLineKey
+import org.wfanet.measurement.internal.kingdom.ModelRelease
+import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
+import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.populationKey
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
@@ -46,9 +54,14 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelRollouts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
@@ -140,7 +153,12 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           ProtocolConfig.ProtocolCase.TRUS_TEE,
           ProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> {
             createComputedMeasurement(
-              createMeasurementRequest = it,
+              createMeasurementRequest =
+                if (it.measurement.details.protocolConfig.hasTrusTeeV2()) {
+                  withPinnedPopulation(it)
+                } else {
+                  it
+                },
               measurementConsumerId = measurementConsumerId,
               measurementConsumerCertificateId = certificateId,
               dataProvideReaderResultsMap = dataProvideReaderResultsMap,
@@ -344,6 +362,70 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
   }
 
+  /**
+   * Returns [request] with `MeasurementDetails.population` set to the Population of the latest
+   * ModelRollout of its `model_line`, so that a computation's PopulationSpec cannot change under
+   * it.
+   *
+   * @throws RequiredFieldNotSetException if `model_line` is not set
+   * @throws ModelRolloutNotFoundException if the model line has no ModelRollout
+   * @throws ModelReleaseNotFoundException if the ModelRollout's ModelRelease is not found
+   */
+  private suspend fun TransactionScope.withPinnedPopulation(
+    request: CreateMeasurementRequest
+  ): CreateMeasurementRequest {
+    val details = request.measurement.details
+    if (!details.hasModelLine()) {
+      throw RequiredFieldNotSetException("measurement.details.model_line")
+    }
+    val modelLine: ModelLineKey = details.modelLine
+    val latestModelRollout: ModelRollout =
+      StreamModelRollouts(
+          StreamModelRolloutsRequestKt.filter {
+            externalModelProviderId = modelLine.externalModelProviderId
+            externalModelSuiteId = modelLine.externalModelSuiteId
+            externalModelLineId = modelLine.externalModelLineId
+          }
+        )
+        .execute(transactionContext)
+        .map { it.modelRollout }
+        .toList()
+        .maxWithOrNull(MODEL_ROLLOUT_RECENCY_COMPARATOR)
+        ?: throw ModelRolloutNotFoundException(
+          ExternalId(modelLine.externalModelProviderId),
+          ExternalId(modelLine.externalModelSuiteId),
+          ExternalId(modelLine.externalModelLineId),
+        ) {
+          "ModelLine has no ModelRollout"
+        }
+    val modelRelease: ModelRelease =
+      ModelReleaseReader()
+        .readByExternalIds(
+          transactionContext,
+          ExternalId(latestModelRollout.externalModelReleaseId),
+          ExternalId(latestModelRollout.externalModelSuiteId),
+          ExternalId(latestModelRollout.externalModelProviderId),
+        )
+        ?.modelRelease
+        ?: throw ModelReleaseNotFoundException(
+          ExternalId(latestModelRollout.externalModelProviderId),
+          ExternalId(latestModelRollout.externalModelSuiteId),
+          ExternalId(latestModelRollout.externalModelReleaseId),
+        )
+    return request.copy {
+      measurement =
+        measurement.copy {
+          this.details =
+            this.details.copy {
+              population = populationKey {
+                externalDataProviderId = modelRelease.externalDataProviderId
+                externalPopulationId = modelRelease.externalPopulationId
+              }
+            }
+        }
+    }
+  }
+
   private fun TransactionScope.insertMeasurement(
     createMeasurementRequest: CreateMeasurementRequest,
     measurementConsumerId: InternalId,
@@ -529,6 +611,10 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
   }
 }
+
+/** Orders ModelRollouts by recency, as the Population DataProvider resolves a model line. */
+private val MODEL_ROLLOUT_RECENCY_COMPARATOR: Comparator<ModelRollout> =
+  compareBy({ it.rolloutPeriodStartTime.toInstant() }, { it.createTime.toInstant() })
 
 private suspend fun TransactionScope.readMeasurementConsumerId(
   externalMeasurementConsumerId: ExternalId
