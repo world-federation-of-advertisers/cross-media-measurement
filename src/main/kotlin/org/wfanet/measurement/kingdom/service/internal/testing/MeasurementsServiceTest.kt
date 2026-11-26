@@ -59,9 +59,11 @@ import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelLineKey
 import org.wfanet.measurement.internal.kingdom.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelProvidersGrpcKt.ModelProvidersCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase
+import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.ModelSuitesGrpcKt.ModelSuitesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase
@@ -72,6 +74,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionKt.parentMeasurement
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
+import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequestKt
 import org.wfanet.measurement.internal.kingdom.TrusTeeParams
 import org.wfanet.measurement.internal.kingdom.batchCancelMeasurementsRequest
@@ -90,6 +93,7 @@ import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.fulfillRequisitionRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
+import org.wfanet.measurement.internal.kingdom.getModelSuiteRequest
 import org.wfanet.measurement.internal.kingdom.measurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.measurementKey
@@ -98,6 +102,7 @@ import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.modelLineKey
 import org.wfanet.measurement.internal.kingdom.modelRollout
+import org.wfanet.measurement.internal.kingdom.populationKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.requisition
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
@@ -106,6 +111,7 @@ import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest
 import org.wfanet.measurement.internal.kingdom.stateTransitionMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
+import org.wfanet.measurement.internal.kingdom.streamModelRolloutsRequest
 import org.wfanet.measurement.internal.kingdom.streamRequisitionsRequest
 import org.wfanet.measurement.internal.kingdom.streamStateTransitionMeasurementLogEntriesRequest
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
@@ -810,6 +816,77 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
 
       assertThat(created.details.hasPopulation()).isTrue()
       assertThat(created.details.population.externalPopulationId).isNotEqualTo(0L)
+    }
+
+  @Test
+  fun `createMeasurement pins the Population of the most recently created ModelRollout`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val measurement: Measurement = trusTeeV2Measurement()
+      val modelLine: ModelLineKey = measurement.details.modelLine
+      val laterPopulation =
+        population.createPopulation(
+          population.createDataProvider(dataProvidersService),
+          services.populationsService,
+        )
+      val laterModelRelease =
+        population.createModelRelease(
+          services.modelSuitesService.getModelSuite(
+            getModelSuiteRequest {
+              externalModelProviderId = modelLine.externalModelProviderId
+              externalModelSuiteId = modelLine.externalModelSuiteId
+            }
+          ),
+          laterPopulation,
+          services.modelReleasesService,
+        )
+      val earlierRollout: ModelRollout =
+        services.modelRolloutsService
+          .streamModelRollouts(
+            streamModelRolloutsRequest {
+              filter =
+                StreamModelRolloutsRequestKt.filter {
+                  externalModelProviderId = modelLine.externalModelProviderId
+                  externalModelSuiteId = modelLine.externalModelSuiteId
+                  externalModelLineId = modelLine.externalModelLineId
+                }
+            }
+          )
+          .toList()
+          .single()
+      // Same rollout period start, so the later creation wins.
+      services.modelRolloutsService.createModelRollout(
+        earlierRollout.copy {
+          clearExternalModelRolloutId()
+          clearCreateTime()
+          clearUpdateTime()
+          externalModelReleaseId = laterModelRelease.externalModelReleaseId
+        }
+      )
+
+      val created =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            this.measurement =
+              measurement.copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                multimeasurementVectors +=
+                  testVector(dataProvider.externalDataProviderId, index = 0)
+              }
+          }
+        )
+
+      assertThat(created.details.population)
+        .isEqualTo(
+          populationKey {
+            externalDataProviderId = laterPopulation.externalDataProviderId
+            externalPopulationId = laterPopulation.externalPopulationId
+          }
+        )
     }
 
   @Test

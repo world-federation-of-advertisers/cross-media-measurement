@@ -42,6 +42,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt.queryResult
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.multimeasurementResult
@@ -780,6 +781,19 @@ class ComputationsServiceTest {
           externalPopulationId = EXTERNAL_POPULATION_ID
         }
       )
+  }
+
+  @Test
+  fun `getComputation reads each pinned TrusTEE v2 Population once`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+    service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+    val computation =
+      service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+
+    verify(internalPopulationsServiceMock, times(1)).getPopulation(any())
+    assertThat(computation.multimeasurement.populationSpec).isEqualTo(SYSTEM_POPULATION_SPEC)
   }
 
   @Test

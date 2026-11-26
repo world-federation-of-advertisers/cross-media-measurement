@@ -4250,6 +4250,32 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `createBasicReport does not store ReportComputations again when replayed`(): Unit =
+    runBlocking {
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
+      reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = REPORTING_SET
+          externalReportingSetId = REPORTING_SET.externalReportingSetId
+        }
+      )
+      val request = createBasicReportRequest {
+        basicReport = BASIC_REPORT.copy { clearResultDetails() }
+        reportComputations += newReportComputation(AMI_IQF.externalImpressionQualificationFilterId)
+        requestId = "replayed-request"
+      }
+
+      val createdBasicReport = service.createBasicReport(request)
+      val replayedBasicReport = service.createBasicReport(request)
+
+      assertThat(replayedBasicReport.externalBasicReportId)
+        .isEqualTo(createdBasicReport.externalBasicReportId)
+      assertThat(listReportComputations(createdBasicReport)).hasSize(1)
+    }
+
+  @Test
   fun `createBasicReport stores a ReportComputation for the custom filter`(): Unit = runBlocking {
     val createdBasicReport = createMultimeasurementBasicReport("")
 
