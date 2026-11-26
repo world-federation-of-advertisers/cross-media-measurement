@@ -51,6 +51,7 @@ kt_jvm_library(
         test_target(":__pkg__"),
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:__pkg__",
     ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
