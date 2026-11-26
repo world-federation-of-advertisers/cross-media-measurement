@@ -773,7 +773,7 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           requisitions.map {
             multimeasurementVector {
               externalDataProviderId = it.externalDataProviderId
-              index = it.details.vectorIndex
+              index = it.vectorIndex
               requisitionSpec = it.details.requisitionSpec
             }
           }

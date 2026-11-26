@@ -504,10 +504,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     for (vector in vectors) {
       val dataProviderReaderResult =
         dataProvideReaderResultsMap.getValue(vector.externalDataProviderId)
-      val details = requisitionDetails {
-        vectorIndex = vector.index
-        requisitionSpec = vector.requisitionSpec
-      }
+      val details = requisitionDetails { requisitionSpec = vector.requisitionSpec }
       insertRequisition(
         measurementConsumerId = measurementConsumerId,
         measurementId = measurementId,
@@ -518,6 +515,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         dataProviderCertificateId = InternalId(dataProviderReaderResult.certificateId),
         initialRequisitionState = Requisition.State.PENDING_PARAMS,
         fulfillingDuchies = listOf(fulfillingDuchy),
+        vectorIndex = vector.index,
       )
     }
   }
@@ -530,6 +528,7 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     dataProviderCertificateId: InternalId,
     initialRequisitionState: Requisition.State,
     fulfillingDuchies: List<DuchyIds.Entry> = emptyList(),
+    vectorIndex: Int? = null,
   ) {
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
@@ -552,8 +551,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State").toInt64(initialRequisitionState)
       fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
-      if (details.hasVectorIndex()) {
-        set("VectorIndex" to details.vectorIndex.toLong())
+      if (vectorIndex != null) {
+        set("VectorIndex" to vectorIndex.toLong())
       }
       set("RequisitionDetails").to(details)
     }

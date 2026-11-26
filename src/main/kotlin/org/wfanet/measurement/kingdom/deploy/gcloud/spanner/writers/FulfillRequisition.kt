@@ -70,7 +70,7 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
     val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
 
     // A multimeasurement Requisition's RequisitionSpec is plaintext and has no nonce.
-    if (requisition.details.hasVectorIndex()) {
+    if (requisition.hasVectorIndex()) {
       if (request.nonce != 0L) {
         throw InvalidFieldValueException("nonce") {
           "nonce specified for a multimeasurement Requisition"

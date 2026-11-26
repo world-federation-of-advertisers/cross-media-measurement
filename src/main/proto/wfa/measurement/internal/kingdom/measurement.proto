@@ -242,4 +242,9 @@ message Requisition {
 
   // Current etag. Output only.
   string etag = 13;
+
+  // Index of the base vector this `Requisition` fulfills, from the public API
+  // `Measurement.Multimeasurement.Vector.index`. Set only for a
+  // multimeasurement.
+  optional int32 vector_index = 14;
 }

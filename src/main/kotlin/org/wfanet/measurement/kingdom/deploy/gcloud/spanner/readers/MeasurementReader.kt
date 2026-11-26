@@ -285,7 +285,8 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
           SELECT AS STRUCT
             ExternalDataProviderId,
             ExternalDataProviderCertificateId,
-            RequisitionDetails
+            RequisitionDetails,
+            VectorIndex
           FROM
             Requisitions
             JOIN DataProviders USING (DataProviderId)
@@ -340,6 +341,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
             Requisitions.State AS RequisitionState,
             Requisitions.FulfillingDuchyId,
             Requisitions.RequisitionDetails,
+            Requisitions.VectorIndex,
             ExternalDataProviderCertificateId,
             SubjectKeyIdentifier,
             NotValidBefore,
@@ -537,7 +539,7 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
     if (details.protocolConfig.hasTrusTeeV2()) {
       vectors += multimeasurementVector {
         this.externalDataProviderId = externalDataProviderId
-        index = requisitionDetails.vectorIndex
+        index = requisitionStruct.getLong("VectorIndex").toInt()
         requisitionSpec = requisitionDetails.requisitionSpec
       }
     } else {

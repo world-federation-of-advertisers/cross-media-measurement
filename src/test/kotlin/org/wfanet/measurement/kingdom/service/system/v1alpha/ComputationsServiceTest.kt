@@ -425,10 +425,8 @@ private val INTERNAL_TRUS_TEE_V2_MEASUREMENT =
     requisitions.clear()
     requisitions +=
       INTERNAL_REQUISITION.copy {
-        details = requisitionDetails {
-          vectorIndex = 1
-          requisitionSpec = PLAINTEXT_REQUISITION_SPEC
-        }
+        details = requisitionDetails { requisitionSpec = PLAINTEXT_REQUISITION_SPEC }
+        vectorIndex = 1
       }
   }
 

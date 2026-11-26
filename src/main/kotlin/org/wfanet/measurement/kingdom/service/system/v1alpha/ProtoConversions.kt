@@ -72,10 +72,10 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
           externalIdToApiId(source.externalRequisitionId),
         )
         .toName()
-    if (source.details.hasVectorIndex()) {
+    if (source.hasVectorIndex()) {
       // A multimeasurement RequisitionSpec is in plaintext and carries no nonce.
       requisitionSpecHash = Hashing.hashSha256(source.details.requisitionSpec)
-      vectorIndex = source.details.vectorIndex
+      vectorIndex = source.vectorIndex
     } else {
       requisitionSpecHash = Hashing.hashSha256(source.details.encryptedRequisitionSpec)
     }

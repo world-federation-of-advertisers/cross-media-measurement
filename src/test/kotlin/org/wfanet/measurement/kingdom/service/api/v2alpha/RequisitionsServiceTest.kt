@@ -1618,10 +1618,8 @@ class RequisitionsServiceTest {
               trusTeeV2 = InternalProtocolConfig.TrusTeeV2.getDefaultInstance()
             }
           }
-        details = requisitionDetails {
-          vectorIndex = 1
-          requisitionSpec = PLAINTEXT_REQUISITION_SPEC.toByteString()
-        }
+        details = requisitionDetails { requisitionSpec = PLAINTEXT_REQUISITION_SPEC.toByteString() }
+        vectorIndex = 1
       }
 
     private val REQUISITION: Requisition = requisition {
