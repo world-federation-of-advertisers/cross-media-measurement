@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.duchy.Query
  * @param queries the queries of the multimeasurement
  * @param dataProviders the `DataProvider` that fulfilled each base vector, indexed by vector index
  * @param subpopulations the subpopulation of each vector position and its attribute values
+ * @param vidSamplingIntervalWidth the width of the VID sampling interval the vectors cover
  * @param privacyParams the noise mechanism and thresholds of the Mill
  * @param measurementName resource name of the `Measurement`, which seeds the noise
  */
@@ -39,12 +40,15 @@ class MultimeasurementEvaluator(
   private val queries: List<Query>,
   private val dataProviders: List<String>,
   private val subpopulations: SubpopulationIndex,
+  vidSamplingIntervalWidth: Double,
   private val privacyParams: CellPrivacyParams,
   measurementName: String,
 ) {
   private val noise = CellNoise(privacyParams, measurementName)
-  private val sliceSuppression = SliceSuppression(privacyParams.resultMinimumThresholds, noise)
-  private val releaser = CellReleaser(privacyParams.resultMinimumThresholds, noise)
+  private val sliceSuppression =
+    SliceSuppression(privacyParams.resultMinimumThresholds, noise, vidSamplingIntervalWidth)
+  private val releaser =
+    CellReleaser(privacyParams.resultMinimumThresholds, noise, vidSamplingIntervalWidth)
 
   /**
    * Evaluates the queries over [vectors], the base vectors indexed by vector index, each holding

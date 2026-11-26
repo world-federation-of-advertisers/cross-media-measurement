@@ -158,6 +158,7 @@ class TrusTeeV2Mill(
           queries = details.queriesList,
           dataProviders = vectorsByIndex.map { it.dataProvider },
           subpopulations = subpopulations,
+          vidSamplingIntervalWidth = details.vidSamplingInterval.width.toDouble(),
           privacyParams = privacyParams,
           measurementName = token.computationDetails.kingdomComputation.measurement,
         )

@@ -27,7 +27,12 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
 class SliceSuppressionTest {
   @Test
   fun `verdict releases every cell without thresholds`() {
-    val suppression = SliceSuppression(resultMinimumThresholds = null, noise = NO_NOISE)
+    val suppression =
+      SliceSuppression(
+        resultMinimumThresholds = null,
+        noise = NO_NOISE,
+        vidSamplingIntervalWidth = FULL_SAMPLING_WIDTH,
+      )
 
     assertThat(suppression.verdict(testCell(mapOf(DATA_PROVIDER_A to 1L))))
       .isEqualTo(SliceSuppression.Verdict.Release)
@@ -59,6 +64,21 @@ class SliceSuppressionTest {
   }
 
   @Test
+  fun `verdict scales slice reach by the sampling width`() {
+    val suppression =
+      SliceSuppression(
+        ResultMinimumThresholds(minUsers = MIN_USERS.toInt(), minImpressions = 1),
+        NO_NOISE,
+        vidSamplingIntervalWidth = 0.5,
+      )
+
+    // 3 VIDs in a half-width sample scale to 6, which passes; 2 scale to 4, which fails.
+    val verdict = suppression.verdict(testCell(mapOf(DATA_PROVIDER_A to 3L, DATA_PROVIDER_B to 2L)))
+
+    assertThat(verdict).isEqualTo(SliceSuppression.Verdict.Correct(setOf(DATA_PROVIDER_B)))
+  }
+
+  @Test
   fun `verdict suppresses a cell whose slices all fail`() {
     val verdict = SUPPRESSION.verdict(testCell(mapOf(DATA_PROVIDER_A to 1L, DATA_PROVIDER_B to 1L)))
 
@@ -66,6 +86,7 @@ class SliceSuppressionTest {
   }
 
   companion object {
+    private const val FULL_SAMPLING_WIDTH = 1.0
     private const val MIN_USERS = 5L
     private const val DATA_PROVIDER_A = "dataProviders/a"
     private const val DATA_PROVIDER_B = "dataProviders/b"
@@ -78,6 +99,7 @@ class SliceSuppressionTest {
       SliceSuppression(
         ResultMinimumThresholds(minUsers = MIN_USERS.toInt(), minImpressions = 1),
         NO_NOISE,
+        FULL_SAMPLING_WIDTH,
       )
 
     private fun testCell(sliceReach: Map<String, Long>) =

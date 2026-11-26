@@ -27,10 +27,13 @@ import org.wfanet.measurement.computation.ResultMinimumThresholds
  *
  * @param resultMinimumThresholds the thresholds whose `min_users` each slice is tested against, or
  *   `null` to release every cell from the first pass
+ * @param vidSamplingIntervalWidth the width of the VID sampling interval, by which in-sample slice
+ *   reach is scaled before it is tested, as TrusTEE v1 scales it
  */
 class SliceSuppression(
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val noise: CellNoise,
+  private val vidSamplingIntervalWidth: Double,
 ) {
   /** Returns the verdict on [cell], a first-pass cell. */
   fun verdict(cell: QueryEvaluator.Cell): Verdict {
@@ -39,7 +42,8 @@ class SliceSuppression(
       cell.summandDataProviders
         .filter { dataProvider ->
           val sliceReach: Long = cell.sliceReach[dataProvider] ?: 0L
-          noise.sliceNoiser(cell, dataProvider).noiseReach(sliceReach) < thresholds.minUsers
+          noise.sliceNoiser(cell, dataProvider).noiseReach(sliceReach) / vidSamplingIntervalWidth <
+            thresholds.minUsers
         }
         .toSet()
     return when {

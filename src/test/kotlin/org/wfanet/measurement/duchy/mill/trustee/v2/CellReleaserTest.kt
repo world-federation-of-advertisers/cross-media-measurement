@@ -31,7 +31,12 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
 class CellReleaserTest {
   @Test
   fun `release returns exact figures without noise or thresholds`() {
-    val releaser = CellReleaser(resultMinimumThresholds = null, noise = noise(NO_NOISE))
+    val releaser =
+      CellReleaser(
+        resultMinimumThresholds = null,
+        noise = noise(NO_NOISE),
+        vidSamplingIntervalWidth = FULL_SAMPLING_WIDTH,
+      )
 
     val released = releaser.release(testCell(longArrayOf(3L, 1L, 2L), impressions = 13L))
 
@@ -54,7 +59,11 @@ class CellReleaserTest {
   @Test
   fun `release suppresses a cell whose reach is below min_users`() {
     val releaser =
-      CellReleaser(ResultMinimumThresholds(minUsers = 7, minImpressions = 1), noise(NO_NOISE))
+      CellReleaser(
+        ResultMinimumThresholds(minUsers = 7, minImpressions = 1),
+        noise(NO_NOISE),
+        FULL_SAMPLING_WIDTH,
+      )
 
     val released = releaser.release(testCell(longArrayOf(3L, 1L, 2L), impressions = 13L))
 
@@ -62,9 +71,28 @@ class CellReleaserTest {
   }
 
   @Test
+  fun `release compares reach scaled by the sampling width against min_users`() {
+    val releaser =
+      CellReleaser(
+        ResultMinimumThresholds(minUsers = 7, minImpressions = 1),
+        noise(NO_NOISE),
+        vidSamplingIntervalWidth = 0.5,
+      )
+
+    val released = releaser.release(testCell(longArrayOf(3L, 1L, 2L), impressions = 13L))
+
+    assertThat(released.suppressed).isFalse()
+    assertThat(released.reach).isEqualTo(6L)
+  }
+
+  @Test
   fun `release suppresses a cell whose impressions are below min_impressions`() {
     val releaser =
-      CellReleaser(ResultMinimumThresholds(minUsers = 1, minImpressions = 14), noise(NO_NOISE))
+      CellReleaser(
+        ResultMinimumThresholds(minUsers = 1, minImpressions = 14),
+        noise(NO_NOISE),
+        FULL_SAMPLING_WIDTH,
+      )
 
     val released = releaser.release(testCell(longArrayOf(3L, 1L, 2L), impressions = 13L))
 
@@ -74,7 +102,11 @@ class CellReleaserTest {
   @Test
   fun `release folds failing bins down from the top`() {
     val releaser =
-      CellReleaser(ResultMinimumThresholds(minUsers = 2, minImpressions = 1), noise(NO_NOISE))
+      CellReleaser(
+        ResultMinimumThresholds(minUsers = 2, minImpressions = 1),
+        noise(NO_NOISE),
+        FULL_SAMPLING_WIDTH,
+      )
 
     val released = releaser.release(testCell(longArrayOf(5L, 1L, 1L), impressions = 10L))
 
@@ -87,7 +119,11 @@ class CellReleaserTest {
   @Test
   fun `release folds by frequency times count against min_impressions`() {
     val releaser =
-      CellReleaser(ResultMinimumThresholds(minUsers = 1, minImpressions = 7), noise(NO_NOISE))
+      CellReleaser(
+        ResultMinimumThresholds(minUsers = 1, minImpressions = 7),
+        noise(NO_NOISE),
+        FULL_SAMPLING_WIDTH,
+      )
 
     val released = releaser.release(testCell(longArrayOf(9L, 3L, 2L), impressions = 21L))
 
@@ -98,7 +134,12 @@ class CellReleaserTest {
   @Test
   fun `release carries a folded bin's variance into the lower bin`() {
     val noise = noise(TRUNCATED_LAPLACE)
-    val releaser = CellReleaser(ResultMinimumThresholds(minUsers = 50, minImpressions = 1), noise)
+    val releaser =
+      CellReleaser(
+        ResultMinimumThresholds(minUsers = 50, minImpressions = 1),
+        noise,
+        FULL_SAMPLING_WIDTH,
+      )
 
     // The top bin stays below 50 and the others above it whatever the bounded draws are.
     val released = releaser.release(testCell(longArrayOf(1_000L, 1_000L, 1L), impressions = 3_003L))
@@ -115,15 +156,20 @@ class CellReleaserTest {
   fun `release is deterministic under truncated Laplace noise`() {
     val cell = testCell(longArrayOf(100L, 50L, 25L), impressions = 275L)
 
-    val first = CellReleaser(null, noise(TRUNCATED_LAPLACE)).release(cell)
-    val second = CellReleaser(null, noise(TRUNCATED_LAPLACE)).release(cell)
+    val first = CellReleaser(null, noise(TRUNCATED_LAPLACE), FULL_SAMPLING_WIDTH).release(cell)
+    val second = CellReleaser(null, noise(TRUNCATED_LAPLACE), FULL_SAMPLING_WIDTH).release(cell)
 
     assertThat(first).isEqualTo(second)
   }
 
   @Test
   fun `suppressed returns zero metrics and sets suppressed`() {
-    val releaser = CellReleaser(resultMinimumThresholds = null, noise = noise(NO_NOISE))
+    val releaser =
+      CellReleaser(
+        resultMinimumThresholds = null,
+        noise = noise(NO_NOISE),
+        vidSamplingIntervalWidth = FULL_SAMPLING_WIDTH,
+      )
 
     val suppressed = releaser.suppressed(testCell(longArrayOf(3L, 1L), impressions = 5L))
 
@@ -133,6 +179,7 @@ class CellReleaserTest {
 
   companion object {
     private const val YOUNG = "YEARS_18_TO_34"
+    private const val FULL_SAMPLING_WIDTH = 1.0
     private const val POPULATION_SIZE = 1000L
     private val NO_NOISE = CellPrivacyParams(NoiseMechanism.NONE, resultMinimumThresholds = null)
     private val TRUNCATED_LAPLACE =

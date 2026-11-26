@@ -115,6 +115,7 @@ class MultimeasurementEvaluatorTest {
         listOf(testQuery(groupingPaths = listOf())),
         DATA_PROVIDERS,
         ParitySubpopulationIndex,
+        FULL_SAMPLING_WIDTH,
         NO_NOISE,
         MEASUREMENT,
       )
@@ -138,6 +139,7 @@ class MultimeasurementEvaluatorTest {
   companion object {
     private const val MEASUREMENT = "measurementConsumers/mc/measurements/m"
     private const val QUERY_ID = "query"
+    private const val FULL_SAMPLING_WIDTH = 1.0
     private const val AGE_GROUP_PATH = "person.age_group"
     private const val YOUNG = "YEARS_18_TO_34"
     private const val OLD = "YEARS_35_TO_54"
@@ -168,6 +170,7 @@ class MultimeasurementEvaluatorTest {
           listOf(query),
           DATA_PROVIDERS,
           ParitySubpopulationIndex,
+          FULL_SAMPLING_WIDTH,
           params,
           MEASUREMENT,
         )

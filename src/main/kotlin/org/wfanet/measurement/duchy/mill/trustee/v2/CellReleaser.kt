@@ -20,27 +20,29 @@ import org.wfanet.measurement.api.v2alpha.Measurement.Result.MultimeasurementRes
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt.QueryResultKt
 import org.wfanet.measurement.api.v2alpha.PopulationAttributeValue
 import org.wfanet.measurement.api.v2alpha.populationAttributeValue
+import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.computation.ResultNoiser
 
 /**
  * Noises a cell and thresholds it as a result: the second level of small-cell suppression.
  *
- * The figures are in-sample: neither reach nor impressions are scaled by the VID sampling interval,
- * and the thresholds are compared against the in-sample figures.
+ * The released figures are in-sample: neither reach nor impressions are scaled by the VID sampling
+ * interval. The thresholds are compared against the figures scaled by [vidSamplingIntervalWidth],
+ * as TrusTEE v1 compares them.
  */
 class CellReleaser(
   private val resultMinimumThresholds: ResultMinimumThresholds?,
   private val noise: CellNoise,
+  private val vidSamplingIntervalWidth: Double,
 ) {
   /**
    * Returns the released [cell].
    *
-   * Reach, impressions and each frequency bin are noised by [CellNoise.cellNoiser]. If the noised
-   * reach is below `min_users` or the noised impressions below `min_impressions`, the cell is
-   * suppressed. Otherwise its histogram is folded down from the top bin: a bin whose noised count
-   * is below `min_users`, or whose frequency times count is below `min_impressions`, is zeroed and
-   * its count added to the next lower bin, which is then tested in turn.
+   * Reach, impressions and each frequency bin are noised by [CellNoise.cellNoiser]. If the scaled
+   * noised reach is below `min_users` or the scaled noised impressions below `min_impressions`, the
+   * cell is suppressed. Otherwise its histogram is folded down by
+   * [ReachAndFrequencyComputations.foldDownBelowThresholds].
    */
   fun release(cell: QueryEvaluator.Cell): QueryResult.Cell {
     val noiser: ResultNoiser = noise.cellNoiser(cell)
@@ -54,10 +56,23 @@ class CellReleaser(
 
     val thresholds: ResultMinimumThresholds? = resultMinimumThresholds
     if (thresholds != null) {
-      if (reach < thresholds.minUsers || impressions < thresholds.minImpressions) {
+      if (
+        reach / vidSamplingIntervalWidth < thresholds.minUsers ||
+          impressions / vidSamplingIntervalWidth < thresholds.minImpressions
+      ) {
         return suppressed(cell)
       }
-      foldDown(bins, binVariances, thresholds)
+      // A folded bin's variance is carried into the next lower bin along with its count.
+      ReachAndFrequencyComputations.foldDownBelowThresholds(
+        bins,
+        thresholds,
+        vidSamplingIntervalWidth,
+      ) { index ->
+        if (index > 0) {
+          binVariances[index - 1] += binVariances[index]
+        }
+        binVariances[index] = 0.0
+      }
     }
 
     return QueryResultKt.cell {
@@ -81,32 +96,6 @@ class CellReleaser(
       frequencyBins += List(cell.frequencyHistogram.size) { 0L }
       suppressed = true
       populationSize = cell.populationSize
-    }
-  }
-
-  /**
-   * Folds [bins] down from the top bin, carrying [variances] along with the counts.
-   *
-   * This is the fold of `ReachAndFrequencyComputations.computeFrequencyDistribution`, which returns
-   * rates rather than counts and scales by the sampling interval, so it is restated here over
-   * in-sample counts.
-   */
-  private fun foldDown(
-    bins: LongArray,
-    variances: DoubleArray,
-    thresholds: ResultMinimumThresholds,
-  ) {
-    for (index in bins.indices.reversed()) {
-      val frequency = index + 1L
-      val count = bins[index]
-      if (count < thresholds.minUsers || frequency * count < thresholds.minImpressions) {
-        bins[index] = 0L
-        if (index > 0) {
-          bins[index - 1] += count
-          variances[index - 1] += variances[index]
-        }
-        variances[index] = 0.0
-      }
     }
   }
 
