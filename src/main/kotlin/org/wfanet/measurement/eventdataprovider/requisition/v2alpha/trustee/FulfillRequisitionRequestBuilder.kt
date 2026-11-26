@@ -41,6 +41,7 @@ import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.tink.StreamingEncryption
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
+import org.wfanet.measurement.consent.client.duchy.computeRequisitionFingerprint as computeRequisitionFingerprintFromHash
 
 /**
  * Builds a Sequence of FulfillRequisitionRequests
@@ -108,16 +109,15 @@ class FulfillRequisitionRequestBuilder(
   /**
    * Fingerprint of the [Requisition] the Duchy matches the fulfillment against.
    *
-   * For a `TrusTeeV2` [Requisition] this is the SHA-256 of the serialized unsigned
-   * `MeasurementSpec` concatenated with the SHA-256 of the serialized plaintext `RequisitionSpec`,
-   * the same inputs the Duchy receives from the Kingdom.
+   * For a `TrusTeeV2` [Requisition] it is computed over the serialized unsigned `MeasurementSpec`
+   * and the hash of the serialized plaintext `RequisitionSpec`, the same inputs the Duchy receives
+   * from the Kingdom.
    */
   private val fingerprint: ByteString by lazy {
     if (isTrusTeeV2) {
-      Hashing.hashSha256(
-        requisition.unsignedMeasurementSpec
-          .toByteString()
-          .concat(Hashing.hashSha256(requisition.requisitionSpec.toByteString()))
+      computeRequisitionFingerprintFromHash(
+        requisition.unsignedMeasurementSpec.toByteString(),
+        Hashing.hashSha256(requisition.requisitionSpec.toByteString()),
       )
     } else {
       computeRequisitionFingerprint(requisition)
