@@ -66,6 +66,9 @@ abstract class InProcessEdpAggregatorMultimeasurementReportTest(
         "multimeasurement-campaign",
         "multimeasurement-basicreport",
         includeIqfFilter = false,
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Request stacked
+        // incremental reach once multimeasurements compute it.
+        stackedIncrementalReach = false,
       )
     val createdBasicReport =
       reportingBasicReportsClient

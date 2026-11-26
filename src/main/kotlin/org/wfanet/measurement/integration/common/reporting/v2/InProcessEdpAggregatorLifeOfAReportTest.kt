@@ -1033,6 +1033,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     campaignGroupId: String?,
     basicReportId: String,
     includeIqfFilter: Boolean = true,
+    stackedIncrementalReach: Boolean = true,
   ): CreateBasicReportRequest {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val measurementConsumerKey = MeasurementConsumerKey.fromName(measurementConsumerData.name)!!
@@ -1116,7 +1117,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     impressions = true
                     grps = true
                   }
-                stackedIncrementalReach = true
+                this.stackedIncrementalReach = stackedIncrementalReach
               }
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
