@@ -94,15 +94,11 @@ abstract class InProcessEdpAggregatorMultimeasurementReportTest(
         .withCallCredentials(credentials)
         .getBasicReport(getBasicReportRequest { name = createdBasicReport.name })
     assertThat(completedBasicReport.state).isEqualTo(BasicReport.State.SUCCEEDED)
-    val reportingUnitCumulative =
-      completedBasicReport.resultGroupsList
-        .single()
-        .resultsList
-        .single()
-        .metricSet
-        .reportingUnit
-        .cumulative
-    assertThat(reportingUnitCumulative.reach).isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
-    assertThat(reportingUnitCumulative.impressions).isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
+    val metricSet = completedBasicReport.resultGroupsList.single().resultsList.single().metricSet
+    assertThat(metricSet.reportingUnit.cumulative.reach).isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
+    assertThat(metricSet.reportingUnit.cumulative.impressions)
+      .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
+    assertThat(metricSet.componentsList.map { it.value.cumulative.reach })
+      .containsExactly(EXPECTED_EDP_SPEC1_REACH, EXPECTED_EDP_SPEC2_REACH)
   }
 }
