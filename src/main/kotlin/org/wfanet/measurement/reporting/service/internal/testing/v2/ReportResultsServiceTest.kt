@@ -1795,7 +1795,7 @@ abstract class ReportResultsServiceTest {
           reportComputations += reportComputation {
             externalImpressionQualificationFilterId =
               AMI_IQF.externalImpressionQualificationFilterId
-            multimeasurement = "multimeasurement-1".toByteStringUtf8()
+            this.multimeasurement = "multimeasurement-1".toByteStringUtf8()
             mappings += resultGroupQueryMapping {
               queryId = "query-1"
               reportingUnit =
