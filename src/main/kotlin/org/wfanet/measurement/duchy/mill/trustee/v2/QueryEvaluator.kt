@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.duchy.VidFilter
  * @param subpopulations the subpopulation of each position and its attribute values
  * @param failedDataProviders for a corrective pass, the `DataProvider`s whose vectors read as zero
  *   in each cell to evaluate; `null` for a first pass over every cell
+ * @param impressionCap the most impressions one VID adds to a cell, or `null` for no cap
  */
 class QueryEvaluator
 private constructor(
@@ -46,13 +47,15 @@ private constructor(
   private val dataProviders: List<String>,
   private val subpopulations: SubpopulationIndex,
   failedDataProviders: Map<CellKey, Set<String>>?,
+  private val impressionCap: Int?,
 ) {
   /** Creates an evaluator for the first pass, which evaluates every cell of [queries]. */
   constructor(
     queries: List<Query>,
     dataProviders: List<String>,
     subpopulations: SubpopulationIndex,
-  ) : this(queries, dataProviders, subpopulations, null)
+    impressionCap: Int? = null,
+  ) : this(queries, dataProviders, subpopulations, null, impressionCap)
 
   private val vectorCount: Int = dataProviders.size
   private val compiledQueries: List<CompiledQuery>
@@ -122,6 +125,9 @@ private constructor(
 
     init {
       require(maxFrequency >= 1) { "Query ${query.id} has max_frequency $maxFrequency" }
+      require(impressionCap == null || impressionCap >= 1) {
+        "Invalid impression cap $impressionCap"
+      }
       val attributeFilter: Map<String, String> =
         query.vidFilter.attributesMap.mapValues { (path, value) ->
           require(value.hasEnumValue()) { "Query ${query.id} attribute $path has no value" }
@@ -178,7 +184,7 @@ private constructor(
       }
       if (frequency == 0L) return
       val accumulator = accumulators[group]
-      accumulator.addFrequency(frequency)
+      accumulator.addFrequency(frequency, impressionCap)
 
       fingerprintBuffer.clear()
       fingerprintBuffer.putInt(position)
@@ -258,9 +264,11 @@ private constructor(
     /** Running SHA-256 over each reached VID's position and summand counts, in position order. */
     val fingerprint: MessageDigest = MessageDigest.getInstance(FINGERPRINT_ALGORITHM)
 
-    fun addFrequency(frequency: Long) {
+    /** Adds a VID reached [frequency] times, contributing at most [impressionCap] impressions. */
+    fun addFrequency(frequency: Long, impressionCap: Int?) {
       histogram[(minOf(frequency, histogram.size.toLong()) - 1).toInt()]++
-      impressions += frequency
+      impressions +=
+        if (impressionCap == null) frequency else minOf(frequency, impressionCap.toLong())
     }
 
     fun addSliceReach(dataProvider: String) {
@@ -293,7 +301,8 @@ private constructor(
    *   where the subpopulation does not set it
    * @property frequencyHistogram bin `k - 1` counts VIDs reached `k` times, the last bin folding in
    *   higher frequencies; reach is its sum
-   * @property impressions the sum of the summed counts over reached VIDs
+   * @property impressions the sum of the summed counts over reached VIDs, each capped at the
+   *   evaluator's impression cap
    * @property populationSize the number of VIDs in this cell's subpopulations that pass the query's
    *   attribute filter, across the whole population
    * @property sliceReach the VIDs in this cell reached by each `DataProvider`'s summand vectors
@@ -335,7 +344,9 @@ private constructor(
       dataProviders: List<String>,
       subpopulations: SubpopulationIndex,
       failedDataProviders: Map<CellKey, Set<String>>,
-    ): QueryEvaluator = QueryEvaluator(queries, dataProviders, subpopulations, failedDataProviders)
+      impressionCap: Int? = null,
+    ): QueryEvaluator =
+      QueryEvaluator(queries, dataProviders, subpopulations, failedDataProviders, impressionCap)
 
     /**
      * Requires that [vectorIndexes], the indexes of the base vectors held, cover `0 until

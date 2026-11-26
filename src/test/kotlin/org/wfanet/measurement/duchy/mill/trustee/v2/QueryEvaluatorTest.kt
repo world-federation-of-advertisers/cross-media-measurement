@@ -122,6 +122,28 @@ class QueryEvaluatorTest {
   }
 
   @Test
+  fun `cells cap each VID's impressions at the impression cap`() {
+    val evaluator =
+      QueryEvaluator(
+        listOf(testQuery(summands = listOf(0, 1, 2), maxFrequency = 5)),
+        DATA_PROVIDERS,
+        ParitySubpopulationIndex,
+        impressionCap = 2,
+      )
+    evaluator.add(QueryEvaluator.VectorChunk(0, VECTORS))
+    val uncapped = evaluate(testQuery(summands = listOf(0, 1, 2), maxFrequency = 5)).single()
+
+    val cell = evaluator.cells().single()
+
+    val expectedImpressions: Long =
+      uncapped.frequencyHistogram.withIndex().sumOf { (index, count) ->
+        minOf(index + 1, 2) * count
+      }
+    assertThat(expectedImpressions).isLessThan(uncapped.impressions)
+    assertThat(cell.impressions).isEqualTo(expectedImpressions)
+  }
+
+  @Test
   fun `cells carry the population of their subpopulations`() {
     val cells =
       evaluateCells(

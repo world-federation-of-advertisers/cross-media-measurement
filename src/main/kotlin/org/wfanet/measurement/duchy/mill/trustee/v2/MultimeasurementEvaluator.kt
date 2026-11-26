@@ -39,7 +39,7 @@ class MultimeasurementEvaluator(
   private val queries: List<Query>,
   private val dataProviders: List<String>,
   private val subpopulations: SubpopulationIndex,
-  privacyParams: CellPrivacyParams,
+  private val privacyParams: CellPrivacyParams,
   measurementName: String,
 ) {
   private val noise = CellNoise(privacyParams, measurementName)
@@ -60,7 +60,8 @@ class MultimeasurementEvaluator(
     val vectorSize: Int = vectors.firstOrNull()?.size ?: 0
     require(vectors.all { it.size == vectorSize }) { "Base vectors must have the same length" }
 
-    val firstPass = QueryEvaluator(queries, dataProviders, subpopulations)
+    val firstPass =
+      QueryEvaluator(queries, dataProviders, subpopulations, privacyParams.impressionCap)
     addAll(firstPass, vectors, vectorSize)
     val firstPassCells: List<QueryEvaluator.Cell> = firstPass.cells()
 
@@ -76,7 +77,13 @@ class MultimeasurementEvaluator(
         emptyMap()
       } else {
         val correctivePass =
-          QueryEvaluator.corrective(queries, dataProviders, subpopulations, corrections)
+          QueryEvaluator.corrective(
+            queries,
+            dataProviders,
+            subpopulations,
+            corrections,
+            privacyParams.impressionCap,
+          )
         addAll(correctivePass, vectors, vectorSize)
         correctivePass.cells().associateBy { it.key }
       }

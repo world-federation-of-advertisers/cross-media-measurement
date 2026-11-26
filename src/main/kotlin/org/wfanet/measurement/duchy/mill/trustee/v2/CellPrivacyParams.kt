@@ -54,6 +54,13 @@ class CellPrivacyParams(
   val maxFrequencyPerUser: Int
     get() = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1
 
+  /**
+   * The most impressions one VID contributes to a cell, so that the impression draw's sensitivity
+   * holds, or `null` when nothing is noised, as the TrusTEE v1 processor caps.
+   */
+  val impressionCap: Int?
+    get() = if (noiseMechanism == NoiseMechanism.NONE) null else maxFrequencyPerUser
+
   companion object {
     private val SUPPORTED_NOISE_MECHANISMS =
       setOf(NoiseMechanism.NONE, NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
