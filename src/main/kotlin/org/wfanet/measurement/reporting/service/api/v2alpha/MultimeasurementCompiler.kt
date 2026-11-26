@@ -35,8 +35,6 @@ import org.wfanet.measurement.api.v2alpha.Query
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.VectorSet
-import org.wfanet.measurement.api.v2alpha.VidFilter
-import org.wfanet.measurement.api.v2alpha.VidFilterKt
 import org.wfanet.measurement.api.v2alpha.populationAttributeValue
 import org.wfanet.measurement.api.v2alpha.query
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -178,8 +176,19 @@ class MultimeasurementCompiler(
     components: Map<String, ReportingUnitComponent>,
   ): SpecPlan {
     require(spec.reportingUnit.componentsCount > 0) { "ResultGroupSpec has no components" }
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Compile these once
+    // ReportingSetResult can hold their results.
     require(!spec.resultGroupMetricSpec.reportingUnit.stackedIncrementalReach) {
       "stacked_incremental_reach has no ResultGroup slot in a ResultGroupQueryMapping"
+    }
+    require(
+      !spec.resultGroupMetricSpec.component.hasNonCumulativeUnique() &&
+        !spec.resultGroupMetricSpec.component.hasCumulativeUnique()
+    ) {
+      "Component unique metrics are not supported for multimeasurements"
+    }
+    require(!spec.resultGroupMetricSpec.hasComponentIntersection()) {
+      "Component intersection metrics are not supported for multimeasurements"
     }
     val resolvedComponents: List<ReportingUnitComponent> =
       spec.reportingUnit.componentsList.map {
@@ -269,10 +278,6 @@ class MultimeasurementCompiler(
     object ReportingUnit : Slot("ru")
 
     class Component(val index: Int) : Slot("c$index")
-
-    class ComponentUnique(val index: Int) : Slot("u$index")
-
-    class Intersection(val indexes: List<Int>) : Slot("i" + indexes.joinToString("."))
   }
 
   /** Accumulates the vectors, queries, and mappings of one multimeasurement. */
@@ -330,34 +335,6 @@ class MultimeasurementCompiler(
             component.cumulative.maxFrequency,
           )
         }
-        if (component.hasNonCumulativeUnique()) {
-          addWindows(
-            plan.nonCumulativeWindows,
-            componentIndexes.map { Slot.ComponentUnique(it) },
-            maxFrequency = 1,
-          )
-        }
-        if (component.hasCumulativeUnique()) {
-          addWindows(
-            plan.cumulativeWindows,
-            componentIndexes.map { Slot.ComponentUnique(it) },
-            maxFrequency = 1,
-          )
-        }
-      }
-      if (metricSpec.hasComponentIntersection()) {
-        val intersection = metricSpec.componentIntersection
-        val slots: List<Slot> =
-          intersection.contributorCountList.distinct().sorted().flatMap { count ->
-            require(count in 1..componentIndexes.size) { "Invalid contributor_count $count" }
-            combinations(componentIndexes, count).map { Slot.Intersection(it) }
-          }
-        if (intersection.hasNonCumulative()) {
-          addWindows(plan.nonCumulativeWindows, slots, intersection.nonCumulative.maxFrequency)
-        }
-        if (intersection.hasCumulative()) {
-          addWindows(plan.cumulativeWindows, slots, intersection.cumulative.maxFrequency)
-        }
       }
     }
 
@@ -384,35 +361,13 @@ class MultimeasurementCompiler(
         when (slot) {
           is Slot.ReportingUnit -> vectorsOf(allIndexes)
           is Slot.Component -> vectorsOf(listOf(slot.index))
-          is Slot.ComponentUnique -> vectorsOf(listOf(slot.index))
-          is Slot.Intersection -> vectorsOf(slot.indexes)
-        }
-      val reachClauses: List<VidFilter.ReachClause> =
-        when (slot) {
-          is Slot.ReportingUnit,
-          is Slot.Component -> emptyList()
-          is Slot.ComponentUnique -> {
-            val others: List<Int> = allIndexes - slot.index
-            if (others.isEmpty()) {
-              emptyList()
-            } else {
-              listOf(VidFilterKt.reachClause { unreachedSet = vectorsOf(others) })
-            }
-          }
-          is Slot.Intersection ->
-            listOf(
-              VidFilterKt.reachClause { reachedSets += slot.indexes.map { vectorsOf(listOf(it)) } }
-            )
         }
 
       queries += query {
         id = queryId
         this.summands = summands
-        if (reachClauses.isNotEmpty() || plan.attributes.isNotEmpty()) {
-          vidFilter = vidFilter {
-            this.reachClauses += reachClauses
-            attributes.putAll(plan.attributes)
-          }
+        if (plan.attributes.isNotEmpty()) {
+          vidFilter = vidFilter { attributes.putAll(plan.attributes) }
         }
         groupingPaths += plan.groupingPaths
         this.maxFrequency = maxFrequency
@@ -429,16 +384,6 @@ class MultimeasurementCompiler(
             component =
               ResultGroupQueryMappingKt.component {
                 component = plan.components[slot.index].externalReportingSetId
-              }
-          is Slot.ComponentUnique ->
-            componentUnique =
-              ResultGroupQueryMappingKt.component {
-                component = plan.components[slot.index].externalReportingSetId
-              }
-          is Slot.Intersection ->
-            intersection =
-              ResultGroupQueryMappingKt.intersection {
-                components += slot.indexes.map { plan.components[it].externalReportingSetId }
               }
         }
       }
@@ -510,16 +455,6 @@ class MultimeasurementCompiler(
           slot.id,
         )
         .joinToString("/")
-    }
-
-    /** Returns the [size]-element combinations of [items], in lexicographic order. */
-    private fun combinations(items: List<Int>, size: Int): List<List<Int>> {
-      if (size == 0) {
-        return listOf(emptyList())
-      }
-      return items.indices.flatMap { i ->
-        combinations(items.subList(i + 1, items.size), size - 1).map { listOf(items[i]) + it }
-      }
     }
 
     private fun buildRequisitionSpec(vectorKey: VectorKey): RequisitionSpec {

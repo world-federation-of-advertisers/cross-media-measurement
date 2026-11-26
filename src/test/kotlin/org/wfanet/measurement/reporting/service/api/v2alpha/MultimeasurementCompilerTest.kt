@@ -35,7 +35,6 @@ import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.Query
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
-import org.wfanet.measurement.api.v2alpha.VidFilterKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.populationAttributeValue
 import org.wfanet.measurement.api.v2alpha.query
@@ -196,79 +195,6 @@ class MultimeasurementCompilerTest {
         .single()
 
     assertThat(query.maxFrequency).isEqualTo(5)
-  }
-
-  @Test
-  fun `compile excludes other components from component unique reach`() {
-    val multimeasurement =
-      compileSingle(
-          buildSpec(
-            BOTH_COMPONENTS,
-            resultGroupMetricSpec {
-              component =
-                ResultGroupMetricSpecKt.componentMetricSetSpec {
-                  cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
-                }
-            },
-          )
-        )
-        .multimeasurement
-
-    assertThat(multimeasurement.queriesList)
-      .containsExactly(
-        query {
-          id = "0/c/2026-01-05/2026-01-19/u0"
-          summands = vectorSet { baseVectors += 0 }
-          vidFilter = vidFilter {
-            reachClauses +=
-              VidFilterKt.reachClause { unreachedSet = vectorSet { baseVectors += 1 } }
-          }
-          maxFrequency = 1
-        },
-        query {
-          id = "0/c/2026-01-05/2026-01-19/u1"
-          summands = vectorSet { baseVectors += 1 }
-          vidFilter = vidFilter {
-            reachClauses +=
-              VidFilterKt.reachClause { unreachedSet = vectorSet { baseVectors += 0 } }
-          }
-          maxFrequency = 1
-        },
-      )
-  }
-
-  @Test
-  fun `compile requires every contributor for an intersection`() {
-    val multimeasurement =
-      compileSingle(
-          buildSpec(
-            BOTH_COMPONENTS,
-            resultGroupMetricSpec {
-              componentIntersection =
-                ResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
-                  contributorCount += 2
-                  cumulative = REACH
-                }
-            },
-          )
-        )
-        .multimeasurement
-
-    assertThat(multimeasurement.queriesList)
-      .containsExactly(
-        query {
-          id = "0/c/2026-01-05/2026-01-19/i0.1"
-          summands = vectorSet { baseVectors += listOf(0, 1) }
-          vidFilter = vidFilter {
-            reachClauses +=
-              VidFilterKt.reachClause {
-                reachedSets += vectorSet { baseVectors += 0 }
-                reachedSets += vectorSet { baseVectors += 1 }
-              }
-          }
-          maxFrequency = 1
-        }
-      )
   }
 
   @Test
@@ -472,16 +398,7 @@ class MultimeasurementCompilerTest {
           resultGroupMetricSpec {
             reportingUnit =
               ResultGroupMetricSpecKt.reportingUnitMetricSetSpec { cumulative = REACH }
-            component =
-              ResultGroupMetricSpecKt.componentMetricSetSpec {
-                nonCumulative = REACH
-                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
-              }
-            componentIntersection =
-              ResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
-                contributorCount += 2
-                cumulative = REACH
-              }
+            component = ResultGroupMetricSpecKt.componentMetricSetSpec { nonCumulative = REACH }
           },
         )
       )
@@ -497,19 +414,6 @@ class MultimeasurementCompilerTest {
         },
         buildMapping("0/n/2026-01-05/2026-01-19/c1", window, cumulative = false) {
           component = ResultGroupQueryMappingKt.component { component = REPORTING_SET_ID_2 }
-        },
-        buildMapping("0/c/2026-01-05/2026-01-19/u0", window, cumulative = true) {
-          componentUnique = ResultGroupQueryMappingKt.component { component = REPORTING_SET_ID_1 }
-        },
-        buildMapping("0/c/2026-01-05/2026-01-19/u1", window, cumulative = true) {
-          componentUnique = ResultGroupQueryMappingKt.component { component = REPORTING_SET_ID_2 }
-        },
-        buildMapping("0/c/2026-01-05/2026-01-19/i0.1", window, cumulative = true) {
-          intersection =
-            ResultGroupQueryMappingKt.intersection {
-              components += REPORTING_SET_ID_1
-              components += REPORTING_SET_ID_2
-            }
         },
       )
       .inOrder()
@@ -540,6 +444,41 @@ class MultimeasurementCompilerTest {
       parsed.mappingsList.associateBy { it.queryId }
     assertThat(mappingsByQueryId.keys)
       .containsExactlyElementsIn(compiled.multimeasurement.queriesList.map { it.id })
+  }
+
+  @Test
+  fun `compile throws for component unique reach`() {
+    assertFailsWith<IllegalArgumentException> {
+      compileSingle(
+        buildSpec(
+          BOTH_COMPONENTS,
+          resultGroupMetricSpec {
+            component =
+              ResultGroupMetricSpecKt.componentMetricSetSpec {
+                cumulativeUnique = ResultGroupMetricSpecKt.uniqueMetricSetSpec { reach = true }
+              }
+          },
+        )
+      )
+    }
+  }
+
+  @Test
+  fun `compile throws for component intersection`() {
+    assertFailsWith<IllegalArgumentException> {
+      compileSingle(
+        buildSpec(
+          BOTH_COMPONENTS,
+          resultGroupMetricSpec {
+            componentIntersection =
+              ResultGroupMetricSpecKt.componentIntersectionMetricSetSpec {
+                contributorCount += 2
+                cumulative = REACH
+              }
+          },
+        )
+      )
+    }
   }
 
   @Test

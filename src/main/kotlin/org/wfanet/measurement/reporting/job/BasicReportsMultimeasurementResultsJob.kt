@@ -250,10 +250,12 @@ class BasicReportsMultimeasurementResultsJob(
             ResultGroupQueryMapping.SlotCase.REPORTING_UNIT ->
               reportingUnitResolver.getExternalReportingSetId(resultGroupSpec)
             ResultGroupQueryMapping.SlotCase.COMPONENT -> mapping.component.component
-            // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Write unique and
-            // intersection cells once ReportingSetResult has a dimension for them.
+            // MultimeasurementCompiler does not compile these.
             ResultGroupQueryMapping.SlotCase.COMPONENT_UNIQUE,
-            ResultGroupQueryMapping.SlotCase.INTERSECTION -> continue
+            ResultGroupQueryMapping.SlotCase.INTERSECTION ->
+              throw InvalidMultimeasurementResultException(
+                "Query ${mapping.queryId} has unsupported slot ${mapping.slotCase}"
+              )
             ResultGroupQueryMapping.SlotCase.SLOT_NOT_SET ->
               throw InvalidMultimeasurementResultException("Query ${mapping.queryId} has no slot")
           }
