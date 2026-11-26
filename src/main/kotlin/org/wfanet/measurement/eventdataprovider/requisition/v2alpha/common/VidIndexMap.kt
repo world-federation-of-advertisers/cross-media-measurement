@@ -14,11 +14,9 @@
 
 package org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common
 
-import com.google.protobuf.ByteString
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator
-import org.wfanet.measurement.common.VidHashing
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
 
 class VidNotFoundException(vid: Long) : Exception("Failed to find VID $vid.")
@@ -48,8 +46,6 @@ interface VidIndexMap {
   operator fun iterator(): Iterator<VidIndexMapEntry>
 
   companion object {
-    val HASH_SALT: ByteString = VidHashing.SALT
-
     val EMPTY: VidIndexMap =
       object : VidIndexMap {
         override fun get(vid: Long): Int = throw VidNotFoundException(vid)
@@ -66,9 +62,6 @@ interface VidIndexMap {
     fun validatePopulationSpec(populationSpec: PopulationSpec) {
       PopulationSpecValidator.validateVidRangesList(populationSpec).getOrThrow()
     }
-
-    fun hashVidToLongWithFarmHash(vid: Long, salt: ByteString = HASH_SALT): Long =
-      VidHashing.hash(vid, salt)
 
     @VisibleForTesting
     fun collectVids(populationSpec: PopulationSpec): IntArray {
