@@ -69,6 +69,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportProc
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.MeasurementConsumerResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportComputationResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSetResults
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.basicReportExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByRequestId
@@ -765,32 +766,19 @@ class SpannerBasicReportsService(
     return impressionQualificationFilterIds
   }
 
-  /**
-   * Returns the internal ID of the impression qualification filter with [externalId], which is
-   * empty for the custom filter, or `null` if there is none.
-   */
   private fun getImpressionQualificationFilterId(externalId: String): Long? =
-    if (externalId.isEmpty()) {
-      CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID
-    } else {
-      impressionQualificationFilterMapping
-        .getImpressionQualificationByExternalId(externalId)
-        ?.impressionQualificationFilterId
-    }
+    ReportingSetResults.getImpressionQualificationFilterId(
+      impressionQualificationFilterMapping,
+      externalId,
+    )
 
   private fun ReportComputationResult.toReportComputation(): ReportComputation =
     reportComputation.copy {
       externalImpressionQualificationFilterId =
-        if (impressionQualificationFilterId == CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID) {
-          ""
-        } else {
-          checkNotNull(
-              impressionQualificationFilterMapping.getImpressionQualificationFilterById(
-                impressionQualificationFilterId
-              )
-            )
-            .externalImpressionQualificationFilterId
-        }
+        ReportingSetResults.getExternalImpressionQualificationFilterId(
+          impressionQualificationFilterMapping,
+          impressionQualificationFilterId,
+        )
     }
 
   /** @throws BasicReportStateInvalidException if the BasicReport is not in [expectedState]. */
@@ -1214,9 +1202,6 @@ class SpannerBasicReportsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
-
-    /** Internal ID standing for the custom impression qualification filter. */
-    private const val CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID = -1L
 
     private val CreateBasicReportRequest.initialState: BasicReport.State
       get() =
