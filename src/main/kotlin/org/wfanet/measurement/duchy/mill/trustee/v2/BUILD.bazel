@@ -33,7 +33,10 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "hash_rank_subpopulation_index",
-    srcs = ["HashRankSubpopulationIndex.kt"],
+    srcs = [
+        "HashRankOrderCache.kt",
+        "HashRankSubpopulationIndex.kt",
+    ],
     deps = [
         ":query_evaluator",
         ":subpopulation_attributes",
@@ -41,6 +44,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common:vid_hashing",
         "//src/main/kotlin/org/wfanet/measurement/computation:sampled_index_ranges",
         "//src/main/proto/wfa/measurement/internal/duchy:population_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
 

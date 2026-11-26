@@ -210,3 +210,21 @@ java_test(
     test_class = "org.wfanet.measurement.duchy.mill.trustee.v2.TrusTeeV2MillTest",
     runtime_deps = [":trus_tee_v2_mill_test"],
 )
+
+kt_jvm_library(
+    name = "hash_rank_order_cache_test",
+    srcs = ["HashRankOrderCacheTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:hash_rank_subpopulation_index",
+        "//src/main/proto/wfa/measurement/internal/duchy:population_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+java_test(
+    name = "HashRankOrderCacheTest",
+    test_class = "org.wfanet.measurement.duchy.mill.trustee.v2.HashRankOrderCacheTest",
+    runtime_deps = [":hash_rank_order_cache_test"],
+)

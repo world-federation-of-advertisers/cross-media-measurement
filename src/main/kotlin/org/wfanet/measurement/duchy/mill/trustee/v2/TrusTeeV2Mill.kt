@@ -33,7 +33,6 @@ import org.wfanet.measurement.internal.duchy.ComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
-import org.wfanet.measurement.internal.duchy.PopulationSpec
 import org.wfanet.measurement.internal.duchy.RequisitionDetails
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
@@ -55,6 +54,8 @@ import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
  * @param privacyParams the noise mechanism and thresholds fixed in the attested image
  * @param fallbackEventDescriptor the event descriptor to resolve population attributes against when
  *   a computation carries none, or `null` to fail such a computation
+ * @param hashRankOrderCacheSize how many PopulationSpecs' VID hash rank orders are kept between
+ *   computations, each of which holds an `Int` per VID
  */
 class TrusTeeV2Mill(
   millId: String,
@@ -70,6 +71,7 @@ class TrusTeeV2Mill(
   private val requisitionDecryptor: TrusTeeRequisitionDecryptor,
   private val privacyParams: CellPrivacyParams,
   private val fallbackEventDescriptor: TrusTeeV2.EventDescriptor?,
+  hashRankOrderCacheSize: Int = 1,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -92,21 +94,7 @@ class TrusTeeV2Mill(
   ) {
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
-  /**
-   * The [HashRankOrder] of each recently used PopulationSpec. A model line's PopulationSpec is the
-   * same for all of its computations, and building its order means hashing and sorting every VID.
-   */
-  private val hashRankOrders: MutableMap<PopulationSpec, HashRankOrder> =
-    object : LinkedHashMap<PopulationSpec, HashRankOrder>(16, 0.75f, true) {
-      override fun removeEldestEntry(
-        eldest: MutableMap.MutableEntry<PopulationSpec, HashRankOrder>
-      ): Boolean = size > MAX_CACHED_HASH_RANK_ORDERS
-    }
-
-  private fun getHashRankOrder(populationSpec: PopulationSpec): HashRankOrder =
-    synchronized(hashRankOrders) {
-      hashRankOrders.getOrPut(populationSpec) { HashRankOrder.build(populationSpec) }
-    }
+  private val hashRankOrders = HashRankOrderCache(hashRankOrderCacheSize)
 
   @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
   override suspend fun processComputationImpl(token: ComputationToken) {
@@ -155,7 +143,7 @@ class TrusTeeV2Mill(
     val attributes = SubpopulationAttributes.build(details.populationSpec, eventDescriptor)
     val subpopulations =
       HashRankSubpopulationIndex.build(
-        getHashRankOrder(details.populationSpec),
+        hashRankOrders.get(details.populationSpec),
         attributes,
         details.vidSamplingInterval.start,
         details.vidSamplingInterval.width,
@@ -239,8 +227,5 @@ class TrusTeeV2Mill(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    /** Each order holds an `Int` per VID of its PopulationSpec. */
-    private const val MAX_CACHED_HASH_RANK_ORDERS = 2
   }
 }
