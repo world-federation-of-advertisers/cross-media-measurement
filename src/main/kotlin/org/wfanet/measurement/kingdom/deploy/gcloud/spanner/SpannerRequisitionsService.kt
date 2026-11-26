@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
@@ -103,7 +104,6 @@ class SpannerRequisitionsService(
           }
         }
         FulfillRequisitionRequest.ParamsCase.DIRECT_PARAMS -> {
-          grpcRequire(nonce != 0L) { "nonce not specified" }
           grpcRequire(!directParams.encryptedData.isEmpty) { "encrypted_data not specified" }
           grpcRequire(directParams.externalDataProviderId != 0L) {
             "data_provider_id not specified"
@@ -133,6 +133,10 @@ class SpannerRequisitionsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
     } catch (e: RequisitionEtagMismatchException) {
       throw e.asStatusRuntimeException(Status.Code.ABORTED, "Requisition etags mismatch")
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }

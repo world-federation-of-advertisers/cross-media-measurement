@@ -91,6 +91,7 @@ class InProcessCmmsComponents(
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
   private val trusTeeV2FallbackEventDescriptor: TrusTeeV2.EventDescriptor? = null,
+  private val modelLinePopulationSpec: PopulationSpec = POPULATION_SPEC,
 ) : TestRule {
   private val kingdomDataServices: DataServices
     get() = kingdomDataServicesRule.value
@@ -282,7 +283,7 @@ class InProcessCmmsComponents(
         .createPopulation(
           createPopulationRequest {
             parent = populationDataProviderResource.name
-            population = population { populationSpec = POPULATION_SPEC }
+            population = population { populationSpec = modelLinePopulationSpec }
           }
         )
 
@@ -340,7 +341,7 @@ class InProcessCmmsComponents(
   fun getPopulationData(): PopulationData {
     return PopulationData(
       populationDataProviderName = populationDataProviderResource.name,
-      POPULATION_SPEC,
+      modelLinePopulationSpec,
     )
   }
 

@@ -107,6 +107,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       trusTeeEnabled = trusTeeEnabled,
       // The Kingdom does not yet send the event descriptor of a multimeasurement.
       trusTeeV2FallbackEventDescriptor = TRUS_TEE_V2_EVENT_DESCRIPTOR,
+      // The EDP Aggregator writes impressions against this PopulationSpec.
+      modelLinePopulationSpec = populationSpec,
     )
 
   @JvmField
