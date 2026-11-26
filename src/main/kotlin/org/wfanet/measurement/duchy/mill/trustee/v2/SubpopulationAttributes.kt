@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.duchy.mill.trustee.v2
 
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.DescriptorProtos
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
@@ -83,7 +84,8 @@ class SubpopulationAttributes private constructor(private val values: List<Map<S
       val values: List<Map<String, String>> =
         populationSpec.subpopulationsList.map { subpopulation ->
           buildMap {
-            for (attribute in subpopulation.attributesList) {
+            for (serializedAttribute in subpopulation.attributesList) {
+              val attribute: ProtoAny = ProtoAny.parseFrom(serializedAttribute)
               val templateType: Descriptors.Descriptor =
                 requireNotNull(typeRegistry.getDescriptorForTypeUrl(attribute.typeUrl)) {
                   "Attribute type ${attribute.typeUrl} not found in descriptor_set"

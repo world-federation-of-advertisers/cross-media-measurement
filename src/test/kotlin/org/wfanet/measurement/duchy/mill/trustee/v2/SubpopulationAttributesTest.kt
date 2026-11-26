@@ -115,7 +115,9 @@ class SubpopulationAttributesTest {
     private fun populationSpecOf(vararg attributes: Message): PopulationSpec = populationSpec {
       for (attribute in attributes) {
         subpopulations +=
-          PopulationSpecKt.subPopulation { this.attributes += ProtoAny.pack(attribute) }
+          PopulationSpecKt.subPopulation {
+            this.attributes += ProtoAny.pack(attribute).toByteString()
+          }
       }
     }
   }

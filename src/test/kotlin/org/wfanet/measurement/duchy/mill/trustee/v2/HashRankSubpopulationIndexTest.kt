@@ -129,7 +129,7 @@ class HashRankSubpopulationIndexTest {
       vararg vidRanges: LongRange,
     ): PopulationSpec.SubPopulation =
       PopulationSpecKt.subPopulation {
-        attributes += ProtoAny.pack(person { this.ageGroup = ageGroup })
+        attributes += ProtoAny.pack(person { this.ageGroup = ageGroup }).toByteString()
         for (range in vidRanges) {
           this.vidRanges +=
             PopulationSpecKt.vidRange {
