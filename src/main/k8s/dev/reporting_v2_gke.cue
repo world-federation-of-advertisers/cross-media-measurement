@@ -241,8 +241,9 @@ reporting: #Reporting & {
 			_container: {
 				resources: #CronJobResourceRequirements
 			}
-			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
-				resources: #CronJobResourceRequirements
+			spec: jobTemplate: spec: template: spec: _initContainers: {
+				"basic-reports-reports": resources:          #CronJobResourceRequirements
+				"basic-reports-multimeasurement": resources: #CronJobResourceRequirements
 			}
 		}
 	}
