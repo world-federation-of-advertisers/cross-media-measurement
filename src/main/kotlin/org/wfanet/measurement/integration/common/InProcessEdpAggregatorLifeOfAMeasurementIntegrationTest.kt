@@ -351,7 +351,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   }
 
   companion object {
-    /** The event descriptor of the in-process population, for the TrusTEE v2 Mill. */
     internal val ALL_EDP_DISPLAY_NAMES = setOf("edp1", "edp2", "edp3", "edp4")
     internal val SUPPRESSING_RESULT_MINIMUM_THRESHOLDS_BY_EDP =
       ALL_EDP_DISPLAY_NAMES.associateWith {

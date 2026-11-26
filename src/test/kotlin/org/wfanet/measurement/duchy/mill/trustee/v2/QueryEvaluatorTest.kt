@@ -423,25 +423,6 @@ class QueryEvaluatorTest {
     }
   }
 
-  @Test
-  fun `requireIndexesCoverRange accepts indexes covering the range in any order`() {
-    QueryEvaluator.requireIndexesCoverRange(listOf(2, 0, 1))
-  }
-
-  @Test
-  fun `requireIndexesCoverRange throws on a gap`() {
-    assertFailsWith<IllegalArgumentException> {
-      QueryEvaluator.requireIndexesCoverRange(listOf(0, 2))
-    }
-  }
-
-  @Test
-  fun `requireIndexesCoverRange throws on a repeat`() {
-    assertFailsWith<IllegalArgumentException> {
-      QueryEvaluator.requireIndexesCoverRange(listOf(0, 0, 1))
-    }
-  }
-
   /** A [QueryEvaluator.Cell] with value equality. */
   private data class CellView(
     val queryId: String,

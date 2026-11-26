@@ -347,17 +347,5 @@ private constructor(
       impressionCap: Int? = null,
     ): QueryEvaluator =
       QueryEvaluator(queries, dataProviders, subpopulations, failedDataProviders, impressionCap)
-
-    /**
-     * Requires that [vectorIndexes], the indexes of the base vectors held, cover `0 until
-     * vectorIndexes.size` exactly once.
-     *
-     * @throws IllegalArgumentException otherwise
-     */
-    fun requireIndexesCoverRange(vectorIndexes: Collection<Int>) {
-      require(vectorIndexes.sorted() == (0 until vectorIndexes.size).toList()) {
-        "Vector indexes $vectorIndexes do not cover 0 until ${vectorIndexes.size} exactly once"
-      }
-    }
   }
 }

@@ -137,8 +137,10 @@ class TrusTeeV2Mill(
     val eventDescriptor: TrusTeeV2.EventDescriptor = resolveEventDescriptor(details)
 
     val vectors: List<BaseVector> = token.requisitionsList.map { readBaseVector(it) }
-    QueryEvaluator.requireIndexesCoverRange(vectors.map { it.index })
     val vectorsByIndex: List<BaseVector> = vectors.sortedBy { it.index }
+    require(vectorsByIndex.map { it.index } == vectors.indices.toList()) {
+      "Vector indexes ${vectors.map { it.index }} do not cover 0 until ${vectors.size} exactly once"
+    }
 
     val attributes = SubpopulationAttributes.build(details.populationSpec, eventDescriptor)
     val subpopulations =

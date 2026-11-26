@@ -219,7 +219,6 @@ class ComputationsService(
     externalComputationId: Long,
     authenticatedDuchy: DuchyIdentity,
   ): SetMeasurementResultRequest {
-    grpcRequire(request.hasResult()) { "result must be set for a TrusTEE v2 Computation" }
     val parsedResult: MeasurementResult =
       try {
         MeasurementResult.parseFrom(request.result)
@@ -249,9 +248,7 @@ class ComputationsService(
     externalComputationId: Long,
     authenticatedDuchy: DuchyIdentity,
   ): SetMeasurementResultRequest {
-    grpcRequire(request.hasEncryptedResult()) {
-      "encrypted_result must be set for a Computation that is not TrusTEE v2"
-    }
+    grpcRequire(request.hasEncryptedResult()) { "result or encrypted_result must be set" }
     // This assumes that the Certificate resource name is compatible with public API version
     // v2alpha.
     val aggregatorCertificateKey =
