@@ -92,7 +92,6 @@ class SpannerRequisitionsService(
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
     with(request) {
       grpcRequire(externalRequisitionId != 0L) { "external_requisition_id not specified" }
-      grpcRequire(nonce != 0L) { "nonce not specified" }
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.paramsCase) {
         FulfillRequisitionRequest.ParamsCase.COMPUTED_PARAMS -> {
@@ -104,6 +103,7 @@ class SpannerRequisitionsService(
           }
         }
         FulfillRequisitionRequest.ParamsCase.DIRECT_PARAMS -> {
+          grpcRequire(nonce != 0L) { "nonce not specified" }
           grpcRequire(!directParams.encryptedData.isEmpty) { "encrypted_data not specified" }
           grpcRequire(directParams.externalDataProviderId != 0L) {
             "data_provider_id not specified"
