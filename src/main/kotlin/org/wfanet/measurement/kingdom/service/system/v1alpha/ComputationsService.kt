@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.util.concurrent.ConcurrentHashMap
@@ -101,13 +102,7 @@ class ComputationsService(
       try {
         measurementsClient.getMeasurementByComputationId(internalRequest)
       } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+        throw e.toSystemStatusRuntimeException()
       }
     return measurement.toResolvedSystemComputation()
   }
@@ -132,13 +127,7 @@ class ComputationsService(
         streamMeasurements(currentContinuationToken)
           .catch { cause ->
             if (cause !is StatusException) throw cause
-            throw when (cause.status.code) {
-                Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-                Status.Code.CANCELLED -> Status.CANCELLED
-                else -> Status.UNKNOWN
-              }
-              .withCause(cause)
-              .asRuntimeException()
+            throw cause.toSystemStatusRuntimeException()
           }
           .collect { measurement ->
             val continuationToken = streamActiveComputationsContinuationToken {
@@ -190,17 +179,12 @@ class ComputationsService(
         try {
           measurementsClient.setMeasurementResult(internalRequest)
         } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.INVALID_ARGUMENT ->
-                Status.INVALID_ARGUMENT.withDescription(e.status.description)
-              Status.Code.FAILED_PRECONDITION ->
-                Status.FAILED_PRECONDITION.withDescription(e.status.description)
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-              Status.Code.CANCELLED -> Status.CANCELLED
-              else -> Status.UNKNOWN
-            }
-            .withCause(e)
-            .asRuntimeException()
+          throw e.toSystemStatusRuntimeException(
+            Status.Code.INVALID_ARGUMENT to
+              Status.INVALID_ARGUMENT.withDescription(e.status.description),
+            Status.Code.FAILED_PRECONDITION to
+              Status.FAILED_PRECONDITION.withDescription(e.status.description),
+          )
         }
       val computation: Computation = measurement.toResolvedSystemComputation()
       Span.current()
@@ -247,7 +231,6 @@ class ComputationsService(
     externalComputationId: Long,
     authenticatedDuchy: DuchyIdentity,
   ): SetMeasurementResultRequest {
-    grpcRequire(request.hasEncryptedResult()) { "result or encrypted_result must be set" }
     // This assumes that the Certificate resource name is compatible with public API version
     // v2alpha.
     val aggregatorCertificateKey =
@@ -309,15 +292,10 @@ class ComputationsService(
           }
         )
       } catch (e: StatusException) {
-        throw when (e.status.code) {
-            Status.Code.NOT_FOUND ->
-              Status.FAILED_PRECONDITION.withDescription("Population not found")
-            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-            Status.Code.CANCELLED -> Status.CANCELLED
-            else -> Status.UNKNOWN
-          }
-          .withCause(e)
-          .asRuntimeException()
+        throw e.toSystemStatusRuntimeException(
+          Status.Code.NOT_FOUND to
+            Status.FAILED_PRECONDITION.withDescription("Population not found")
+        )
       }
     if (!population.details.hasPopulationSpec()) {
       throw Status.FAILED_PRECONDITION.withDescription("Population has no PopulationSpec")
@@ -352,13 +330,7 @@ class ComputationsService(
     try {
       return measurementsClient.streamMeasurements(request)
     } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }
-        .withCause(e)
-        .asRuntimeException()
+      throw e.toSystemStatusRuntimeException()
     }
   }
 
@@ -381,7 +353,26 @@ class ComputationsService(
   }
 }
 
-/** Converts this [StatusException] from an internal service to one for the system API. */
+/**
+ * Converts this [StatusException] from an internal service to one for the system API.
+ *
+ * Deadline and cancellation codes pass through, a code in [overrides] becomes its [Status], and any
+ * other becomes `UNKNOWN`, so that internal details do not leak.
+ */
+private fun StatusException.toSystemStatusRuntimeException(
+  vararg overrides: Pair<Status.Code, Status>
+): StatusRuntimeException {
+  val code: Status.Code = status.code
+  val systemStatus: Status =
+    overrides.toMap()[code]
+      ?: when (code) {
+        Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+        Status.Code.CANCELLED -> Status.CANCELLED
+        else -> Status.UNKNOWN
+      }
+  return systemStatus.withCause(this).asRuntimeException()
+}
+
 private object ContinuationTokenConverter {
   fun encode(token: StreamActiveComputationsContinuationToken): String =
     token.toByteArray().base64UrlEncode()

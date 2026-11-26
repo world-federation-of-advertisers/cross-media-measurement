@@ -189,11 +189,8 @@ class MeasurementsService(
       }
     }
 
-    if (request.measurement.isMultimeasurement) {
-      grpcRequire(request.measurement.multimeasurement.dataProviderVectorsList.isNotEmpty()) {
-        "measurement.multimeasurement.data_provider_vectors is empty"
-      }
-    } else {
+    // A multimeasurement's vectors are validated with the rest of the multimeasurement.
+    if (!request.measurement.isMultimeasurement) {
       grpcRequire(request.measurement.dataProvidersList.isNotEmpty()) {
         "measurement.data_providers is empty"
       }

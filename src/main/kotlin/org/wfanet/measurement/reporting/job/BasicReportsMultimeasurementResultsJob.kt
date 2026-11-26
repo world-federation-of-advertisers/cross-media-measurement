@@ -334,6 +334,7 @@ class BasicReportsMultimeasurementResultsJob(
     }
   }
 
+  /** Noisy values of one reporting window of a `ReportingSetResult`. */
   private class Window(
     var nonCumulativeStart: Date? = null,
     var cumulativeResults: NoisyMetricSet? = null,
