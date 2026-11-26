@@ -27,7 +27,8 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
  * @property noiseMechanism the mechanism every cell is noised with, either [NoiseMechanism.NONE] or
  *   [NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE]
  * @property resultMinimumThresholds the small-cell suppression thresholds, or `null` for none, in
- *   which case neither the slice test nor the result threshold suppresses any cell
+ *   which case neither the slice test nor the result threshold suppresses any cell. Required when
+ *   cells are noised, since its `reachMaxFrequencyPerUser` is the [impressionCap].
  */
 class CellPrivacyParams(
   val noiseMechanism: NoiseMechanism,
@@ -36,6 +37,9 @@ class CellPrivacyParams(
   init {
     require(noiseMechanism in SUPPORTED_NOISE_MECHANISMS) {
       "Unsupported noise mechanism $noiseMechanism for TrusTEE v2"
+    }
+    require(noiseMechanism == NoiseMechanism.NONE || resultMinimumThresholds != null) {
+      "$noiseMechanism requires resultMinimumThresholds to cap impressions"
     }
     if (resultMinimumThresholds != null) {
       require(resultMinimumThresholds.minUsers > 0) {
@@ -48,18 +52,13 @@ class CellPrivacyParams(
   }
 
   /**
-   * The per-user cap the impression draw is calibrated to, chosen as the TrusTEE v1 processor
-   * chooses it.
-   */
-  val maxFrequencyPerUser: Int
-    get() = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1
-
-  /**
-   * The most impressions one VID contributes to a cell, so that the impression draw's sensitivity
-   * holds, or `null` when nothing is noised, as the TrusTEE v1 processor caps.
+   * The most impressions one VID contributes to a cell, which the impression draw is calibrated to,
+   * or `null` when nothing is noised.
    */
   val impressionCap: Int?
-    get() = if (noiseMechanism == NoiseMechanism.NONE) null else maxFrequencyPerUser
+    get() =
+      if (noiseMechanism == NoiseMechanism.NONE) null
+      else checkNotNull(resultMinimumThresholds).reachMaxFrequencyPerUser
 
   companion object {
     private val SUPPORTED_NOISE_MECHANISMS =

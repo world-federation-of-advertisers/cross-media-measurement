@@ -67,13 +67,13 @@ class CellNoise(private val params: CellPrivacyParams, private val measurementNa
 
   /** Variance of the noise on an impression count. */
   val impressionVariance: Double
-    get() = variance(params.maxFrequencyPerUser.toDouble())
+    get() = if (noised) variance(checkNotNull(params.impressionCap).toDouble()) else 0.0
 
   private fun noiser(computeSeed: () -> ByteArray): ResultNoiser =
     if (noised) {
       DeterministicTruncatedLaplaceResultNoiser.fromSeed(
         seed = computeSeed(),
-        maxFrequencyPerUser = params.maxFrequencyPerUser,
+        maxFrequencyPerUser = checkNotNull(params.impressionCap),
       )
     } else {
       NoNoise

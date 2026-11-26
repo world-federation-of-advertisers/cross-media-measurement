@@ -139,6 +139,22 @@ class CellNoiseTest {
     }
   }
 
+  @Test
+  fun `CellPrivacyParams throws for truncated Laplace noise without thresholds`() {
+    assertFailsWith<IllegalArgumentException> {
+      CellPrivacyParams(
+        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+        resultMinimumThresholds = null,
+      )
+    }
+  }
+
+  @Test
+  fun `CellPrivacyParams caps impressions at the threshold frequency cap under noise`() {
+    assertThat(TRUNCATED_LAPLACE.impressionCap).isEqualTo(5)
+    assertThat(NO_NOISE.impressionCap).isNull()
+  }
+
   companion object {
     private const val MEASUREMENT = "measurementConsumers/mc/measurements/m"
     private const val DATA_PROVIDER_A = "a"

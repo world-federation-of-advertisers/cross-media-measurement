@@ -185,7 +185,7 @@ class CellReleaserTest {
     private val TRUNCATED_LAPLACE =
       CellPrivacyParams(
         NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-        resultMinimumThresholds = null,
+        ResultMinimumThresholds(minUsers = 1, minImpressions = 1),
       )
 
     private fun noise(params: CellPrivacyParams) =
