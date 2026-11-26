@@ -17,7 +17,6 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.util.concurrent.ConcurrentHashMap
@@ -310,7 +309,15 @@ class ComputationsService(
           }
         )
       } catch (e: StatusException) {
-        throw e.toSystemStatusRuntimeException()
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND ->
+              Status.FAILED_PRECONDITION.withDescription("Population not found")
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.UNKNOWN
+          }
+          .withCause(e)
+          .asRuntimeException()
       }
     if (!population.details.hasPopulationSpec()) {
       throw Status.FAILED_PRECONDITION.withDescription("Population has no PopulationSpec")
@@ -375,17 +382,6 @@ class ComputationsService(
 }
 
 /** Converts this [StatusException] from an internal service to one for the system API. */
-private fun StatusException.toSystemStatusRuntimeException(): StatusRuntimeException {
-  val status: Status =
-    when (status.code) {
-      Status.Code.NOT_FOUND -> Status.FAILED_PRECONDITION.withDescription(status.description)
-      Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-      Status.Code.CANCELLED -> Status.CANCELLED
-      else -> Status.UNKNOWN
-    }
-  return status.withCause(this).asRuntimeException()
-}
-
 private object ContinuationTokenConverter {
   fun encode(token: StreamActiveComputationsContinuationToken): String =
     token.toByteArray().base64UrlEncode()
