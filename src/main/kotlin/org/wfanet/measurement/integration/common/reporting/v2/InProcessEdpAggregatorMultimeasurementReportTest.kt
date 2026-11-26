@@ -57,7 +57,7 @@ abstract class InProcessEdpAggregatorMultimeasurementReportTest(
   ) {
 
   @Test
-  fun `multimeasurement basic report has the expected result`() = runBlocking {
+  fun `multimeasurement basic report has the expected result`(): Unit = runBlocking {
     val eventGroups = getMultiEdpEventGroups()
     check(eventGroups.size > 1)
     val createBasicReportRequest =

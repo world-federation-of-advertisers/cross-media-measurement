@@ -300,7 +300,7 @@ class BasicReportsReportsJobTest {
   /** Asserts that the first page of BasicReports in state REPORT_CREATED was requested. */
   private fun assertReportCreatedPageRequested() {
     val requests: List<ListBasicReportsRequest> =
-      verifyAndCapture(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports, times(2))
+      verifyAndCapture(basicReportsMock, BasicReportsCoroutineImplBase::listBasicReports, times(3))
     assertThat(requests.first())
       .isEqualTo(
         listBasicReportsRequest {
@@ -3333,7 +3333,7 @@ class BasicReportsReportsJobTest {
     job.execute()
 
     val listBasicReportsCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
-    verifyBlocking(basicReportsMock, times(4)) {
+    verifyBlocking(basicReportsMock, times(6)) {
       listBasicReports(listBasicReportsCaptor.capture())
     }
     assertThat(listBasicReportsCaptor.allValues)
@@ -3357,6 +3357,14 @@ class BasicReportsReportsJobTest {
         listBasicReportsRequest {
           filter =
             ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              state = BasicReport.State.CREATED_MULTIMEASUREMENT
+            }
+          pageSize = BATCH_SIZE
+        },
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
               state = BasicReport.State.REPORT_CREATED
             }
@@ -3367,6 +3375,14 @@ class BasicReportsReportsJobTest {
             ListBasicReportsRequestKt.filter {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
               state = BasicReport.State.CREATED_LEGACY
+            }
+          pageSize = BATCH_SIZE
+        },
+        listBasicReportsRequest {
+          filter =
+            ListBasicReportsRequestKt.filter {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID_2
+              state = BasicReport.State.CREATED_MULTIMEASUREMENT
             }
           pageSize = BATCH_SIZE
         },
@@ -3407,7 +3423,7 @@ class BasicReportsReportsJobTest {
       // listBasicReports must be called twice for the REPORT_CREATED pass: once for page 1, once
       // for page 2.
       val listCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
-      verifyBlocking(basicReportsMock, times(3)) { listBasicReports(listCaptor.capture()) }
+      verifyBlocking(basicReportsMock, times(4)) { listBasicReports(listCaptor.capture()) }
       val reportCreatedRequests =
         listCaptor.allValues.filter { it.filter.state == BasicReport.State.REPORT_CREATED }
       assertThat(reportCreatedRequests).hasSize(2)
@@ -3428,7 +3444,7 @@ class BasicReportsReportsJobTest {
       job.execute()
 
       val listCaptor: KArgumentCaptor<ListBasicReportsRequest> = argumentCaptor()
-      verifyBlocking(basicReportsMock, times(2)) { listBasicReports(listCaptor.capture()) }
+      verifyBlocking(basicReportsMock, times(3)) { listBasicReports(listCaptor.capture()) }
       assertThat(
           listCaptor.allValues.filter { it.filter.state == BasicReport.State.REPORT_CREATED }
         )

@@ -750,7 +750,13 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
           Measurement.ETAG_FIELD_NUMBER,
         )
         .ignoringRepeatedFieldOrder()
-        .isEqualTo(measurement.copy { state = Measurement.State.PENDING_REQUISITION_PARAMS })
+        .isEqualTo(
+          measurement.copy {
+            state = Measurement.State.PENDING_REQUISITION_PARAMS
+            // The pinned Population is covered by its own test.
+            details = details.copy { population = createdMeasurement.details.population }
+          }
+        )
       val requisitions: List<Requisition> =
         requisitionsService
           .streamRequisitions(
