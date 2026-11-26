@@ -51,8 +51,10 @@ class MultimeasurementEvaluatorTest {
               queryId = QUERY_ID
               groupingPaths += AGE_GROUP_PATH
               maxFrequency = 3
-              cells += exactCell(YOUNG, bins = listOf(1L, 0L, 2L), impressions = 8L)
-              cells += exactCell(OLD, bins = listOf(1L, 1L, 0L), impressions = 3L)
+              cells +=
+                exactCell(YOUNG, YOUNG_POPULATION_SIZE, bins = listOf(1L, 0L, 2L), impressions = 8L)
+              cells +=
+                exactCell(OLD, OLD_POPULATION_SIZE, bins = listOf(1L, 1L, 0L), impressions = 3L)
               reachNoiseMechanism = ProtocolConfig.NoiseMechanism.NONE
               frequencyNoiseMechanism = ProtocolConfig.NoiseMechanism.NONE
               impressionNoiseMechanism = ProtocolConfig.NoiseMechanism.NONE
@@ -183,9 +185,15 @@ class MultimeasurementEvaluatorTest {
       return result.queryResultsList.single().cellsList.single()
     }
 
-    private fun exactCell(ageGroup: String, bins: List<Long>, impressions: Long) =
+    private fun exactCell(
+      ageGroup: String,
+      populationSize: Long,
+      bins: List<Long>,
+      impressions: Long,
+    ) =
       QueryResultKt.cell {
         attributeValues += populationAttributeValue { enumValue = ageGroup }
+        this.populationSize = populationSize
         reach = bins.sum()
         reachVariance = 0.0
         this.impressions = impressions

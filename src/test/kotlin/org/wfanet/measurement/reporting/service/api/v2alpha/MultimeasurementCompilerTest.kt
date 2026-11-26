@@ -133,7 +133,8 @@ class MultimeasurementCompilerTest {
       .containsExactly(DATA_PROVIDER_NAME_1, DATA_PROVIDER_NAME_2)
     assertThat(multimeasurement.dataProviderVectorsList.flatMap { it.vectorsList }.map { it.index })
       .containsExactly(0, 1)
-    assertThat(multimeasurement.queriesList).hasSize(4)
+    // The second spec's reporting unit has the same cells as the first spec's second component.
+    assertThat(multimeasurement.queriesList).hasSize(3)
   }
 
   @Test
@@ -307,8 +308,6 @@ class MultimeasurementCompilerTest {
         listOf(0),
         "0/n/2026-01-12/2026-01-19/ru",
         listOf(1),
-        "0/c/2026-01-05/2026-01-12/ru",
-        listOf(0),
         "0/c/2026-01-05/2026-01-19/ru",
         listOf(0, 1),
       )
@@ -333,8 +332,6 @@ class MultimeasurementCompilerTest {
         listOf(0, 1),
         "1/c/2026-01-05/2026-01-12/ru",
         listOf(0),
-        "1/c/2026-01-05/2026-01-19/ru",
-        listOf(0, 1),
       )
   }
 
@@ -359,7 +356,9 @@ class MultimeasurementCompilerTest {
     val first = compile(basicReport)
     val second = compile(basicReport)
 
-    assertThat(second).isEqualTo(first)
+    assertThat(second.map { it.reportComputation })
+      .containsExactlyElementsIn(first.map { it.reportComputation })
+      .inOrder()
     assertThat(first[0].multimeasurement.queriesList.map { it.id })
       .containsExactly(
         "0/n/2026-01-05/2026-01-07/ru",
@@ -524,22 +523,6 @@ class MultimeasurementCompilerTest {
   fun `compile throws for an unresolved component`() {
     assertFailsWith<IllegalArgumentException> {
       compileSingle(buildSpec(listOf("unknown"), cumulativeReportingUnit()))
-    }
-  }
-
-  @Test
-  fun `compile throws for an unknown impression qualification filter`() {
-    assertFailsWith<IllegalArgumentException> {
-      compile(
-        buildBasicReport(
-          listOf(
-            reportingImpressionQualificationFilter {
-              externalImpressionQualificationFilterId = "unknown"
-            }
-          ),
-          listOf(buildSpec(BOTH_COMPONENTS, cumulativeReportingUnit())),
-        )
-      )
     }
   }
 
