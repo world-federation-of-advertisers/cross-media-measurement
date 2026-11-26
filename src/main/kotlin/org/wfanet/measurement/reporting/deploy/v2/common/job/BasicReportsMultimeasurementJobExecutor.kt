@@ -17,9 +17,9 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.job
 
 import io.grpc.Channel
-import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as CmmsMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as CmmsMeasurementsCoroutineStub
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -28,32 +28,23 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.grpc.withVerboseLogging
 import org.wfanet.measurement.common.parseTextProto
-import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
+import org.wfanet.measurement.reporting.job.BasicReportsMeasurementsJob
 import org.wfanet.measurement.reporting.job.BasicReportsMultimeasurementResultsJob
 import picocli.CommandLine
 
-class BasicReportsMultimeasurementResultsJobFlags {
-  @CommandLine.Option(
-    names = ["--impression-qualification-filter-config-file"],
-    description =
-      ["Path to a file containing an ImpressionQualificationFilterConfig message in text format."],
-    required = true,
-  )
-  lateinit var impressionQualificationFilterConfigFile: File
-    private set
-}
-
 @CommandLine.Command(
-  name = "BasicReportsMultimeasurementResultsJobExecutor",
+  name = "BasicReportsMultimeasurementJobExecutor",
   description =
-    ["Process that writes the results of multimeasurement BasicReports once they succeed."],
+    [
+      "Creates the CMMS Measurements of multimeasurement BasicReports, then writes the results of " +
+        "those whose Measurements have completed."
+    ],
   mixinStandardHelpOptions = true,
   showDefaultValues = true,
 )
@@ -62,7 +53,6 @@ private fun run(
   @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
-  @CommandLine.Mixin jobFlags: BasicReportsMultimeasurementResultsJobFlags,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
@@ -92,25 +82,25 @@ private fun run(
       v2AlphaFlags.measurementConsumerConfigFile,
       MeasurementConsumerConfigs.getDefaultInstance(),
     )
-  val impressionQualificationFilterConfig =
-    parseTextProto(
-      jobFlags.impressionQualificationFilterConfigFile,
-      ImpressionQualificationFilterConfig.getDefaultInstance(),
-    )
+  val internalBasicReportsStub = InternalBasicReportsCoroutineStub(channel)
+  val cmmsMeasurementsStub = CmmsMeasurementsCoroutineStub(kingdomChannel)
 
-  val job =
+  runBlocking {
+    BasicReportsMeasurementsJob(
+        measurementConsumerConfigs,
+        internalBasicReportsStub,
+        CmmsMeasurementConsumersCoroutineStub(kingdomChannel),
+        cmmsMeasurementsStub,
+      )
+      .execute()
     BasicReportsMultimeasurementResultsJob(
-      measurementConsumerConfigs,
-      InternalBasicReportsCoroutineStub(channel),
-      InternalReportingSetsCoroutineStub(channel),
-      ReportResultsCoroutineStub(channel),
-      CmmsMeasurementsCoroutineStub(kingdomChannel),
-      impressionQualificationFilterConfig.impressionQualificationFiltersList.associate {
-        it.impressionQualificationFilterId to it.externalImpressionQualificationFilterId
-      },
-    )
-
-  runBlocking { job.execute() }
+        measurementConsumerConfigs,
+        internalBasicReportsStub,
+        ReportResultsCoroutineStub(channel),
+        cmmsMeasurementsStub,
+      )
+      .execute()
+  }
 }
 
 fun main(args: Array<String>) = commandLineMain(::run, args)

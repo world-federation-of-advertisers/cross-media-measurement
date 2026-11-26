@@ -22,7 +22,6 @@ import com.google.protobuf.util.Durations
 import com.google.type.DayOfWeek
 import com.google.type.date
 import com.google.type.dateTime
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -70,8 +69,6 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineImplBase
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMappingKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport
@@ -108,11 +105,6 @@ class BasicReportsMultimeasurementResultsJobTest {
     onBlocking { failBasicReport(any()) } doReturn BasicReport.getDefaultInstance()
   }
 
-  private val reportingSetsMock: ReportingSetsCoroutineImplBase = mockService {
-    on { streamReportingSets(any()) } doReturn
-      flowOf(CAMPAIGN_GROUP, COMPONENT_1, COMPONENT_2, UNION_REPORTING_SET)
-  }
-
   private val reportResultsMock: ReportResultsCoroutineImplBase = mockService {
     onBlocking { discardReportResult(any()) } doReturn Empty.getDefaultInstance()
     onBlocking { beginReportResultAssembly(any()) } doAnswer
@@ -130,7 +122,6 @@ class BasicReportsMultimeasurementResultsJobTest {
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(basicReportsMock)
-    addService(reportingSetsMock)
     addService(reportResultsMock)
     addService(measurementsMock)
   }
@@ -143,10 +134,8 @@ class BasicReportsMultimeasurementResultsJobTest {
       BasicReportsMultimeasurementResultsJob(
         MEASUREMENT_CONSUMER_CONFIGS,
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
-        ReportingSetsCoroutineStub(grpcTestServerRule.channel),
         ReportResultsCoroutineStub(grpcTestServerRule.channel),
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
-        mapOf(IMPRESSION_QUALIFICATION_FILTER_ID to EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID),
       )
   }
 
@@ -175,7 +164,10 @@ class BasicReportsMultimeasurementResultsJobTest {
           windowStart = REPORT_START_DATE
           windowEnd = REPORT_END_DATE
           cumulative = true
-          reportingUnit = Empty.getDefaultInstance()
+          reportingUnit =
+            ResultGroupQueryMappingKt.reportingSet {
+              externalReportingSetId = UNION_REPORTING_SET.externalReportingSetId
+            }
         }
       }
     )
@@ -286,7 +278,9 @@ class BasicReportsMultimeasurementResultsJobTest {
           windowEnd = REPORT_END_DATE
           cumulative = false
           component =
-            ResultGroupQueryMappingKt.component { component = COMPONENT_1.externalReportingSetId }
+            ResultGroupQueryMappingKt.reportingSet {
+              externalReportingSetId = COMPONENT_1.externalReportingSetId
+            }
         }
       }
     )
@@ -348,7 +342,9 @@ class BasicReportsMultimeasurementResultsJobTest {
           windowEnd = REPORT_END_DATE
           cumulative = false
           component =
-            ResultGroupQueryMappingKt.component { component = COMPONENT_1.externalReportingSetId }
+            ResultGroupQueryMappingKt.reportingSet {
+              externalReportingSetId = COMPONENT_1.externalReportingSetId
+            }
         }
       }
     )
@@ -437,7 +433,6 @@ class BasicReportsMultimeasurementResultsJobTest {
     private const val EXTERNAL_BASIC_REPORT_ID = "basic-report"
     private const val EXTERNAL_CAMPAIGN_GROUP_ID = "campaign-group"
     private const val EXTERNAL_REPORT_RESULT_ID = 1234L
-    private const val IMPRESSION_QUALIFICATION_FILTER_ID = 1L
     private const val EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID = "ami"
     private const val MEASUREMENT_NAME = "$MEASUREMENT_CONSUMER_NAME/measurements/measurement-1"
     private const val MEASUREMENT_NAME_2 = "$MEASUREMENT_CONSUMER_NAME/measurements/measurement-2"
@@ -570,13 +565,12 @@ class BasicReportsMultimeasurementResultsJobTest {
     private val REPORT_COMPUTATION = reportComputation {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
-      impressionQualificationFilterId = IMPRESSION_QUALIFICATION_FILTER_ID
+      externalImpressionQualificationFilterId = EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID
       cmmsMeasurementId = "measurement-1"
     }
     private val REPORT_COMPUTATION_2 = reportComputation {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
-      impressionQualificationFilterId = -1L
       cmmsMeasurementId = "measurement-2"
     }
 

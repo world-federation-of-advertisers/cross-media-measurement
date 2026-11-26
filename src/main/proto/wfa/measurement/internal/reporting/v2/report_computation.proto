@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.reporting.v2;
 
-import "google/protobuf/empty.proto";
 import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.internal.reporting.v2";
@@ -36,15 +35,16 @@ message ReportComputation {
   // ID of the `Measurement` from the CMMS public API. Empty until created.
   string cmms_measurement_id = 4;
 
-  // ID of the impression qualification filter every base vector of this
-  // computation qualifies under.
-  int64 impression_qualification_filter_id = 5;
+  // External ID of the impression qualification filter every base vector of
+  // this computation qualifies under, or empty for the custom filter.
+  string external_impression_qualification_filter_id = 5;
 
   // One per `Query` of this computation's multimeasurement.
   repeated ResultGroupQueryMapping mappings = 6;
 
-  // Number of `CreateMeasurement` attempts, incremented before each one.
-  int32 create_attempts = 7;
+  // Serialized public API `Measurement.Multimeasurement`, whose
+  // `RequisitionSpec`s have no `measurement_public_key`.
+  bytes multimeasurement = 7;
 }
 
 // Where the cells of one multimeasurement `Query` land in a `BasicReport`.
@@ -61,25 +61,16 @@ message ResultGroupQueryMapping {
   // Whether the cells are cumulative over the reporting interval.
   bool cumulative = 5;
 
-  // One component of the reporting unit.
-  message Component {
-    // External ID of the component's `ReportingSet`.
-    string component = 1;
-  }
-  // The components whose intersection the cells cover.
-  message Intersection {
-    // External IDs of the components' `ReportingSet`s.
-    repeated string components = 1;
+  // The `ReportingSet` the cells are written under.
+  message ReportingSet {
+    // External ID of the `ReportingSet`.
+    string external_reporting_set_id = 1;
   }
   // The `ResultGroup` slot the cells fill. Required.
   oneof slot {
-    // The reporting unit as a whole.
-    google.protobuf.Empty reporting_unit = 6;
-    // One component.
-    Component component = 7;
-    // One component's unique reach.
-    Component component_unique = 8;
-    // An intersection of components.
-    Intersection intersection = 9;
+    // The reporting unit as a whole, under the union of its components.
+    ReportingSet reporting_unit = 6;
+    // One component, under its primitive `ReportingSet`.
+    ReportingSet component = 7;
   }
 }

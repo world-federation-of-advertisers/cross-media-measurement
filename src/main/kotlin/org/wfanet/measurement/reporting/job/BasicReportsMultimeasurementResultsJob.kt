@@ -24,7 +24,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.sqrt
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -42,16 +41,11 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportComputation
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ReportingUnit
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
-import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.beginReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
@@ -61,7 +55,6 @@ import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
-import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.internal.Normalization
 
@@ -73,17 +66,12 @@ import org.wfanet.measurement.reporting.service.internal.Normalization
  * cells written in the shape [BasicReportsReportsJob] writes, which moves it to state
  * [BasicReport.State.UNPROCESSED_RESULTS_READY]. One whose `Measurement` failed or was cancelled is
  * failed. One with a `Measurement` still running is left for a later run.
- *
- * @param externalImpressionQualificationFilterIds map of internal impression qualification filter
- *   ID to its external ID
  */
 class BasicReportsMultimeasurementResultsJob(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val internalBasicReportsStub: InternalBasicReportsCoroutineStub,
-  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val reportResultsStub: ReportResultsCoroutineStub,
   private val cmmsMeasurementsStub: CmmsMeasurementsCoroutineStub,
-  private val externalImpressionQualificationFilterIds: Map<Long, String>,
 ) {
   suspend fun execute() {
     for ((measurementConsumerName, measurementConsumerConfig) in
@@ -200,7 +188,7 @@ class BasicReportsMultimeasurementResultsJob(
   ): Measurement {
     check(reportComputation.cmmsMeasurementId.isNotEmpty()) {
       "ReportComputation for impression qualification filter " +
-        "${reportComputation.impressionQualificationFilterId} has no Measurement"
+        "${reportComputation.externalImpressionQualificationFilterId} has no Measurement"
     }
     val name =
       MeasurementKey(cmmsMeasurementConsumerId, reportComputation.cmmsMeasurementId).toName()
@@ -225,13 +213,12 @@ class BasicReportsMultimeasurementResultsJob(
     computedMeasurements: List<Pair<ReportComputation, Measurement>>,
   ): List<ReportingSetResult> {
     val resultGroupSpecs: List<ResultGroupSpec> = basicReport.details.resultGroupSpecsList
-    val reportingUnitResolver = ReportingUnitResolver(basicReport)
     val windowsByDimension = mutableMapOf<ReportingSetResult.Dimension, MutableMap<Date, Window>>()
     val populationSizeByDimension = mutableMapOf<ReportingSetResult.Dimension, Long>()
 
     for ((reportComputation, measurement) in computedMeasurements) {
-      val externalImpressionQualificationFilterId: String? =
-        getExternalImpressionQualificationFilterId(reportComputation)
+      val externalImpressionQualificationFilterId: String =
+        reportComputation.externalImpressionQualificationFilterId
       val queryResultsById: Map<String, Measurement.Result.MultimeasurementResult.QueryResult> =
         measurement.resultsList
           .flatMap { it.result.multimeasurementResult.queryResultsList }
@@ -248,14 +235,8 @@ class BasicReportsMultimeasurementResultsJob(
         val externalReportingSetId: String =
           when (mapping.slotCase) {
             ResultGroupQueryMapping.SlotCase.REPORTING_UNIT ->
-              reportingUnitResolver.getExternalReportingSetId(resultGroupSpec)
-            ResultGroupQueryMapping.SlotCase.COMPONENT -> mapping.component.component
-            // MultimeasurementCompiler does not compile these.
-            ResultGroupQueryMapping.SlotCase.COMPONENT_UNIQUE,
-            ResultGroupQueryMapping.SlotCase.INTERSECTION ->
-              throw InvalidMultimeasurementResultException(
-                "Query ${mapping.queryId} has unsupported slot ${mapping.slotCase}"
-              )
+              mapping.reportingUnit.externalReportingSetId
+            ResultGroupQueryMapping.SlotCase.COMPONENT -> mapping.component.externalReportingSetId
             ResultGroupQueryMapping.SlotCase.SLOT_NOT_SET ->
               throw InvalidMultimeasurementResultException("Query ${mapping.queryId} has no slot")
           }
@@ -273,7 +254,7 @@ class BasicReportsMultimeasurementResultsJob(
             ReportingSetResultKt.dimension {
               this.externalReportingSetId = externalReportingSetId
               vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.UNION
-              if (externalImpressionQualificationFilterId != null) {
+              if (externalImpressionQualificationFilterId.isNotEmpty()) {
                 this.externalImpressionQualificationFilterId =
                   externalImpressionQualificationFilterId
               } else {
@@ -337,19 +318,6 @@ class BasicReportsMultimeasurementResultsJob(
         }
       }
     }
-  }
-
-  private fun getExternalImpressionQualificationFilterId(
-    reportComputation: ReportComputation
-  ): String? {
-    val impressionQualificationFilterId: Long = reportComputation.impressionQualificationFilterId
-    if (impressionQualificationFilterId == CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID) {
-      return null
-    }
-    return externalImpressionQualificationFilterIds[impressionQualificationFilterId]
-      ?: throw InvalidMultimeasurementResultException(
-        "Impression qualification filter $impressionQualificationFilterId not found"
-      )
   }
 
   private suspend fun writeReportingSetResults(
@@ -432,97 +400,6 @@ class BasicReportsMultimeasurementResultsJob(
     }
   }
 
-  /**
-   * Resolves the external `ReportingSet` ID a `ReportingUnit` as a whole is written under, the same
-   * way `GetBasicReport` reads it back: its only component, or else the union composite
-   * `ReportingSet` of its components in the Campaign Group.
-   */
-  private inner class ReportingUnitResolver(private val basicReport: BasicReport) {
-    private var campaignGroupReportingSets: List<ReportingSet>? = null
-
-    suspend fun getExternalReportingSetId(resultGroupSpec: ResultGroupSpec): String {
-      val componentIds: List<String> = getComponentIds(resultGroupSpec.reportingUnit)
-      if (componentIds.size == 1) {
-        return componentIds.single()
-      }
-      val unionSetExpression: ReportingSet.SetExpression = buildUnionSetExpression(componentIds)
-      return getCampaignGroupReportingSets()
-        .lastOrNull { it.hasComposite() && it.composite == unionSetExpression }
-        ?.externalReportingSetId
-        ?: throw InvalidMultimeasurementResultException(
-          "Campaign Group has no union ReportingSet of $componentIds"
-        )
-    }
-
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
-    private suspend fun getComponentIds(reportingUnit: ReportingUnit): List<String> {
-      val componentIds: List<String> =
-        when (reportingUnit.componentsCase) {
-          ReportingUnit.ComponentsCase.REPORTING_SET_KEYS ->
-            reportingUnit.reportingSetKeys.reportingSetKeysList.map { it.externalReportingSetId }
-          ReportingUnit.ComponentsCase.DATA_PROVIDER_KEYS ->
-            reportingUnit.dataProviderKeys.dataProviderKeysList.map {
-              getPrimitiveReportingSetId(it.cmmsDataProviderId)
-            }
-          ReportingUnit.ComponentsCase.COMPONENTS_NOT_SET ->
-            throw InvalidMultimeasurementResultException("ReportingUnit has no components")
-        }
-      if (componentIds.isEmpty()) {
-        throw InvalidMultimeasurementResultException("ReportingUnit has no components")
-      }
-      return componentIds
-    }
-
-    /** Returns the ID of the Campaign Group's primitive `ReportingSet` for [cmmsDataProviderId]. */
-    private suspend fun getPrimitiveReportingSetId(cmmsDataProviderId: String): String {
-      val reportingSets: List<ReportingSet> = getCampaignGroupReportingSets()
-      val campaignGroup: ReportingSet =
-        reportingSets.singleOrNull {
-          it.externalReportingSetId == basicReport.externalCampaignGroupId
-        }
-          ?: throw InvalidMultimeasurementResultException(
-            "Campaign Group ${basicReport.externalCampaignGroupId} not found"
-          )
-      val eventGroupKeys: Set<ReportingSet.Primitive.EventGroupKey> =
-        campaignGroup.primitive.eventGroupKeysList
-          .filter { it.cmmsDataProviderId == cmmsDataProviderId }
-          .toSet()
-      return reportingSets
-        .lastOrNull {
-          it.hasPrimitive() && it.primitive.eventGroupKeysList.toSet() == eventGroupKeys
-        }
-        ?.externalReportingSetId
-        ?: throw InvalidMultimeasurementResultException(
-          "Campaign Group has no primitive ReportingSet for DataProvider $cmmsDataProviderId"
-        )
-    }
-
-    private suspend fun getCampaignGroupReportingSets(): List<ReportingSet> {
-      val cached: List<ReportingSet>? = campaignGroupReportingSets
-      if (cached != null) {
-        return cached
-      }
-      val reportingSets: List<ReportingSet> =
-        try {
-          internalReportingSetsStub
-            .streamReportingSets(
-              streamReportingSetsRequest {
-                filter =
-                  StreamReportingSetsRequestKt.filter {
-                    cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-                    externalCampaignGroupId = basicReport.externalCampaignGroupId
-                  }
-              }
-            )
-            .toList()
-        } catch (e: StatusException) {
-          throw Exception("Unable to stream Campaign Group ReportingSets", e)
-        }
-      campaignGroupReportingSets = reportingSets
-      return reportingSets
-    }
-  }
-
   /** Noisy values of one reporting window of a `ReportingSetResult`. */
   private class Window(
     var nonCumulativeStart: Date? = null,
@@ -536,9 +413,6 @@ class BasicReportsMultimeasurementResultsJob(
     private val logger: Logger =
       Logger.getLogger(BasicReportsMultimeasurementResultsJob::class.java.name)
     private const val BATCH_SIZE = 10
-
-    /** Internal ID a `ReportComputation` records for a custom impression qualification filter. */
-    private const val CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID = -1L
 
     /**
      * Builds the grouping of [cell], mapping each of the `grouping_paths` of [queryResult] to the
@@ -618,36 +492,6 @@ class BasicReportsMultimeasurementResultsJob(
     private fun buildUnivariateStatistics(variance: Double): NoisyMetricSet.UnivariateStatistics {
       return ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt
         .univariateStatistics { standardDeviation = sqrt(variance) }
-    }
-
-    /**
-     * Builds the union [ReportingSet.SetExpression] of [externalReportingSetIds] in the form
-     * `GetBasicReport` looks composite `ReportingSet`s up by.
-     */
-    private fun buildUnionSetExpression(
-      externalReportingSetIds: List<String>
-    ): ReportingSet.SetExpression {
-      var setExpression =
-        ReportingSetKt.setExpression {
-          operation = ReportingSet.SetExpression.Operation.UNION
-          lhs =
-            ReportingSetKt.SetExpressionKt.operand {
-              externalReportingSetId = externalReportingSetIds.first()
-            }
-        }
-      for (externalReportingSetId in externalReportingSetIds.drop(1)) {
-        val rhsExpression: ReportingSet.SetExpression = setExpression
-        setExpression =
-          ReportingSetKt.setExpression {
-            operation = ReportingSet.SetExpression.Operation.UNION
-            lhs =
-              ReportingSetKt.SetExpressionKt.operand {
-                this.externalReportingSetId = externalReportingSetId
-              }
-            rhs = ReportingSetKt.SetExpressionKt.operand { expression = rhsExpression }
-          }
-      }
-      return setExpression
     }
   }
 }

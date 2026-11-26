@@ -72,6 +72,7 @@ import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ReportComputation
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
@@ -163,6 +164,12 @@ class BasicReportsService(
   }
 
   private val filterEnv: Env = CelPredicates.buildEnvironment(eventMessageDescriptor.descriptor)
+
+  private val multimeasurementCompiler =
+    MultimeasurementCompiler(
+      eventMessageDescriptor.eventTemplateFieldsByPath,
+      emitCelNullGuardsForNestedMembers,
+    )
 
   private sealed class ReportingSetMapKey {
     data class Composite(val composite: ReportingSet.Composite) : ReportingSetMapKey()
@@ -536,27 +543,60 @@ class BasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
+    // Both paths need the composite ReportingSets, under which results are written and read.
+    val nameByReportingSetComposite: Map<ReportingSet.Composite, String> =
+      try {
+        getOrCreateCompositeReportingSets(
+          reportingSetsMetricCalculationSpecDetailsMap.keys,
+          reportingSetMaps.nameByReportingSetComposite,
+          parentKey,
+        )
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: InternalReportingSetsException) {
+        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
+      }
+
+    val internalBasicReport: InternalBasicReport =
+      request.basicReport.toInternal(
+        cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
+        basicReportId = request.basicReportId,
+        campaignGroupId = campaignGroupResolution.campaignGroupKey.reportingSetId,
+        campaignGroupSynthesized = campaignGroupResolution.synthesized,
+        createReportRequestId = createReportRequestId,
+        reportingImpressionQualificationFilters =
+          request.basicReport.impressionQualificationFiltersList,
+        effectiveReportingImpressionQualificationFilters =
+          effectiveReportingImpressionQualificationFilters,
+        impressionQualificationFilterSpecsByName = impressionQualificationFilterSpecsByName,
+        effectiveModelLine = effectiveModelLine.name,
+        effectiveReportStart = effectiveReportStart,
+      )
+    // A multimeasurement BasicReport is compiled here, so that one that cannot be is never created.
+    val reportComputations: List<ReportComputation> =
+      if (isMultimeasurement(parentKey)) {
+        try {
+          compileMultimeasurements(
+            internalBasicReport,
+            request.basicReport,
+            campaignGroupResolution.campaignGroup.name,
+            reportingSetMaps.primitiveReportingSetsByComponentKey.mapKeys { it.key.toName() },
+            nameByReportingSetComposite,
+          )
+        } catch (e: IllegalArgumentException) {
+          throw Status.INVALID_ARGUMENT.withDescription(e.message).withCause(e).asRuntimeException()
+        }
+      } else {
+        emptyList()
+      }
+
     val createdInternalBasicReport =
       try {
         internalBasicReportsStub.createBasicReport(
           createBasicReportRequest {
-            basicReport =
-              request.basicReport.toInternal(
-                cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
-                basicReportId = request.basicReportId,
-                campaignGroupId = campaignGroupResolution.campaignGroupKey.reportingSetId,
-                campaignGroupSynthesized = campaignGroupResolution.synthesized,
-                createReportRequestId = createReportRequestId,
-                reportingImpressionQualificationFilters =
-                  request.basicReport.impressionQualificationFiltersList,
-                effectiveReportingImpressionQualificationFilters =
-                  effectiveReportingImpressionQualificationFilters,
-                impressionQualificationFilterSpecsByName = impressionQualificationFilterSpecsByName,
-                effectiveModelLine = effectiveModelLine.name,
-                effectiveReportStart = effectiveReportStart,
-              )
+            basicReport = internalBasicReport
             requestId = request.requestId
-            multimeasurement = isMultimeasurement(parentKey)
+            this.reportComputations += reportComputations
           }
         )
       } catch (e: StatusException) {
@@ -586,20 +626,6 @@ class BasicReportsService(
           InternalErrors.Reason.REPORT_COMPUTATION_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
-      }
-
-    // Both paths need the composite ReportingSets, under which results are written and read.
-    val nameByReportingSetComposite: Map<ReportingSet.Composite, String> =
-      try {
-        getOrCreateCompositeReportingSets(
-          reportingSetsMetricCalculationSpecDetailsMap.keys,
-          reportingSetMaps.nameByReportingSetComposite,
-          parentKey,
-        )
-      } catch (e: ReportingSetNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-      } catch (e: InternalReportingSetsException) {
-        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
       }
 
     // A repeated request with the same request ID returns the existing BasicReport, which may have
@@ -1473,6 +1499,50 @@ class BasicReportsService(
           reportEnd = basicReport.reportingInterval.reportEnd
         }
     }
+  }
+
+  /**
+   * Compiles the multimeasurements of [basicReport], the internal form of [publicBasicReport].
+   *
+   * @param primitiveReportingSetsByComponentName the primitive [ReportingSet] of each
+   *   `ReportingUnit` component, by component resource name
+   * @param nameByReportingSetComposite the resource name of each composite [ReportingSet],
+   *   including the union of each `ReportingUnit` with more than one component
+   * @throws IllegalArgumentException if [basicReport] has no multimeasurement form
+   */
+  private fun compileMultimeasurements(
+    basicReport: InternalBasicReport,
+    publicBasicReport: BasicReport,
+    campaignGroupName: String,
+    primitiveReportingSetsByComponentName: Map<String, ReportingSet>,
+    nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
+  ): List<ReportComputation> {
+    val components: Map<String, MultimeasurementCompiler.ReportingUnitComponent> =
+      primitiveReportingSetsByComponentName.mapValues { (_, reportingSet) ->
+        MultimeasurementCompiler.ReportingUnitComponent(
+          externalReportingSetId =
+            checkNotNull(ReportingSetKey.fromName(reportingSet.name)).reportingSetId,
+          cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList,
+        )
+      }
+    // Written under the same ReportingSet that `GetBasicReport` reads a ReportingUnit from.
+    val reportingUnitReportingSetIds: List<String> =
+      publicBasicReport.resultGroupSpecsList.map { spec ->
+        val primitiveNames: List<String> =
+          spec.reportingUnit.componentsList.map {
+            primitiveReportingSetsByComponentName.getValue(it).name
+          }
+        val name: String =
+          if (primitiveNames.size == 1) {
+            primitiveNames.single()
+          } else {
+            nameByReportingSetComposite.getValue(
+              buildUnionCompositeReportingSet(campaignGroupName, primitiveNames).composite
+            )
+          }
+        checkNotNull(ReportingSetKey.fromName(name)).reportingSetId
+      }
+    return multimeasurementCompiler.compile(basicReport, components, reportingUnitReportingSetIds)
   }
 
   /**

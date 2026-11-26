@@ -25,18 +25,19 @@ import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
+import org.wfanet.measurement.gcloud.spanner.getBytesAsByteString
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.reporting.v2.ReportComputation
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.reportComputation
 
 /**
- * Reads the [ReportComputation]s of the BasicReport with the specified internal key, ordered by
- * impression qualification filter ID ascending.
+ * Reads the [ReportComputation]s of the BasicReport with the specified internal key, with the
+ * internal impression qualification filter ID of each.
  */
 fun AsyncDatabaseClient.ReadContext.readReportComputations(
   basicReportResult: BasicReportResult
-): Flow<ReportComputation> {
+): Flow<ReportComputationResult> {
   val sql =
     """
     SELECT
@@ -55,17 +56,17 @@ fun AsyncDatabaseClient.ReadContext.readReportComputations(
         bind("basicReportId").to(basicReportResult.basicReportId)
       }
     )
-    .map { row -> buildReportComputation(basicReportResult, row) }
+    .map { row -> buildReportComputationResult(basicReportResult, row) }
 }
 
 /**
  * Reads the [ReportComputation] of the BasicReport with the specified internal key for the
- * specified impression qualification filter, or `null` if there is none.
+ * specified internal impression qualification filter ID, or `null` if there is none.
  */
 suspend fun AsyncDatabaseClient.ReadContext.getReportComputation(
   basicReportResult: BasicReportResult,
   impressionQualificationFilterId: Long,
-): ReportComputation? {
+): ReportComputationResult? {
   val row: Struct =
     readRow(
       "ReportComputations",
@@ -76,25 +77,28 @@ suspend fun AsyncDatabaseClient.ReadContext.getReportComputation(
       ),
       ReportComputationsInternal.COLUMNS,
     ) ?: return null
-  return buildReportComputation(basicReportResult, row)
+  return buildReportComputationResult(basicReportResult, row)
 }
 
 /**
  * Buffers an insert mutation for the ReportComputations table.
  *
- * Ignores [ReportComputation.getCmmsMeasurementId].
+ * Ignores [ReportComputation.getCmmsMeasurementId] and
+ * [ReportComputation.getExternalImpressionQualificationFilterId], which
+ * [impressionQualificationFilterId] stands for.
  */
 fun AsyncDatabaseClient.TransactionContext.insertReportComputation(
   measurementConsumerId: Long,
   basicReportId: Long,
+  impressionQualificationFilterId: Long,
   reportComputation: ReportComputation,
 ) {
   bufferInsertMutation("ReportComputations") {
     set("MeasurementConsumerId").to(measurementConsumerId)
     set("BasicReportId").to(basicReportId)
-    set("ImpressionQualificationFilterId").to(reportComputation.impressionQualificationFilterId)
+    set("ImpressionQualificationFilterId").to(impressionQualificationFilterId)
     set("CmmsCreateMeasurementRequestId").to(reportComputation.cmmsCreateMeasurementRequestId)
-    set("CreateAttempts").to(reportComputation.createAttempts.toLong())
+    set("Multimeasurement").to(reportComputation.multimeasurement.toGcloudByteArray())
     set("ResultGroupQueryMappings")
       .toBytesArray(reportComputation.mappingsList.map { it.toByteString().toGcloudByteArray() })
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
@@ -118,24 +122,37 @@ fun AsyncDatabaseClient.TransactionContext.setReportComputationMeasurementId(
   }
 }
 
-private fun buildReportComputation(
+/**
+ * A [ReportComputation] read from the database, with
+ * [ReportComputation.getExternalImpressionQualificationFilterId] unset.
+ *
+ * @property impressionQualificationFilterId internal ID of its impression qualification filter
+ */
+data class ReportComputationResult(
+  val impressionQualificationFilterId: Long,
+  val reportComputation: ReportComputation,
+)
+
+private fun buildReportComputationResult(
   basicReportResult: BasicReportResult,
   row: Struct,
-): ReportComputation {
-  return reportComputation {
-    cmmsMeasurementConsumerId = basicReportResult.basicReport.cmmsMeasurementConsumerId
-    externalBasicReportId = basicReportResult.basicReport.externalBasicReportId
-    impressionQualificationFilterId = row.getLong("ImpressionQualificationFilterId")
-    cmmsCreateMeasurementRequestId = row.getString("CmmsCreateMeasurementRequestId")
-    if (!row.isNull("CmmsMeasurementId")) {
-      cmmsMeasurementId = row.getString("CmmsMeasurementId")
-    }
-    createAttempts = row.getLong("CreateAttempts").toInt()
-    mappings +=
-      row.getBytesList("ResultGroupQueryMappings").map {
-        ResultGroupQueryMapping.parseFrom(it.toByteArray())
+): ReportComputationResult {
+  return ReportComputationResult(
+    row.getLong("ImpressionQualificationFilterId"),
+    reportComputation {
+      cmmsMeasurementConsumerId = basicReportResult.basicReport.cmmsMeasurementConsumerId
+      externalBasicReportId = basicReportResult.basicReport.externalBasicReportId
+      cmmsCreateMeasurementRequestId = row.getString("CmmsCreateMeasurementRequestId")
+      if (!row.isNull("CmmsMeasurementId")) {
+        cmmsMeasurementId = row.getString("CmmsMeasurementId")
       }
-  }
+      multimeasurement = row.getBytesAsByteString("Multimeasurement")
+      mappings +=
+        row.getBytesList("ResultGroupQueryMappings").map {
+          ResultGroupQueryMapping.parseFrom(it.toByteArray())
+        }
+    },
+  )
 }
 
 private object ReportComputationsInternal {
@@ -144,7 +161,7 @@ private object ReportComputationsInternal {
       "ImpressionQualificationFilterId",
       "CmmsCreateMeasurementRequestId",
       "CmmsMeasurementId",
-      "CreateAttempts",
+      "Multimeasurement",
       "ResultGroupQueryMappings",
     )
 }

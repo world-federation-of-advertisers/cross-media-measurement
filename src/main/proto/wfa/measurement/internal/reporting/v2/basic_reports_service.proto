@@ -38,12 +38,14 @@ service BasicReports {
   rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
 
   // Creates a `BasicReport` in the `BasicReport.State.CREATED_LEGACY` state, or
-  // in the `BasicReport.State.CREATED_MULTIMEASUREMENT` state if
-  // `multimeasurement` is set.
+  // in the `BasicReport.State.CREATED_MULTIMEASUREMENT` state, with its
+  // `ReportComputation`s, if `report_computations` is set.
   //
   // Error reasons:
   // * `REPORTING_SET_NOT_FOUND`
   // * `BASIC_REPORT_ALREADY_EXISTS`
+  // * `IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND`
+  // * `INVALID_FIELD_VALUE`
   rpc CreateBasicReport(CreateBasicReportRequest) returns (BasicReport);
 
   // Sets the `BasicReport.external_report_id` field and transitions the
@@ -79,36 +81,7 @@ service BasicReports {
   // * `BASIC_REPORT_STATE_INVALID`
   rpc FailBasicReport(FailBasicReportRequest) returns (BasicReport);
 
-  // Creates the `ReportComputation`s of a `BasicReport`, one per impression
-  // qualification filter.
-  //
-  // The `BasicReport` must be in the
-  // `BasicReport.State.CREATED_MULTIMEASUREMENT` state.
-  //
-  // Idempotent per impression qualification filter: where the `BasicReport`
-  // already has a `ReportComputation` for a requested
-  // `impression_qualification_filter_id`, that `ReportComputation` is returned
-  // unchanged, including the `cmms_create_measurement_request_id` it was first
-  // created with.
-  //
-  // Error reasons:
-  // * `REQUIRED_FIELD_NOT_SET`
-  // * `INVALID_FIELD_VALUE`
-  // * `BASIC_REPORT_NOT_FOUND`
-  // * `BASIC_REPORT_STATE_INVALID`
-  rpc BatchCreateReportComputations(BatchCreateReportComputationsRequest)
-      returns (BatchCreateReportComputationsResponse);
-
-  // Error reasons:
-  // * `REQUIRED_FIELD_NOT_SET`
-  // * `BASIC_REPORT_NOT_FOUND`
-  // * `REPORT_COMPUTATION_NOT_FOUND`
-  rpc GetReportComputation(GetReportComputationRequest)
-      returns (ReportComputation);
-
   // Lists every `ReportComputation` of a `BasicReport`.
-  //
-  // Ordered by `impression_qualification_filter_id` ascending.
   //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`
@@ -157,8 +130,13 @@ message InsertBasicReportRequest {
 message CreateBasicReportRequest {
   BasicReport basic_report = 1;
   string request_id = 2;
-  // Whether the `BasicReport` takes the multimeasurement path.
-  bool multimeasurement = 3;
+  // The `ReportComputation`s of a `BasicReport` on the multimeasurement path,
+  // one per impression qualification filter, or empty for the legacy path.
+  //
+  // `cmms_measurement_consumer_id`, `external_basic_report_id`,
+  // `cmms_create_measurement_request_id` and `cmms_measurement_id` are not
+  // set.
+  repeated ReportComputation report_computations = 3;
 }
 
 message SetExternalReportIdRequest {
@@ -226,30 +204,6 @@ message FailBasicReportRequest {
   string external_basic_report_id = 2;
 }
 
-message BatchCreateReportComputationsRequest {
-  string cmms_measurement_consumer_id = 1;
-  string external_basic_report_id = 2;
-
-  // The `ReportComputation`s to create. At least one is required, and their
-  // `impression_qualification_filter_id` values must be distinct.
-  //
-  // `cmms_measurement_consumer_id` and `external_basic_report_id` may be left
-  // unset; if set they must match the parent. `cmms_measurement_id` must not
-  // be set.
-  repeated ReportComputation report_computations = 3;
-}
-
-message BatchCreateReportComputationsResponse {
-  // The `ReportComputation`s, in request order.
-  repeated ReportComputation report_computations = 1;
-}
-
-message GetReportComputationRequest {
-  string cmms_measurement_consumer_id = 1;
-  string external_basic_report_id = 2;
-  int64 impression_qualification_filter_id = 3;
-}
-
 message ListReportComputationsRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
@@ -262,7 +216,9 @@ message ListReportComputationsResponse {
 message SetReportComputationMeasurementIdRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
-  int64 impression_qualification_filter_id = 3;
+  // External ID of the impression qualification filter, or empty for the
+  // custom filter.
+  string external_impression_qualification_filter_id = 3;
   // ID of the `Measurement` from the CMMS public API. Required.
   string cmms_measurement_id = 4;
 }

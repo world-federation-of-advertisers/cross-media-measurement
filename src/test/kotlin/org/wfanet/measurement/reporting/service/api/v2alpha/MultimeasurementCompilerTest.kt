@@ -18,7 +18,6 @@ package org.wfanet.measurement.reporting.service.api.v2alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Empty
 import com.google.type.Date
 import com.google.type.DayOfWeek
 import com.google.type.date
@@ -80,8 +79,14 @@ class MultimeasurementCompilerTest {
       emitCelNullGuardsForNestedMembers = false,
     )
 
-  private fun compile(basicReport: BasicReport) =
-    compiler.compile(basicReport, COMPONENTS, IMPRESSION_QUALIFICATION_FILTER_IDS)
+  private fun compile(basicReport: BasicReport): List<Compiled> =
+    compiler
+      .compile(
+        basicReport,
+        COMPONENTS,
+        List(basicReport.details.resultGroupSpecsCount) { REPORTING_UNIT_REPORTING_SET_ID },
+      )
+      .map { Compiled(it) }
 
   private fun compileSingle(vararg resultGroupSpecs: ResultGroupSpec) =
     compile(buildBasicReport(listOf(AMI_IQF), resultGroupSpecs.toList())).single()
@@ -96,15 +101,8 @@ class MultimeasurementCompilerTest {
         )
       )
 
-    assertThat(compiled.map { it.impressionQualificationFilter })
-      .containsExactly(AMI_IQF, MRC_IQF, CUSTOM_IQF)
-      .inOrder()
-    assertThat(compiled.map { it.reportComputation.impressionQualificationFilterId })
-      .containsExactly(
-        AMI_IQF_ID,
-        MRC_IQF_ID,
-        MultimeasurementCompiler.CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID,
-      )
+    assertThat(compiled.map { it.reportComputation.externalImpressionQualificationFilterId })
+      .containsExactly("ami", "mrc", "")
       .inOrder()
     assertThat(compiled.map { it.multimeasurement.requisitionSpecs().first().filterExpression() })
       .containsExactly(
@@ -113,17 +111,6 @@ class MultimeasurementCompilerTest {
         "banner_ad != null && banner_ad.viewable == false",
       )
       .inOrder()
-  }
-
-  @Test
-  fun `compile sets report keys on the computation`() {
-    val reportComputation: ReportComputation =
-      compileSingle(buildSpec(BOTH_COMPONENTS, cumulativeReportingUnit())).reportComputation
-
-    assertThat(reportComputation.cmmsMeasurementConsumerId).isEqualTo(MEASUREMENT_CONSUMER_ID)
-    assertThat(reportComputation.externalBasicReportId).isEqualTo(BASIC_REPORT_ID)
-    assertThat(reportComputation.cmmsCreateMeasurementRequestId).isEmpty()
-    assertThat(reportComputation.cmmsMeasurementId).isEmpty()
   }
 
   @Test
@@ -407,13 +394,18 @@ class MultimeasurementCompilerTest {
     assertThat(compiled.reportComputation.mappingsList)
       .containsExactly(
         buildMapping("0/c/2026-01-05/2026-01-19/ru", window, cumulative = true) {
-          reportingUnit = Empty.getDefaultInstance()
+          reportingUnit =
+            ResultGroupQueryMappingKt.reportingSet {
+              externalReportingSetId = REPORTING_UNIT_REPORTING_SET_ID
+            }
         },
         buildMapping("0/n/2026-01-05/2026-01-19/c0", window, cumulative = false) {
-          component = ResultGroupQueryMappingKt.component { component = REPORTING_SET_ID_1 }
+          component =
+            ResultGroupQueryMappingKt.reportingSet { externalReportingSetId = REPORTING_SET_ID_1 }
         },
         buildMapping("0/n/2026-01-05/2026-01-19/c1", window, cumulative = false) {
-          component = ResultGroupQueryMappingKt.component { component = REPORTING_SET_ID_2 }
+          component =
+            ResultGroupQueryMappingKt.reportingSet { externalReportingSetId = REPORTING_SET_ID_2 }
         },
       )
       .inOrder()
@@ -551,6 +543,12 @@ class MultimeasurementCompilerTest {
     }
   }
 
+  /** A compiled [ReportComputation] with its multimeasurement parsed. */
+  private class Compiled(val reportComputation: ReportComputation) {
+    val multimeasurement: Measurement.Multimeasurement =
+      Measurement.Multimeasurement.parseFrom(reportComputation.multimeasurement)
+  }
+
   companion object {
     private data class WindowDates(val start: Date, val end: Date)
 
@@ -582,10 +580,7 @@ class MultimeasurementCompilerTest {
           ),
       )
 
-    private const val AMI_IQF_ID = 1L
-    private const val MRC_IQF_ID = 2L
-    private val IMPRESSION_QUALIFICATION_FILTER_IDS =
-      mapOf("ami" to AMI_IQF_ID, "mrc" to MRC_IQF_ID)
+    private const val REPORTING_UNIT_REPORTING_SET_ID = "reporting-unit"
 
     private val AMI_IQF: ReportingImpressionQualificationFilter =
       reportingImpressionQualificationFilter {

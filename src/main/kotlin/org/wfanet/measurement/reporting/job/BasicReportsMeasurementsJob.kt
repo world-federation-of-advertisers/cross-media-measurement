@@ -19,14 +19,10 @@ package org.wfanet.measurement.reporting.job
 import com.google.protobuf.Any as ProtoAny
 import io.grpc.Status
 import io.grpc.StatusException
-import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
-import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
@@ -35,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
@@ -50,42 +47,29 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportComputation
-import org.wfanet.measurement.internal.reporting.v2.ReportingSet as InternalReportingSet
-import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpcKt.ReportingSetsCoroutineStub as InternalReportingSetsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.batchCreateReportComputationsRequest
-import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.listReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.setMeasurementsCreatedRequest
 import org.wfanet.measurement.internal.reporting.v2.setReportComputationMeasurementIdRequest
-import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
-import org.wfanet.measurement.reporting.service.api.v2alpha.MultimeasurementCompiler
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
-import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 
 /**
  * Creates the CMMS Measurements of [BasicReport]s on the multimeasurement path.
  *
- * Each [BasicReport] in state `CREATED_MULTIMEASUREMENT` is compiled into one multimeasurement per
+ * Each [BasicReport] in state `CREATED_MULTIMEASUREMENT` has one compiled multimeasurement per
  * impression qualification filter, each of which is created in the CMMS, after which the
- * [BasicReport] moves to state `MEASUREMENTS_CREATED`. A [BasicReport] that cannot be compiled or
- * that the CMMS rejects is FAILED. Any other error leaves the [BasicReport] for the next execution,
- * which reuses the stored `CreateMeasurement` request IDs.
- *
- * @param impressionQualificationFilterIds map of external impression qualification filter ID to its
- *   internal ID
+ * [BasicReport] moves to state `MEASUREMENTS_CREATED`. A [BasicReport] whose Measurement the CMMS
+ * rejects is FAILED, and its Measurements already created are cancelled. Any other error leaves the
+ * [BasicReport] for the next execution, which reuses the stored `CreateMeasurement` request IDs.
  */
 class BasicReportsMeasurementsJob(
   private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val internalBasicReportsStub: InternalBasicReportsCoroutineStub,
-  private val internalReportingSetsStub: InternalReportingSetsCoroutineStub,
   private val measurementConsumersStub: MeasurementConsumersCoroutineStub,
   private val measurementsStub: MeasurementsCoroutineStub,
-  private val compiler: MultimeasurementCompiler,
-  private val impressionQualificationFilterIds: Map<String, Long>,
 ) {
   suspend fun execute() {
     for ((measurementConsumerName, measurementConsumerConfig) in
@@ -140,34 +124,19 @@ class BasicReportsMeasurementsJob(
     measurementConsumerName: String,
     measurementConsumerConfig: MeasurementConsumerConfig,
   ) {
-    val components: Map<String, MultimeasurementCompiler.ReportingUnitComponent> =
-      resolveComponents(basicReport)
-    val compiledReportComputations: List<MultimeasurementCompiler.CompiledReportComputation> =
-      try {
-        compiler.compile(basicReport, components, impressionQualificationFilterIds)
-      } catch (e: IllegalArgumentException) {
-        logger.log(Level.WARNING, "BasicReport ${basicReport.name} cannot be compiled", e)
-        failBasicReport(basicReport)
-        return
-      }
-    val multimeasurementByFilterId: Map<Long, Measurement.Multimeasurement> =
-      compiledReportComputations.associate {
-        it.reportComputation.impressionQualificationFilterId to it.multimeasurement
-      }
-
+    val reportComputations: List<ReportComputation> = listReportComputations(basicReport)
     val pendingReportComputations: List<ReportComputation> =
-      batchCreateReportComputations(basicReport, compiledReportComputations).filter {
-        it.cmmsMeasurementId.isEmpty()
-      }
+      reportComputations.filter { it.cmmsMeasurementId.isEmpty() }
     if (pendingReportComputations.isNotEmpty()) {
       val measurementConsumer: MeasurementConsumer =
         getMeasurementConsumer(measurementConsumerName, measurementConsumerConfig.apiKey)
+      val createdMeasurementIds: MutableList<String> =
+        reportComputations.mapNotNull { it.cmmsMeasurementId.ifEmpty { null } }.toMutableList()
       for (reportComputation in pendingReportComputations) {
         val request: CreateMeasurementRequest =
           buildCreateMeasurementRequest(
             basicReport,
             reportComputation,
-            multimeasurementByFilterId.getValue(reportComputation.impressionQualificationFilterId),
             measurementConsumer,
             measurementConsumerConfig,
           )
@@ -182,15 +151,20 @@ class BasicReportsMeasurementsJob(
                 e.status.code == Status.Code.FAILED_PRECONDITION
             ) {
               logger.log(Level.WARNING, "CMMS rejected a Measurement of ${basicReport.name}", e)
+              cancelMeasurements(
+                measurementConsumerName,
+                measurementConsumerConfig,
+                createdMeasurementIds,
+              )
               failBasicReport(basicReport)
               return
             }
             throw Exception("Unable to create Measurement for ${basicReport.name}", e)
           }
-        setReportComputationMeasurementId(
-          reportComputation,
-          checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId,
-        )
+        val measurementId: String =
+          checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId
+        createdMeasurementIds += measurementId
+        setReportComputationMeasurementId(reportComputation, measurementId)
       }
     }
 
@@ -206,152 +180,42 @@ class BasicReportsMeasurementsJob(
     }
   }
 
-  /**
-   * Resolves the `ReportingUnit` components of [basicReport], keyed by resource name as in the
-   * public `ReportingUnit.components`.
-   */
-  private suspend fun resolveComponents(
-    basicReport: BasicReport
-  ): Map<String, MultimeasurementCompiler.ReportingUnitComponent> {
-    val reportingUnits = basicReport.details.resultGroupSpecsList.map { it.reportingUnit }
-    val dataProviderIds: Set<String> =
-      reportingUnits
-        .flatMap { it.dataProviderKeys.dataProviderKeysList }
-        .map { it.cmmsDataProviderId }
-        .toSet()
-    val reportingSetIds: Set<String> =
-      reportingUnits
-        .flatMap { it.reportingSetKeys.reportingSetKeysList }
-        .map { it.externalReportingSetId }
-        .toSet()
-
-    return buildMap {
-      if (dataProviderIds.isNotEmpty()) {
-        putAll(resolveDataProviderComponents(basicReport, dataProviderIds))
-      }
-      if (reportingSetIds.isNotEmpty()) {
-        for (reportingSet in
-          batchGetReportingSets(basicReport.cmmsMeasurementConsumerId, reportingSetIds)) {
-          val key =
-            ReportingSetKey(
-              reportingSet.cmmsMeasurementConsumerId,
-              reportingSet.externalReportingSetId,
-            )
-          put(
-            key.toName(),
-            MultimeasurementCompiler.ReportingUnitComponent(
-              reportingSet.externalReportingSetId,
-              reportingSet.cmmsEventGroups,
-            ),
-          )
-        }
-      }
-    }
-  }
-
-  /**
-   * Resolves DataProvider components to the primitive [InternalReportingSet] under the Campaign
-   * Group of [basicReport] whose EventGroups are the Campaign Group's EventGroups of that
-   * DataProvider.
-   */
-  private suspend fun resolveDataProviderComponents(
-    basicReport: BasicReport,
-    dataProviderIds: Set<String>,
-  ): Map<String, MultimeasurementCompiler.ReportingUnitComponent> {
-    val cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-    val campaignGroup: InternalReportingSet =
-      batchGetReportingSets(cmmsMeasurementConsumerId, listOf(basicReport.externalCampaignGroupId))
-        .single()
-    val eventGroupKeysByDataProviderId:
-      Map<String, List<InternalReportingSet.Primitive.EventGroupKey>> =
-      campaignGroup.primitive.eventGroupKeysList.groupBy { it.cmmsDataProviderId }
-
-    val campaignGroupReportingSets: List<InternalReportingSet> =
-      try {
-        internalReportingSetsStub
-          .streamReportingSets(
-            streamReportingSetsRequest {
-              filter =
-                StreamReportingSetsRequestKt.filter {
-                  this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                  externalCampaignGroupId = basicReport.externalCampaignGroupId
-                }
-              limit = STREAM_REPORTING_SETS_LIMIT
-            }
-          )
-          .toList()
-      } catch (e: StatusException) {
-        throw Exception("Unable to stream ReportingSets for ${basicReport.name}", e)
-      }
-    // Mirrors BasicReportsService, which reuses or mints one unfiltered primitive ReportingSet per
-    // DataProvider of the Campaign Group.
-    val primitiveIdByEventGroupKeys:
-      Map<Set<InternalReportingSet.Primitive.EventGroupKey>, String> =
-      campaignGroupReportingSets
-        .filter { it.hasPrimitive() && it.filter.isEmpty() }
-        .associate { it.primitive.eventGroupKeysList.toSet() to it.externalReportingSetId }
-
-    return dataProviderIds.associate { dataProviderId ->
-      val eventGroupKeys: List<InternalReportingSet.Primitive.EventGroupKey> =
-        eventGroupKeysByDataProviderId[dataProviderId].orEmpty()
-      val externalReportingSetId: String =
-        checkNotNull(primitiveIdByEventGroupKeys[eventGroupKeys.toSet()]) {
-          "No primitive ReportingSet for DataProvider $dataProviderId in ${basicReport.name}"
-        }
-      DataProviderKey(dataProviderId).toName() to
-        MultimeasurementCompiler.ReportingUnitComponent(
-          externalReportingSetId,
-          eventGroupKeys.map {
-            CmmsEventGroupKey(it.cmmsDataProviderId, it.cmmsEventGroupId).toName()
-          },
-        )
-    }
-  }
-
-  private suspend fun batchGetReportingSets(
-    cmmsMeasurementConsumerId: String,
-    externalReportingSetIds: Collection<String>,
-  ): List<InternalReportingSet> {
-    return try {
-      internalReportingSetsStub
-        .batchGetReportingSets(
-          batchGetReportingSetsRequest {
-            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-            this.externalReportingSetIds += externalReportingSetIds
-          }
-        )
-        .reportingSetsList
-    } catch (e: StatusException) {
-      throw Exception("Unable to get ReportingSets", e)
-    }
-  }
-
-  /**
-   * Creates the [ReportComputation]s of [basicReport], each with a fresh `CreateMeasurement`
-   * request ID, and returns the stored ones, which keep the request ID they were first created
-   * with.
-   */
-  private suspend fun batchCreateReportComputations(
-    basicReport: BasicReport,
-    compiledReportComputations: List<MultimeasurementCompiler.CompiledReportComputation>,
-  ): List<ReportComputation> {
+  private suspend fun listReportComputations(basicReport: BasicReport): List<ReportComputation> {
     return try {
       internalBasicReportsStub
-        .batchCreateReportComputations(
-          batchCreateReportComputationsRequest {
+        .listReportComputations(
+          listReportComputationsRequest {
             cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
             externalBasicReportId = basicReport.externalBasicReportId
-            reportComputations +=
-              compiledReportComputations.map {
-                it.reportComputation.copy {
-                  cmmsCreateMeasurementRequestId = UUID.randomUUID().toString()
-                }
-              }
           }
         )
         .reportComputationsList
     } catch (e: StatusException) {
-      throw Exception("Unable to create ReportComputations for ${basicReport.name}", e)
+      throw Exception("Unable to list ReportComputations of ${basicReport.name}", e)
+    }
+  }
+
+  /**
+   * Cancels the CMMS Measurements with [measurementIds], so that none of a failed BasicReport's
+   * Measurements keep running.
+   */
+  private suspend fun cancelMeasurements(
+    measurementConsumerName: String,
+    measurementConsumerConfig: MeasurementConsumerConfig,
+    measurementIds: List<String>,
+  ) {
+    val measurementConsumerKey =
+      checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
+    for (measurementId in measurementIds) {
+      val name =
+        MeasurementKey(measurementConsumerKey.measurementConsumerId, measurementId).toName()
+      try {
+        measurementsStub
+          .withAuthenticationKey(measurementConsumerConfig.apiKey)
+          .cancelMeasurement(cancelMeasurementRequest { this.name = name })
+      } catch (e: StatusException) {
+        throw Exception("Unable to cancel $name", e)
+      }
     }
   }
 
@@ -371,7 +235,6 @@ class BasicReportsMeasurementsJob(
   private fun buildCreateMeasurementRequest(
     basicReport: BasicReport,
     reportComputation: ReportComputation,
-    multimeasurement: Measurement.Multimeasurement,
     measurementConsumer: MeasurementConsumer,
     measurementConsumerConfig: MeasurementConsumerConfig,
   ): CreateMeasurementRequest {
@@ -409,7 +272,9 @@ class BasicReportsMeasurementsJob(
               this.basicReport = basicReportName
             }
         }
-        this.multimeasurement = multimeasurement.withRequisitionSpecKeys(measurementPublicKey)
+        multimeasurement =
+          Measurement.Multimeasurement.parseFrom(reportComputation.multimeasurement)
+            .withRequisitionSpecKeys(measurementPublicKey)
         measurementReferenceId = requestId
       }
       this.requestId = requestId
@@ -452,7 +317,8 @@ class BasicReportsMeasurementsJob(
         setReportComputationMeasurementIdRequest {
           cmmsMeasurementConsumerId = reportComputation.cmmsMeasurementConsumerId
           externalBasicReportId = reportComputation.externalBasicReportId
-          impressionQualificationFilterId = reportComputation.impressionQualificationFilterId
+          externalImpressionQualificationFilterId =
+            reportComputation.externalImpressionQualificationFilterId
           this.cmmsMeasurementId = cmmsMeasurementId
         }
       )
@@ -477,15 +343,8 @@ class BasicReportsMeasurementsJob(
   private val BasicReport.name: String
     get() = BasicReportKey(cmmsMeasurementConsumerId, externalBasicReportId).toName()
 
-  private val InternalReportingSet.cmmsEventGroups: List<String>
-    get() =
-      primitive.eventGroupKeysList.map {
-        CmmsEventGroupKey(it.cmmsDataProviderId, it.cmmsEventGroupId).toName()
-      }
-
   companion object {
     private val logger: Logger = Logger.getLogger(BasicReportsMeasurementsJob::class.java.name)
     private const val BATCH_SIZE = 10
-    private const val STREAM_REPORTING_SETS_LIMIT = 1000
   }
 }

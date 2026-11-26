@@ -111,7 +111,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_multimeasurement_results_job",
         "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_reports_job",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:basic_reports_service",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:multimeasurement_compiler",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",

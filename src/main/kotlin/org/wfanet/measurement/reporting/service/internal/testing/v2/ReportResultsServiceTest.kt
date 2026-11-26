@@ -20,7 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
-import com.google.protobuf.Empty
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
 import com.google.type.copy
@@ -81,10 +81,10 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.reporti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultView
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.basicMetricSet
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMappingKt
 import org.wfanet.measurement.internal.reporting.v2.addProcessedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
-import org.wfanet.measurement.internal.reporting.v2.batchCreateReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsResponse
@@ -1791,32 +1791,29 @@ abstract class ReportResultsServiceTest {
             }
           }
         }
-        this.multimeasurement = multimeasurement
+        if (multimeasurement) {
+          reportComputations += reportComputation {
+            externalImpressionQualificationFilterId =
+              AMI_IQF.externalImpressionQualificationFilterId
+            multimeasurement = "multimeasurement-1".toByteStringUtf8()
+            mappings += resultGroupQueryMapping {
+              queryId = "query-1"
+              reportingUnit =
+                ResultGroupQueryMappingKt.reportingSet { externalReportingSetId = "union" }
+            }
+          }
+        }
       }
     )
   }
 
   /** Moves a multimeasurement [basicReport] to [BasicReport.State.MEASUREMENTS_CREATED]. */
   private fun setMeasurementsCreated(basicReport: BasicReport) {
-    basicReportsStub.batchCreateReportComputations(
-      batchCreateReportComputationsRequest {
-        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-        externalBasicReportId = basicReport.externalBasicReportId
-        reportComputations += reportComputation {
-          impressionQualificationFilterId = AMI_IQF.impressionQualificationFilterId
-          cmmsCreateMeasurementRequestId = "create-measurement-request-1"
-          mappings += resultGroupQueryMapping {
-            queryId = "query-1"
-            reportingUnit = Empty.getDefaultInstance()
-          }
-        }
-      }
-    )
     basicReportsStub.setReportComputationMeasurementId(
       setReportComputationMeasurementIdRequest {
         cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
         externalBasicReportId = basicReport.externalBasicReportId
-        impressionQualificationFilterId = AMI_IQF.impressionQualificationFilterId
+        externalImpressionQualificationFilterId = AMI_IQF.externalImpressionQualificationFilterId
         cmmsMeasurementId = "measurement-1"
       }
     )

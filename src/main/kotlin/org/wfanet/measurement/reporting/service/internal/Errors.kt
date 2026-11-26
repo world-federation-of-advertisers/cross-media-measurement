@@ -347,25 +347,25 @@ class ReportComputationNotFoundException
 private constructor(
   cmmsMeasurementConsumerId: String,
   externalBasicReportId: String,
-  impressionQualificationFilterId: Long?,
+  externalImpressionQualificationFilterId: String?,
   cause: Throwable?,
 ) :
   ServiceException(
     Errors.Reason.REPORT_COMPUTATION_NOT_FOUND,
-    if (impressionQualificationFilterId == null) {
+    if (externalImpressionQualificationFilterId == null) {
       "BasicReport with external key ($cmmsMeasurementConsumerId, $externalBasicReportId) has " +
         "no ReportComputation"
     } else {
       "ReportComputation with key ($cmmsMeasurementConsumerId, $externalBasicReportId, " +
-        "$impressionQualificationFilterId) not found"
+        "$externalImpressionQualificationFilterId) not found"
     },
     buildMap {
       put(Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID, cmmsMeasurementConsumerId)
       put(Errors.Metadata.EXTERNAL_BASIC_REPORT_ID, externalBasicReportId)
-      if (impressionQualificationFilterId != null) {
+      if (externalImpressionQualificationFilterId != null) {
         put(
           Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID,
-          impressionQualificationFilterId.toString(),
+          externalImpressionQualificationFilterId,
         )
       }
     },
@@ -375,12 +375,12 @@ private constructor(
   constructor(
     cmmsMeasurementConsumerId: String,
     externalBasicReportId: String,
-    impressionQualificationFilterId: Long,
+    externalImpressionQualificationFilterId: String,
     cause: Throwable? = null,
   ) : this(
     cmmsMeasurementConsumerId,
     externalBasicReportId,
-    impressionQualificationFilterId as Long?,
+    externalImpressionQualificationFilterId as String?,
     cause,
   )
 
@@ -402,19 +402,18 @@ private constructor(
 class ReportComputationStateInvalidException(
   cmmsMeasurementConsumerId: String,
   externalBasicReportId: String,
-  impressionQualificationFilterId: Long,
+  externalImpressionQualificationFilterId: String,
   message: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.REPORT_COMPUTATION_STATE_INVALID,
     "ReportComputation with key ($cmmsMeasurementConsumerId, $externalBasicReportId, " +
-      "$impressionQualificationFilterId) is invalid for the operation: $message",
+      "$externalImpressionQualificationFilterId) is invalid for the operation: $message",
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
-      Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID to
-        impressionQualificationFilterId.toString(),
+      Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID to externalImpressionQualificationFilterId,
     ),
     cause,
   )

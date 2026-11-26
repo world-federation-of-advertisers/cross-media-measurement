@@ -32,8 +32,9 @@ CREATE TABLE ReportComputations (
   CmmsCreateMeasurementRequestId STRING(MAX) NOT NULL,
   -- ID of the Measurement from the CMMS public API. NULL until created.
   CmmsMeasurementId STRING(MAX),
-  -- Number of CreateMeasurement attempts.
-  CreateAttempts INT64 NOT NULL,
+  -- Serialized wfa.measurement.api.v2alpha.Measurement.Multimeasurement whose
+  -- RequisitionSpecs have no measurement_public_key.
+  Multimeasurement BYTES(MAX) NOT NULL,
   -- Serialized wfa.measurement.internal.reporting.v2.ResultGroupQueryMapping
   -- messages, one per Query of the multimeasurement.
   --

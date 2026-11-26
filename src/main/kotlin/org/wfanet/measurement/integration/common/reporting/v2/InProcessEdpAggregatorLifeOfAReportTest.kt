@@ -129,7 +129,6 @@ import org.wfanet.measurement.integration.common.AccessServicesFactory
 import org.wfanet.measurement.integration.common.EntityKeySpec
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.FULFILLER_TOPIC_ID
-import org.wfanet.measurement.integration.common.IMPRESSION_QUALIFICATION_FILTER_CONFIG
 import org.wfanet.measurement.integration.common.InProcessCmmsComponents
 import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.integration.common.InProcessEdpAggregatorComponents
@@ -154,7 +153,6 @@ import org.wfanet.measurement.reporting.job.BasicReportsMultimeasurementResultsJ
 import org.wfanet.measurement.reporting.job.BasicReportsReportsJob
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
-import org.wfanet.measurement.reporting.service.api.v2alpha.MultimeasurementCompiler
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -1415,16 +1413,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     BasicReportsMeasurementsJob(
         measurementConsumerConfigs(),
         reportingServer.internalBasicReportsClient,
-        reportingServer.internalReportingSetsClient,
         publicMeasurementConsumersClient,
         publicMeasurementsClient,
-        MultimeasurementCompiler(
-          EventMessageDescriptor(TestEvent.getDescriptor()).eventTemplateFieldsByPath,
-          emitCelNullGuardsForNestedMembers = false,
-        ),
-        IMPRESSION_QUALIFICATION_FILTER_CONFIG.impressionQualificationFiltersList.associate {
-          it.externalImpressionQualificationFilterId to it.impressionQualificationFilterId
-        },
       )
       .execute()
   }
@@ -1441,12 +1431,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       BasicReportsMultimeasurementResultsJob(
         measurementConsumerConfigs(),
         reportingServer.internalBasicReportsClient,
-        reportingServer.internalReportingSetsClient,
         reportingServer.internalReportResultsClient,
         publicMeasurementsClient,
-        IMPRESSION_QUALIFICATION_FILTER_CONFIG.impressionQualificationFiltersList.associate {
-          it.impressionQualificationFilterId to it.externalImpressionQualificationFilterId
-        },
       )
     while (true) {
       job.execute()

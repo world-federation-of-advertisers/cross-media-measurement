@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.reporting.service.api.v2alpha
 
-import com.google.protobuf.Empty
 import com.google.protobuf.Timestamp
 import com.google.type.DateTime
 import com.google.type.interval
@@ -45,7 +44,6 @@ import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.ReportComputation
-import org.wfanet.measurement.internal.reporting.v2.ReportingImpressionQualificationFilter as InternalReportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMappingKt
 import org.wfanet.measurement.internal.reporting.v2.reportComputation
@@ -88,15 +86,6 @@ class MultimeasurementCompiler(
     val cmmsEventGroups: List<String>,
   )
 
-  /** The multimeasurement for one impression qualification filter of a [BasicReport]. */
-  data class CompiledReportComputation(
-    val impressionQualificationFilter: InternalReportingImpressionQualificationFilter,
-    /** Multimeasurement whose `RequisitionSpec`s have no `nonce` or `measurement_public_key`. */
-    val multimeasurement: Measurement.Multimeasurement,
-    /** Computation without request or `Measurement` IDs. */
-    val reportComputation: ReportComputation,
-  )
-
   /**
    * Compiles [basicReport].
    *
@@ -104,17 +93,19 @@ class MultimeasurementCompiler(
    *   qualification filters set
    * @param components map of `ReportingUnit` component resource name, as in the public
    *   `ReportingUnit.components`, to the resolved component
-   * @param impressionQualificationFilterIds map of external impression qualification filter ID to
-   *   its internal ID
-   * @return one [CompiledReportComputation] per effective impression qualification filter, in order
+   * @param reportingUnitReportingSetIds the external ID of the `ReportingSet` each
+   *   `ResultGroupSpec`'s reporting unit as a whole is written under, by `ResultGroupSpec` index
+   * @return one [ReportComputation] per effective impression qualification filter, in order,
+   *   without request or `Measurement` IDs, whose multimeasurement's `RequisitionSpec`s have no
+   *   `measurement_public_key`
    * @throws IllegalArgumentException if [basicReport] uses a feature with no multimeasurement form,
-   *   or references a component or filter missing from the maps
+   *   or references a component missing from [components]
    */
   fun compile(
     basicReport: BasicReport,
     components: Map<String, ReportingUnitComponent>,
-    impressionQualificationFilterIds: Map<String, Long>,
-  ): List<CompiledReportComputation> {
+    reportingUnitReportingSetIds: List<String>,
+  ): List<ReportComputation> {
     val details = basicReport.details
     require(details.effectiveImpressionQualificationFiltersCount > 0) {
       "BasicReport has no effective impression qualification filters"
@@ -128,24 +119,24 @@ class MultimeasurementCompiler(
       reportingInterval.reportEnd.let { LocalDate.of(it.year, it.month, it.day) }
     require(clock.reportStart < reportEnd) { "Reporting interval is empty" }
 
+    require(reportingUnitReportingSetIds.size == details.resultGroupSpecsCount) {
+      "Expected a reporting unit ReportingSet per ResultGroupSpec"
+    }
     val specPlans: List<SpecPlan> =
-      details.resultGroupSpecsList.map { internalSpec ->
-        planSpec(internalSpec.toResultGroupSpec(), clock.reportStart, reportEnd, components)
+      details.resultGroupSpecsList.mapIndexed { index, internalSpec ->
+        planSpec(
+          internalSpec.toResultGroupSpec(),
+          clock.reportStart,
+          reportEnd,
+          components,
+          reportingUnitReportingSetIds[index],
+        )
       }
     val boundaries: List<LocalDate> =
       (specPlans.flatMap { it.windowEnds } + clock.reportStart).toSortedSet().toList()
     val periods: List<Period> = boundaries.zipWithNext { start, end -> Period(start, end) }
 
     return details.effectiveImpressionQualificationFiltersList.map { iqf ->
-      val impressionQualificationFilterId: Long =
-        if (iqf.externalImpressionQualificationFilterId.isEmpty()) {
-          CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID
-        } else {
-          val externalId: String = iqf.externalImpressionQualificationFilterId
-          requireNotNull(impressionQualificationFilterIds[externalId]) {
-            "Impression qualification filter $externalId not found"
-          }
-        }
       val iqfFilter: String =
         buildCelExpression(
           iqf.filterSpecsList.map { it.toImpressionQualificationFilterSpec() },
@@ -156,17 +147,11 @@ class MultimeasurementCompiler(
       for ((specIndex, specPlan) in specPlans.withIndex()) {
         builder.addSpec(specIndex, specPlan, iqfFilter)
       }
-      CompiledReportComputation(
-        impressionQualificationFilter = iqf,
-        multimeasurement = builder.buildMultimeasurement(),
-        reportComputation =
-          reportComputation {
-            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-            externalBasicReportId = basicReport.externalBasicReportId
-            this.impressionQualificationFilterId = impressionQualificationFilterId
-            mappings += builder.mappings
-          },
-      )
+      reportComputation {
+        externalImpressionQualificationFilterId = iqf.externalImpressionQualificationFilterId
+        mappings += builder.mappings
+        multimeasurement = builder.buildMultimeasurement().toByteString()
+      }
     }
   }
 
@@ -175,6 +160,7 @@ class MultimeasurementCompiler(
     reportStart: LocalDate,
     reportEnd: LocalDate,
     components: Map<String, ReportingUnitComponent>,
+    reportingUnitReportingSetId: String,
   ): SpecPlan {
     require(spec.reportingUnit.componentsCount > 0) { "ResultGroupSpec has no components" }
     // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Compile these once
@@ -216,6 +202,7 @@ class MultimeasurementCompiler(
     return SpecPlan(
       spec = spec,
       components = resolvedComponents,
+      reportingUnitReportingSetId = reportingUnitReportingSetId,
       reportStart = reportStart,
       windowEnds = windowEnds,
       attributes = attributes,
@@ -249,6 +236,7 @@ class MultimeasurementCompiler(
   private data class SpecPlan(
     val spec: ResultGroupSpec,
     val components: List<ReportingUnitComponent>,
+    val reportingUnitReportingSetId: String,
     val reportStart: LocalDate,
     /** Ends of the windows, ascending, the last being the report end. */
     val windowEnds: List<LocalDate>,
@@ -400,11 +388,15 @@ class MultimeasurementCompiler(
         windowEnd = window.end.toProtoDate()
         cumulative = window.cumulative
         when (slot) {
-          is Slot.ReportingUnit -> reportingUnit = Empty.getDefaultInstance()
+          is Slot.ReportingUnit ->
+            reportingUnit =
+              ResultGroupQueryMappingKt.reportingSet {
+                externalReportingSetId = plan.reportingUnitReportingSetId
+              }
           is Slot.Component ->
             component =
-              ResultGroupQueryMappingKt.component {
-                component = plan.components[slot.index].externalReportingSetId
+              ResultGroupQueryMappingKt.reportingSet {
+                externalReportingSetId = plan.components[slot.index].externalReportingSetId
               }
         }
       }
@@ -530,12 +522,6 @@ class MultimeasurementCompiler(
   }
 
   companion object {
-    /**
-     * Internal ID recorded for a custom impression qualification filter, matching the Reporting
-     * Spanner `ReportingSetResults` convention.
-     */
-    const val CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID = -1L
-
     /**
      * Returns the window ends of [metricFrequency] over [reportStart, reportEnd), following
      * `ReportsService` time interval generation: weekly windows end on the given day of the week,

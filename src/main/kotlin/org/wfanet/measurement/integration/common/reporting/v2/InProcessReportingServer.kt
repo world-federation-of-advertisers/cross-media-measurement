@@ -143,7 +143,9 @@ class InProcessReportingServer(
     InternalMetricCalculationSpecsCoroutineStub(internalApiChannel)
   }
   private val internalMetricsClient by lazy { InternalMetricsCoroutineStub(internalApiChannel) }
-  val internalReportingSetsClient by lazy { InternalReportingSetsCoroutineStub(internalApiChannel) }
+  private val internalReportingSetsClient by lazy {
+    InternalReportingSetsCoroutineStub(internalApiChannel)
+  }
   private val internalReportsClient by lazy { InternalReportsCoroutineStub(internalApiChannel) }
 
   val internalBasicReportsClient by lazy { InternalBasicReportsCoroutineStub(internalApiChannel) }
