@@ -21,6 +21,7 @@ import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.io.IOException
 import java.nio.file.Path
 import java.security.GeneralSecurityException
 import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCredentials
@@ -165,6 +166,10 @@ class TrusTeeRequisitionDecryptor(
         "Failed to decrypt requisition data due to a cryptographic error",
         e,
       )
+    } catch (e: IOException) {
+      // The decrypting stream reports authentication failures as IOException. The data is in
+      // memory, so this is not a transient I/O error.
+      throw PermanentErrorException("Failed to decrypt requisition data", e)
     }
   }
 

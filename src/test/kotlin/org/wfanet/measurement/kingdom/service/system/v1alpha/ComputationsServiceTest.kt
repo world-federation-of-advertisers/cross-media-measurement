@@ -778,7 +778,7 @@ class ComputationsServiceTest {
 
   @Test
   fun `getComputation returns multimeasurement queries and vector requisitions for TrusTEE v2`() =
-    runBlocking {
+    runBlocking<Unit> {
       whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
         .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
 

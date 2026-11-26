@@ -202,7 +202,9 @@ fun SystemRequisition.toDuchyRequisitionDetails(): RequisitionDetails {
           .duchyId
     }
     nonce = source.nonce
-    vectorIndex = source.vectorIndex
+    if (source.hasVectorIndex()) {
+      vectorIndex = source.vectorIndex
+    }
   }
 }
 
