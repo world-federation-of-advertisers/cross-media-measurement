@@ -122,13 +122,13 @@ class RequisitionFulfillmentService(
             val token = getComputationToken(externalRequisitionKey)
             // Validated against the computation before anything is written, so that a mismatched
             // fulfillment leaves no blob behind.
-            val trusTeeV2: Boolean =
+            val isTrusTeeV2: Boolean =
               token.computationStage.stageCase == ComputationStage.StageCase.TRUS_TEE_V2
-            grpcRequire(header.hasTrusTeeV2() == trusTeeV2) {
+            grpcRequire(header.hasTrusTeeV2() == isTrusTeeV2) {
               "trus_tee_v2 must be specified exactly for a TrusTEE v2 computation"
             }
             val requisitionMetadata =
-              if (trusTeeV2) {
+              if (isTrusTeeV2) {
                 // The plaintext RequisitionSpec of a multimeasurement has no nonce. Its fingerprint
                 // already matched in the computation lookup.
                 grpcRequire(header.nonce == 0L) { "nonce specified for a TrusTEE v2 fulfillment" }
