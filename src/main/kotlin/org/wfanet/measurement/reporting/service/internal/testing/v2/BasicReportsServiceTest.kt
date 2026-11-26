@@ -1087,7 +1087,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       )
       .isEqualTo(basicReport)
     assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
-    assertThat(response.state).isEqualTo(BasicReport.State.CREATED_LEGACY)
+    assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
     assertThat(response.hasCreateTime())
   }
 
@@ -1127,7 +1127,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       )
       .isEqualTo(basicReport)
     assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
-    assertThat(response.state).isEqualTo(BasicReport.State.CREATED_LEGACY)
+    assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
     assertThat(response.hasCreateTime())
 
     val response2 = service.createBasicReport(request)

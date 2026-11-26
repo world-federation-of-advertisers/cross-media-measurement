@@ -633,7 +633,7 @@ class BasicReportsService(
     // BasicReports create job creates its CMMS Measurements.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
     when (createdInternalBasicReport.state) {
-      InternalBasicReport.State.CREATED_LEGACY -> {}
+      InternalBasicReport.State.CREATED -> {}
       InternalBasicReport.State.CREATED_MULTIMEASUREMENT,
       InternalBasicReport.State.MEASUREMENTS_CREATED,
       InternalBasicReport.State.REPORT_CREATED,

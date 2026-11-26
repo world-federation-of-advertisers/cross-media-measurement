@@ -2134,7 +2134,7 @@ internal object ReportTraceOutput {
     if (
       context.basicReportState?.uppercase() in
         setOf(
-          "CREATED_LEGACY",
+          "CREATED",
           "CREATED_MULTIMEASUREMENT",
           "MEASUREMENTS_CREATED",
           "REPORT_CREATED",

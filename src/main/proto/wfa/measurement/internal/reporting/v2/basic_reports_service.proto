@@ -37,7 +37,7 @@ service BasicReports {
   // * `BASIC_REPORT_ALREADY_EXISTS`
   rpc InsertBasicReport(InsertBasicReportRequest) returns (BasicReport);
 
-  // Creates a `BasicReport` in the `BasicReport.State.CREATED_LEGACY` state, or
+  // Creates a `BasicReport` in the `BasicReport.State.CREATED` state, or
   // in the `BasicReport.State.CREATED_MULTIMEASUREMENT` state, with its
   // `ReportComputation`s, if `report_computations` is set.
   //
@@ -51,7 +51,7 @@ service BasicReports {
   // Sets the `BasicReport.external_report_id` field and transitions the
   // `BasicReport` to the `BasicReport.State.REPORT_CREATED` state.
   //
-  // The `BasicReport` must be in the `BasicReport.State.CREATED_LEGACY` state.
+  // The `BasicReport` must be in the `BasicReport.State.CREATED` state.
   //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`

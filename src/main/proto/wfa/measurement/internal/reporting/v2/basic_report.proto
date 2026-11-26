@@ -55,7 +55,7 @@ message BasicReport {
     // Default value. This value is unused.
     STATE_UNSPECIFIED = 0;
     // `BasicReport` created, taking the path through a `Report`.
-    CREATED_LEGACY = 1;
+    CREATED = 1;
     // `Report` created.
     REPORT_CREATED = 2;
     // `Report` is in SUCCEEDED state, and its results are persisted with the

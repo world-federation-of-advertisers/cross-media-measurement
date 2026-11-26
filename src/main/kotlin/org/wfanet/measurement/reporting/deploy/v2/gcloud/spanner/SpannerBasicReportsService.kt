@@ -476,7 +476,7 @@ class SpannerBasicReportsService(
               externalBasicReportId = request.externalBasicReportId,
             )
             .also {
-              if (it.basicReport.state != BasicReport.State.CREATED_LEGACY) {
+              if (it.basicReport.state != BasicReport.State.CREATED) {
                 throw BasicReportStateInvalidException(
                   request.cmmsMeasurementConsumerId,
                   request.externalBasicReportId,
@@ -1208,13 +1208,13 @@ class SpannerBasicReportsService(
         if (reportComputationsCount > 0) {
           BasicReport.State.CREATED_MULTIMEASUREMENT
         } else {
-          BasicReport.State.CREATED_LEGACY
+          BasicReport.State.CREATED
         }
 
     /** States from which a [BasicReport] can transition to [BasicReport.State.FAILED]. */
     private val FAILABLE_STATES =
       setOf(
-        BasicReport.State.CREATED_LEGACY,
+        BasicReport.State.CREATED,
         BasicReport.State.CREATED_MULTIMEASUREMENT,
         BasicReport.State.MEASUREMENTS_CREATED,
         BasicReport.State.REPORT_CREATED,
