@@ -20,7 +20,6 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import com.google.type.Date
 import com.google.type.date
-import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
@@ -30,7 +29,6 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.roundToInt
@@ -62,12 +60,9 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportRe
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.Dimension.VennDiagramRegionType
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
-import org.wfanet.measurement.internal.reporting.v2.batchCreateReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
-import org.wfanet.measurement.internal.reporting.v2.beginReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.cleanupReportResultAssembliesRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
-import org.wfanet.measurement.internal.reporting.v2.discardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
@@ -101,6 +96,7 @@ class BasicReportsReportsJob(
   private val clock: Clock,
   private val maxCreatedBasicReportAge: Duration,
 ) {
+  private val assembler = ReportResultAssembler(reportResultsStub)
 
   /**
    * For every MeasurementConsumer, all BasicReports with State REPORT_CREATED are retrieved. For
@@ -200,28 +196,10 @@ class BasicReportsReportsJob(
               when (report.state) {
                 Report.State.SUCCEEDED -> {
                   span.addEvent("reporting.report_result.create_started")
-                  val reportResult =
-                    try {
-                      reportResultsStub.beginReportResultAssembly(
-                        beginReportResultAssemblyRequest {
-                          this.cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-                          externalBasicReportId = basicReport.externalBasicReportId
-                          requestId = UUID.randomUUID().toString()
-                          reportResult = reportResult {
-                            reportStart = report.reportingInterval.reportStart
-                          }
-                        }
-                      )
-                    } catch (e: StatusException) {
-                      if (e.status.code == Status.Code.ALREADY_EXISTS) {
-                        span.addEvent("reporting.report_result.assembly_already_active")
-                        return@trace
-                      }
-                      throw Exception("Unable to begin report-result assembly", e)
-                    }
-                  var resultAssociated = false
-                  try {
-                    val reportingSetResultRequests: List<CreateReportingSetResultRequest> =
+                  var invalidBasicReport: InvalidBasicReportException? = null
+                  val outcome: ReportResultAssembler.Outcome =
+                    assembler.assemble(basicReport, report.reportingInterval.reportStart) {
+                      reportResult ->
                       try {
                         span.addEvent("reporting.report_result.transform_started")
                         transformReportResults(
@@ -236,81 +214,57 @@ class BasicReportsReportsJob(
                         // ImpressionQualificationFilter information that has been fixed.
                         // BasicReports affected by the bug will be FAILED.
                       } catch (e: InvalidBasicReportException) {
-                        span
-                          .setStatus(StatusCode.ERROR, "Invalid BasicReport result transformation")
-                          .setAttribute(
-                            ReportTraceAttributes.ERROR_TYPE,
-                            ReportTraceAttributes.errorType(e),
+                        invalidBasicReport = e
+                        null
+                      }
+                    }
+                  when (outcome) {
+                    ReportResultAssembler.Outcome.ASSEMBLED -> {}
+                    ReportResultAssembler.Outcome.ALREADY_ACTIVE -> {
+                      span.addEvent("reporting.report_result.assembly_already_active")
+                      return@trace
+                    }
+                    ReportResultAssembler.Outcome.ABANDONED -> {
+                      val e: InvalidBasicReportException = checkNotNull(invalidBasicReport)
+                      span
+                        .setStatus(StatusCode.ERROR, "Invalid BasicReport result transformation")
+                        .setAttribute(
+                          ReportTraceAttributes.ERROR_TYPE,
+                          ReportTraceAttributes.errorType(e),
+                        )
+                        .recordException(e)
+                      val errorCode = ReportTraceAttributes.errorCode(e)
+                      if (errorCode != null) {
+                        span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+                      }
+                      span.addEvent(
+                        "reporting.basic_report.failed",
+                        Attributes.builder()
+                          .put(
+                            ReportTraceAttributes.LIFECYCLE_STAGE,
+                            "report_result_transformation",
                           )
-                          .recordException(e)
-                        val errorCode = ReportTraceAttributes.errorCode(e)
-                        if (errorCode != null) {
-                          span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
-                        }
-                        span.addEvent(
-                          "reporting.basic_report.failed",
-                          Attributes.builder()
-                            .put(
-                              ReportTraceAttributes.LIFECYCLE_STAGE,
-                              "report_result_transformation",
-                            )
-                            .put(ReportTraceAttributes.OUTCOME, "failed")
-                            .build(),
-                        )
-                        logger.log(
-                          Level.WARNING,
-                          "BasicReport is affected by a bug that has been fixed and must be FAILED",
-                          e,
-                        )
-                        failBasicReport(
-                          cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                          externalBasicReportId = basicReport.externalBasicReportId,
-                        )
-                        span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
-                        logReportResultAssembly(
-                          basicReportName,
-                          reportName,
-                          report.state,
-                          "failed",
-                          error = e,
-                        )
-                        return@trace
-                      }
-
-                    // Validate dimensions across the entire result set before any partial writes.
-                    require(
-                      reportingSetResultRequests
-                        .map { it.reportingSetResult.dimension }
-                        .toSet()
-                        .size == reportingSetResultRequests.size
-                    ) {
-                      "Report results contain duplicate dimensions"
-                    }
-                    val resultBatches = ReportingSetResultBatching.batch(reportingSetResultRequests)
-                    for ((index, batch) in resultBatches.withIndex()) {
-                      reportResultsStub.batchCreateReportResultAssembly(
-                        batchCreateReportResultAssemblyRequest {
-                          this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-                          externalReportResultId = reportResult.externalReportResultId
-                          requests += batch
-                          externalBasicReportId = basicReport.externalBasicReportId
-                          finalBatch = index == resultBatches.lastIndex
-                        }
+                          .put(ReportTraceAttributes.OUTCOME, "failed")
+                          .build(),
                       )
-                    }
-                    resultAssociated = true
-                  } finally {
-                    if (!resultAssociated) {
-                      try {
-                        reportResultsStub.discardReportResult(
-                          discardReportResultRequest {
-                            this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-                            externalReportResultId = reportResult.externalReportResultId
-                          }
-                        )
-                      } catch (e: Exception) {
-                        logger.log(Level.WARNING, "Unable to discard abandoned report results", e)
-                      }
+                      logger.log(
+                        Level.WARNING,
+                        "BasicReport is affected by a bug that has been fixed and must be FAILED",
+                        e,
+                      )
+                      failBasicReport(
+                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                        externalBasicReportId = basicReport.externalBasicReportId,
+                      )
+                      span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+                      logReportResultAssembly(
+                        basicReportName,
+                        reportName,
+                        report.state,
+                        "failed",
+                        error = e,
+                      )
+                      return@trace
                     }
                   }
                   span.addEvent(

@@ -36,6 +36,7 @@ kt_jvm_library(
         "//src/test/kotlin/org/wfanet/measurement/reporting/job:__pkg__",
     ],
     deps = [
+        ":report_result_assembler",
         ":reporting_set_result_batching",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha:trusted_principal_auth_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:event_message_descriptor",
@@ -114,6 +115,7 @@ kt_jvm_library(
     ],
     deps = [
         ":multimeasurement_basic_report_failer",
+        ":report_result_assembler",
         ":reporting_set_result_batching",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -152,5 +154,18 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_computation_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+    ],
+)
+
+kt_jvm_library(
+    name = "report_result_assembler",
+    srcs = ["ReportResultAssembler.kt"],
+    deps = [
+        ":reporting_set_result_batching",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:datetime_kt_jvm_proto",
     ],
 )

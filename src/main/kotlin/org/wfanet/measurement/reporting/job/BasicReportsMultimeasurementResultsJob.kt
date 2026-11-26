@@ -17,9 +17,7 @@
 package org.wfanet.measurement.reporting.job
 
 import com.google.type.Date
-import io.grpc.Status
 import io.grpc.StatusException
-import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.sqrt
@@ -46,10 +44,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.Reporting
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
-import org.wfanet.measurement.internal.reporting.v2.batchCreateReportResultAssemblyRequest
-import org.wfanet.measurement.internal.reporting.v2.beginReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
-import org.wfanet.measurement.internal.reporting.v2.discardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportResult
@@ -74,6 +69,7 @@ class BasicReportsMultimeasurementResultsJob(
 ) {
   private val failer =
     MultimeasurementBasicReportFailer(internalBasicReportsStub, cmmsMeasurementsStub)
+  private val assembler = ReportResultAssembler(reportResultsStub)
 
   suspend fun execute() {
     for ((measurementConsumerName, measurementConsumerConfig) in
@@ -326,64 +322,13 @@ class BasicReportsMultimeasurementResultsJob(
     basicReport: BasicReport,
     reportingSetResults: List<ReportingSetResult>,
   ) {
-    val reportResult =
-      try {
-        reportResultsStub.beginReportResultAssembly(
-          beginReportResultAssemblyRequest {
-            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-            externalBasicReportId = basicReport.externalBasicReportId
-            requestId = UUID.randomUUID().toString()
-            reportResult = reportResult {
-              reportStart = basicReport.details.reportingInterval.effectiveReportStart
-            }
-          }
-        )
-      } catch (e: StatusException) {
-        if (e.status.code == Status.Code.ALREADY_EXISTS) {
-          // Another worker is assembling the results.
-          return
-        }
-        throw Exception("Unable to begin report-result assembly", e)
-      }
-
-    var resultAssociated = false
-    try {
-      val requests =
-        reportingSetResults.map {
-          createReportingSetResultRequest {
-            cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-            externalReportResultId = reportResult.externalReportResultId
-            reportingSetResult = it
-          }
-        }
-      val batches = ReportingSetResultBatching.batch(requests)
-      for ((index, batch) in batches.withIndex()) {
-        try {
-          reportResultsStub.batchCreateReportResultAssembly(
-            batchCreateReportResultAssemblyRequest {
-              cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-              externalReportResultId = reportResult.externalReportResultId
-              this.requests += batch
-              externalBasicReportId = basicReport.externalBasicReportId
-              finalBatch = index == batches.lastIndex
-            }
-          )
-        } catch (e: StatusException) {
-          throw Exception("Unable to write report results", e)
-        }
-      }
-      resultAssociated = true
-    } finally {
-      if (!resultAssociated) {
-        try {
-          reportResultsStub.discardReportResult(
-            discardReportResultRequest {
-              cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-              externalReportResultId = reportResult.externalReportResultId
-            }
-          )
-        } catch (e: StatusException) {
-          logger.log(Level.WARNING, "Unable to discard abandoned report results", e)
+    assembler.assemble(basicReport, basicReport.details.reportingInterval.effectiveReportStart) {
+      reportResult ->
+      reportingSetResults.map {
+        createReportingSetResultRequest {
+          cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+          externalReportResultId = reportResult.externalReportResultId
+          reportingSetResult = it
         }
       }
     }
