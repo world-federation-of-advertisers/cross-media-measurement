@@ -112,16 +112,12 @@ class BasicReportsMeasurementsJob(
       resourceLists.collect { resourceList ->
         for (basicReport in resourceList.resources) {
           try {
-            if (basicReport.createTime.toInstant().isBefore(cutoff)) {
-              logger.warning { "BasicReport ${basicReport.name} timed out creating Measurements" }
-              failer.fail(
-                basicReport,
-                listReportComputations(basicReport),
-                measurementConsumerConfig.apiKey,
-              )
-            } else {
-              createMeasurements(basicReport, measurementConsumerName, measurementConsumerConfig)
-            }
+            createMeasurements(
+              basicReport,
+              measurementConsumerName,
+              measurementConsumerConfig,
+              timedOut = basicReport.createTime.toInstant().isBefore(cutoff),
+            )
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
@@ -136,10 +132,18 @@ class BasicReportsMeasurementsJob(
     }
   }
 
+  /**
+   * Creates the CMMS Measurement of each of [basicReport]'s ReportComputations that has none
+   * recorded, then sets its Measurements created, or fails it if [timedOut].
+   *
+   * Creating a Measurement replays its stored request ID, so a Measurement that was created but
+   * whose ID was not recorded is found rather than created again, and so is cancelled on timeout.
+   */
   private suspend fun createMeasurements(
     basicReport: BasicReport,
     measurementConsumerName: String,
     measurementConsumerConfig: MeasurementConsumerConfig,
+    timedOut: Boolean,
   ) {
     val reportComputations: List<ReportComputation> = listReportComputations(basicReport)
     val pendingReportComputations: List<ReportComputation> =
@@ -181,6 +185,15 @@ class BasicReportsMeasurementsJob(
       }
     }
 
+    if (timedOut) {
+      logger.warning { "BasicReport ${basicReport.name} timed out creating Measurements" }
+      failer.fail(
+        basicReport,
+        listReportComputations(basicReport),
+        measurementConsumerConfig.apiKey,
+      )
+      return
+    }
     try {
       internalBasicReportsStub.setMeasurementsCreated(
         setMeasurementsCreatedRequest {

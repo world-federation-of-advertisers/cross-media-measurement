@@ -16,6 +16,8 @@ package org.wfanet.measurement.reporting.job
 
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
+import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
@@ -35,25 +37,42 @@ class MultimeasurementBasicReportFailer(
    * Cancels the CMMS Measurement of each of [reportComputations] that has one, then fails
    * [basicReport].
    *
-   * A Measurement that is already terminal or gone counts as cancelled, so a retry after a partial
-   * failure completes.
+   * Every cancellation is attempted. A Measurement that is already terminal or gone counts as
+   * cancelled, and one that cannot be cancelled for a persistent reason is logged and left, so that
+   * [basicReport] is failed regardless.
    *
    * @param apiKey the API key of [basicReport]'s MeasurementConsumer
-   * @throws Exception if a Measurement could not be cancelled, in which case [basicReport] is left
-   *   for a retry, or if [basicReport] could not be failed
+   * @throws Exception if a cancellation failed transiently, in which case [basicReport] is left for
+   *   a retry, or if [basicReport] could not be failed
    */
   suspend fun fail(
     basicReport: BasicReport,
     reportComputations: List<ReportComputation>,
     apiKey: String,
   ) {
+    val transientFailures = mutableListOf<StatusException>()
     for (reportComputation in reportComputations) {
-      if (reportComputation.cmmsMeasurementId.isNotEmpty()) {
-        cancelMeasurement(
-          MeasurementKey(basicReport.cmmsMeasurementConsumerId, reportComputation.cmmsMeasurementId)
-            .toName(),
-          apiKey,
-        )
+      if (reportComputation.cmmsMeasurementId.isEmpty()) {
+        continue
+      }
+      val name =
+        MeasurementKey(basicReport.cmmsMeasurementConsumerId, reportComputation.cmmsMeasurementId)
+          .toName()
+      try {
+        measurementsStub
+          .withAuthenticationKey(apiKey)
+          .cancelMeasurement(cancelMeasurementRequest { this.name = name })
+      } catch (e: StatusException) {
+        when (e.status.code) {
+          in DONE_CODES -> {}
+          in TRANSIENT_CODES -> transientFailures += e
+          else -> logger.log(Level.WARNING, "Unable to cancel $name", e)
+        }
+      }
+    }
+    if (transientFailures.isNotEmpty()) {
+      throw Exception("Unable to cancel ${transientFailures.size} Measurement(s)").apply {
+        transientFailures.forEach { addSuppressed(it) }
       }
     }
 
@@ -72,20 +91,14 @@ class MultimeasurementBasicReportFailer(
     }
   }
 
-  private suspend fun cancelMeasurement(name: String, apiKey: String) {
-    try {
-      measurementsStub
-        .withAuthenticationKey(apiKey)
-        .cancelMeasurement(cancelMeasurementRequest { this.name = name })
-    } catch (e: StatusException) {
-      if (e.status.code !in DONE_CODES) {
-        throw Exception("Unable to cancel $name", e)
-      }
-    }
-  }
-
   companion object {
     /** Codes of a cancellation whose Measurement is already terminal or gone. */
     private val DONE_CODES = setOf(Status.Code.FAILED_PRECONDITION, Status.Code.NOT_FOUND)
+
+    /** Codes of a cancellation that may succeed if retried. */
+    private val TRANSIENT_CODES = setOf(Status.Code.UNAVAILABLE, Status.Code.DEADLINE_EXCEEDED)
+
+    private val logger: Logger =
+      Logger.getLogger(MultimeasurementBasicReportFailer::class.java.name)
   }
 }

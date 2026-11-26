@@ -50,7 +50,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
-import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
@@ -60,6 +59,7 @@ import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
@@ -263,13 +263,22 @@ class BasicReportsMeasurementsJobTest {
 
     job.execute()
 
-    verify(measurementsMock, never()).createMeasurement(any())
-    verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::cancelMeasurement)
+    // The Measurement without a recorded ID is replayed by its request ID, so it is cancelled too.
+    verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::createMeasurement)
+      .comparingExpectedFieldsOnly()
       .isEqualTo(
-        cancelMeasurementRequest {
-          name = MeasurementKey(MEASUREMENT_CONSUMER_ID, "measurement-1").toName()
+        createMeasurementRequest {
+          requestId = MRC_REPORT_COMPUTATION.cmmsCreateMeasurementRequestId
         }
       )
+    val cancelRequests: List<CancelMeasurementRequest> =
+      verifyAndCapture(measurementsMock, MeasurementsCoroutineImplBase::cancelMeasurement, times(2))
+    assertThat(cancelRequests.map { it.name })
+      .containsExactly(
+        MeasurementKey(MEASUREMENT_CONSUMER_ID, "measurement-0").toName(),
+        MeasurementKey(MEASUREMENT_CONSUMER_ID, "measurement-1").toName(),
+      )
+    verify(basicReportsMock, never()).setMeasurementsCreated(any())
     verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::failBasicReport)
       .isEqualTo(
         failBasicReportRequest {
@@ -291,6 +300,18 @@ class BasicReportsMeasurementsJobTest {
   }
 
   @Test
+  fun `execute fails BasicReport when its Measurement cannot be cancelled`(): Unit = runBlocking {
+    stubTimedOutBasicReport()
+    whenever(measurementsMock.cancelMeasurement(any()))
+      .thenThrow(Status.PERMISSION_DENIED.asRuntimeException())
+
+    job.execute()
+
+    verify(measurementsMock, times(2)).cancelMeasurement(any())
+    verify(basicReportsMock).failBasicReport(any())
+  }
+
+  @Test
   fun `execute leaves BasicReport for the next run when a cancel is UNAVAILABLE`(): Unit =
     runBlocking {
       stubTimedOutBasicReport()
@@ -302,7 +323,10 @@ class BasicReportsMeasurementsJobTest {
       verify(basicReportsMock, never()).failBasicReport(any())
     }
 
-  /** Stubs a BasicReport past [MAX_CREATED_BASIC_REPORT_AGE] with one Measurement created. */
+  /**
+   * Stubs a BasicReport past [MAX_CREATED_BASIC_REPORT_AGE] with one Measurement recorded and one
+   * not, which the replay creates as `measurement-1`.
+   */
   private suspend fun stubTimedOutBasicReport() {
     whenever(basicReportsMock.listBasicReports(any())).thenAnswer { invocation ->
       val request: ListBasicReportsRequest = invocation.getArgument(0)
@@ -317,11 +341,19 @@ class BasicReportsMeasurementsJobTest {
         ListBasicReportsResponse.getDefaultInstance()
       }
     }
+    val recorded: ReportComputation =
+      AMI_REPORT_COMPUTATION.copy { cmmsMeasurementId = "measurement-0" }
     whenever(basicReportsMock.listReportComputations(any()))
       .thenReturn(
         listReportComputationsResponse {
-          reportComputations += AMI_REPORT_COMPUTATION.copy { cmmsMeasurementId = "measurement-1" }
+          reportComputations += recorded
           reportComputations += MRC_REPORT_COMPUTATION
+        }
+      )
+      .thenReturn(
+        listReportComputationsResponse {
+          reportComputations += recorded
+          reportComputations += MRC_REPORT_COMPUTATION.copy { cmmsMeasurementId = "measurement-1" }
         }
       )
   }
