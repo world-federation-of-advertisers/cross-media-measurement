@@ -37,12 +37,7 @@ import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProto
  * Reads the frequency vector of a fulfilled TrusTEE requisition, decrypting it with its envelope
  * encryption parameters where it is encrypted.
  *
- * This restates the decryption of [TrusTeeMill] so that the TrusTEE v2 Mill shares it.
- *
  * @param attestationTokenPath the Confidential Space attestation token presented to the KMS
- *
- * TODO(world-federation-of-advertisers/cross-media-measurement#4532): Have [TrusTeeMill] use this
- *   class too, rather than its own copy.
  */
 class TrusTeeRequisitionDecryptor(
   private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
