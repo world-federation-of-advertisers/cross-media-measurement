@@ -391,14 +391,23 @@ class BasicReportsReportsJob(
   }
 
   /**
-   * Transitions every [BasicReport] that has been in State CREATED for longer than
+   * Transitions every [BasicReport] that has been in a created State for longer than
    * [maxCreatedBasicReportAge] to State FAILED.
    *
-   * A `BasicReport` is committed in State CREATED before its `Report` is created, so an
-   * interruption between the two leaves it in State CREATED with no `Report` and no way to
-   * progress.
+   * A `BasicReport` is committed in State `CREATED_LEGACY` before its `Report` is created, and in
+   * State `CREATED_MULTIMEASUREMENT` before its `Measurement`s are created, so an interruption or a
+   * persistent error leaves it with no way to progress.
    */
   private suspend fun failStuckBasicReports(cmmsMeasurementConsumerId: String) {
+    for (createdState in CREATED_STATES) {
+      failStuckBasicReports(cmmsMeasurementConsumerId, createdState)
+    }
+  }
+
+  private suspend fun failStuckBasicReports(
+    cmmsMeasurementConsumerId: String,
+    createdState: BasicReport.State,
+  ) {
     val cutoff: Instant = clock.instant().minus(maxCreatedBasicReportAge)
 
     val resourceLists =
@@ -413,7 +422,7 @@ class BasicReportsReportsJob(
               filter =
                 ListBasicReportsRequestKt.filter {
                   this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                  state = BasicReport.State.CREATED_LEGACY
+                  state = createdState
                 }
             }
           )
@@ -1069,6 +1078,8 @@ class BasicReportsReportsJob(
   companion object {
     private val logger: Logger = Logger.getLogger(BasicReportsReportsJob::class.java.name)
     private const val BATCH_SIZE = 10
+    private val CREATED_STATES =
+      listOf(BasicReport.State.CREATED_LEGACY, BasicReport.State.CREATED_MULTIMEASUREMENT)
     private const val METRIC_CALCULATION_SPEC_BATCH_SIZE = 1000
   }
 }

@@ -255,13 +255,16 @@ class BasicReportsReportsJobTest {
     whenever(basicReportsMock.listBasicReports(any())).thenAnswer(listBasicReportsAnswer(response))
   }
 
-  /** Stubs `listBasicReports` to return [basicReports] for the CREATED filter. */
-  private suspend fun stubListCreatedBasicReports(basicReports: List<BasicReport>) {
+  /** Stubs `listBasicReports` to return [basicReports] for the [state] filter. */
+  private suspend fun stubListCreatedBasicReports(
+    basicReports: List<BasicReport>,
+    state: BasicReport.State = BasicReport.State.CREATED_LEGACY,
+  ) {
     whenever(basicReportsMock.listBasicReports(any()))
       .thenAnswer(
         Answer { invocation ->
           val request: ListBasicReportsRequest = invocation.getArgument(0)
-          if (request.filter.state == BasicReport.State.CREATED_LEGACY) {
+          if (request.filter.state == state) {
             listBasicReportsResponse { this.basicReports += basicReports }
           } else {
             ListBasicReportsResponse.getDefaultInstance()
@@ -3468,6 +3471,31 @@ class BasicReportsReportsJobTest {
       .contains("BasicReportCreationTimeout")
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
       .isEqualTo("BasicReportCreationTimeout")
+  }
+
+  @Test
+  fun `execute fails basic report stuck in CREATED_MULTIMEASUREMENT`(): Unit = runBlocking {
+    val stuckBasicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "br-stuck-01"
+        state = BasicReport.State.CREATED_MULTIMEASUREMENT
+        clearExternalReportId()
+        createTime = STUCK_CREATE_TIME
+      }
+    stubListCreatedBasicReports(
+      listOf(stuckBasicReport),
+      state = BasicReport.State.CREATED_MULTIMEASUREMENT,
+    )
+
+    job.execute()
+
+    verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::failBasicReport)
+      .isEqualTo(
+        failBasicReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalBasicReportId = stuckBasicReport.externalBasicReportId
+        }
+      )
   }
 
   @Test
