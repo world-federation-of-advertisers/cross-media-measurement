@@ -55,7 +55,6 @@ import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.computationKey
-import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
@@ -181,10 +180,9 @@ class ComputationsService(
       val authenticatedDuchy: DuchyIdentity = duchyIdentityProvider()
       val externalComputationId = apiIdToExternalId(computationKey.computationId)
 
-      val trusTeeV2: Boolean =
-        getMeasurementByComputationId(externalComputationId).details.protocolConfig.hasTrusTeeV2()
+      // The internal service rejects a payload that does not match the Measurement's protocol.
       val internalRequest =
-        if (trusTeeV2) {
+        if (request.hasResult()) {
           buildPlaintextResultRequest(request, externalComputationId, authenticatedDuchy)
         } else {
           buildEncryptedResultRequest(request, externalComputationId, authenticatedDuchy)
@@ -194,6 +192,10 @@ class ComputationsService(
           measurementsClient.setMeasurementResult(internalRequest)
         } catch (e: StatusException) {
           throw when (e.status.code) {
+              Status.Code.INVALID_ARGUMENT ->
+                Status.INVALID_ARGUMENT.withDescription(e.status.description)
+              Status.Code.FAILED_PRECONDITION ->
+                Status.FAILED_PRECONDITION.withDescription(e.status.description)
               Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
               Status.Code.CANCELLED -> Status.CANCELLED
               else -> Status.UNKNOWN
@@ -207,23 +209,6 @@ class ComputationsService(
         .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
       computation
     }
-
-  private suspend fun getMeasurementByComputationId(externalComputationId: Long): Measurement {
-    return try {
-      measurementsClient.getMeasurementByComputationId(
-        getMeasurementByComputationIdRequest { this.externalComputationId = externalComputationId }
-      )
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }
-        .withCause(e)
-        .asRuntimeException()
-    }
-  }
 
   /**
    * Builds the internal request for the plaintext multimeasurement `Result` of a TrusTEE v2

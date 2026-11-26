@@ -42,9 +42,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.inOrder
-import org.mockito.kotlin.never
 import org.mockito.kotlin.times
-import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt.queryResult
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.multimeasurementResult
@@ -1059,8 +1057,8 @@ class ComputationsServiceTest {
   @Test
   fun `setComputationResult throws INVALID_ARGUMENT when TrusTEE v2 sets encrypted_result`() =
     runBlocking {
-      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
-        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+      whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
+        .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
       val request =
         SetComputationResultRequest.newBuilder()
           .apply {
@@ -1076,14 +1074,13 @@ class ComputationsServiceTest {
         assertFailsWith<StatusRuntimeException> { service.setComputationResult(request) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      verifyBlocking(internalMeasurementsServiceMock, never()) { setMeasurementResult(any()) }
     }
 
   @Test
   fun `setComputationResult throws INVALID_ARGUMENT when non-TrusTEE v2 sets result`() =
     runBlocking {
-      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
-        .thenReturn(INTERNAL_MEASUREMENT)
+      whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
+        .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
       val request =
         SetComputationResultRequest.newBuilder()
           .apply {
@@ -1098,6 +1095,5 @@ class ComputationsServiceTest {
         assertFailsWith<StatusRuntimeException> { service.setComputationResult(request) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      verifyBlocking(internalMeasurementsServiceMock, never()) { setMeasurementResult(any()) }
     }
 }
