@@ -78,7 +78,7 @@ class TrusTeeV2MillFlags {
   var fallbackEventDescriptor: EventDescriptorFlags? = null
     private set
 
-  @CommandLine.Option(
+  @set:CommandLine.Option(
     names = ["--trus-tee-v2-hash-rank-order-cache-size"],
     description = ["How many PopulationSpecs' VID hash rank orders are kept between computations."],
     defaultValue = "1",
@@ -87,7 +87,7 @@ class TrusTeeV2MillFlags {
     private set
 
   class ResultMinimumThresholdsFlags {
-    @CommandLine.Option(
+    @set:CommandLine.Option(
       names = ["--trus-tee-v2-min-users"],
       description = ["Minimum noised reach of a released cell and of each DataProvider's slice."],
       required = true,
@@ -95,7 +95,7 @@ class TrusTeeV2MillFlags {
     var minUsers: Int by Delegates.notNull()
       private set
 
-    @CommandLine.Option(
+    @set:CommandLine.Option(
       names = ["--trus-tee-v2-min-impressions"],
       description = ["Minimum noised impressions of a released cell."],
       required = true,
@@ -103,7 +103,7 @@ class TrusTeeV2MillFlags {
     var minImpressions: Int by Delegates.notNull()
       private set
 
-    @CommandLine.Option(
+    @set:CommandLine.Option(
       names = ["--trus-tee-v2-reach-max-frequency-per-user"],
       description = ["Most impressions one VID contributes to a cell under noise."],
       required = true,

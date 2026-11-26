@@ -36,10 +36,10 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_maxCreatedBasicReportAge:           string | *"15m"
+	_maxCreatedBasicReportAge: string | *"15m"
 	// Spans several runs of the multimeasurement job, which runs on the report result processor schedule.
 	_maxCreatedMultimeasurementBasicReportAge: string | *"1h"
-	_kingdomMeasurementBatchConcurrency: string | *"8"
+	_kingdomMeasurementBatchConcurrency:       string | *"8"
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {

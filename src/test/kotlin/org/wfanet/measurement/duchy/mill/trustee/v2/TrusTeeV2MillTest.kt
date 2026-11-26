@@ -255,6 +255,19 @@ class TrusTeeV2MillTest {
   }
 
   @Test
+  fun `computing fails when vector indexes repeat`(): Unit = runBlocking {
+    addComputation(
+      Stage.COMPUTING,
+      VECTORS,
+      requisitions = listOf(requisition(0, vectorIndex = 0), requisition(1, vectorIndex = 0)),
+    )
+
+    createMill().claimAndProcessWork()
+
+    assertFailed()
+  }
+
+  @Test
   fun `computing fails when a vector does not match the population`(): Unit = runBlocking {
     addComputation(Stage.COMPUTING, VECTORS.map { it.copyOf(it.size - 1) })
 
