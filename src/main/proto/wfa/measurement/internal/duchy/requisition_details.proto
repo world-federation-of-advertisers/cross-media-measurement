@@ -114,21 +114,6 @@ message RequisitionDetails {
       // with, which v2 does not change.
       TrusTee trus_tee = 1;
 
-      // Values the `DataProvider` supplied alongside the frequency vector,
-      // recorded verbatim for the mill to read inside the TEE.
-      oneof details {
-        // Serialized public API
-        // `FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails`, in
-        // the version given by [RequisitionDetails.public_api_version][], when
-        // [TrusTee.data_format][] is `FREQUENCY_VECTOR`.
-        bytes fulfillment_details = 2;
-
-        // [fulfillment_details][] encrypted with the same Data Encryption Key
-        // as the frequency vector, when [TrusTee.data_format][] is
-        // `ENCRYPTED_FREQUENCY_VECTOR`.
-        bytes encrypted_fulfillment_details = 3;
-      }
-
       // Resource ID of the `DataProvider` that fulfilled this `Requisition`,
       // the authenticated caller of the fulfillment.
       string data_provider_resource_id = 4;

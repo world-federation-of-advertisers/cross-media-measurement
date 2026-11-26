@@ -114,27 +114,28 @@ class RequisitionFulfillmentService(
                 .put(ReportTraceAttributes.OUTCOME, "started")
                 .build(),
           ) {
-            // A multimeasurement fulfillment carries no nonce.
-            if (header.hasTrusTeeV2()) {
-              grpcRequire(header.nonce == 0L) { "nonce specified for a TrusTEE v2 fulfillment" }
-            } else {
-              grpcRequire(header.nonce != 0L) { "nonce unspecified" }
-            }
-
             val authenticatedPrincipal = principalFromCurrentContext
             if (key.parentKey != authenticatedPrincipal.resourceKey) {
               throw Permission.FULFILL.deniedStatus(header.name).asRuntimeException()
             }
 
             val token = getComputationToken(externalRequisitionKey)
+            // Validated against the computation before anything is written, so that a mismatched
+            // fulfillment leaves no blob behind.
+            val trusTeeV2: Boolean =
+              token.computationStage.stageCase == ComputationStage.StageCase.TRUS_TEE_V2
+            grpcRequire(header.hasTrusTeeV2() == trusTeeV2) {
+              "trus_tee_v2 must be specified exactly for a TrusTEE v2 computation"
+            }
             val requisitionMetadata =
-              if (token.computationStage.stageCase == ComputationStage.StageCase.TRUS_TEE_V2) {
-                // The plaintext RequisitionSpec of a multimeasurement has no nonce to verify. Its
-                // fingerprint already matched in the computation lookup.
-                checkNotNull(
-                  token.requisitionsList.find { it.externalKey == externalRequisitionKey }
-                )
+              if (trusTeeV2) {
+                // The plaintext RequisitionSpec of a multimeasurement has no nonce. Its fingerprint
+                // already matched in the computation lookup.
+                grpcRequire(header.nonce == 0L) { "nonce specified for a TrusTEE v2 fulfillment" }
+                token.requisitionsList.find { it.externalKey == externalRequisitionKey }
+                  ?: failGrpc(Status.NOT_FOUND) { "Requisition not found" }
               } else {
+                grpcRequire(header.nonce != 0L) { "nonce unspecified" }
                 verifyRequisitionFulfillment(token, externalRequisitionKey, header.nonce)
               }
 
@@ -188,9 +189,6 @@ class RequisitionFulfillmentService(
                   )
                 }
                 ComputationStage.StageCase.TRUS_TEE_V2 -> {
-                  grpcRequire(header.hasTrusTeeV2()) {
-                    "trus_tee_v2 not specified for a TrusTEE v2 computation."
-                  }
                   recordTrusTeeRequisitionLocally(
                     token = token,
                     key = externalRequisitionKey,
@@ -413,23 +411,6 @@ class RequisitionFulfillmentService(
     return trusTeeV2 {
       trusTee = source.trusTee.toInternal()
       this.dataProviderResourceId = dataProviderResourceId
-      when (source.detailsCase) {
-        Header.TrusTeeV2.DetailsCase.FULFILLMENT_DETAILS -> {
-          grpcRequire(source.trusTee.dataFormat == Header.TrusTee.DataFormat.FREQUENCY_VECTOR) {
-            "fulfillment_details requires the FREQUENCY_VECTOR data format."
-          }
-          fulfillmentDetails = source.fulfillmentDetails.toByteString()
-        }
-        Header.TrusTeeV2.DetailsCase.ENCRYPTED_FULFILLMENT_DETAILS -> {
-          grpcRequire(
-            source.trusTee.dataFormat == Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
-          ) {
-            "encrypted_fulfillment_details requires the ENCRYPTED_FREQUENCY_VECTOR data format."
-          }
-          encryptedFulfillmentDetails = source.encryptedFulfillmentDetails.toByteString()
-        }
-        Header.TrusTeeV2.DetailsCase.DETAILS_NOT_SET -> {}
-      }
     }
   }
 
