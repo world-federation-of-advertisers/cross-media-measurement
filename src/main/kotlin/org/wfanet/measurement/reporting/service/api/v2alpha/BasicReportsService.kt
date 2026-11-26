@@ -588,10 +588,23 @@ class BasicReportsService(
         }
       }
 
+    // Both paths need the composite ReportingSets, under which results are written and read.
+    val nameByReportingSetComposite: Map<ReportingSet.Composite, String> =
+      try {
+        getOrCreateCompositeReportingSets(
+          reportingSetsMetricCalculationSpecDetailsMap.keys,
+          reportingSetMaps.nameByReportingSetComposite,
+          parentKey,
+        )
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: InternalReportingSetsException) {
+        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
+      }
+
     // A repeated request with the same request ID returns the existing BasicReport, which may have
     // already been advanced or failed. A multimeasurement BasicReport has no Report: the
-    // BasicReports
-    // create job creates its CMMS Measurements.
+    // BasicReports create job creates its CMMS Measurements.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
     when (createdInternalBasicReport.state) {
       InternalBasicReport.State.CREATED_LEGACY -> {}
@@ -618,21 +631,15 @@ class BasicReportsService(
     val basicReportName =
       BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
     val report: Report =
-      try {
-        buildReport(
-          request.basicReport,
-          basicReportName,
-          campaignGroupResolution.campaignGroupKey,
-          reportingSetMaps.nameByReportingSetComposite,
-          reportingSetsMetricCalculationSpecDetailsMap,
-          effectiveModelLine.name,
-          effectiveReportStart,
-        )
-      } catch (e: ReportingSetNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-      } catch (e: InternalReportingSetsException) {
-        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
-      }
+      buildReport(
+        request.basicReport,
+        basicReportName,
+        campaignGroupResolution.campaignGroupKey,
+        nameByReportingSetComposite,
+        reportingSetsMetricCalculationSpecDetailsMap,
+        effectiveModelLine.name,
+        effectiveReportStart,
+      )
 
     val createReportRequest = createReportRequest {
       parent = request.parent
@@ -1398,13 +1405,11 @@ class BasicReportsService(
    * @param basicReport [BasicReport]
    * @param campaignGroupKey [ReportingSetKey] representing CampaignGroup
    * @param nameByReportingSetComposite Map of [ReportingSet.Composite] to ReportingSet resource
-   *   name
+   *   name, including every composite in [reportingSetMetricCalculationSpecDetailsMap]
    * @param reportingSetMetricCalculationSpecDetailsMap Map of [ReportingSet] to List of
    *   [InternalMetricCalculationSpec.Details]
    * @param modelLine The model line to use for the report.
    * @param effectiveReportStart The report start to use for the report.
-   * @throws ReportingSetNotFoundException
-   * @throws InternalReportingSetsException
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
@@ -1416,7 +1421,6 @@ class BasicReportsService(
     modelLine: String,
     effectiveReportStart: DateTime,
   ): Report {
-    val existingReportingSetCompositesMap = nameByReportingSetComposite.toMutableMap()
     val existingMetricCalculationSpecsMap =
       buildMetricCalculationSpecToNameMap(campaignGroupKey).toMutableMap()
 
@@ -1426,27 +1430,14 @@ class BasicReportsService(
         reportingSetMetricCalculationSpecDetailsMap.entries) {
         reportingMetricEntries +=
           ReportKt.reportingMetricEntry {
-            // Reuse ReportingSet or create a new one if it doesn't exist
+            // All required ReportingSets have already been created so the name exists
             key =
-              // All required Primitive ReportingSets have already been created so the name exists
               if (reportingSetMetricCalculationSpecDetailsEntry.key.hasPrimitive()) {
                 reportingSetMetricCalculationSpecDetailsEntry.key.name
               } else {
-                existingReportingSetCompositesMap.getOrPut(
+                nameByReportingSetComposite.getValue(
                   reportingSetMetricCalculationSpecDetailsEntry.key.composite
-                ) {
-                  val createdReportingSet =
-                    createCompositeReportingSet(
-                      reportingSetMetricCalculationSpecDetailsEntry.key,
-                      campaignGroupKey.parentKey,
-                    )
-
-                  ReportingSetKey(
-                      createdReportingSet.cmmsMeasurementConsumerId,
-                      createdReportingSet.externalReportingSetId,
-                    )
-                    .toName()
-                }
+                )
               }
 
             value =
@@ -1482,6 +1473,35 @@ class BasicReportsService(
           reportEnd = basicReport.reportingInterval.reportEnd
         }
     }
+  }
+
+  /**
+   * Returns the resource name of the [ReportingSet] for each composite in [reportingSets], creating
+   * those not already in [nameByReportingSetComposite].
+   *
+   * @throws ReportingSetNotFoundException if a [ReportingSets] referenced in a set expression is
+   *   not found
+   * @throws InternalReportingSetsException if there was another error from the internal API
+   */
+  private suspend fun getOrCreateCompositeReportingSets(
+    reportingSets: Collection<ReportingSet>,
+    nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
+    parentKey: MeasurementConsumerKey,
+  ): Map<ReportingSet.Composite, String> {
+    val names = nameByReportingSetComposite.toMutableMap()
+    for (reportingSet in reportingSets) {
+      if (reportingSet.hasComposite()) {
+        names.getOrPut(reportingSet.composite) {
+          val createdReportingSet = createCompositeReportingSet(reportingSet, parentKey)
+          ReportingSetKey(
+              createdReportingSet.cmmsMeasurementConsumerId,
+              createdReportingSet.externalReportingSetId,
+            )
+            .toName()
+        }
+      }
+    }
+    return names
   }
 
   /**
