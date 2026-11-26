@@ -207,6 +207,10 @@ the TrusTEE v2 methodology. A `DataProvider`'s reported impression count, exact
 or noised by the `DataProvider`, describes its whole campaign and does not
 change any cell.
 
+Under truncated-Laplace noise the result thresholds are required. Each VID's
+impressions in a cell are capped at `reach_max_frequency_per_user`, which is the
+sensitivity of the impression draw.
+
 ## Result thresholding
 
 Each noised cell is then thresholded as a result in its own right, the same way
