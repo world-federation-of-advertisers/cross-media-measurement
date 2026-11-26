@@ -28,7 +28,6 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlin.test.assertFailsWith
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -65,7 +64,6 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
-import org.wfanet.measurement.internal.kingdom.ModelReleasesGrpcKt.ModelReleasesCoroutineImplBase as InternalModelReleasesCoroutineService
 import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt
 import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt.PopulationSpecKt as InternalPopulationSpecKt
 import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase as InternalPopulationsCoroutineService
@@ -86,7 +84,6 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
-import org.wfanet.measurement.internal.kingdom.getModelReleaseRequest
 import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
@@ -372,7 +369,6 @@ private val QUERY = query {
 private const val EXTERNAL_MODEL_PROVIDER_ID = 8L
 private const val EXTERNAL_MODEL_SUITE_ID = 9L
 private const val EXTERNAL_MODEL_LINE_ID = 10L
-private const val EXTERNAL_MODEL_RELEASE_ID = 11L
 private const val EXTERNAL_POPULATION_ID = 12L
 private val MODEL_LINE_NAME =
   "modelProviders/${externalIdToApiId(EXTERNAL_MODEL_PROVIDER_ID)}/" +
@@ -787,59 +783,6 @@ class ComputationsServiceTest {
         }
       )
   }
-
-  @Test
-  fun `getComputation resolves TrusTEE v2 population from latest ModelRollout`() = runBlocking {
-    val latestExternalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID + 1
-    whenever(internalModelRolloutsServiceMock.streamModelRollouts(any()))
-      .thenReturn(
-        flowOf(
-          INTERNAL_MODEL_ROLLOUT,
-          INTERNAL_MODEL_ROLLOUT.copy {
-            externalModelRolloutId = 2L
-            createTime = timestamp { seconds = 200 }
-            externalModelReleaseId = latestExternalModelReleaseId
-          },
-          INTERNAL_MODEL_ROLLOUT.copy {
-            externalModelRolloutId = 3L
-            rolloutPeriodStartTime = timestamp { seconds = 500 }
-            createTime = timestamp { seconds = 300 }
-            externalModelReleaseId = EXTERNAL_MODEL_RELEASE_ID + 2
-          },
-        )
-      )
-    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
-      .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
-
-    service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
-
-    verifyProtoArgument(
-        internalModelReleasesServiceMock,
-        InternalModelReleasesCoroutineService::getModelRelease,
-      )
-      .isEqualTo(
-        getModelReleaseRequest {
-          externalModelProviderId = EXTERNAL_MODEL_PROVIDER_ID
-          externalModelSuiteId = EXTERNAL_MODEL_SUITE_ID
-          externalModelReleaseId = latestExternalModelReleaseId
-        }
-      )
-  }
-
-  @Test
-  fun `getComputation throws FAILED_PRECONDITION when TrusTEE v2 model line has no rollout`() =
-    runBlocking {
-      whenever(internalModelRolloutsServiceMock.streamModelRollouts(any())).thenReturn(emptyFlow())
-      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
-        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    }
 
   @Test
   fun `getComputation throws FAILED_PRECONDITION when TrusTEE v2 population is not found`() =
