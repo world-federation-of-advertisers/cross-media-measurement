@@ -152,7 +152,9 @@ class BasicReportsMultimeasurementResultsJobTest {
 
   private suspend fun stubReportComputations(vararg reportComputations: ReportComputation) {
     whenever(basicReportsMock.listReportComputations(any()))
-      .thenReturn(listReportComputationsResponse { this.reportComputations += reportComputations })
+      .thenReturn(
+        listReportComputationsResponse { this.reportComputations += reportComputations.toList() }
+      )
   }
 
   private suspend fun stubMeasurements(vararg measurements: Measurement) {
