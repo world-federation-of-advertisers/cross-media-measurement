@@ -39,6 +39,7 @@ kt_jvm_library(
         ":subpopulation_attributes",
         "//imports/it/unimi/dsi/fastutil",
         "//src/main/kotlin/org/wfanet/measurement/common:vid_hashing",
+        "//src/main/kotlin/org/wfanet/measurement/computation:sampled_index_ranges",
         "//src/main/proto/wfa/measurement/internal/duchy:population_spec_kt_jvm_proto",
     ],
 )

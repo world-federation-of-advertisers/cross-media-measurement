@@ -20,6 +20,7 @@ import it.unimi.dsi.fastutil.Arrays as FastUtilArrays
 import it.unimi.dsi.fastutil.Swapper
 import it.unimi.dsi.fastutil.ints.IntComparator
 import org.wfanet.measurement.common.VidHashing
+import org.wfanet.measurement.computation.SampledIndexRanges
 import org.wfanet.measurement.internal.duchy.PopulationSpec
 
 /**
@@ -99,26 +100,10 @@ private constructor(
         "PopulationSpec has ${order.subpopulationSizes.size} subpopulations, attributes " +
           "have ${attributes.subpopulationCount}"
       }
-      require(samplingWidth > 0.0f && samplingWidth <= 1.0f) {
-        "Invalid sampling width $samplingWidth"
-      }
-      require(samplingStart in 0.0f..1.0f) { "Invalid sampling start $samplingStart" }
-
-      val populationSize: Int = order.subpopulationByGlobalIndex.size
-      // Computed as FrequencyVectorBuilder does, in Float, so that the interval matches the
-      // DataProviders' vectors exactly.
-      val globalStartIndex = (populationSize * samplingStart).toInt()
-      val globalEndIndex = (populationSize * (samplingStart + samplingWidth)).toInt() - 1
-      val primaryCount = minOf(globalEndIndex, populationSize - 1) - globalStartIndex + 1
-      val wrappedCount =
-        if (globalEndIndex >= populationSize) globalEndIndex - populationSize + 1 else 0
-
-      return HashRankSubpopulationIndex(
-        order,
-        globalStartIndex,
-        maxOf(primaryCount, 0) + wrappedCount,
-        attributes,
-      )
+      // The same ranges the DataProviders build their vectors over.
+      val ranges =
+        SampledIndexRanges.of(order.subpopulationByGlobalIndex.size, samplingStart, samplingWidth)
+      return HashRankSubpopulationIndex(order, ranges.primaryRange.first, ranges.size, attributes)
     }
   }
 }

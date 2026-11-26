@@ -127,3 +127,8 @@ kt_jvm_library(
         ":result_noiser",
     ],
 )
+
+kt_jvm_library(
+    name = "sampled_index_ranges",
+    srcs = ["SampledIndexRanges.kt"],
+)
