@@ -343,12 +343,16 @@ class InvalidBasicReportException(
     cause,
   )
 
-class ReportComputationNotFoundException
-private constructor(
+/**
+ * Exception for a missing ReportComputation of the impression qualification filter with
+ * [externalImpressionQualificationFilterId], or for a BasicReport with no ReportComputation at all
+ * if that is `null`.
+ */
+class ReportComputationNotFoundException(
   cmmsMeasurementConsumerId: String,
   externalBasicReportId: String,
   externalImpressionQualificationFilterId: String?,
-  cause: Throwable?,
+  cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.REPORT_COMPUTATION_NOT_FOUND,
@@ -371,31 +375,13 @@ private constructor(
     },
     cause,
   ) {
-  /** Constructs an exception for a missing ReportComputation of a single impression filter. */
-  constructor(
-    cmmsMeasurementConsumerId: String,
-    externalBasicReportId: String,
-    externalImpressionQualificationFilterId: String,
-    cause: Throwable? = null,
-  ) : this(
-    cmmsMeasurementConsumerId,
-    externalBasicReportId,
-    externalImpressionQualificationFilterId as String?,
-    cause,
-  )
-
   companion object {
     /** Returns an exception for a BasicReport that has no ReportComputation at all. */
     fun forBasicReport(
       cmmsMeasurementConsumerId: String,
       externalBasicReportId: String,
     ): ReportComputationNotFoundException =
-      ReportComputationNotFoundException(
-        cmmsMeasurementConsumerId,
-        externalBasicReportId,
-        null,
-        null,
-      )
+      ReportComputationNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId, null)
   }
 }
 
