@@ -21,6 +21,10 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.Empty
 import io.grpc.Status
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -46,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.measurement
@@ -56,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
@@ -142,6 +148,8 @@ class BasicReportsMeasurementsJobTest {
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        MAX_CREATED_BASIC_REPORT_AGE,
+        CLOCK,
       )
   }
 
@@ -218,6 +226,20 @@ class BasicReportsMeasurementsJobTest {
           measurement { name = MeasurementKey(MEASUREMENT_CONSUMER_ID, "measurement-1").toName() }
         )
         .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
+      whenever(basicReportsMock.listReportComputations(any()))
+        .thenReturn(
+          listReportComputationsResponse {
+            reportComputations += AMI_REPORT_COMPUTATION
+            reportComputations += MRC_REPORT_COMPUTATION
+          }
+        )
+        .thenReturn(
+          listReportComputationsResponse {
+            reportComputations +=
+              AMI_REPORT_COMPUTATION.copy { cmmsMeasurementId = "measurement-1" }
+            reportComputations += MRC_REPORT_COMPUTATION
+          }
+        )
 
       job.execute()
 
@@ -234,6 +256,75 @@ class BasicReportsMeasurementsJobTest {
         .isEqualTo(MeasurementKey(MEASUREMENT_CONSUMER_ID, "measurement-1").toName())
       verify(basicReportsMock, never()).setMeasurementsCreated(any())
     }
+
+  @Test
+  fun `execute fails a timed-out BasicReport and cancels its Measurements`(): Unit = runBlocking {
+    stubTimedOutBasicReport()
+
+    job.execute()
+
+    verify(measurementsMock, never()).createMeasurement(any())
+    verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::cancelMeasurement)
+      .isEqualTo(
+        cancelMeasurementRequest {
+          name = MeasurementKey(MEASUREMENT_CONSUMER_ID, "measurement-1").toName()
+        }
+      )
+    verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::failBasicReport)
+      .isEqualTo(
+        failBasicReportRequest {
+          cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
+          externalBasicReportId = BASIC_REPORT_ID
+        }
+      )
+  }
+
+  @Test
+  fun `execute fails BasicReport when its Measurement is already cancelled`(): Unit = runBlocking {
+    stubTimedOutBasicReport()
+    whenever(measurementsMock.cancelMeasurement(any()))
+      .thenThrow(Status.FAILED_PRECONDITION.asRuntimeException())
+
+    job.execute()
+
+    verify(basicReportsMock).failBasicReport(any())
+  }
+
+  @Test
+  fun `execute leaves BasicReport for the next run when a cancel is UNAVAILABLE`(): Unit =
+    runBlocking {
+      stubTimedOutBasicReport()
+      whenever(measurementsMock.cancelMeasurement(any()))
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+      job.execute()
+
+      verify(basicReportsMock, never()).failBasicReport(any())
+    }
+
+  /** Stubs a BasicReport past [MAX_CREATED_BASIC_REPORT_AGE] with one Measurement created. */
+  private suspend fun stubTimedOutBasicReport() {
+    whenever(basicReportsMock.listBasicReports(any())).thenAnswer { invocation ->
+      val request: ListBasicReportsRequest = invocation.getArgument(0)
+      if (request.filter.state == BasicReport.State.CREATED_MULTIMEASUREMENT) {
+        listBasicReportsResponse {
+          basicReports +=
+            BASIC_REPORT.copy {
+              createTime = CREATE_TIME.minus(MAX_CREATED_BASIC_REPORT_AGE).toProtoTime()
+            }
+        }
+      } else {
+        ListBasicReportsResponse.getDefaultInstance()
+      }
+    }
+    whenever(basicReportsMock.listReportComputations(any()))
+      .thenReturn(
+        listReportComputationsResponse {
+          reportComputations += AMI_REPORT_COMPUTATION.copy { cmmsMeasurementId = "measurement-1" }
+          reportComputations += MRC_REPORT_COMPUTATION
+        }
+      )
+  }
 
   @Test
   fun `execute leaves BasicReport for the next run when the CMMS is UNAVAILABLE`(): Unit =
@@ -259,6 +350,8 @@ class BasicReportsMeasurementsJobTest {
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
+        MAX_CREATED_BASIC_REPORT_AGE,
+        CLOCK,
       )
 
     jobWithoutApiKey.execute()
@@ -290,10 +383,15 @@ class BasicReportsMeasurementsJobTest {
       configs[MEASUREMENT_CONSUMER_NAME] = MEASUREMENT_CONSUMER_CONFIG
     }
 
+    private val CREATE_TIME: Instant = Instant.parse("2026-01-05T00:00:00Z")
+    private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+    private val CLOCK: Clock = Clock.fixed(CREATE_TIME.plusSeconds(60), ZoneOffset.UTC)
+
     private val BASIC_REPORT: BasicReport = basicReport {
       cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
       externalBasicReportId = BASIC_REPORT_ID
       state = BasicReport.State.CREATED_MULTIMEASUREMENT
+      createTime = CREATE_TIME.toProtoTime()
       modelLineKey =
         BasicReportKt.modelLineKey {
           cmmsModelProviderId = "provider"

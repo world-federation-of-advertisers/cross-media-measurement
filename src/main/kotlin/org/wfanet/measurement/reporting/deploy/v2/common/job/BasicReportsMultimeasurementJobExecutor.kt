@@ -38,6 +38,21 @@ import org.wfanet.measurement.reporting.job.BasicReportsMeasurementsJob
 import org.wfanet.measurement.reporting.job.BasicReportsMultimeasurementResultsJob
 import picocli.CommandLine
 
+class BasicReportsMultimeasurementJobFlags {
+  @CommandLine.Option(
+    names = ["--max-created-multimeasurement-basic-report-age"],
+    defaultValue = "1h",
+    description =
+      [
+        "How long a multimeasurement BasicReport may remain without all of its Measurements " +
+          "created before it is marked FAILED.",
+        "Must span several runs of this job.",
+      ],
+  )
+  lateinit var maxCreatedBasicReportAge: Duration
+    private set
+}
+
 @CommandLine.Command(
   name = "BasicReportsMultimeasurementJobExecutor",
   description =
@@ -53,6 +68,7 @@ private fun run(
   @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
+  @CommandLine.Mixin jobFlags: BasicReportsMultimeasurementJobFlags,
 ) {
   val clientCerts =
     SigningCerts.fromPemFiles(
@@ -91,6 +107,7 @@ private fun run(
         internalBasicReportsStub,
         CmmsMeasurementConsumersCoroutineStub(kingdomChannel),
         cmmsMeasurementsStub,
+        jobFlags.maxCreatedBasicReportAge,
       )
       .execute()
     BasicReportsMultimeasurementResultsJob(

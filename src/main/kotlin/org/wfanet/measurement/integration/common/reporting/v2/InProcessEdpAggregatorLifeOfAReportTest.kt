@@ -1415,6 +1415,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         reportingServer.internalBasicReportsClient,
         publicMeasurementConsumersClient,
         publicMeasurementsClient,
+        MAX_CREATED_BASIC_REPORT_AGE,
       )
       .execute()
   }

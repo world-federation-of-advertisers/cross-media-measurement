@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.reporting.job
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Empty
 import com.google.protobuf.util.Durations
@@ -32,8 +33,10 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.GetMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
@@ -117,7 +120,9 @@ class BasicReportsMultimeasurementResultsJobTest {
       }
   }
 
-  private val measurementsMock: MeasurementsCoroutineImplBase = mockService()
+  private val measurementsMock: MeasurementsCoroutineImplBase = mockService {
+    onBlocking { cancelMeasurement(any()) } doReturn Measurement.getDefaultInstance()
+  }
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -405,6 +410,9 @@ class BasicReportsMultimeasurementResultsJobTest {
           externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
         }
       )
+    val cancelRequests: List<CancelMeasurementRequest> =
+      verifyAndCapture(measurementsMock, MeasurementsCoroutineImplBase::cancelMeasurement, times(2))
+    assertThat(cancelRequests.map { it.name }).containsExactly(MEASUREMENT_NAME, MEASUREMENT_NAME_2)
     verifyBlocking(reportResultsMock, never()) { beginReportResultAssembly(any()) }
   }
 

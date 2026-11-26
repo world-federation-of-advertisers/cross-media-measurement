@@ -50,7 +50,6 @@ import org.wfanet.measurement.internal.reporting.v2.batchCreateReportResultAssem
 import org.wfanet.measurement.internal.reporting.v2.beginReportResultAssemblyRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
 import org.wfanet.measurement.internal.reporting.v2.discardReportResultRequest
-import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportResult
@@ -73,6 +72,9 @@ class BasicReportsMultimeasurementResultsJob(
   private val reportResultsStub: ReportResultsCoroutineStub,
   private val cmmsMeasurementsStub: CmmsMeasurementsCoroutineStub,
 ) {
+  private val failer =
+    MultimeasurementBasicReportFailer(internalBasicReportsStub, cmmsMeasurementsStub)
+
   suspend fun execute() {
     for ((measurementConsumerName, measurementConsumerConfig) in
       measurementConsumerConfigs.configsMap) {
@@ -157,7 +159,7 @@ class BasicReportsMultimeasurementResultsJob(
         Measurement.State.FAILED,
         Measurement.State.CANCELLED -> {
           logger.warning { "Measurement ${measurement.name} is ${measurement.state}" }
-          failBasicReport(basicReport)
+          failer.fail(basicReport, reportComputations, apiKey)
           return
         }
         Measurement.State.STATE_UNSPECIFIED,
@@ -175,7 +177,7 @@ class BasicReportsMultimeasurementResultsJob(
         buildReportingSetResults(basicReport, reportComputations.zip(measurements))
       } catch (e: InvalidMultimeasurementResultException) {
         logger.log(Level.WARNING, "Multimeasurement results do not fit the BasicReport", e)
-        failBasicReport(basicReport)
+        failer.fail(basicReport, reportComputations, apiKey)
         return
       }
     writeReportingSetResults(basicReport, reportingSetResults)
@@ -387,20 +389,6 @@ class BasicReportsMultimeasurementResultsJob(
     }
   }
 
-  private suspend fun failBasicReport(basicReport: BasicReport) {
-    try {
-      internalBasicReportsStub.failBasicReport(
-        failBasicReportRequest {
-          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-          externalBasicReportId = basicReport.externalBasicReportId
-        }
-      )
-    } catch (e: StatusException) {
-      throw Exception("Unable to fail BasicReport", e)
-    }
-  }
-
-  /** Noisy values of one reporting window of a `ReportingSetResult`. */
   private class Window(
     var nonCumulativeStart: Date? = null,
     var cumulativeResults: NoisyMetricSet? = null,
