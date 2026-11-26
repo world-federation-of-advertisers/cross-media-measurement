@@ -37,8 +37,6 @@ class ReportResultAssembler(private val reportResultsStub: ReportResultsCoroutin
     ASSEMBLED,
     /** Another worker is assembling the [BasicReport]'s results. */
     ALREADY_ACTIVE,
-    /** The requests could not be built, so the `ReportResult` was discarded. */
-    ABANDONED,
   }
 
   /**
@@ -46,7 +44,7 @@ class ReportResultAssembler(private val reportResultsStub: ReportResultsCoroutin
    * `ReportingSetResult` requests that [buildRequests] returns for it, in batches that each fit in
    * one transaction.
    *
-   * The `ReportResult` is discarded if [buildRequests] returns `null` or anything throws.
+   * The `ReportResult` is discarded if anything throws, including [buildRequests].
    *
    * @throws Exception if the `ReportResult` could not be begun
    * @throws StatusException if a batch could not be written
@@ -54,7 +52,7 @@ class ReportResultAssembler(private val reportResultsStub: ReportResultsCoroutin
   suspend fun assemble(
     basicReport: BasicReport,
     reportStart: DateTime,
-    buildRequests: suspend (ReportResult) -> List<CreateReportingSetResultRequest>?,
+    buildRequests: suspend (ReportResult) -> List<CreateReportingSetResultRequest>,
   ): Outcome {
     val reportResult: ReportResult =
       try {
@@ -75,8 +73,7 @@ class ReportResultAssembler(private val reportResultsStub: ReportResultsCoroutin
 
     var resultAssociated = false
     try {
-      val requests: List<CreateReportingSetResultRequest> =
-        buildRequests(reportResult) ?: return Outcome.ABANDONED
+      val requests: List<CreateReportingSetResultRequest> = buildRequests(reportResult)
       // Validate dimensions across the entire result set before any partial writes.
       require(requests.map { it.reportingSetResult.dimension }.toSet().size == requests.size) {
         "Report results contain duplicate dimensions"

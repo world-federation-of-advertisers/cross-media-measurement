@@ -196,11 +196,10 @@ class BasicReportsReportsJob(
               when (report.state) {
                 Report.State.SUCCEEDED -> {
                   span.addEvent("reporting.report_result.create_started")
-                  var invalidBasicReport: InvalidBasicReportException? = null
                   val outcome: ReportResultAssembler.Outcome =
-                    assembler.assemble(basicReport, report.reportingInterval.reportStart) {
-                      reportResult ->
-                      try {
+                    try {
+                      assembler.assemble(basicReport, report.reportingInterval.reportStart) {
+                        reportResult ->
                         span.addEvent("reporting.report_result.transform_started")
                         transformReportResults(
                             reportResult,
@@ -210,22 +209,11 @@ class BasicReportsReportsJob(
                             eventTemplateFieldByPredicate,
                           )
                           .also { span.addEvent("reporting.report_result.transform_succeeded") }
-                        // There is a bug with CreateBasicReports involving the storing of
-                        // ImpressionQualificationFilter information that has been fixed.
-                        // BasicReports affected by the bug will be FAILED.
-                      } catch (e: InvalidBasicReportException) {
-                        invalidBasicReport = e
-                        null
                       }
-                    }
-                  when (outcome) {
-                    ReportResultAssembler.Outcome.ASSEMBLED -> {}
-                    ReportResultAssembler.Outcome.ALREADY_ACTIVE -> {
-                      span.addEvent("reporting.report_result.assembly_already_active")
-                      return@trace
-                    }
-                    ReportResultAssembler.Outcome.ABANDONED -> {
-                      val e: InvalidBasicReportException = checkNotNull(invalidBasicReport)
+                    } catch (e: InvalidBasicReportException) {
+                      // There is a bug with CreateBasicReports involving the storing of
+                      // ImpressionQualificationFilter information that has been fixed.
+                      // BasicReports affected by the bug will be FAILED.
                       span
                         .setStatus(StatusCode.ERROR, "Invalid BasicReport result transformation")
                         .setAttribute(
@@ -264,6 +252,12 @@ class BasicReportsReportsJob(
                         "failed",
                         error = e,
                       )
+                      return@trace
+                    }
+                  when (outcome) {
+                    ReportResultAssembler.Outcome.ASSEMBLED -> {}
+                    ReportResultAssembler.Outcome.ALREADY_ACTIVE -> {
+                      span.addEvent("reporting.report_result.assembly_already_active")
                       return@trace
                     }
                   }
