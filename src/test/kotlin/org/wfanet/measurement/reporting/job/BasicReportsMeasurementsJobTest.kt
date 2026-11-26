@@ -97,6 +97,7 @@ import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.setMeasurementsCreatedRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MultimeasurementCompiler
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 
 @RunWith(JUnit4::class)
 class BasicReportsMeasurementsJobTest {
@@ -247,7 +248,10 @@ class BasicReportsMeasurementsJobTest {
               }
             modelLine = MODEL_LINE_NAME
             reportingMetadata =
-              MeasurementSpecKt.reportingMetadata { basicReport = BASIC_REPORT_NAME }
+              MeasurementSpecKt.reportingMetadata {
+                report = ReportKey(MEASUREMENT_CONSUMER_ID, BASIC_REPORT_ID).toName()
+                basicReport = BASIC_REPORT_NAME
+              }
           }
         )
       assertThat(request.measurement.multimeasurement.queriesList).isNotEmpty()

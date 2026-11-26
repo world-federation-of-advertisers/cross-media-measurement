@@ -102,6 +102,9 @@ abstract class InProcessEdpAggregatorMultimeasurementTest(
                 width = 1.0f
               }
             modelLine = modelLineName
+            // The EDP Aggregator groups requisitions by report.
+            reportingMetadata =
+              MeasurementSpecKt.reportingMetadata { report = "$mcName/reports/$REPORT_ID" }
           }
           multimeasurement =
             MeasurementKt.multimeasurement {
@@ -219,6 +222,7 @@ abstract class InProcessEdpAggregatorMultimeasurementTest(
   }
 
   companion object {
+    private const val REPORT_ID = "trustee-v2-multimeasurement"
     private const val QUERY_ID = "reach-of-all-vectors"
     private const val MAX_FREQUENCY = 10
     private const val EVENT_GROUP_PAGE_SIZE = 100

@@ -64,6 +64,7 @@ import org.wfanet.measurement.internal.reporting.v2.setReportComputationMeasurem
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MultimeasurementCompiler
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 
 /**
@@ -402,7 +403,14 @@ class BasicReportsMeasurementsJob(
                 .toName()
           }
           reportingMetadata =
-            MeasurementSpecKt.reportingMetadata { this.basicReport = basicReportName }
+            MeasurementSpecKt.reportingMetadata {
+              // A multimeasurement BasicReport has no Report. DataProviders group requisitions by
+              // `report`, so it names one under the BasicReport's ID.
+              report =
+                ReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
+                  .toName()
+              this.basicReport = basicReportName
+            }
         }
         this.multimeasurement = multimeasurement.withRequisitionSpecKeys(measurementPublicKey)
         measurementReferenceId = requestId
