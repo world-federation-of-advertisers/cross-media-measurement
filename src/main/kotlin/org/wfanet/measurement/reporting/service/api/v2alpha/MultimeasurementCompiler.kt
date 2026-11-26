@@ -35,6 +35,7 @@ import org.wfanet.measurement.api.v2alpha.Query
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.VectorSet
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.populationAttributeValue
 import org.wfanet.measurement.api.v2alpha.query
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
@@ -287,6 +288,11 @@ class MultimeasurementCompiler(
   ) {
     private val indexesByVector = mutableMapOf<VectorKey, Int>()
     private val queries = mutableListOf<Query>()
+    /**
+     * Index into [queries] of the query computing each set of cells, keyed by the query without its
+     * ID and `max_frequency`. Slots whose cells are the same share that query.
+     */
+    private val queryIndexesByCells = mutableMapOf<Query, Int>()
     val mappings = mutableListOf<ResultGroupQueryMapping>()
 
     fun addSpec(specIndex: Int, plan: SpecPlan, iqfFilter: String) {
@@ -363,17 +369,32 @@ class MultimeasurementCompiler(
           is Slot.Component -> vectorsOf(listOf(slot.index))
         }
 
-      queries += query {
-        id = queryId
+      val cells: Query = query {
         this.summands = summands
         if (plan.attributes.isNotEmpty()) {
           vidFilter = vidFilter { attributes.putAll(plan.attributes) }
         }
         groupingPaths += plan.groupingPaths
-        this.maxFrequency = maxFrequency
       }
+      val existingIndex: Int? = queryIndexesByCells[cells]
+      val mappedQueryId: String =
+        if (existingIndex == null) {
+          queryIndexesByCells[cells] = queries.size
+          queries +=
+            cells.copy {
+              id = queryId
+              this.maxFrequency = maxFrequency
+            }
+          queryId
+        } else {
+          val existing: Query = queries[existingIndex]
+          if (maxFrequency > existing.maxFrequency) {
+            queries[existingIndex] = existing.copy { this.maxFrequency = maxFrequency }
+          }
+          existing.id
+        }
       mappings += resultGroupQueryMapping {
-        this.queryId = queryId
+        this.queryId = mappedQueryId
         resultGroupSpecIndex = specIndex
         windowStart = window.start.toProtoDate()
         windowEnd = window.end.toProtoDate()

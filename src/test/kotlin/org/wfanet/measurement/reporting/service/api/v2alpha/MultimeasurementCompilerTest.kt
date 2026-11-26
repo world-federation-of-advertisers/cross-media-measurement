@@ -447,6 +447,38 @@ class MultimeasurementCompilerTest {
   }
 
   @Test
+  fun `compile shares one query between slots with the same cells`() {
+    val compiled =
+      compileSingle(
+        buildSpec(
+          BOTH_COMPONENTS,
+          resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec { cumulative = REACH }
+          },
+        ),
+        buildSpec(
+          BOTH_COMPONENTS,
+          resultGroupMetricSpec {
+            reportingUnit =
+              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                cumulative =
+                  ResultGroupMetricSpecKt.basicMetricSetSpec {
+                    reach = true
+                    kPlusReach = 5
+                  }
+              }
+          },
+        ),
+      )
+
+    val query: Query = compiled.multimeasurement.queriesList.single()
+    assertThat(query.maxFrequency).isEqualTo(5)
+    assertThat(compiled.reportComputation.mappingsList.map { it.queryId })
+      .containsExactly(query.id, query.id)
+  }
+
+  @Test
   fun `compile throws for component unique reach`() {
     assertFailsWith<IllegalArgumentException> {
       compileSingle(
