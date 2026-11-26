@@ -33,10 +33,7 @@ import org.wfanet.measurement.internal.duchy.PopulationSpec
  */
 class HashRankSubpopulationIndex
 private constructor(
-  /** Subpopulation of each global index. */
-  private val subpopulationByGlobalIndex: IntArray,
-  /** Number of VIDs in each subpopulation. */
-  private val subpopulationSizes: LongArray,
+  private val order: HashRankOrder,
   private val globalStartIndex: Int,
   val vectorSize: Int,
   private val attributes: SubpopulationAttributes,
@@ -52,8 +49,8 @@ private constructor(
   override fun subpopulationOf(position: Int): Int {
     require(position in 0 until vectorSize) { "Position $position is outside the vector" }
     val globalIndex =
-      ((globalStartIndex.toLong() + position) % subpopulationByGlobalIndex.size).toInt()
-    return subpopulationByGlobalIndex[globalIndex]
+      ((globalStartIndex.toLong() + position) % order.subpopulationByGlobalIndex.size).toInt()
+    return order.subpopulationByGlobalIndex[globalIndex]
   }
 
   /**
@@ -65,10 +62,7 @@ private constructor(
   override fun attributeValue(subpopulation: Int, path: String): String? =
     attributes.attributeValue(subpopulation, path)
 
-  override fun populationSize(subpopulation: Int): Long = subpopulationSizes[subpopulation]
-
-  /** A VID range and the subpopulation it belongs to. */
-  private data class SubpopulationRange(val first: Long, val last: Long, val subpopulation: Int)
+  override fun populationSize(subpopulation: Int): Long = order.subpopulationSizes[subpopulation]
 
   companion object {
     /**
@@ -84,9 +78,25 @@ private constructor(
       attributes: SubpopulationAttributes,
       samplingStart: Float,
       samplingWidth: Float,
+    ): HashRankSubpopulationIndex =
+      build(HashRankOrder.build(populationSpec), attributes, samplingStart, samplingWidth)
+
+    /**
+     * Builds the index for the PopulationSpec of [order] over the VID sampling interval of
+     * [samplingStart] and [samplingWidth].
+     *
+     * @param attributes the attributes of the subpopulations of the PopulationSpec of [order]
+     * @throws IllegalArgumentException if [order] does not match [attributes], or the sampling
+     *   interval is invalid
+     */
+    fun build(
+      order: HashRankOrder,
+      attributes: SubpopulationAttributes,
+      samplingStart: Float,
+      samplingWidth: Float,
     ): HashRankSubpopulationIndex {
-      require(populationSpec.subpopulationsCount == attributes.subpopulationCount) {
-        "PopulationSpec has ${populationSpec.subpopulationsCount} subpopulations, attributes " +
+      require(order.subpopulationSizes.size == attributes.subpopulationCount) {
+        "PopulationSpec has ${order.subpopulationSizes.size} subpopulations, attributes " +
           "have ${attributes.subpopulationCount}"
       }
       require(samplingWidth > 0.0f && samplingWidth <= 1.0f) {
@@ -94,6 +104,48 @@ private constructor(
       }
       require(samplingStart in 0.0f..1.0f) { "Invalid sampling start $samplingStart" }
 
+      val populationSize: Int = order.subpopulationByGlobalIndex.size
+      // Computed as FrequencyVectorBuilder does, in Float, so that the interval matches the
+      // DataProviders' vectors exactly.
+      val globalStartIndex = (populationSize * samplingStart).toInt()
+      val globalEndIndex = (populationSize * (samplingStart + samplingWidth)).toInt() - 1
+      val primaryCount = minOf(globalEndIndex, populationSize - 1) - globalStartIndex + 1
+      val wrappedCount =
+        if (globalEndIndex >= populationSize) globalEndIndex - populationSize + 1 else 0
+
+      return HashRankSubpopulationIndex(
+        order,
+        globalStartIndex,
+        maxOf(primaryCount, 0) + wrappedCount,
+        attributes,
+      )
+    }
+  }
+}
+
+/**
+ * The subpopulation of every VID of a PopulationSpec in VID hash rank order, which depends only on
+ * the PopulationSpec, so that it can be built once and shared across computations.
+ *
+ * @property subpopulationByGlobalIndex the subpopulation of the VID at each global index
+ * @property subpopulationSizes the number of VIDs in each subpopulation
+ */
+class HashRankOrder
+private constructor(
+  internal val subpopulationByGlobalIndex: IntArray,
+  internal val subpopulationSizes: LongArray,
+) {
+  /** A VID range and the subpopulation it belongs to. */
+  private data class SubpopulationRange(val first: Long, val last: Long, val subpopulation: Int)
+
+  companion object {
+    /**
+     * Builds the order of [populationSpec].
+     *
+     * @throws IllegalArgumentException if [populationSpec] has overlapping, empty or out-of-range
+     *   VID ranges
+     */
+    fun build(populationSpec: PopulationSpec): HashRankOrder {
       val ranges: List<SubpopulationRange> = sortedRanges(populationSpec)
       val populationSizeLong: Long = ranges.sumOf { it.last - it.first + 1 }
       require(populationSizeLong in 1 until Int.MAX_VALUE) {
@@ -132,26 +184,11 @@ private constructor(
         vids[index] = ranges[rangeIndex].subpopulation
       }
 
-      // Computed as FrequencyVectorBuilder does, in Float, so that the interval matches the
-      // DataProviders' vectors exactly.
-      val globalStartIndex = (populationSize * samplingStart).toInt()
-      val globalEndIndex = (populationSize * (samplingStart + samplingWidth)).toInt() - 1
-      val primaryCount = minOf(globalEndIndex, populationSize - 1) - globalStartIndex + 1
-      val wrappedCount =
-        if (globalEndIndex >= populationSize) globalEndIndex - populationSize + 1 else 0
-
-      val subpopulationSizes = LongArray(attributes.subpopulationCount)
+      val subpopulationSizes = LongArray(populationSpec.subpopulationsCount)
       for (range in ranges) {
         subpopulationSizes[range.subpopulation] += range.last - range.first + 1
       }
-
-      return HashRankSubpopulationIndex(
-        vids,
-        subpopulationSizes,
-        globalStartIndex,
-        maxOf(primaryCount, 0) + wrappedCount,
-        attributes,
-      )
+      return HashRankOrder(vids, subpopulationSizes)
     }
 
     /**
