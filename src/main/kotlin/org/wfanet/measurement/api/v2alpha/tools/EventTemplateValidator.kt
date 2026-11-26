@@ -25,6 +25,7 @@ import com.google.protobuf.TypeRegistry
 import java.io.File
 import java.lang.Exception
 import org.wfanet.measurement.api.v2alpha.EventAnnotationsProto
+import org.wfanet.measurement.api.v2alpha.EventFieldDescriptor
 import org.wfanet.measurement.api.v2alpha.EventTemplateDescriptor
 import org.wfanet.measurement.api.v2alpha.MediaTypeProto
 import org.wfanet.measurement.common.ProtoReflection
@@ -74,6 +75,15 @@ class EventTemplateValidator : Runnable {
     val eventDescriptor: Descriptors.Descriptor =
       typeRegistry.find(eventProto) ?: throw ValidationException("Type not found: $eventProto")
 
+    // Field versions are relative to the event's current version, so they can only be checked
+    // when the event message declares one.
+    val currentVersion: Int? =
+      if (eventDescriptor.options.hasExtension(EventAnnotationsProto.event)) {
+        eventDescriptor.options.getExtension(EventAnnotationsProto.event).currentVersion
+      } else {
+        null
+      }
+
     val templates = mutableMapOf<String, Descriptors.Descriptor>()
     for (field: Descriptors.FieldDescriptor in eventDescriptor.fields) {
       if (
@@ -95,11 +105,11 @@ class EventTemplateValidator : Runnable {
     }
 
     for (template in templates.values) {
-      validateTemplateFields(template)
+      validateTemplateFields(template, currentVersion)
     }
   }
 
-  private fun validateTemplateFields(template: Descriptors.Descriptor) {
+  private fun validateTemplateFields(template: Descriptors.Descriptor, currentVersion: Int?) {
     for (field: Descriptors.FieldDescriptor in template.fields) {
       val fieldRef = "${template.name}.${field.name}"
 
@@ -110,7 +120,7 @@ class EventTemplateValidator : Runnable {
       if (isOneofMember(field)) {
         for (nestedField in field.messageType.fields) {
           if (!nestedField.options.hasExtension(EventAnnotationsProto.templateField)) continue
-          validateNestedField(nestedField, "$fieldRef.${nestedField.name}")
+          validateNestedField(nestedField, "$fieldRef.${nestedField.name}", currentVersion)
         }
         continue
       }
@@ -119,12 +129,26 @@ class EventTemplateValidator : Runnable {
         throw ValidationException("$fieldRef does not have a template_field annotation")
       }
 
-      validateNestedField(field, fieldRef)
+      validateNestedField(field, fieldRef, currentVersion)
     }
   }
 
-  /** Validates the type constraints on a single template field (member-nested or top-level). */
-  private fun validateNestedField(field: Descriptors.FieldDescriptor, fieldRef: String) {
+  /**
+   * Validates the type and version constraints on a single template field (member-nested or
+   * top-level).
+   *
+   * @param currentVersion the event's `current_version`, or `null` if the event message does not
+   *   declare one, in which case versions are not checked
+   */
+  private fun validateNestedField(
+    field: Descriptors.FieldDescriptor,
+    fieldRef: String,
+    currentVersion: Int?,
+  ) {
+    if (currentVersion != null) {
+      validateFieldVersions(field, fieldRef, currentVersion)
+    }
+
     if (field.isRepeated) {
       throw ValidationException("$fieldRef is repeated")
     }
@@ -155,6 +179,39 @@ class EventTemplateValidator : Runnable {
       Descriptors.FieldDescriptor.Type.SINT32,
       Descriptors.FieldDescriptor.Type.SINT64 ->
         throw ValidationException("$fieldRef has unsupported type ${field.type.name.lowercase()}")
+    }
+  }
+
+  /**
+   * Validates `version_added` and `version_removed` of a template field against the event's
+   * [currentVersion], as specified in `event_annotations.proto`.
+   */
+  private fun validateFieldVersions(
+    field: Descriptors.FieldDescriptor,
+    fieldRef: String,
+    currentVersion: Int,
+  ) {
+    val fieldAnnotation: EventFieldDescriptor =
+      field.options.getExtension(EventAnnotationsProto.templateField)
+    val versionAdded = fieldAnnotation.versionAdded
+    val versionRemoved = fieldAnnotation.versionRemoved
+    if (versionAdded > currentVersion) {
+      throw ValidationException(
+        "$fieldRef version_added $versionAdded is greater than current_version $currentVersion"
+      )
+    }
+    if (versionRemoved == 0) {
+      return
+    }
+    if (versionRemoved <= versionAdded) {
+      throw ValidationException(
+        "$fieldRef version_removed $versionRemoved is not greater than version_added $versionAdded"
+      )
+    }
+    if (versionRemoved > currentVersion) {
+      throw ValidationException(
+        "$fieldRef version_removed $versionRemoved is greater than current_version $currentVersion"
+      )
     }
   }
 
@@ -195,6 +252,7 @@ class EventTemplateValidator : Runnable {
     private val EXTENSION_REGISTRY =
       ExtensionRegistry.newInstance()
         .apply {
+          add(EventAnnotationsProto.event)
           add(EventAnnotationsProto.eventTemplate)
           add(EventAnnotationsProto.templateField)
         }
