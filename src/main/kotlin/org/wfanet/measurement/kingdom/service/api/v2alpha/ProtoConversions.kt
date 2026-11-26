@@ -146,6 +146,7 @@ import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails as internalMeasurementDetails
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
+import org.wfanet.measurement.internal.kingdom.modelLineKey as internalModelLineKey
 import org.wfanet.measurement.internal.kingdom.modelOutage as internalModelOutage
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
@@ -1129,9 +1130,12 @@ private fun InternalMeasurement.toMultimeasurement(): Measurement.Multimeasureme
 /**
  * Converts a public multimeasurement [Measurement] to an internal [InternalMeasurement] for
  * creation.
+ *
+ * @param modelLineKey the key of the `MeasurementSpec`'s model line
  */
 fun Measurement.toInternalMultimeasurement(
   measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
+  modelLineKey: ModelLineKey,
   multimeasurementVectors: List<InternalMeasurement.MultimeasurementVector>,
   internalProtocolConfig: InternalProtocolConfig,
 ): InternalMeasurement {
@@ -1148,6 +1152,11 @@ fun Measurement.toInternalMultimeasurement(
       measurementSpec = source.unsignedMeasurementSpec.toByteString()
       protocolConfig = internalProtocolConfig
       queries += source.multimeasurement.queriesList.map { it.toByteString() }
+      modelLine = internalModelLineKey {
+        externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
+        externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
+        externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
+      }
     }
   }
 }

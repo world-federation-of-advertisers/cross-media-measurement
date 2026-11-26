@@ -101,7 +101,6 @@ import org.wfanet.measurement.internal.kingdom.copy as internalCopy
 import org.wfanet.measurement.internal.kingdom.createMeasurementRequest as internalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.getMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.measurementKey
-import org.wfanet.measurement.internal.kingdom.modelLineKey as internalModelLineKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
@@ -862,22 +861,12 @@ class MeasurementsService(
         "$measurementFieldPath.unsigned_measurement_spec.model_line is unspecified or invalid"
       }
     val internalMeasurement =
-      measurement
-        .toInternalMultimeasurement(
-          measurementConsumerCertificateKey,
-          multimeasurementVectors,
-          internalProtocolConfig,
-        )
-        .internalCopy {
-          details =
-            details.internalCopy {
-              modelLine = internalModelLineKey {
-                externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
-                externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
-                externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
-              }
-            }
-        }
+      measurement.toInternalMultimeasurement(
+        measurementConsumerCertificateKey,
+        modelLineKey,
+        multimeasurementVectors,
+        internalProtocolConfig,
+      )
 
     val requestId = this.requestId
     return internalCreateMeasurementRequest {
@@ -1120,16 +1109,6 @@ private fun MeasurementSpec.validate(fieldPath: String) {
         "$fieldPath.nonce_hashes must be empty for a multimeasurement"
       }
       grpcRequire(vidSamplingInterval.width > 0) { "Vid sampling interval is invalid" }
-      if (modelLine.isEmpty()) {
-        throw Status.INVALID_ARGUMENT.withDescription("Model Line is unspecified")
-          .asRuntimeException(
-            errorInfo {
-              domain = Errors.DOMAIN
-              reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
-              metadata["fieldName"] = "$fieldPath.model_line"
-            }
-          )
-      }
     }
     MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
       failGrpc(Status.INVALID_ARGUMENT) { "Measurement type is unspecified" }
