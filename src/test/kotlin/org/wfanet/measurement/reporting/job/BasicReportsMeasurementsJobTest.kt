@@ -252,7 +252,9 @@ class BasicReportsMeasurementsJobTest {
     val jobWithoutApiKey =
       BasicReportsMeasurementsJob(
         measurementConsumerConfigs {
-          configs[MEASUREMENT_CONSUMER_NAME] = MEASUREMENT_CONSUMER_CONFIG.copy { clearApiKey() }
+          configs[MEASUREMENT_CONSUMER_NAME] = measurementConsumerConfig {
+            signingCertificateName = SIGNING_CERTIFICATE_NAME
+          }
         },
         BasicReportsCoroutineStub(grpcTestServerRule.channel),
         MeasurementConsumersCoroutineStub(grpcTestServerRule.channel),
