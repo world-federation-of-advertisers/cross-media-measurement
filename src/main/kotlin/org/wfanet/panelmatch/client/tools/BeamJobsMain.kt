@@ -208,8 +208,9 @@ class BeamJobsMain : Runnable {
 
     require(
       step.stepCase == ExchangeWorkflow.Step.StepCase.DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP
-    ) {
-      "The only step type currently supported is DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP"
+      || step.stepCase == ExchangeWorkflow.Step.StepCase.BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP
+      ) {
+      "The only step types currently supported are DECRYPT_PRIVATE_MEMBERSHIP_QUERY_RESULTS_STEP and BUILD_PRIVATE_MEMBERSHIP_QUERIES_STEP"
     }
 
     val v2AlphaAttemptKey =
