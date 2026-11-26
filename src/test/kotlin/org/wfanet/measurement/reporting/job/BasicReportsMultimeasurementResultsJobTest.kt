@@ -362,8 +362,8 @@ class BasicReportsMultimeasurementResultsJobTest {
           .unprocessedReportResultValues
           .cumulativeResults
           .frequencyHistogram
-      assertThat(histogram.binResultsMap.mapValues { it.value.value })
-        .containsExactly(1, 50, 2, 30, 3, 20)
+      val binValues: Map<Int, Int> = histogram.binResultsMap.mapValues { it.value.value }
+      assertThat(binValues).containsExactly(1, 50, 2, 30, 3, 20)
     }
 
   @Test
