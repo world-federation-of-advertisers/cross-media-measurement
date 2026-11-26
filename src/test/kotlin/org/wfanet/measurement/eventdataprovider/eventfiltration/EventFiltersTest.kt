@@ -23,11 +23,16 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.versionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.video
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
+import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileVersionedProgram
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 
 @RunWith(JUnit4::class)
@@ -81,5 +86,50 @@ class EventFiltersTest {
         compileProgram(TestEvent.getDescriptor(), "person.age_group")
       }
     assertThat(e.code).isEqualTo(EventFilterValidationException.Code.EXPRESSION_IS_NOT_CONDITIONAL)
+  }
+
+  @Test
+  fun `compileVersionedProgram throws when expression references removed population field`() {
+    val e =
+      assertFailsWith(EventFilterValidationException::class) {
+        compileVersionedProgram(VersionedEvent.getDescriptor(), "versioned_common.retired == 2", 3)
+      }
+    assertThat(e.code).isEqualTo(EventFilterValidationException.Code.INVALID_CEL_EXPRESSION)
+    assertThat(e).hasMessageThat().contains("versioned_common.retired")
+  }
+
+  @Test
+  fun `compileVersionedProgram throws when expression references later population field`() {
+    val e =
+      assertFailsWith(EventFilterValidationException::class) {
+        compileVersionedProgram(VersionedEvent.getDescriptor(), "versioned_common.later == 2", 1)
+      }
+    assertThat(e.code).isEqualTo(EventFilterValidationException.Code.INVALID_CEL_EXPRESSION)
+    assertThat(e).hasMessageThat().contains("versioned_common.later")
+  }
+
+  @Test
+  fun `compileVersionedProgram matches population fields present in version`() {
+    val program =
+      compileVersionedProgram(
+        VersionedEvent.getDescriptor(),
+        "versioned_common.later == 2 && versioned_common.retired == 2",
+        2,
+      )
+    val event = versionedEvent {
+      versionedCommon = versionedCommon {
+        later = VersionedCommon.Segment.SEGMENT_B
+        retired = VersionedCommon.Segment.SEGMENT_B
+      }
+    }
+    assertThat(EventFilters.matches(event, program)).isTrue()
+  }
+
+  @Test
+  fun `compileVersionedProgram evaluates conditions on non-population fields`() {
+    val program =
+      compileVersionedProgram(TestEvent.getDescriptor(), "video_ad.viewed_fraction > 0.5", 1)
+    val event = testEvent { videoAd = video { viewedFraction = 0.1 } }
+    assertThat(EventFilters.matches(event, program)).isFalse()
   }
 }

@@ -28,10 +28,15 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * @property vidIndexMap Mapping of VIDs to their corresponding FrequencyVector indices for the
  *   model line.
  * @property localAlias Optional local model line alias used for impression lookup.
+ * @property eventTemplateVersion Configured fallback event template version of the model line, or
+ *   `null` if not configured. Only used when the Kingdom has no version for the model line; the
+ *   Kingdom's version is the source of truth. Requisition filters may not reference population
+ *   fields that are not present in the resolved version.
  */
 data class ModelLineInfo(
   val populationSpec: PopulationSpec,
   val eventDescriptor: Descriptor,
   val vidIndexMap: VidIndexMap,
   val localAlias: String?,
+  val eventTemplateVersion: Int? = null,
 )

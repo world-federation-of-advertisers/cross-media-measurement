@@ -178,6 +178,63 @@ class ModelLineInfoMapBuilderTest {
   }
 
   @Test
+  fun `build carries each model line's event template version`() {
+    runBlocking {
+      val versionedModelLine =
+        ModelLineSource(
+          modelLine = "versionedModelLine",
+          populationSpecFileBlobUri = "population-spec-1",
+          eventTemplateDescriptorBlobUri = "descriptor-x",
+          eventTemplateTypeName = TestEvent.getDescriptor().fullName,
+          eventTemplateVersion = 1,
+        )
+      val unversionedModelLine =
+        ModelLineSource(
+          modelLine = "unversionedModelLine",
+          populationSpecFileBlobUri = "population-spec-1",
+          eventTemplateDescriptorBlobUri = "descriptor-x",
+          eventTemplateTypeName = TestEvent.getDescriptor().fullName,
+        )
+      val builder =
+        ModelLineInfoMapBuilder(
+          loadDescriptorSet = { listOf(TestEvent.getDescriptor()) },
+          loadPopulationSpec = { _, _ -> populationSpec {} },
+          buildVidIndexMap = { object : VidIndexMap by VidIndexMap.EMPTY {} },
+        )
+
+      val result = builder.build(listOf(versionedModelLine, unversionedModelLine))
+
+      assertThat(result.getValue("versionedModelLine").eventTemplateVersion).isEqualTo(1)
+      assertThat(result.getValue("unversionedModelLine").eventTemplateVersion).isNull()
+    }
+  }
+
+  @Test
+  fun `build rejects event template version greater than current version`() {
+    runBlocking {
+      val modelLineSource =
+        ModelLineSource(
+          modelLine = "modelLine",
+          populationSpecFileBlobUri = "population-spec-1",
+          eventTemplateDescriptorBlobUri = "descriptor-x",
+          eventTemplateTypeName = TestEvent.getDescriptor().fullName,
+          eventTemplateVersion = 2,
+        )
+      val builder =
+        ModelLineInfoMapBuilder(
+          loadDescriptorSet = { listOf(TestEvent.getDescriptor()) },
+          loadPopulationSpec = { _, _ -> populationSpec {} },
+          buildVidIndexMap = { object : VidIndexMap by VidIndexMap.EMPTY {} },
+        )
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> { builder.build(listOf(modelLineSource)) }
+
+      assertThat(exception).hasMessageThat().contains("exceeds current version")
+    }
+  }
+
+  @Test
   fun `build rejects duplicate model line names`() {
     runBlocking {
       val firstModelLineSource =

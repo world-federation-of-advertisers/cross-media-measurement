@@ -32,10 +32,12 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpressionKt.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 
 @RunWith(JUnit4::class)
 class FilterProcessorTest {
@@ -195,6 +197,66 @@ class FilterProcessorTest {
       assertThat(result.events).hasSize(2)
       assertThat(result.events.map { it.vid }).containsExactly(1L, 3L)
     }
+  }
+
+  @Test
+  fun `processBatch with eventTemplateVersion filters events with CEL expression`() {
+    runBlocking {
+      val filterSpec = createTestFilterSpec(celExpression = "person.age_group == 1")
+      val filterProcessor =
+        FilterProcessor<Message>(filterSpec, testEventDescriptor, eventTemplateVersion = 1)
+      val events =
+        listOf(
+          createTestLabeledEvent(
+            vid = 1,
+            ageGroup = Person.AgeGroup.YEARS_18_TO_34,
+            entityKeys = emptyList(),
+          ),
+          createTestLabeledEvent(
+            vid = 2,
+            ageGroup = Person.AgeGroup.YEARS_35_TO_54,
+            entityKeys = emptyList(),
+          ),
+        )
+      val batch =
+        createEventBatch(
+          events,
+          EventGroupIdentifier(
+            eventGroupReferenceId = "test-group",
+            entityKeys = emptySet(),
+            wholeBlobEntityKeyGroups = emptySet(),
+          ),
+        )
+
+      val result = filterProcessor.processBatch(batch)
+
+      assertThat(result.events.map { it.vid }).containsExactly(1L)
+    }
+  }
+
+  @Test
+  fun `constructor throws when CEL expression references population field removed in version`() {
+    val filterSpec = createTestFilterSpec(celExpression = "versioned_common.retired == 2")
+
+    val exception =
+      assertFailsWith<EventFilterValidationException> {
+        FilterProcessor<Message>(
+          filterSpec,
+          VersionedEvent.getDescriptor(),
+          eventTemplateVersion = 3,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("versioned_common.retired")
+  }
+
+  @Test
+  fun `constructor accepts removed population field when eventTemplateVersion is not specified`() {
+    val filterSpec = createTestFilterSpec(celExpression = "versioned_common.retired == 2")
+
+    val filterProcessor = FilterProcessor<Message>(filterSpec, VersionedEvent.getDescriptor())
+
+    assertThat(filterProcessor.eventTemplateVersion).isNull()
   }
 
   @Test

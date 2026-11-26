@@ -76,6 +76,7 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -90,12 +91,16 @@ import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ModelLine
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
@@ -119,11 +124,14 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
 import org.wfanet.measurement.api.v2alpha.fulfillDirectRequisitionResponse
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
@@ -197,6 +205,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.loadtest.config.VidSampling
@@ -316,8 +325,11 @@ class ResultsFulfillerTest {
   private val impressionMetadataServiceMock =
     mockService<ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase>()
 
+  private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService()
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
+    addService(modelLinesServiceMock)
     addService(requisitionsServiceMock)
     addService(eventGroupsServiceMock)
     addService(requisitionFulfillmentMock)
@@ -326,6 +338,9 @@ class ResultsFulfillerTest {
   }
   private val requisitionsStub: RequisitionsCoroutineStub by lazy {
     RequisitionsCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val modelLinesStub: ModelLinesCoroutineStub by lazy {
+    ModelLinesCoroutineStub(grpcTestServerRule.channel)
   }
   private val eventGroupsStub: EventGroupsCoroutineStub by lazy {
     EventGroupsCoroutineStub(grpcTestServerRule.channel)
@@ -1123,6 +1138,291 @@ class ResultsFulfillerTest {
     assertThat(preflightSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
       .isEqualTo(REQUISITION_NAME)
     assertThat(preflightSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("prepared")
+  }
+
+  @Test
+  fun `runWork fails when filter references population field removed in Kingdom version`() =
+    runBlocking {
+      val exception =
+        fulfillRemovedFieldFilter(
+          kingdomModelLine =
+            modelLine {
+              name = "some-model-line"
+              eventTemplateVersion = 3
+            },
+          configuredVersion = null,
+        )
+
+      val validationException: EventFilterValidationException? =
+        generateSequence<Throwable>(exception) { it.cause }
+          .filterIsInstance<EventFilterValidationException>()
+          .firstOrNull()
+      assertThat(validationException).isNotNull()
+      assertThat(validationException).hasMessageThat().contains("versioned_common.retired")
+      verifyBlocking(modelLinesServiceMock) {
+        getModelLine(getModelLineRequest { name = "some-model-line" })
+      }
+      verifyBlocking(requisitionMetadataServiceMock, never()) { fulfillRequisitionMetadata(any()) }
+    }
+
+  @Test
+  fun `runWork uses configured version when Kingdom ModelLine has no version`() = runBlocking {
+    val exception =
+      fulfillRemovedFieldFilter(
+        kingdomModelLine = modelLine { name = "some-model-line" },
+        configuredVersion = 3,
+      )
+
+    val validationException: EventFilterValidationException? =
+      generateSequence<Throwable>(exception) { it.cause }
+        .filterIsInstance<EventFilterValidationException>()
+        .firstOrNull()
+    assertThat(validationException).isNotNull()
+    assertThat(validationException).hasMessageThat().contains("versioned_common.retired")
+    verifyBlocking(requisitionMetadataServiceMock, never()) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork uses Kingdom version when configured version differs`() = runBlocking {
+    // Version 2 still has the field, so using the configured version would compile the filter.
+    val exception =
+      fulfillRemovedFieldFilter(
+        kingdomModelLine =
+          modelLine {
+            name = "some-model-line"
+            eventTemplateVersion = 3
+          },
+        configuredVersion = 2,
+      )
+
+    val validationException: EventFilterValidationException? =
+      generateSequence<Throwable>(exception) { it.cause }
+        .filterIsInstance<EventFilterValidationException>()
+        .firstOrNull()
+    assertThat(validationException).isNotNull()
+    assertThat(validationException).hasMessageThat().contains("versioned_common.retired")
+    verifyBlocking(requisitionMetadataServiceMock, never()) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork uses lower Kingdom version when configured version differs`() = runBlocking {
+    // The field exists in version 2 but not in the configured and current version 3.
+    val failure =
+      fulfillRemovedFieldFilter(
+        kingdomModelLine =
+          modelLine {
+            name = "some-model-line"
+            eventTemplateVersion = 2
+          },
+        configuredVersion = 3,
+      )
+
+    val validationException: EventFilterValidationException? =
+      generateSequence(failure) { it.cause }
+        .filterIsInstance<EventFilterValidationException>()
+        .firstOrNull()
+    assertThat(validationException).isNull()
+  }
+
+  @Test
+  fun `runWork fails when neither Kingdom nor configuration has a version`() = runBlocking {
+    val exception =
+      fulfillRemovedFieldFilter(
+        kingdomModelLine = modelLine { name = "some-model-line" },
+        configuredVersion = null,
+      )
+
+    val missingVersionException: IllegalStateException? =
+      generateSequence<Throwable>(exception) { it.cause }
+        .filterIsInstance<IllegalStateException>()
+        .firstOrNull()
+    assertThat(missingVersionException).isNotNull()
+    assertThat(missingVersionException).hasMessageThat().contains("event_template_version missing")
+    verifyBlocking(requisitionMetadataServiceMock, never()) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork fails when Kingdom does not have the ModelLine and there is no configuration`() =
+    runBlocking {
+      val exception = fulfillRemovedFieldFilter(kingdomModelLine = null, configuredVersion = null)
+
+      val missingVersionException: IllegalStateException? =
+        generateSequence<Throwable>(exception) { it.cause }
+          .filterIsInstance<IllegalStateException>()
+          .firstOrNull()
+      assertThat(missingVersionException).isNotNull()
+      assertThat(missingVersionException)
+        .hasMessageThat()
+        .contains("event_template_version missing")
+    }
+
+  @Test
+  fun `runWork checks filters against the selected model line version`() = runBlocking {
+    val exception =
+      fulfillRemovedFieldFilter(
+        kingdomModelLine =
+          modelLine {
+            name = "selected-model-line"
+            eventTemplateVersion = 3
+          },
+        configuredVersion = null,
+        selectedModelLine = "selected-model-line",
+      )
+
+    val validationException: EventFilterValidationException? =
+      generateSequence<Throwable>(exception) { it.cause }
+        .filterIsInstance<EventFilterValidationException>()
+        .firstOrNull()
+    assertThat(validationException).isNotNull()
+    assertThat(validationException).hasMessageThat().contains("versioned_common.retired")
+    verifyBlocking(modelLinesServiceMock) {
+      getModelLine(getModelLineRequest { name = "selected-model-line" })
+    }
+  }
+
+  @Test
+  fun `runWork fails without using configured version when GetModelLine fails`() = runBlocking {
+    // Version 2 still has the field, so falling back to it would compile the filter.
+    val exception =
+      fulfillRemovedFieldFilter(
+        kingdomModelLine = null,
+        configuredVersion = 2,
+        kingdomError = Status.UNAVAILABLE,
+      )
+
+    val statusException: StatusException? =
+      generateSequence<Throwable>(exception) { it.cause }
+        .filterIsInstance<StatusException>()
+        .firstOrNull()
+    assertThat(statusException?.status?.code).isEqualTo(Status.Code.UNAVAILABLE)
+    verifyBlocking(requisitionMetadataServiceMock, never()) { fulfillRequisitionMetadata(any()) }
+  }
+
+  @Test
+  fun `runWork uses configured version when Kingdom does not have the ModelLine`() = runBlocking {
+    val exception = fulfillRemovedFieldFilter(kingdomModelLine = null, configuredVersion = 3)
+
+    val validationException: EventFilterValidationException? =
+      generateSequence<Throwable>(exception) { it.cause }
+        .filterIsInstance<EventFilterValidationException>()
+        .firstOrNull()
+    assertThat(validationException).isNotNull()
+    assertThat(validationException).hasMessageThat().contains("versioned_common.retired")
+    verifyBlocking(requisitionMetadataServiceMock, never()) { fulfillRequisitionMetadata(any()) }
+  }
+
+  /**
+   * Runs fulfillment of a direct requisition whose filter references `versioned_common.retired`,
+   * which is removed in [VersionedEvent] version 3, with [kingdomModelLine] returned by the Kingdom
+   * (`null` for `NOT_FOUND`) or [kingdomError] if specified, and [configuredVersion] configured
+   * locally. Returns the exception fulfillment fails with, or `null` if it succeeds.
+   */
+  private suspend fun fulfillRemovedFieldFilter(
+    kingdomModelLine: ModelLine?,
+    configuredVersion: Int?,
+    selectedModelLine: String? = null,
+    kingdomError: Status? = null,
+  ): Throwable? {
+    whenever(modelLinesServiceMock.getModelLine(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetModelLineRequest>(0)
+      when {
+        kingdomError != null -> throw StatusException(kingdomError)
+        kingdomModelLine == null -> throw StatusException(Status.NOT_FOUND)
+        request.name == kingdomModelLine.name -> kingdomModelLine
+        else -> modelLine { name = request.name }
+      }
+    }
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+        }
+      )
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    val requisitionSpec =
+      REQUISITION_SPEC.toBuilder()
+        .apply {
+          eventsBuilder.getEventGroupsBuilder(0).valueBuilder.filterBuilder.expression =
+            "versioned_common.retired == 2"
+        }
+        .build()
+    val requisition =
+      DIRECT_RNF_REQUISITION.copy {
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signRequisitionSpec(requisitionSpec, MC_SIGNING_KEY),
+            DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      listOf(LABELED_IMPRESSION.copy { eventTime = TIME_RANGE.start.toProtoTime() }),
+      listOf(requisition),
+    )
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions =
+          loadGroupedRequisitions(requisitionsTmpPath).copy {
+            if (selectedModelLine != null) {
+              this.selectedModelLine = selectedModelLine
+            }
+          },
+        modelLineInfoMap =
+          listOfNotNull("some-model-line", selectedModelLine).associateWith {
+            MODEL_LINE_INFO.copy(
+              eventDescriptor = VersionedEvent.getDescriptor(),
+              eventTemplateVersion = configuredVersion,
+            )
+          },
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider =
+          ImpressionDataSourceProvider(
+            impressionMetadataStub = impressionMetadataStub,
+            dataProvider = "dataProviders/123",
+            impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+          ),
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = NoOpFulfillerSelector(),
+        wholeBlobEntityTypes = emptySet(),
+        modelLinesStub = modelLinesStub,
+        metrics = metrics,
+      )
+
+    return runCatching { resultsFulfiller.fulfillRequisitions() }.exceptionOrNull()
   }
 
   @Test
@@ -6102,6 +6402,7 @@ class ResultsFulfillerTest {
         populationSpec = POPULATION_SPEC,
         vidIndexMap = InMemoryVidIndexMap.build(POPULATION_SPEC),
         localAlias = null,
+        eventTemplateVersion = 1,
       )
   }
 }

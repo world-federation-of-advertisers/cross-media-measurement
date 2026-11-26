@@ -60,26 +60,72 @@ object EventFilters {
     return env.program(ast)
   }
 
+  /**
+   * Compiles a [Program] like [compileProgram], additionally rejecting population fields that are
+   * not present in [eventTemplateVersion].
+   *
+   * Unlike [compilePopulationProgram], conditions on non-population fields are kept as written.
+   *
+   * @param eventTemplateVersion event template version of the model line that [celExpr] targets
+   * @throws [EventFilterValidationException] if [celExpr] is not valid or references a population
+   *   field that is not present in [eventTemplateVersion].
+   * @throws IllegalArgumentException if [eventTemplateVersion] is not positive or exceeds the
+   *   current version of [eventMessageDescriptor].
+   */
+  fun compileVersionedProgram(
+    eventMessageDescriptor: Descriptors.Descriptor,
+    celExpr: String,
+    eventTemplateVersion: Int,
+  ): Program {
+    val supportedFields = getSupportedPopulationFields(eventMessageDescriptor, eventTemplateVersion)
+    val env = createEnv(eventMessageDescriptor)
+    val ast = compile(env, celExpr)
+    requireSupportedPopulationFields(
+      ast.expr,
+      getUnsupportedPopulationFields(eventMessageDescriptor, supportedFields),
+    )
+    return env.program(ast)
+  }
+
   /** Compiles a population filter while rejecting population fields outside the model's version. */
   fun compilePopulationProgram(
     eventMessageDescriptor: Descriptors.Descriptor,
     celExpr: String,
     eventTemplateVersion: Int,
   ): Program {
-    val fields = EventTemplates.getPopulationFields(eventMessageDescriptor, eventTemplateVersion)
-    fun path(field: Descriptors.FieldDescriptor): String =
-      EventTemplates.getTemplateDescriptor(field.containingType).name + "." + field.name
-    val operativeFields = fields.map(::path).toSet()
-    val unsupportedFields =
-      eventMessageDescriptor.fields
-        .flatMap { it.messageType.fields }
-        .filter { it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute }
-        .map(::path)
-        .toSet() - operativeFields
+    val operativeFields = getSupportedPopulationFields(eventMessageDescriptor, eventTemplateVersion)
     val env = createEnv(eventMessageDescriptor)
     val ast = compile(env, celExpr)
-    requireSupportedPopulationFields(ast.expr, unsupportedFields)
+    requireSupportedPopulationFields(
+      ast.expr,
+      getUnsupportedPopulationFields(eventMessageDescriptor, operativeFields),
+    )
     return env.program(compile(env, celExpr, operativeFields))
+  }
+
+  /** Returns the CEL path of a template field, e.g. `person.age_group`. */
+  private fun templateFieldPath(field: Descriptors.FieldDescriptor): String =
+    EventTemplates.getTemplateDescriptor(field.containingType).name + "." + field.name
+
+  /** Returns the paths of population fields that are present in [eventTemplateVersion]. */
+  private fun getSupportedPopulationFields(
+    eventMessageDescriptor: Descriptors.Descriptor,
+    eventTemplateVersion: Int,
+  ): Set<String> =
+    EventTemplates.getPopulationFields(eventMessageDescriptor, eventTemplateVersion)
+      .map(::templateFieldPath)
+      .toSet()
+
+  /** Returns the paths of population fields that are not in [supportedFields]. */
+  private fun getUnsupportedPopulationFields(
+    eventMessageDescriptor: Descriptors.Descriptor,
+    supportedFields: Set<String>,
+  ): Set<String> {
+    return eventMessageDescriptor.fields
+      .flatMap { it.messageType.fields }
+      .filter { it.options.getExtension(EventAnnotationsProto.templateField).populationAttribute }
+      .map(::templateFieldPath)
+      .toSet() - supportedFields
   }
 
   private fun requireSupportedPopulationFields(expr: Expr, unsupportedFields: Set<String>) {

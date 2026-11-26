@@ -702,6 +702,7 @@ class VidLabelingCorrectionFulfillmentIntegrationTest :
           TestEvent.getDescriptor(),
           InMemoryVidIndexMap.build(comparisonPopulationSpec),
           localAlias = null,
+          eventTemplateVersion = 1,
         )
       var actual = 0L
       var observed = 0

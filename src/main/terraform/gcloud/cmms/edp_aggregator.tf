@@ -269,14 +269,17 @@ locals {
           "--google-project-id", data.google_client_config.default.project,
         ],
         # One --model-line group per model line, each with its own population
-        # spec. The event template descriptor is shared by all lines.
+        # spec. The event template descriptor is shared by all lines. A line's
+        # event template version is only passed when configured.
         flatten([
-          for model_line, population_spec_blob_uri in var.edpa_model_line_population_spec_blob_uris : [
+          for model_line, population_spec_blob_uri in var.edpa_model_line_population_spec_blob_uris : concat([
             "--model-line", model_line,
             "--population-spec-file-blob-uri", population_spec_blob_uri,
             "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
             "--event-template-type-name", var.results_fulfiller_event_template_type_name,
-          ]
+            ], contains(keys(var.edpa_model_line_event_template_versions), model_line) ? [
+            "--event-template-version", tostring(var.edpa_model_line_event_template_versions[model_line]),
+          ] : [])
         ]),
         [
           "--duchy-id", var.duchy_worker1_id,

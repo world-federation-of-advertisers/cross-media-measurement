@@ -25,6 +25,13 @@ edpa_model_line_population_spec_blob_uris = {
   "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/DOfmLYTmbbY" = "gs://edpa-configs-storage-head-bucket/results-fulfiller-population-spec.textproto"
   "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/Ijl7HSq9VAc" = "gs://edpa-configs-storage-head-bucket/high-overlap-population-spec.textproto"
 }
+
+# Fallback event template versions for model lines whose Kingdom ModelLine has
+# no event_template_version. The Kingdom version is the source of truth.
+edpa_model_line_event_template_versions = {
+  "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/DOfmLYTmbbY" = 1
+  "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/Ijl7HSq9VAc" = 1
+}
 vid_labeler_population_spec_file_path = "../../../proto/wfa/measurement/loadtest/dataprovider/hashonly_model_population_spec.textproto"
 vid_labeler_population_spec_blob_uri  = "gs://edpa-configs-storage-head-bucket/vid-labeler-population-spec.textproto"
 
