@@ -275,6 +275,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         Measurements.ProvidedMeasurementId,
         Measurements.CreateRequestId,
         Measurements.MeasurementDetails,
+        Measurements.PlaintextResult,
         Measurements.CreateTime,
         Measurements.UpdateTime,
         Measurements.State AS MeasurementState,
@@ -327,6 +328,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         Measurements.ProvidedMeasurementId,
         Measurements.CreateRequestId,
         Measurements.MeasurementDetails,
+        Measurements.PlaintextResult,
         Measurements.CreateTime,
         Measurements.UpdateTime,
         Measurements.State AS MeasurementState,
@@ -423,6 +425,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         Measurements.ProvidedMeasurementId,
         Measurements.CreateRequestId,
         Measurements.MeasurementDetails,
+        Measurements.PlaintextResult,
         Measurements.CreateTime,
         Measurements.UpdateTime,
         Measurements.State AS MeasurementState,
@@ -510,13 +513,8 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
         apiVersion = duchyResultStruct.getString("PublicApiVersion")
       }
     }
-    if (details.hasPlaintextResult()) {
-      val plaintextResult: MeasurementDetails.PlaintextResult = details.plaintextResult
-      results += resultInfo {
-        externalAggregatorDuchyId = plaintextResult.externalAggregatorDuchyId
-        result = plaintextResult.result
-        apiVersion = plaintextResult.apiVersion
-      }
+    if (!struct.isNull("PlaintextResult")) {
+      results += Measurement.ResultInfo.parseFrom(struct.getBytes("PlaintextResult").toByteArray())
     }
   }
   etag = ETags.computeETag(struct.getTimestamp("UpdateTime"))

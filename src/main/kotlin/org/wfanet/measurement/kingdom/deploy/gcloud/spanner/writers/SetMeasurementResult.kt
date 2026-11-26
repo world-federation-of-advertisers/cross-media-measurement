@@ -23,8 +23,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.set
 import org.wfanet.measurement.gcloud.spanner.toInt64
 import org.wfanet.measurement.internal.kingdom.Measurement
-import org.wfanet.measurement.internal.kingdom.MeasurementDetails
-import org.wfanet.measurement.internal.kingdom.MeasurementDetailsKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.copy
@@ -163,7 +161,7 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
    * Sets the plaintext result of a TrusTEE v2 [measurement], which is neither signed nor encrypted
    * and so has no aggregator certificate.
    *
-   * The result is stored in the `MeasurementDetails` rather than in `DuchyMeasurementResults`,
+   * The result is stored in the `PlaintextResult` column rather than in `DuchyMeasurementResults`,
    * whose primary key requires a certificate.
    *
    * @throws MeasurementStateIllegalException if [measurement] is not in state `PENDING_COMPUTATION`
@@ -184,15 +182,16 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         "Expected ${Measurement.State.PENDING_COMPUTATION}, got ${measurement.state}"
       }
     }
-    val details: MeasurementDetails =
-      measurement.details.copy {
-        plaintextResult =
-          MeasurementDetailsKt.plaintextResult {
-            externalAggregatorDuchyId = request.externalAggregatorDuchyId
-            result = request.result
-            apiVersion = request.publicApiVersion
-          }
-      }
+    val resultInfo: Measurement.ResultInfo = resultInfo {
+      externalAggregatorDuchyId = request.externalAggregatorDuchyId
+      result = request.result
+      apiVersion = request.publicApiVersion
+    }
+    transactionContext.bufferUpdateMutation("Measurements") {
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("PlaintextResult" to resultInfo.toByteString().toGcloudByteArray())
+    }
 
     updateMeasurementState(
       measurementConsumerId = measurementConsumerId,
@@ -201,17 +200,11 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
       previousState = measurement.state,
       measurementLogEntryDetails =
         measurementLogEntryDetails { logMessage = "Measurement succeeded" },
-      details = details,
     )
 
     return measurement.copy {
       state = NEXT_MEASUREMENT_STATE
-      this.details = details
-      results += resultInfo {
-        externalAggregatorDuchyId = request.externalAggregatorDuchyId
-        result = request.result
-        apiVersion = request.publicApiVersion
-      }
+      results += resultInfo
     }
   }
 

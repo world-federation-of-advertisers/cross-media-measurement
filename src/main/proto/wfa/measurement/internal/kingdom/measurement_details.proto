@@ -42,21 +42,4 @@ message MeasurementDetails {
   // Serialized `Query` messages from the public API
   // `Measurement.Multimeasurement.queries`. Set only for a multimeasurement.
   repeated bytes queries = 10;
-
-  // A `Result` that is neither signed nor encrypted.
-  message PlaintextResult {
-    // External ID of the aggregator `Duchy` that set the result.
-    string external_aggregator_duchy_id = 1;
-
-    // Serialized `Result` message from the public API.
-    bytes result = 2;
-
-    // Version of the public API for `result`.
-    string api_version = 3;
-  }
-  // Result of a TrusTEE v2 multimeasurement. Set only once the `Measurement`
-  // has succeeded.
-  //
-  // This is surfaced as an item of `Measurement.results`.
-  PlaintextResult plaintext_result = 11;
 }

@@ -53,7 +53,6 @@ import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.compu
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumer
 import org.wfanet.measurement.internal.kingdom.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
-import org.wfanet.measurement.internal.kingdom.MeasurementDetailsKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.multimeasurementVector
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
@@ -1462,15 +1461,6 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
         .isEqualTo(
           pendingMeasurement.copy {
             state = Measurement.State.SUCCEEDED
-            details =
-              details.copy {
-                plaintextResult =
-                  MeasurementDetailsKt.plaintextResult {
-                    externalAggregatorDuchyId = aggregatorDuchyId
-                    result = request.result
-                    apiVersion = request.publicApiVersion
-                  }
-              }
             results += resultInfo {
               externalAggregatorDuchyId = aggregatorDuchyId
               result = request.result
