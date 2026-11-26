@@ -844,6 +844,93 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
   }
 
   @Test
+  fun `fulfilling every vector Requisition moves TrusTEE v2 Measurement to PENDING_COMPUTATION`():
+    Unit = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val measurement =
+      measurementsService.createMeasurement(
+        createMeasurementRequest {
+          measurement =
+            trusTeeV2Measurement().copy {
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              externalMeasurementConsumerCertificateId =
+                measurementConsumer.certificate.externalCertificateId
+              multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 0)
+              multimeasurementVectors += testVector(dataProvider.externalDataProviderId, index = 1)
+            }
+        }
+      )
+
+    val fulfilled = fulfillRequisitions(measurement)
+
+    assertThat(fulfilled.state).isEqualTo(Measurement.State.PENDING_COMPUTATION)
+  }
+
+  @Test
+  fun `fulfillRequisition throws INVALID_ARGUMENT for a TrusTEE v2 vector with a nonce`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider = population.createDataProvider(dataProvidersService)
+      val measurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              trusTeeV2Measurement().copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                multimeasurementVectors +=
+                  testVector(dataProvider.externalDataProviderId, index = 0)
+              }
+          }
+        )
+      val aggregatorDuchyId = Population.AGGREGATOR_DUCHY.externalDuchyId
+      computationParticipantsService.setParticipantRequisitionParams(
+        setParticipantRequisitionParamsRequest {
+          externalComputationId = measurement.externalComputationId
+          externalDuchyId = aggregatorDuchyId
+          externalDuchyCertificateId =
+            population
+              .createDuchyCertificate(certificatesService, aggregatorDuchyId)
+              .externalCertificateId
+          trusTee = TrusTeeParams.getDefaultInstance()
+        }
+      )
+      val requisition: Requisition =
+        requisitionsService
+          .streamRequisitions(
+            streamRequisitionsRequest {
+              filter =
+                StreamRequisitionsRequestKt.filter {
+                  externalMeasurementConsumerId = measurement.externalMeasurementConsumerId
+                  externalMeasurementId = measurement.externalMeasurementId
+                }
+            }
+          )
+          .toList()
+          .single()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          requisitionsService.fulfillRequisition(
+            fulfillRequisitionRequest {
+              externalRequisitionId = requisition.externalRequisitionId
+              nonce = 1L
+              computedParams = computedRequisitionParams {
+                externalComputationId = measurement.externalComputationId
+                externalFulfillingDuchyId = aggregatorDuchyId
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
   fun `getMeasurement returns the vectors of a TrusTEE v2 multimeasurement`(): Unit = runBlocking {
     val measurementConsumer =
       population.createMeasurementConsumer(measurementConsumersService, accountsService)
