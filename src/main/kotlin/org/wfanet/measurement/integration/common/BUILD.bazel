@@ -336,10 +336,12 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/loadtest/measurementconsumer:event_query_measurement_consumer_simulator",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/resourcesetup:resource_setup",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_v2_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/kingdom:protocol_config_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
     ],
 )

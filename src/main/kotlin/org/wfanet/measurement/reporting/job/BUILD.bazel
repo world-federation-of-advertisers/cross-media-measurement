@@ -66,6 +66,11 @@ kt_jvm_library(
 kt_jvm_library(
     name = "basic_reports_measurements_job",
     srcs = ["BasicReportsMeasurementsJob.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/job:__pkg__",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
@@ -105,6 +110,11 @@ kt_jvm_library(
 kt_jvm_library(
     name = "basic_reports_multimeasurement_results_job",
     srcs = ["BasicReportsMultimeasurementResultsJob.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common/reporting/v2:__pkg__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/job:__pkg__",
+    ],
     deps = [
         ":reporting_set_result_batching",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",

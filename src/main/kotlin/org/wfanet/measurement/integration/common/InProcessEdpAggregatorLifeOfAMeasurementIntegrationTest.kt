@@ -43,7 +43,6 @@ import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
-import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
@@ -56,8 +55,6 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMem
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
-import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
-import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2Kt
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
@@ -105,8 +102,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       trusTeeKmsClient = sharedKmsClient,
       hmssEnabled = hmssEnabled,
       trusTeeEnabled = trusTeeEnabled,
-      // The Kingdom does not yet send the event descriptor of a multimeasurement.
-      trusTeeV2FallbackEventDescriptor = TRUS_TEE_V2_EVENT_DESCRIPTOR,
       // The EDP Aggregator writes impressions against this PopulationSpec.
       modelLinePopulationSpec = populationSpec,
     )
@@ -357,12 +352,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
 
   companion object {
     /** The event descriptor of the in-process population, for the TrusTEE v2 Mill. */
-    private val TRUS_TEE_V2_EVENT_DESCRIPTOR: TrusTeeV2.EventDescriptor =
-      TrusTeeV2Kt.eventDescriptor {
-        descriptorSet = ProtoReflection.buildFileDescriptorSet(TestEvent.getDescriptor())
-        eventMessageType = TestEvent.getDescriptor().fullName
-      }
-
     internal val ALL_EDP_DISPLAY_NAMES = setOf("edp1", "edp2", "edp3", "edp4")
     internal val SUPPRESSING_RESULT_MINIMUM_THRESHOLDS_BY_EDP =
       ALL_EDP_DISPLAY_NAMES.associateWith {
