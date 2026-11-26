@@ -145,23 +145,9 @@ class BasicReportsService(
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
   private val enableReportingSetReportingUnitComponents: Boolean = false,
   private val emitCelNullGuardsForNestedMembers: Boolean = false,
-  private val multimeasurementMode: MultimeasurementMode = MultimeasurementMode.DISABLED,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
-
-  /** Which [BasicReport]s are computed by TrusTEE v2 multimeasurements. */
-  enum class MultimeasurementMode {
-    /** Every [BasicReport] takes the legacy path. */
-    DISABLED,
-    /**
-     * A [BasicReport] takes the multimeasurement path if its MeasurementConsumer's config has
-     * `multimeasurement_enabled` set.
-     */
-    OPT_IN,
-    /** Every [BasicReport] takes the multimeasurement path. */
-    ALL,
-  }
 
   private val filterEnv: Env = CelPredicates.buildEnvironment(eventMessageDescriptor.descriptor)
 
@@ -731,15 +717,9 @@ class BasicReportsService(
    * multimeasurement path, in which case the BasicReports create job creates its CMMS Measurements
    * instead of a [Report] being created here.
    */
-  private fun isMultimeasurement(measurementConsumerKey: MeasurementConsumerKey): Boolean {
-    return when (multimeasurementMode) {
-      MultimeasurementMode.DISABLED -> false
-      MultimeasurementMode.ALL -> true
-      MultimeasurementMode.OPT_IN ->
-        measurementConsumerConfigs.configsMap[measurementConsumerKey.toName()]
-          ?.multimeasurementEnabled == true
-    }
-  }
+  private fun isMultimeasurement(measurementConsumerKey: MeasurementConsumerKey): Boolean =
+    measurementConsumerConfigs.configsMap[measurementConsumerKey.toName()]
+      ?.multimeasurementEnabled == true
 
   /**
    * Gets an [InternalImpressionQualificationFilter].

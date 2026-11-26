@@ -425,7 +425,6 @@ private object V2AlphaPublicApiServer {
             baseImpressionQualificationFilters.map { it.externalImpressionQualificationFilterId },
             reportingApiServerFlags.enableReportingSetReportingUnitComponents,
             v2AlphaPublicServerFlags.emitCelNullGuardsForNestedMembers,
-            v2AlphaPublicServerFlags.multimeasurementBasicReports,
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),
@@ -489,19 +488,6 @@ private object V2AlphaPublicApiServer {
       required = false,
     )
     var emitCelNullGuardsForNestedMembers: Boolean = false
-      private set
-
-    @CommandLine.Option(
-      names = ["--multimeasurement-basic-reports"],
-      description =
-        [
-          "Which BasicReports are computed by TrusTEE v2 multimeasurements instead of a Report. " +
-            "One of: \${COMPLETION-CANDIDATES}. OPT_IN selects the BasicReports of " +
-            "MeasurementConsumers whose config has multimeasurement_enabled set."
-        ],
-      defaultValue = "DISABLED",
-    )
-    lateinit var multimeasurementBasicReports: BasicReportsService.MultimeasurementMode
       private set
   }
 }

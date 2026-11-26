@@ -111,8 +111,6 @@ class InProcessReportingServer(
   private val populationDataProviderName: String,
   private val verboseGrpcLogging: Boolean = true,
   private val metricSpecConfigOverride: MetricSpecConfig? = null,
-  private val multimeasurementMode: BasicReportsService.MultimeasurementMode =
-    BasicReportsService.MultimeasurementMode.DISABLED,
 ) : TestRule {
   private val publicKingdomMeasurementConsumersClient =
     PublicKingdomMeasurementConsumersCoroutineStub(kingdomPublicApiChannel)
@@ -328,7 +326,6 @@ class InProcessReportingServer(
                 defaultReportStartHour = null,
                 baseExternalImpressionQualificationFilterIds = emptyList(),
                 enableReportingSetReportingUnitComponents = true,
-                multimeasurementMode = multimeasurementMode,
               )
               .withTrustedPrincipalAuthentication(),
             ImpressionQualificationFiltersService(

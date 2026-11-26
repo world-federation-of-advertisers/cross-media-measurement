@@ -152,7 +152,6 @@ import org.wfanet.measurement.reporting.job.BasicReportsMeasurementsJob
 import org.wfanet.measurement.reporting.job.BasicReportsMultimeasurementResultsJob
 import org.wfanet.measurement.reporting.job.BasicReportsReportsJob
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
-import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -216,13 +215,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> =
     emptyMap(),
   private val mixedIdentifierHistoryEnabled: Boolean = false,
-  /** Which [BasicReport]s are computed by TrusTEE v2 multimeasurements. */
-  private val multimeasurementMode: BasicReportsService.MultimeasurementMode =
-    BasicReportsService.MultimeasurementMode.DISABLED,
+  /**
+   * Whether the MeasurementConsumer's [BasicReport]s are computed by TrusTEE v2 multimeasurements.
+   */
+  private val multimeasurementEnabled: Boolean = false,
 ) {
-  private val multimeasurementEnabled: Boolean
-    get() = multimeasurementMode != BasicReportsService.MultimeasurementMode.DISABLED
-
   /** EDPs that start without campaigns, impression objects, metadata, or availability intervals. */
   protected open val edpsWithDeferredUploads: Set<String>
     get() = emptySet()
@@ -605,6 +602,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           signingCertificateName = measurementConsumer.certificate
           signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
           offlinePrincipal = "principals/mc-user"
+          multimeasurementEnabled =
+            this@InProcessEdpAggregatorLifeOfAReportTest.multimeasurementEnabled
         }
         return InProcessReportingServer(
           reportingDataServicesProviderRule.value,
@@ -620,7 +619,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           metricSpecConfigOverride = metricSpecConfigOverride,
           populationDataProviderName =
             inProcessCmmsComponents.getPopulationData().populationDataProviderName,
-          multimeasurementMode = multimeasurementMode,
         )
       }
 

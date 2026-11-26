@@ -25,7 +25,6 @@ import org.wfanet.measurement.integration.common.InProcessDuchy
 import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
-import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportsService
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.getBasicReportRequest
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub
@@ -53,7 +52,7 @@ abstract class InProcessEdpAggregatorMultimeasurementReportTest(
     hmssEnabled = false,
     trusTeeEnabled = true,
     multiEdpDisplayNames = setOf("edp1", "edp2"),
-    multimeasurementMode = BasicReportsService.MultimeasurementMode.ALL,
+    multimeasurementEnabled = true,
   ) {
 
   @Test
