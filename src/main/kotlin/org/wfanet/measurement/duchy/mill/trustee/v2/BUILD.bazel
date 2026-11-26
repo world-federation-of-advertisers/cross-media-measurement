@@ -60,6 +60,7 @@ kt_jvm_library(
     deps = [
         ":query_evaluator",
         "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
+        "//src/main/kotlin/org/wfanet/measurement/computation:reach_and_frequency_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
