@@ -73,7 +73,9 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.ReportingWindowResultKt.NoisyReportResultValuesKt.NoisyMetricSetKt
 import org.wfanet.measurement.internal.reporting.v2.ReportingUnitKt
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMappingKt
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
 import org.wfanet.measurement.internal.reporting.v2.batchCreateReportResultAssemblyRequest
@@ -90,6 +92,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetKey
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit
+import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 
@@ -271,6 +274,97 @@ class BasicReportsMultimeasurementResultsJobTest {
         }
       )
   }
+
+  @Test
+  fun `execute writes the full shared histogram once for specs with different k-plus reach`() =
+    runBlocking {
+      val totalSpec: ResultGroupSpec = BASIC_REPORT.details.resultGroupSpecsList[0]
+      val basicReport =
+        BASIC_REPORT.copy {
+          details =
+            details.copy {
+              resultGroupSpecs[0] =
+                totalSpec.copy {
+                  resultGroupMetricSpec = resultGroupMetricSpec {
+                    reportingUnit =
+                      ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                        cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { kPlusReach = 1 }
+                      }
+                  }
+                }
+              resultGroupSpecs +=
+                totalSpec.copy {
+                  resultGroupMetricSpec = resultGroupMetricSpec {
+                    reportingUnit =
+                      ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+                        cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { kPlusReach = 3 }
+                      }
+                  }
+                }
+            }
+        }
+      whenever(basicReportsMock.listBasicReports(any())).thenAnswer {
+        val request = it.arguments.first() as ListBasicReportsRequest
+        if (request.filter.state == BasicReport.State.MEASUREMENTS_CREATED) {
+          listBasicReportsResponse { basicReports += basicReport }
+        } else {
+          ListBasicReportsResponse.getDefaultInstance()
+        }
+      }
+      // The compiler maps both specs to one query with the larger max_frequency.
+      stubReportComputations(
+        REPORT_COMPUTATION.copy {
+          for (specIndex in listOf(0, 2)) {
+            mappings += resultGroupQueryMapping {
+              queryId = REPORTING_UNIT_QUERY_ID
+              resultGroupSpecIndex = specIndex
+              windowStart = REPORT_START_DATE
+              windowEnd = REPORT_END_DATE
+              cumulative = true
+              reportingUnit =
+                ResultGroupQueryMappingKt.reportingSet {
+                  externalReportingSetId = UNION_REPORTING_SET.externalReportingSetId
+                }
+            }
+          }
+        }
+      )
+      stubMeasurements(
+        succeededMeasurement(
+          queryResult {
+            queryId = REPORTING_UNIT_QUERY_ID
+            maxFrequency = 3
+            cells +=
+              QueryResultKt.cell {
+                reach = 100
+                impressions = 300
+                frequencyBins += listOf(50L, 30L, 20L)
+                populationSize = POPULATION_SIZE
+              }
+          }
+        )
+      )
+
+      job.execute()
+
+      val request: BatchCreateReportResultAssemblyRequest =
+        verifyAndCapture(
+          reportResultsMock,
+          ReportResultsCoroutineImplBase::batchCreateReportResultAssembly,
+        )
+      val histogram =
+        request.requestsList
+          .single()
+          .reportingSetResult
+          .reportingWindowResultsList
+          .single()
+          .value
+          .unprocessedReportResultValues
+          .cumulativeResults
+          .frequencyHistogram
+      assertThat(histogram.binResultsMap.mapValues { it.value.value })
+        .containsExactly(1, 50, 2, 30, 3, 20)
+    }
 
   @Test
   fun `execute writes breakdown cell under its grouping`() = runBlocking {
