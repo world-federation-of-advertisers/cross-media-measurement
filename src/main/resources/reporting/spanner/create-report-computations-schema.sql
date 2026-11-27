@@ -47,7 +47,4 @@ CREATE TABLE ReportComputations (
 ) PRIMARY KEY (MeasurementConsumerId, BasicReportId, ImpressionQualificationFilterId),
   INTERLEAVE IN PARENT BasicReports ON DELETE CASCADE;
 
-CREATE UNIQUE INDEX ReportComputationsByCmmsCreateMeasurementRequestId
-  ON ReportComputations(MeasurementConsumerId, CmmsCreateMeasurementRequestId);
-
 RUN BATCH;

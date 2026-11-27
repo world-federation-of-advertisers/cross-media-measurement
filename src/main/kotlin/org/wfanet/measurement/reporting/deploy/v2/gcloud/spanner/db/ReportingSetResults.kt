@@ -61,7 +61,9 @@ object ReportingSetResults {
     if (id == CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID) {
       ""
     } else {
-      checkNotNull(mapping.getImpressionQualificationFilterById(id))
+      checkNotNull(mapping.getImpressionQualificationFilterById(id)) {
+          "ImpressionQualificationFilter with internal ID $id not found"
+        }
         .externalImpressionQualificationFilterId
     }
 }
@@ -287,16 +289,11 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
                 ) {
                   custom = true
                 } else {
-                  val impressionQualificationFilter =
-                    checkNotNull(
-                      impressionQualificationFilterMapping.getImpressionQualificationFilterById(
-                        impressionQualificationFilterId
-                      )
-                    ) {
-                      "ImpressionQualificationFilter with internal ID $impressionQualificationFilterId not found"
-                    }
                   externalImpressionQualificationFilterId =
-                    impressionQualificationFilter.externalImpressionQualificationFilterId
+                    ReportingSetResults.getExternalImpressionQualificationFilterId(
+                      impressionQualificationFilterMapping,
+                      impressionQualificationFilterId,
+                    )
                 }
                 metricFrequencySpec =
                   row.getProtoMessage(
