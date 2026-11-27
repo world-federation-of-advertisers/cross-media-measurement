@@ -489,6 +489,85 @@ class BasicReportsMultimeasurementResultsJobTest {
   }
 
   @Test
+  fun `execute writes a custom filter cell under the custom dimension`() = runBlocking {
+    stubReportComputations(
+      REPORT_COMPUTATION.copy {
+        mappings += resultGroupQueryMapping {
+          queryId = REPORTING_UNIT_QUERY_ID
+          resultGroupSpecIndex = 0
+          windowStart = REPORT_START_DATE
+          windowEnd = REPORT_END_DATE
+          cumulative = true
+          // An empty filter ID is the custom impression qualification filter.
+          reportingUnit =
+            ResultGroupQueryMappingKt.reportingSet {
+              externalReportingSetId = UNION_REPORTING_SET.externalReportingSetId
+            }
+        }
+      }
+    )
+    stubMeasurements(
+      succeededMeasurement(
+        queryResult {
+          queryId = REPORTING_UNIT_QUERY_ID
+          maxFrequency = 2
+          cells +=
+            QueryResultKt.cell {
+              reach = 100
+              reachVariance = 4.0
+              impressions = 300
+              impressionVariance = 9.0
+              frequencyBins += listOf(60L, 40L)
+              frequencyBinVariance += listOf(1.0, 4.0)
+              populationSize = POPULATION_SIZE
+            }
+        }
+      )
+    )
+
+    job.execute()
+
+    val request: BatchCreateReportResultAssemblyRequest =
+      verifyAndCapture(
+          reportResultsMock,
+          ReportResultsCoroutineImplBase::batchCreateReportResultAssembly,
+          times(1),
+        )
+        .single()
+    val dimension: ReportingSetResult.Dimension =
+      request.requestsList.single().reportingSetResult.dimension
+    assertThat(dimension.custom).isTrue()
+    assertThat(dimension.externalImpressionQualificationFilterId).isEmpty()
+  }
+
+  @Test
+  fun `execute fails BasicReport when a result has no cells for a mapped query`() = runBlocking {
+    stubReportComputations(
+      REPORT_COMPUTATION.copy {
+        mappings += resultGroupQueryMapping {
+          queryId = REPORTING_UNIT_QUERY_ID
+          resultGroupSpecIndex = 0
+          windowStart = REPORT_START_DATE
+          windowEnd = REPORT_END_DATE
+          cumulative = true
+          externalImpressionQualificationFilterId = EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID
+          reportingUnit =
+            ResultGroupQueryMappingKt.reportingSet {
+              externalReportingSetId = UNION_REPORTING_SET.externalReportingSetId
+            }
+        }
+      }
+    )
+    // The Measurement has no result for the mapped query.
+    stubMeasurements(succeededMeasurement())
+
+    job.execute()
+
+    verifyBlocking(basicReportsMock) { failBasicReport(any()) }
+    verifyBlocking(reportResultsMock, never()) { beginReportResultAssembly(any()) }
+  }
+
+  @Test
   fun `execute fails BasicReport when a Measurement failed`() = runBlocking {
     stubReportComputations(REPORT_COMPUTATION, REPORT_COMPUTATION_2)
     stubMeasurements(
