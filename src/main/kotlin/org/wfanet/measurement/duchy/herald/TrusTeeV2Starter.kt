@@ -14,11 +14,8 @@
 
 package org.wfanet.measurement.duchy.herald
 
-import java.util.logging.Level
-import java.util.logging.Logger
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
-import org.wfanet.measurement.duchy.db.computation.advanceComputationStage
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.duchy.utils.key
 import org.wfanet.measurement.duchy.utils.toKingdomComputationDetails
@@ -52,8 +49,6 @@ import org.wfanet.measurement.system.v1alpha.VectorSet as SystemVectorSet
 import org.wfanet.measurement.system.v1alpha.VidFilter as SystemVidFilter
 
 object TrusTeeV2Starter {
-  private val logger: Logger = Logger.getLogger(this::class.java.name)
-
   val TERMINAL_STAGE = Stage.COMPLETE.toProtocolStage()
 
   /** Create a TrusTEE multimeasurement Computation. */
@@ -75,11 +70,20 @@ object TrusTeeV2Starter {
     require(measurementSpec.hasMulti()) {
       "Unsupported measurement type for TrusTEE v2: ${measurementSpec.measurementTypeCase}"
     }
-    require(systemComputation.mpcProtocolConfig.hasTrusTeeV2()) {
-      "Missing TrusTeeV2 in the duchy protocol config."
-    }
     require(systemComputation.hasMultimeasurement()) { "Missing multimeasurement" }
     val multimeasurement = systemComputation.multimeasurement
+    // Every base vector must have exactly one Requisition, so that a malformed computation fails
+    // here rather than after DataProviders upload.
+    val vectorIndexes: List<Int> =
+      systemComputation.requisitionsList.map { requisition ->
+        require(requisition.hasVectorIndex()) {
+          "Requisition ${requisition.name} has no vector index"
+        }
+        requisition.vectorIndex
+      }
+    require(vectorIndexes.sorted() == vectorIndexes.indices.toList()) {
+      "Requisition vector indexes must cover 0 to ${vectorIndexes.size - 1} exactly once"
+    }
 
     val initialComputationDetails = computationDetails {
       blobsStoragePrefix = "$blobStorageBucket/$duchyId/$globalId"
@@ -125,31 +129,21 @@ object TrusTeeV2Starter {
 
     val stage = token.computationStage.trusTeeV2
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    when (stage) {
-      Stage.WAIT_TO_START -> {
-        computationStorageClient.advanceComputationStage(
-          computationToken = token,
-          stage = Stage.COMPUTING.toProtocolStage(),
-        )
-        logger.log(Level.INFO) { "[id=${token.globalComputationId}] Computation starts." }
+    val action: TrusTeeStarter.StartAction =
+      when (stage) {
+        Stage.WAIT_TO_START -> TrusTeeStarter.StartAction.START
+        Stage.INITIALIZED -> TrusTeeStarter.StartAction.NOT_READY
+        Stage.COMPUTING,
+        Stage.COMPLETE -> TrusTeeStarter.StartAction.ALREADY_STARTED
+        Stage.STAGE_UNSPECIFIED,
+        Stage.UNRECOGNIZED -> error("[id=${token.globalComputationId}]: Unrecognized stage $stage")
       }
-      // Stage that should not be reached.
-      Stage.INITIALIZED ->
-        logger.log(Level.WARNING) {
-          "[id=${token.globalComputationId}]: Computation is not ready to start. stage=$stage."
-        }
-      // Log and skip for future Stages.
-      Stage.COMPUTING,
-      Stage.COMPLETE -> {
-        logger.log(Level.WARNING) {
-          "[id=${token.globalComputationId}]: Computation has started. Skip start request. stage=$stage."
-        }
-      }
-      Stage.STAGE_UNSPECIFIED,
-      Stage.UNRECOGNIZED -> {
-        error("[id=${token.globalComputationId}]: Unrecognized stage $stage")
-      }
-    }
+    TrusTeeStarter.applyStartAction(
+      token,
+      computationStorageClient,
+      action,
+      computingStage = Stage.COMPUTING.toProtocolStage(),
+    )
   }
 
   private fun SystemQuery.toInternal(): Query {

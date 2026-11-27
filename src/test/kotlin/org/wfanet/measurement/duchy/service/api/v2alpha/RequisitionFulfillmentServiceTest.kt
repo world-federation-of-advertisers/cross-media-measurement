@@ -593,6 +593,7 @@ class RequisitionFulfillmentServiceTest {
                         RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.FREQUENCY_VECTOR
                       populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                     }
+                  fulfillmentDetails = FULFILLMENT_DETAILS.toByteString()
                   dataProviderResourceId = DATA_PROVIDER_API_ID
                 }
             }
@@ -650,11 +651,45 @@ class RequisitionFulfillmentServiceTest {
                         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
                         populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                       }
+                    encryptedFulfillmentDetails = ENCRYPTED_FULFILLMENT_DETAILS.toByteString()
                     dataProviderResourceId = DATA_PROVIDER_API_ID
                   }
               }
           }
         )
+    }
+
+  @Test
+  fun `fulfillRequisition rejects TrusTEE v2 details mismatching the data format before writing`() =
+    runBlocking {
+      computationsServiceMock.stub {
+        onBlocking { getComputationToken(any()) }
+          .thenReturn(
+            getComputationTokenResponse {
+              token = computationToken {
+                globalComputationId = COMPUTATION_ID
+                computationStage = computationStage { trusTeeV2 = TrusTeeV2Stage.INITIALIZED }
+                computationDetails = COMPUTATION_DETAILS
+                requisitions += TRUS_TEE_V2_REQUISITION_METADATA
+              }
+            }
+          )
+      }
+      // Encrypted details with a plaintext frequency vector.
+      val header =
+        PLAIN_TRUS_TEE_V2_HEADER.copy {
+          trusTeeV2 = trusTeeV2.copy { encryptedFulfillmentDetails = ENCRYPTED_FULFILLMENT_DETAILS }
+        }
+
+      val e =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipal(DATA_PROVIDER_PRINCIPAL) {
+            service.fulfillRequisition(header.withContent(TEST_REQUISITION_DATA))
+          }
+        }
+
+      assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(requisitionStore.get(REQUISITION_BLOB_CONTEXT)).isNull()
     }
 
   @Test
