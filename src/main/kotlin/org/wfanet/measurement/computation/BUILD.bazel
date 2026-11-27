@@ -92,6 +92,9 @@ kt_jvm_library(
 kt_jvm_library(
     name = "result_minimum_thresholds",
     srcs = ["ResultMinimumThresholds.kt"],
+    visibility = _DEFAULT_VISIBILITY + [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/trustee:__pkg__",
+    ],
     deps = [
         ":computation_params",
     ],
@@ -126,4 +129,9 @@ kt_jvm_library(
         ":result_minimum_thresholds",
         ":result_noiser",
     ],
+)
+
+kt_jvm_library(
+    name = "sampled_index_ranges",
+    srcs = ["SampledIndexRanges.kt"],
 )
