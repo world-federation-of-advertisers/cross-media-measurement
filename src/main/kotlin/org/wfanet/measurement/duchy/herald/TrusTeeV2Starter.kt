@@ -206,7 +206,7 @@ object TrusTeeV2Starter {
       for (subpopulation in source.subpopulationsList) {
         subpopulations +=
           PopulationSpecKt.subPopulation {
-            attributes += subpopulation.attributesList
+            attributes += subpopulation.attributesList.map { it.toByteString() }
             for (range in subpopulation.vidRangesList) {
               vidRanges +=
                 PopulationSpecKt.vidRange {

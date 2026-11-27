@@ -2775,7 +2775,7 @@ class HeraldTest {
           populationSpec = internalPopulationSpec {
             subpopulations +=
               InternalPopulationSpecKt.subPopulation {
-                attributes += PUBLIC_API_ENCRYPTION_PUBLIC_KEY.pack()
+                attributes += PUBLIC_API_ENCRYPTION_PUBLIC_KEY.pack().toByteString()
                 vidRanges +=
                   InternalPopulationSpecKt.vidRange {
                     startVid = 1

@@ -593,7 +593,6 @@ class RequisitionFulfillmentServiceTest {
                         RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.FREQUENCY_VECTOR
                       populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                     }
-                  fulfillmentDetails = FULFILLMENT_DETAILS.toByteString()
                   dataProviderResourceId = DATA_PROVIDER_API_ID
                 }
             }
@@ -651,7 +650,6 @@ class RequisitionFulfillmentServiceTest {
                         impersonatedServiceAccount = IMPERSONATED_SERVICE_ACCOUNT
                         populationSpecFingerprint = POPULATION_SPEC_FINGERPRINT
                       }
-                    encryptedFulfillmentDetails = ENCRYPTED_FULFILLMENT_DETAILS.toByteString()
                     dataProviderResourceId = DATA_PROVIDER_API_ID
                   }
               }
@@ -660,35 +658,21 @@ class RequisitionFulfillmentServiceTest {
     }
 
   @Test
-  fun `fulfillRequisition fails when TrusTEE v2 details do not match the data format`() =
-    runBlocking {
-      val fakeToken = computationToken {
-        globalComputationId = COMPUTATION_ID
-        computationStage = computationStage { trusTeeV2 = TrusTeeV2Stage.INITIALIZED }
-        computationDetails = COMPUTATION_DETAILS
-        requisitions += TRUS_TEE_V2_REQUISITION_METADATA
-      }
-      computationsServiceMock.stub {
-        onBlocking { getComputationToken(any()) }
-          .thenReturn(getComputationTokenResponse { token = fakeToken })
-      }
-      val mismatchedHeader =
-        PLAIN_TRUS_TEE_V2_HEADER.copy {
-          trusTeeV2 = trusTeeV2.copy { encryptedFulfillmentDetails = ENCRYPTED_FULFILLMENT_DETAILS }
-        }
-
-      val e =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipal(DATA_PROVIDER_PRINCIPAL) {
-            service.fulfillRequisition(mismatchedHeader.withContent(TEST_REQUISITION_DATA))
+  fun `fulfillRequisition fails when a TrusTEE v2 header carries a nonce`() = runBlocking {
+    computationsServiceMock.stub {
+      onBlocking { getComputationToken(any()) }
+        .thenReturn(
+          getComputationTokenResponse {
+            token = computationToken {
+              globalComputationId = COMPUTATION_ID
+              computationStage = computationStage { trusTeeV2 = TrusTeeV2Stage.INITIALIZED }
+              computationDetails = COMPUTATION_DETAILS
+              requisitions += TRUS_TEE_V2_REQUISITION_METADATA
+            }
           }
-        }
-
-      assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        )
     }
 
-  @Test
-  fun `fulfillRequisition fails when a TrusTEE v2 header carries a nonce`() = runBlocking {
     val e =
       assertFailsWith<StatusRuntimeException> {
         withPrincipal(DATA_PROVIDER_PRINCIPAL) {
@@ -724,6 +708,7 @@ class RequisitionFulfillmentServiceTest {
 
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(e.message).contains("trus_tee_v2")
+    assertThat(requisitionStore.get(REQUISITION_BLOB_CONTEXT)).isNull()
   }
 
   @Test

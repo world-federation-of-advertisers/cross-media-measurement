@@ -16,8 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.duchy;
 
-import "google/protobuf/any.proto";
-
 option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
@@ -35,9 +33,13 @@ message PopulationSpec {
   // A sub-population, composed of a set of [VidRange][]s that share the same
   // attributes.
   message SubPopulation {
-    // The unique attributes of the sub-population, each a packed event
-    // template message.
-    repeated google.protobuf.Any attributes = 1;
+    // The unique attributes of the sub-population, each a serialized
+    // `google.protobuf.Any` packing an event template message.
+    //
+    // These are serialized rather than `google.protobuf.Any` fields so that the
+    // `ComputationDetails` holding them can be printed as JSON without the
+    // event template types.
+    repeated bytes attributes = 1;
 
     // The set of disjoint VID ranges for this sub-population.
     repeated VidRange vid_ranges = 2;

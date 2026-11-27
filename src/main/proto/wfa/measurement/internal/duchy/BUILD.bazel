@@ -36,7 +36,6 @@ proto_library(
     name = "population_spec_proto",
     srcs = ["population_spec.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = ["@com_google_protobuf//:any_proto"],
 )
 
 kt_jvm_proto_library(
