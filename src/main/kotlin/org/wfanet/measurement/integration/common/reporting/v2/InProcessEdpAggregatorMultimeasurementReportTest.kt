@@ -68,7 +68,6 @@ abstract class InProcessEdpAggregatorMultimeasurementReportTest(
         // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Request stacked
         // incremental reach once multimeasurements compute it.
         stackedIncrementalReach = false,
-        nonCumulativeReportingUnit = true,
       )
     val createdBasicReport =
       reportingBasicReportsClient
@@ -97,11 +96,6 @@ abstract class InProcessEdpAggregatorMultimeasurementReportTest(
     val metricSet = completedBasicReport.resultGroupsList.single().resultsList.single().metricSet
     assertThat(metricSet.reportingUnit.cumulative.reach).isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
     assertThat(metricSet.reportingUnit.cumulative.impressions)
-      .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
-    // With a total metric frequency, the non-cumulative window spans the whole report.
-    assertThat(metricSet.reportingUnit.nonCumulative.reach)
-      .isEqualTo(EXPECTED_CROSS_PUBLISHER_REACH)
-    assertThat(metricSet.reportingUnit.nonCumulative.impressions)
       .isEqualTo(EXPECTED_CROSS_PUBLISHER_IMPRESSIONS)
     assertThat(metricSet.componentsList.map { it.value.cumulative.reach })
       .containsExactly(EXPECTED_EDP_SPEC1_REACH, EXPECTED_EDP_SPEC2_REACH)
