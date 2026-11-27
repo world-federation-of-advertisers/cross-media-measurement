@@ -38,6 +38,7 @@ val ComputationStage.name: String
         reachOnlyLiquidLegionsSketchAggregationV2.name
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.name
       ComputationStage.StageCase.TRUS_TEE -> trusTee.name
+      ComputationStage.StageCase.TRUS_TEE_V2 -> trusTeeV2.name
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 
@@ -51,6 +52,7 @@ val ComputationStage.number: Int
         reachOnlyLiquidLegionsSketchAggregationV2.number
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.number
       ComputationStage.StageCase.TRUS_TEE -> trusTee.number
+      ComputationStage.StageCase.TRUS_TEE_V2 -> trusTeeV2.number
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 

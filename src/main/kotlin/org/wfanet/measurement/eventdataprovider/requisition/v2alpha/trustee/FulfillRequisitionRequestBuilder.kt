@@ -173,6 +173,8 @@ class FulfillRequisitionRequestBuilder(
     return fulfillRequisitionRequest {
       header = header {
         name = requisition.name
+        // TODO(world-federation-of-advertisers/cross-media-measurement#5015): Derive the TrusTEE v2
+        // fingerprint from the unsigned MeasurementSpec and the plaintext RequisitionSpec.
         requisitionFingerprint = computeRequisitionFingerprint(requisition)
         nonce = requisitionNonce
         protocolConfig = requisition.protocolConfig
@@ -241,6 +243,8 @@ class FulfillRequisitionRequestBuilder(
     return fulfillRequisitionRequest {
       header = header {
         name = requisition.name
+        // TODO(world-federation-of-advertisers/cross-media-measurement#5015): Derive the TrusTEE v2
+        // fingerprint from the unsigned MeasurementSpec and the plaintext RequisitionSpec.
         requisitionFingerprint = computeRequisitionFingerprint(requisition)
         nonce = requisitionNonce
         protocolConfig = requisition.protocolConfig

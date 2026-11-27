@@ -66,4 +66,14 @@ message RequisitionDetails {
   // only be set when [Requisition.state][] is
   // [FULFILLED][Requisition.State.FULFILLED].
   FulfillmentContext fulfillment_context = 11;
+
+  // Index of the base vector this `Requisition` fulfills, from the public API
+  // `Measurement.Multimeasurement.Vector.index`. Set only for a
+  // multimeasurement.
+  optional int32 vector_index = 12;
+
+  // Serialized plaintext `RequisitionSpec` from the public API, from
+  // `Measurement.Multimeasurement.Vector.requisition_spec`. Set only for a
+  // multimeasurement, in place of [encrypted_requisition_spec][].
+  bytes requisition_spec = 13;
 }
