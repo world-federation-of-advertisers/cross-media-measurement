@@ -567,6 +567,8 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
           InternalErrors.Reason.INVALID_BASIC_REPORT,
+          InternalErrors.Reason.REPORT_COMPUTATION_NOT_FOUND,
+          InternalErrors.Reason.REPORT_COMPUTATION_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -576,6 +578,8 @@ class BasicReportsService(
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
     when (createdInternalBasicReport.state) {
       InternalBasicReport.State.CREATED -> {}
+      InternalBasicReport.State.CREATED_MULTIMEASUREMENT,
+      InternalBasicReport.State.MEASUREMENTS_CREATED,
       InternalBasicReport.State.REPORT_CREATED,
       InternalBasicReport.State.UNPROCESSED_RESULTS_READY,
       InternalBasicReport.State.SUCCEEDED ->
@@ -654,6 +658,8 @@ class BasicReportsService(
         InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
         InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
         InternalErrors.Reason.INVALID_BASIC_REPORT,
+        InternalErrors.Reason.REPORT_COMPUTATION_NOT_FOUND,
+        InternalErrors.Reason.REPORT_COMPUTATION_STATE_INVALID,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
     }
@@ -700,6 +706,8 @@ class BasicReportsService(
         InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
         InternalErrors.Reason.INVALID_BASIC_REPORT,
+        InternalErrors.Reason.REPORT_COMPUTATION_NOT_FOUND,
+        InternalErrors.Reason.REPORT_COMPUTATION_STATE_INVALID,
         null -> Exception("Error retrieving internal ImpressionQualificationFilter", e)
       }
     }
@@ -821,6 +829,8 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
           InternalErrors.Reason.INVALID_BASIC_REPORT,
+          InternalErrors.Reason.REPORT_COMPUTATION_NOT_FOUND,
+          InternalErrors.Reason.REPORT_COMPUTATION_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -880,6 +890,8 @@ class BasicReportsService(
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
           InternalErrors.Reason.INVALID_BASIC_REPORT,
+          InternalErrors.Reason.REPORT_COMPUTATION_NOT_FOUND,
+          InternalErrors.Reason.REPORT_COMPUTATION_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

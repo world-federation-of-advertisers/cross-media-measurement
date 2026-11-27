@@ -69,3 +69,6 @@ databaseChangeLog:
 - include:
     file: add-report-result-assembly-ownership.sql
     relativeToChangeLogFile: true
+- include:
+    file: create-report-computations-schema.sql
+    relativeToChangeLogFile: true

@@ -45,6 +45,8 @@ object Errors {
     REPORTING_WINDOW_RESULT_NOT_FOUND,
     BASIC_REPORT_STATE_INVALID,
     INVALID_BASIC_REPORT,
+    REPORT_COMPUTATION_NOT_FOUND,
+    REPORT_COMPUTATION_STATE_INVALID,
   }
 
   enum class Metadata(val key: String) {
@@ -56,6 +58,7 @@ object Errors {
     NEW_METRIC_STATE("newMetricState"),
     FIELD_NAME("fieldName"),
     EXTERNAL_REPORT_RESULT_ID("externalReportResultId"),
+    EXTERNAL_REPORT_COMPUTATION_ID("externalReportComputationId"),
     EXTERNAL_REPORTING_SET_RESULT_ID("externalReportingSetResultId"),
     REPORTING_WINDOW_NON_CUMULATIVE_START("reportingWindowNonCumulativeStart"),
     REPORTING_WINDOW_END("reportingWindowEnd"),
@@ -337,6 +340,43 @@ class InvalidBasicReportException(
     mapOf(
       Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
       Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+    ),
+    cause,
+  )
+
+class ReportComputationNotFoundException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  externalReportComputationId: Long,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REPORT_COMPUTATION_NOT_FOUND,
+    "ReportComputation with key ($cmmsMeasurementConsumerId, $externalBasicReportId, " +
+      "$externalReportComputationId) not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+      Errors.Metadata.EXTERNAL_REPORT_COMPUTATION_ID to externalReportComputationId.toString(),
+    ),
+    cause,
+  )
+
+class ReportComputationStateInvalidException(
+  cmmsMeasurementConsumerId: String,
+  externalBasicReportId: String,
+  externalReportComputationId: Long,
+  message: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.REPORT_COMPUTATION_STATE_INVALID,
+    "ReportComputation with key ($cmmsMeasurementConsumerId, $externalBasicReportId, " +
+      "$externalReportComputationId) is invalid for the operation: $message",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+      Errors.Metadata.EXTERNAL_REPORT_COMPUTATION_ID to externalReportComputationId.toString(),
     ),
     cause,
   )
