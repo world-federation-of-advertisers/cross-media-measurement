@@ -551,6 +551,8 @@ proto_library(
     deps = [
         ":duchy_protocol_config_proto",
         ":measurement_failure_proto",
+        ":model_line_key_proto",
+        ":population_key_proto",
         ":protocol_config_proto",
     ],
 )

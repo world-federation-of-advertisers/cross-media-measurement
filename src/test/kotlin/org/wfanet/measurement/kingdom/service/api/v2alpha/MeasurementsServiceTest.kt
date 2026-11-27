@@ -62,17 +62,23 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt.value
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.MultimeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt.queryResult
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.multimeasurementResult
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.multimeasurement
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result as measurementResult
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.duration
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.multiMeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
@@ -96,10 +102,13 @@ import org.wfanet.measurement.api.v2alpha.listMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
+import org.wfanet.measurement.api.v2alpha.query
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.setMessage
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
+import org.wfanet.measurement.api.v2alpha.vectorSet
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
@@ -153,6 +162,7 @@ import org.wfanet.measurement.internal.kingdom.measurement as internalMeasuremen
 import org.wfanet.measurement.internal.kingdom.measurementDetails
 import org.wfanet.measurement.internal.kingdom.measurementFailure as internalMeasurementFailure
 import org.wfanet.measurement.internal.kingdom.measurementKey
+import org.wfanet.measurement.internal.kingdom.modelLineKey as internalModelLineKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig as internalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
@@ -1195,40 +1205,101 @@ class MeasurementsServiceTest {
   }
 
   @Test
-  fun `createMeasurement throws UNIMPLEMENTED for a multimeasurement`() {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-          runBlocking {
-            service.createMeasurement(
-              createMeasurementRequest {
-                parent = MEASUREMENT_CONSUMER_NAME
-                measurement =
-                  MEASUREMENT.copy {
-                    clearMeasurementSpec()
-                    dataProviders.clear()
-                    unsignedMeasurementSpec = MEASUREMENT_SPEC
-                  }
-              }
-            )
-          }
-        }
+  fun `createMeasurement creates a TrusTEE v2 multimeasurement`() {
+    stubTrusTeeV2CapableDataProviders()
+    internalMeasurementsMock.stub {
+      onBlocking { createMeasurement(any()) }.thenReturn(INTERNAL_MULTIMEASUREMENT)
+    }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MULTIMEASUREMENT
+      requestId = "foo"
+    }
+
+    val response: Measurement =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.createMeasurement(request) }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+    val internalRequest =
+      captureFirst<InternalCreateMeasurementRequest> {
+        runBlocking { verify(internalMeasurementsMock).createMeasurement(capture()) }
+      }
+    assertThat(internalRequest)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        internalCreateMeasurementRequest {
+          measurement =
+            INTERNAL_MULTIMEASUREMENT.copy {
+              clearExternalMeasurementId()
+              clearCreateTime()
+              clearUpdateTime()
+            }
+          requestId = request.requestId
+        }
+      )
+    assertThat(response)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(
+        MULTIMEASUREMENT.copy {
+          name = MEASUREMENT_NAME
+          protocolConfig = TRUS_TEE_V2_PUBLIC_PROTOCOL_CONFIG
+          createTime = CREATE_TIME
+          updateTime = UPDATE_TIME
+        }
+      )
   }
 
   @Test
-  fun `batchCreateMeasurements throws UNIMPLEMENTED when a request is a multimeasurement`() {
+  fun `createMeasurement throws INVALID_ARGUMENT when multimeasurement vector indexes skip one`() {
+    stubTrusTeeV2CapableDataProviders()
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MULTIMEASUREMENT.copy {
+          multimeasurement =
+            multimeasurement.copy {
+              dataProviderVectors[1] =
+                dataProviderVectors[1].copy { vectors[0] = vectors[0].copy { index = 3 } }
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createMeasurement(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createMeasurement throws FAILED_PRECONDITION when a DataProvider lacks TrusTEE v2`() {
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement = MULTIMEASUREMENT
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createMeasurement(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `batchCreateMeasurements throws INVALID_ARGUMENT when a multimeasurement is signed`() {
+    stubTrusTeeV2CapableDataProviders()
     val request = batchCreateMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       requests += createMeasurementRequest {
         parent = MEASUREMENT_CONSUMER_NAME
-        measurement = MEASUREMENT
-      }
-      requests += createMeasurementRequest {
-        parent = MEASUREMENT_CONSUMER_NAME
-        measurement = MEASUREMENT.copy { multimeasurement = multimeasurement {} }
+        measurement = MULTIMEASUREMENT.copy { measurementSpec = MEASUREMENT.measurementSpec }
       }
     }
 
@@ -1239,7 +1310,80 @@ class MeasurementsServiceTest {
         }
       }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `getMeasurement returns a TrusTEE v2 multimeasurement`() {
+    internalMeasurementsMock.stub {
+      onBlocking { getMeasurement(any()) }.thenReturn(INTERNAL_MULTIMEASUREMENT)
+    }
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val response: Measurement =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.getMeasurement(request) }
+      }
+
+    assertThat(response.unsignedMeasurementSpec).isEqualTo(MULTI_MEASUREMENT_SPEC)
+    assertThat(response.hasMeasurementSpec()).isFalse()
+    assertThat(response.multimeasurement)
+      .ignoringRepeatedFieldOrder()
+      .isEqualTo(MULTIMEASUREMENT.multimeasurement)
+    assertThat(response.protocolConfig).isEqualTo(TRUS_TEE_V2_PUBLIC_PROTOCOL_CONFIG)
+  }
+
+  @Test
+  fun `getMeasurement returns plaintext result of a succeeded TrusTEE v2 multimeasurement`() {
+    val result = measurementResult {
+      multimeasurementResult = multimeasurementResult {
+        queryResults += queryResult {
+          queryId = QUERY.id
+          maxFrequency = QUERY.maxFrequency
+        }
+      }
+    }
+    internalMeasurementsMock.stub {
+      onBlocking { getMeasurement(any()) }
+        .thenReturn(
+          INTERNAL_MULTIMEASUREMENT.copy {
+            state = InternalState.SUCCEEDED
+            results += resultInfo {
+              externalAggregatorDuchyId = "aggregator"
+              this.result = result.toByteString()
+              apiVersion = API_VERSION.string
+            }
+          }
+        )
+    }
+    val request = getMeasurementRequest { name = MEASUREMENT_NAME }
+
+    val response: Measurement =
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.getMeasurement(request) }
+      }
+
+    assertThat(response.state).isEqualTo(State.SUCCEEDED)
+    assertThat(response.resultsList).containsExactly(resultOutput { this.result = result })
+  }
+
+  private fun stubTrusTeeV2CapableDataProviders() {
+    internalDataProvidersMock.stub {
+      onBlocking { batchGetDataProviders(any()) }
+        .thenReturn(
+          internalBatchGetDataProvidersResponse {
+            for (externalDataProviderId in EXTERNAL_DATA_PROVIDER_IDS) {
+              dataProviders += internalDataProvider {
+                this.externalDataProviderId = externalDataProviderId.value
+                details =
+                  details.copy {
+                    capabilities = internalDataProviderCapabilities { trusTeeV2Supported = true }
+                  }
+              }
+            }
+          }
+        )
+    }
   }
 
   @Test
@@ -3826,6 +3970,104 @@ class MeasurementsServiceTest {
         encryptedResult = ENCRYPTED_DATA
         apiVersion = API_VERSION.string
       }
+    }
+
+    private const val MODEL_LINE_NAME =
+      "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs"
+
+    private val MULTI_MEASUREMENT_SPEC = measurementSpec {
+      measurementPublicKey = MEASUREMENT_PUBLIC_KEY.pack()
+      multi = multiMeasurementSpec {}
+      // Wraps around 1, which TrusTEE v2 allows.
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.5f
+        width = 0.8f
+      }
+      modelLine = MODEL_LINE_NAME
+    }
+
+    private val PLAINTEXT_REQUISITION_SPEC = requisitionSpec {
+      measurementPublicKey = MEASUREMENT_PUBLIC_KEY.pack()
+    }
+
+    private val QUERY = query {
+      id = "reach"
+      summands = vectorSet { baseVectors += listOf(0, 1, 2) }
+      maxFrequency = 5
+    }
+
+    /** A multimeasurement with vectors 0 and 2 on one DataProvider and vector 1 on another. */
+    private val MULTIMEASUREMENT = measurement {
+      measurementConsumerCertificate = MEASUREMENT_CONSUMER_CERTIFICATE_NAME
+      unsignedMeasurementSpec = MULTI_MEASUREMENT_SPEC
+      multimeasurement = multimeasurement {
+        dataProviderVectors +=
+          MultimeasurementKt.dataProviderVectors {
+            dataProvider = DataProviderKey(EXTERNAL_DATA_PROVIDER_IDS[0].apiId.value).toName()
+            for (index in listOf(0, 2)) {
+              vectors +=
+                MultimeasurementKt.vector {
+                  this.index = index
+                  requisitionSpec = PLAINTEXT_REQUISITION_SPEC
+                }
+            }
+          }
+        dataProviderVectors +=
+          MultimeasurementKt.dataProviderVectors {
+            dataProvider = DataProviderKey(EXTERNAL_DATA_PROVIDER_IDS[1].apiId.value).toName()
+            vectors +=
+              MultimeasurementKt.vector {
+                index = 1
+                requisitionSpec = PLAINTEXT_REQUISITION_SPEC
+              }
+          }
+        queries += QUERY
+      }
+      measurementReferenceId = "ref_id"
+    }
+
+    private val INTERNAL_MULTIMEASUREMENT = internalMeasurement {
+      externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+      externalMeasurementId = EXTERNAL_MEASUREMENT_ID
+      providedMeasurementId = MULTIMEASUREMENT.measurementReferenceId
+      externalMeasurementConsumerCertificateId =
+        apiIdToExternalId(
+          MeasurementConsumerCertificateKey.fromName(MEASUREMENT_CONSUMER_CERTIFICATE_NAME)!!
+            .certificateId
+        )
+      createTime = CREATE_TIME
+      updateTime = UPDATE_TIME
+      // Vector `i` belongs to `EXTERNAL_DATA_PROVIDER_IDS[dataProviderIndex]`.
+      for ((index, dataProviderIndex) in listOf(0, 1, 0).withIndex()) {
+        multimeasurementVectors +=
+          InternalMeasurementKt.multimeasurementVector {
+            externalDataProviderId = EXTERNAL_DATA_PROVIDER_IDS[dataProviderIndex].value
+            this.index = index
+            requisitionSpec = PLAINTEXT_REQUISITION_SPEC.toByteString()
+          }
+      }
+      details = measurementDetails {
+        apiVersion = API_VERSION.string
+        measurementSpec = MULTI_MEASUREMENT_SPEC.toByteString()
+        protocolConfig = internalProtocolConfig {
+          trusTeeV2 = InternalProtocolConfig.TrusTeeV2.getDefaultInstance()
+        }
+        queries += QUERY.toByteString()
+        modelLine =
+          ModelLineKey.fromName(MODEL_LINE_NAME)!!.let {
+            internalModelLineKey {
+              externalModelProviderId = apiIdToExternalId(it.modelProviderId)
+              externalModelSuiteId = apiIdToExternalId(it.modelSuiteId)
+              externalModelLineId = apiIdToExternalId(it.modelLineId)
+            }
+          }
+      }
+    }
+
+    private val TRUS_TEE_V2_PUBLIC_PROTOCOL_CONFIG = protocolConfig {
+      measurementType = ProtocolConfig.MeasurementType.MULTI
+      protocols +=
+        ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfig.TrusTeeV2.getDefaultInstance() }
     }
 
     private val REACH_ONLY_MEASUREMENT_SPEC =

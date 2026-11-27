@@ -27,6 +27,7 @@ import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntryStageAtte
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfig as InternalDuchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryError
+import org.wfanet.measurement.internal.kingdom.PopulationDetails
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig as InternalProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.Requisition as InternalRequisition
@@ -34,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.measurementLogEntryError
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.system.v1alpha.ComputationKey
+import org.wfanet.measurement.system.v1alpha.ComputationKt
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.liquidLegionsSketchParams
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.LiquidLegionsV2Kt.mpcNoise
 import org.wfanet.measurement.system.v1alpha.ComputationKt.MpcProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as systemResultMinimumThresholds
@@ -48,12 +50,16 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.DifferentialPrivacyParams
+import org.wfanet.measurement.system.v1alpha.PopulationSpec
+import org.wfanet.measurement.system.v1alpha.PopulationSpecKt
+import org.wfanet.measurement.system.v1alpha.Query
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.RequisitionKey
 import org.wfanet.measurement.system.v1alpha.RequisitionKt
 import org.wfanet.measurement.system.v1alpha.StageAttempt
 import org.wfanet.measurement.system.v1alpha.computation
 import org.wfanet.measurement.system.v1alpha.computationParticipant
+import org.wfanet.measurement.system.v1alpha.populationSpec
 import org.wfanet.measurement.system.v1alpha.requisition
 
 /** Converts a kingdom internal Requisition to system Api Requisition. */
@@ -66,7 +72,13 @@ fun InternalRequisition.toSystemRequisition(): Requisition {
           externalIdToApiId(source.externalRequisitionId),
         )
         .toName()
-    requisitionSpecHash = Hashing.hashSha256(source.details.encryptedRequisitionSpec)
+    if (source.hasVectorIndex()) {
+      // A multimeasurement RequisitionSpec is in plaintext and carries no nonce.
+      requisitionSpecHash = Hashing.hashSha256(source.details.requisitionSpec)
+      vectorIndex = source.vectorIndex
+    } else {
+      requisitionSpecHash = Hashing.hashSha256(source.details.encryptedRequisitionSpec)
+    }
     nonceHash = source.details.nonceHash
     state = source.state.toSystemRequisitionState()
     nonce = source.details.nonce
@@ -243,7 +255,12 @@ fun InternalMeasurement.toSystemComputation(): Computation {
     measurementSpec = details.measurementSpec
     state = source.state.toSystemComputationState()
     val resultsList = source.resultsList
-    if (resultsList.isNotEmpty() && resultsList[0].externalAggregatorDuchyId.isNotBlank()) {
+    // A TrusTEE v2 plaintext `result` has no aggregator certificate and no `Computation` field.
+    if (
+      resultsList.isNotEmpty() &&
+        resultsList[0].externalAggregatorDuchyId.isNotBlank() &&
+        resultsList[0].result.isEmpty
+    ) {
       aggregatorCertificate =
         when (apiVersion) {
           Version.V2_ALPHA ->
@@ -261,6 +278,44 @@ fun InternalMeasurement.toSystemComputation(): Computation {
       }
     requisitions += requisitionsList.map { requisition -> requisition.toSystemRequisition() }
     mpcProtocolConfig = buildMpcProtocolConfig(details.duchyProtocolConfig, details.protocolConfig)
+    if (details.protocolConfig.hasTrusTeeV2()) {
+      multimeasurement = source.toSystemMultimeasurement()
+    }
+  }
+}
+
+/** Builds a system [Computation.Multimeasurement] from this internal multimeasurement. */
+private fun InternalMeasurement.toSystemMultimeasurement(): Computation.Multimeasurement {
+  val source = this
+  return ComputationKt.multimeasurement {
+    // The system `Query` is wire-compatible with the public API `Query` that
+    // `MeasurementDetails.queries` holds.
+    queries += source.details.queriesList.map { Query.parseFrom(it) }
+  }
+}
+
+/**
+ * Converts this internal [PopulationDetails.PopulationSpec] to a system [PopulationSpec].
+ *
+ * The two messages number their `SubPopulation` fields differently, so they are not
+ * wire-compatible.
+ */
+fun PopulationDetails.PopulationSpec.toSystemPopulationSpec(): PopulationSpec {
+  val source = this
+  return populationSpec {
+    subpopulations +=
+      source.subpopulationsList.map { subpopulation ->
+        PopulationSpecKt.subPopulation {
+          attributes += subpopulation.attributesList
+          vidRanges +=
+            subpopulation.vidRangesList.map {
+              PopulationSpecKt.vidRange {
+                startVid = it.startVid
+                endVidInclusive = it.endVidInclusive
+              }
+            }
+        }
+      }
   }
 }
 
@@ -363,6 +418,9 @@ private fun buildMpcProtocolConfig(
           }
         }
       }
+    }
+    InternalProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> {
+      mpcProtocolConfig { trusTeeV2 = Computation.MpcProtocolConfig.TrusTeeV2.getDefaultInstance() }
     }
     InternalProtocolConfig.ProtocolCase.DIRECT,
     InternalProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid Protocol.")

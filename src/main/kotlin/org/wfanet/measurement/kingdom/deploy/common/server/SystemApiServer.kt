@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.identity.DuchyInfoFlags
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub as InternalMeasurementLogEntriesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub as InternalPopulationsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineStub as InternalRequisitionsCoroutineStub
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationLogEntriesService
 import org.wfanet.measurement.kingdom.service.system.v1alpha.ComputationParticipantsService
@@ -48,7 +49,11 @@ private fun run(
   runKingdomApiServer(kingdomApiServerFlags, SERVER_NAME, duchyInfoFlags, commonServerFlags) {
     channel ->
     listOf(
-      ComputationsService(InternalMeasurementsCoroutineStub(channel), serviceDispatcher),
+      ComputationsService(
+        InternalMeasurementsCoroutineStub(channel),
+        InternalPopulationsCoroutineStub(channel),
+        serviceDispatcher,
+      ),
       ComputationParticipantsService(
         InternalComputationParticipantsCoroutineStub(channel),
         serviceDispatcher,

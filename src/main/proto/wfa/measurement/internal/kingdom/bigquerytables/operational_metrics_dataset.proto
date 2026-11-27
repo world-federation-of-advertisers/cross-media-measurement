@@ -28,6 +28,7 @@ enum MeasurementType {
   IMPRESSION = 3;
   DURATION = 4;
   POPULATION = 5;
+  MULTI = 6;
 }
 
 message MeasurementsTableRow {

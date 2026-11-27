@@ -166,6 +166,9 @@ message ProtocolConfig {
     ResultMinimumThresholds result_minimum_thresholds = 2;
   }
 
+  // Configuration for the TrusTEE multimeasurement protocol.
+  message TrusTeeV2 {}
+
   // Configuration for the specific protocol.
   oneof protocol {
     // Liquid Legions v2 config.
@@ -186,6 +189,12 @@ message ProtocolConfig {
 
     // TresTEE protocol
     TrusTee trus_tee = 7;
+
+    // TrusTEE multimeasurement protocol.
+    //
+    // Must only be set when the measurement type is MULTI. Callers are
+    // responsible for this, as this service does not read the MeasurementSpec.
+    TrusTeeV2 trus_tee_v2 = 8;
   }
 }
 
