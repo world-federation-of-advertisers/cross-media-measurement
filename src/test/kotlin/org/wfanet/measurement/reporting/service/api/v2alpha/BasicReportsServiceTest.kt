@@ -3567,7 +3567,10 @@ class BasicReportsServiceTest {
         .containsExactlyElementsIn(identicalMetricCalculationSpecs)
     }
 
-  private fun buildMultimeasurementService(multimeasurementEnabled: Boolean): BasicReportsService {
+  private fun buildMultimeasurementService(
+    multimeasurementBasicReportsEnabled: Boolean,
+    multimeasurementBasicReportsMeasurementConsumers: Set<String> = emptySet(),
+  ): BasicReportsService {
     return BasicReportsService(
       internalBasicReportsService,
       internalImpressionQualificationFiltersService,
@@ -3580,12 +3583,14 @@ class BasicReportsServiceTest {
       SecureRandom().asKotlinRandom(),
       authorization,
       measurementConsumerConfigs {
-        configs[MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID).toName()] =
-          CONFIG.copy { this.multimeasurementEnabled = multimeasurementEnabled }
+        configs[MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID).toName()] = CONFIG
       },
       defaultReportStartHour = null,
       baseExternalImpressionQualificationFilterIds = emptyList(),
       enableReportingSetReportingUnitComponents = true,
+      multimeasurementBasicReportsEnabled = multimeasurementBasicReportsEnabled,
+      multimeasurementBasicReportsMeasurementConsumers =
+        multimeasurementBasicReportsMeasurementConsumers,
     )
   }
 
@@ -3599,21 +3604,43 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `createBasicReport creates Report when not opted in to multimeasurement`(): Unit =
+  fun `createBasicReport creates Report when MeasurementConsumer is not enabled for multimeasurement`():
+    Unit = runBlocking {
+    val service =
+      buildMultimeasurementService(
+        multimeasurementBasicReportsEnabled = false,
+        multimeasurementBasicReportsMeasurementConsumers = setOf("measurementConsumers/other"),
+      )
+    val request = createModelLineBasicReportRequest("")
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+    verify(reportsServiceMock).createReport(any())
+    assertThat(getInternalBasicReport(request.basicReportId).state)
+      .isEqualTo(InternalBasicReport.State.REPORT_CREATED)
+  }
+
+  @Test
+  fun `createBasicReport takes multimeasurement path when MeasurementConsumer is listed`(): Unit =
     runBlocking {
-      val service = buildMultimeasurementService(multimeasurementEnabled = false)
-      val request = createModelLineBasicReportRequest("")
+      val service =
+        buildMultimeasurementService(
+          multimeasurementBasicReportsEnabled = false,
+          multimeasurementBasicReportsMeasurementConsumers =
+            setOf(MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID).toName()),
+        )
+      val request = createMultimeasurementBasicReportRequest()
 
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
 
-      verify(reportsServiceMock).createReport(any())
+      verify(reportsServiceMock, never()).createReport(any())
       assertThat(getInternalBasicReport(request.basicReportId).state)
-        .isEqualTo(InternalBasicReport.State.REPORT_CREATED)
+        .isEqualTo(InternalBasicReport.State.CREATED_MULTIMEASUREMENT)
     }
 
   @Test
-  fun `createBasicReport takes multimeasurement path when opted in`(): Unit = runBlocking {
-    val service = buildMultimeasurementService(multimeasurementEnabled = true)
+  fun `createBasicReport takes multimeasurement path when enabled for all`(): Unit = runBlocking {
+    val service = buildMultimeasurementService(multimeasurementBasicReportsEnabled = true)
     val request = createMultimeasurementBasicReportRequest()
 
     val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
@@ -3629,7 +3656,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport stores ReportComputations on the multimeasurement path`(): Unit =
     runBlocking {
-      val service = buildMultimeasurementService(multimeasurementEnabled = true)
+      val service = buildMultimeasurementService(multimeasurementBasicReportsEnabled = true)
       val request = createMultimeasurementBasicReportRequest()
 
       val response =
@@ -3656,7 +3683,7 @@ class BasicReportsServiceTest {
   @Test
   fun `createBasicReport throws INVALID_ARGUMENT when multimeasurement cannot compute it`(): Unit =
     runBlocking {
-      val service = buildMultimeasurementService(multimeasurementEnabled = true)
+      val service = buildMultimeasurementService(multimeasurementBasicReportsEnabled = true)
       // Component unique reach has no multimeasurement form yet.
       val request = createModelLineBasicReportRequest("")
 

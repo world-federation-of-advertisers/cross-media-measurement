@@ -128,6 +128,15 @@ import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 
+/**
+ * Public `BasicReports` service.
+ *
+ * @param multimeasurementBasicReportsEnabled whether every [BasicReport] takes the multimeasurement
+ *   path
+ * @param multimeasurementBasicReportsMeasurementConsumers resource names of the
+ *   `MeasurementConsumer`s whose [BasicReport]s take the multimeasurement path when
+ *   [multimeasurementBasicReportsEnabled] is `false`
+ */
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
   private val internalImpressionQualificationFiltersStub:
@@ -145,6 +154,8 @@ class BasicReportsService(
   private val baseExternalImpressionQualificationFilterIds: Iterable<String>,
   private val enableReportingSetReportingUnitComponents: Boolean = false,
   private val emitCelNullGuardsForNestedMembers: Boolean = false,
+  private val multimeasurementBasicReportsEnabled: Boolean = false,
+  private val multimeasurementBasicReportsMeasurementConsumers: Set<String> = emptySet(),
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
   data class ZonedHour(val hour: Int, val zoneId: ZoneId)
@@ -718,8 +729,8 @@ class BasicReportsService(
    * instead of a [Report] being created here.
    */
   private fun isMultimeasurement(measurementConsumerKey: MeasurementConsumerKey): Boolean =
-    measurementConsumerConfigs.configsMap[measurementConsumerKey.toName()]
-      ?.multimeasurementEnabled == true
+    multimeasurementBasicReportsEnabled ||
+      measurementConsumerKey.toName() in multimeasurementBasicReportsMeasurementConsumers
 
   /**
    * Gets an [InternalImpressionQualificationFilter].
