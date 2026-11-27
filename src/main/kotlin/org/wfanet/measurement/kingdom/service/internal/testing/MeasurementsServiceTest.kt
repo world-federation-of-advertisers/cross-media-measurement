@@ -1113,6 +1113,64 @@ abstract class MeasurementsServiceTest<T : MeasurementsCoroutineImplBase> {
     }
 
   @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when multimeasurement has no model_line`() =
+    runBlocking {
+      val measurement =
+        UNCHECKED_TRUS_TEE_V2_MEASUREMENT.copy {
+          details = details.copy { clearModelLine() }
+          multimeasurementVectors += testVector(EXTERNAL_DATA_PROVIDER_ID, index = 0)
+        }
+
+      assertCreateMeasurementFailsWithInvalidArgument(measurement)
+    }
+
+  @Test
+  fun `streamMeasurements returns a multimeasurement computation with its Population`(): Unit =
+    runBlocking {
+      val measurementConsumer =
+        population.createMeasurementConsumer(measurementConsumersService, accountsService)
+      val dataProvider1 = population.createDataProvider(dataProvidersService)
+      val dataProvider2 = population.createDataProvider(dataProvidersService)
+      val createdMeasurement =
+        measurementsService.createMeasurement(
+          createMeasurementRequest {
+            measurement =
+              trusTeeV2Measurement().copy {
+                externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+                externalMeasurementConsumerCertificateId =
+                  measurementConsumer.certificate.externalCertificateId
+                // Two vectors of the same DataProvider.
+                multimeasurementVectors +=
+                  testVector(dataProvider1.externalDataProviderId, index = 0)
+                multimeasurementVectors +=
+                  testVector(dataProvider1.externalDataProviderId, index = 1)
+                multimeasurementVectors +=
+                  testVector(dataProvider2.externalDataProviderId, index = 2)
+              }
+          }
+        )
+
+      val computation: Measurement =
+        measurementsService
+          .streamMeasurements(
+            streamMeasurementsRequest {
+              filter = filter {
+                externalMeasurementConsumerId = createdMeasurement.externalMeasurementConsumerId
+              }
+              measurementView = Measurement.View.COMPUTATION
+            }
+          )
+          .toList()
+          .single()
+
+      assertThat(computation.details.population).isEqualTo(createdMeasurement.details.population)
+      assertThat(computation.requisitionsList).hasSize(3)
+      for (requisition in computation.requisitionsList) {
+        assertThat(requisition.parentMeasurement.dataProvidersCount).isEqualTo(2)
+      }
+    }
+
+  @Test
   fun `createMeasurement throws INVALID_ARGUMENT when vectors are set without TrusTEE v2`() =
     runBlocking {
       val measurement =

@@ -18,10 +18,8 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Value
 import java.time.Clock
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.InternalId
-import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.appendClause
 import org.wfanet.measurement.gcloud.spanner.bind
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -38,7 +36,6 @@ import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
-import org.wfanet.measurement.internal.kingdom.StreamModelRolloutsRequestKt
 import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.populationKey
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
@@ -56,12 +53,11 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
-import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamModelRollouts
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRolloutReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
@@ -367,30 +363,22 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
    * ModelRollout of its `model_line`, so that a computation's PopulationSpec cannot change under
    * it.
    *
-   * @throws RequiredFieldNotSetException if `model_line` is not set
    * @throws ModelRolloutNotFoundException if the model line has no ModelRollout
    * @throws ModelReleaseNotFoundException if the ModelRollout's ModelRelease is not found
    */
   private suspend fun TransactionScope.withPinnedPopulation(
     request: CreateMeasurementRequest
   ): CreateMeasurementRequest {
-    val details = request.measurement.details
-    if (!details.hasModelLine()) {
-      throw RequiredFieldNotSetException("measurement.details.model_line")
-    }
-    val modelLine: ModelLineKey = details.modelLine
+    val modelLine: ModelLineKey = request.measurement.details.modelLine
     val latestModelRollout: ModelRollout =
-      StreamModelRollouts(
-          StreamModelRolloutsRequestKt.filter {
-            externalModelProviderId = modelLine.externalModelProviderId
-            externalModelSuiteId = modelLine.externalModelSuiteId
-            externalModelLineId = modelLine.externalModelLineId
-          }
+      ModelRolloutReader()
+        .readLatest(
+          transactionContext,
+          ExternalId(modelLine.externalModelProviderId),
+          ExternalId(modelLine.externalModelSuiteId),
+          ExternalId(modelLine.externalModelLineId),
         )
-        .execute(transactionContext)
-        .map { it.modelRollout }
-        .toList()
-        .maxWithOrNull(MODEL_ROLLOUT_RECENCY_COMPARATOR)
+        ?.modelRollout
         ?: throw ModelRolloutNotFoundException(
           ExternalId(modelLine.externalModelProviderId),
           ExternalId(modelLine.externalModelSuiteId),
@@ -610,10 +598,6 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     }
   }
 }
-
-/** Orders ModelRollouts by recency, as the Population DataProvider resolves a model line. */
-private val MODEL_ROLLOUT_RECENCY_COMPARATOR: Comparator<ModelRollout> =
-  compareBy({ it.rolloutPeriodStartTime.toInstant() }, { it.createTime.toInstant() })
 
 private suspend fun TransactionScope.readMeasurementConsumerId(
   externalMeasurementConsumerId: ExternalId
