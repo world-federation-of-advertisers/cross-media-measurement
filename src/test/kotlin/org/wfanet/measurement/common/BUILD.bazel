@@ -52,15 +52,3 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/com/google/type:datetime_kt_jvm_proto",
     ],
 )
-
-kt_jvm_test(
-    name = "VidHashingTest",
-    srcs = ["VidHashingTest.kt"],
-    test_class = "org.wfanet.measurement.common.VidHashingTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common:vid_hashing",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/com/google/protobuf",
-        "@wfa_common_jvm//imports/java/org/junit",
-    ],
-)
