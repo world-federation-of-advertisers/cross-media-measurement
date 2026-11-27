@@ -46,13 +46,13 @@ class SampledIndexRangesTest {
   }
 
   @Test
-  fun `of throws for a width outside (0, 1]`() {
+  fun `of throws for a width that is not positive or exceeds 1`() {
     assertFailsWith<IllegalArgumentException> { SampledIndexRanges.of(100, 0.0f, 0.0f) }
     assertFailsWith<IllegalArgumentException> { SampledIndexRanges.of(100, 0.0f, 1.5f) }
   }
 
   @Test
-  fun `of throws for a start outside [0, 1]`() {
+  fun `of throws for a start outside the unit interval`() {
     assertFailsWith<IllegalArgumentException> { SampledIndexRanges.of(100, -0.1f, 0.5f) }
     assertFailsWith<IllegalArgumentException> { SampledIndexRanges.of(100, 1.1f, 0.5f) }
   }
