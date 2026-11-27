@@ -87,6 +87,7 @@ class FrequencyVectorSampling(
    * this is the range of indexes that correspond to the sub-interval [start, 1.0)
    */
   val primaryRange: IntRange
+    get() = ranges.primaryRange
 
   val primaryRangeCount: Int
 
@@ -94,35 +95,29 @@ class FrequencyVectorSampling(
    * For a wrapping VidSamplingInterval this is the part of the range than spans [0, width-start)
    */
   val wrappedRange: IntRange
+    get() = ranges.wrappedRange
+
+  private val ranges: SampledIndexRanges
 
   init {
     val vidSamplingInterval = measurementSpec.vidSamplingInterval
-    require(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
-      "MeasurementSpec.VidSamplingInterval.width must be > 0 and <= 1"
-    }
-    require(vidSamplingInterval.start in 0.0..1.0) {
-      "MeasurementSpec.VidSamplingInterval.start must be >= 0 and <= 1"
-    }
-
     validateVidRangesList(populationSpec).getOrThrow()
     val populationSizeLong = populationSpec.size
     require(populationSizeLong > 0 && populationSizeLong < Int.MAX_VALUE) {
       "population size must be > 0 and < Int.MAX_VALUE"
     }
 
-    val ranges =
+    ranges =
       SampledIndexRanges.of(
         populationSizeLong.toInt(),
         vidSamplingInterval.start,
         vidSamplingInterval.width,
       )
-    primaryRange = ranges.primaryRange
-    primaryRangeCount = primaryRange.count()
-    wrappedRange = ranges.wrappedRange
+    primaryRangeCount = ranges.primaryRange.count()
   }
 
   val size: Int
-    get() = primaryRangeCount + wrappedRange.count()
+    get() = ranges.size
 
   /** Returns the sampled, capped frequency at [sampledIndex], treating missing input as zero. */
   fun frequencyAt(frequencyData: ByteArray, sampledIndex: Int): Int {
