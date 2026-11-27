@@ -343,47 +343,23 @@ class InvalidBasicReportException(
     cause,
   )
 
-/**
- * Exception for a missing ReportComputation of the impression qualification filter with
- * [externalImpressionQualificationFilterId], or for a BasicReport with no ReportComputation at all
- * if that is `null`.
- */
 class ReportComputationNotFoundException(
   cmmsMeasurementConsumerId: String,
   externalBasicReportId: String,
-  externalImpressionQualificationFilterId: String?,
+  externalImpressionQualificationFilterId: String,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.REPORT_COMPUTATION_NOT_FOUND,
-    if (externalImpressionQualificationFilterId == null) {
-      "BasicReport with external key ($cmmsMeasurementConsumerId, $externalBasicReportId) has " +
-        "no ReportComputation"
-    } else {
-      "ReportComputation with key ($cmmsMeasurementConsumerId, $externalBasicReportId, " +
-        "$externalImpressionQualificationFilterId) not found"
-    },
-    buildMap {
-      put(Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID, cmmsMeasurementConsumerId)
-      put(Errors.Metadata.EXTERNAL_BASIC_REPORT_ID, externalBasicReportId)
-      if (externalImpressionQualificationFilterId != null) {
-        put(
-          Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID,
-          externalImpressionQualificationFilterId,
-        )
-      }
-    },
+    "ReportComputation with key ($cmmsMeasurementConsumerId, $externalBasicReportId, " +
+      "$externalImpressionQualificationFilterId) not found",
+    mapOf(
+      Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID to cmmsMeasurementConsumerId,
+      Errors.Metadata.EXTERNAL_BASIC_REPORT_ID to externalBasicReportId,
+      Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID to externalImpressionQualificationFilterId,
+    ),
     cause,
-  ) {
-  companion object {
-    /** Returns an exception for a BasicReport that has no ReportComputation at all. */
-    fun forBasicReport(
-      cmmsMeasurementConsumerId: String,
-      externalBasicReportId: String,
-    ): ReportComputationNotFoundException =
-      ReportComputationNotFoundException(cmmsMeasurementConsumerId, externalBasicReportId, null)
-  }
-}
+  )
 
 class ReportComputationStateInvalidException(
   cmmsMeasurementConsumerId: String,

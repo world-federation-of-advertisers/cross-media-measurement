@@ -106,6 +106,7 @@ import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportComputation
 import org.wfanet.measurement.internal.reporting.v2.reportResult
+import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
@@ -1773,6 +1774,12 @@ abstract class ReportResultsServiceTest {
           externalBasicReportId = "basic-report-1"
           externalCampaignGroupId = campaignGroup.externalCampaignGroupId
           details = basicReportDetails {
+            if (multimeasurement) {
+              effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+                externalImpressionQualificationFilterId =
+                  AMI_IQF.externalImpressionQualificationFilterId
+              }
+            }
             reportingInterval = reportingInterval {
               reportStart = dateTime {
                 year = 2025
