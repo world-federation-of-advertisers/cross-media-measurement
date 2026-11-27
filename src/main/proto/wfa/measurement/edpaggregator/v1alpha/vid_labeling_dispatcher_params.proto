@@ -18,6 +18,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/securecomputation/controlplane/v1alpha/work_item.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -32,4 +33,46 @@ message VidLabelingDispatcherParams {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
+}
+
+// Parameters persisted for one raw-upload dispatch or authorized recovery
+// replay.
+message VidLabelingDispatchWorkItemParams {
+  // Resource name of the DataProvider whose configured dispatcher handles this
+  // upload.
+  string data_provider = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
+  ];
+
+  // Authorization and exact source for a historical recovery replay.
+  // Ordinary source identity is carried by
+  // WorkItem.WorkItemParams.data_path_params.
+  RecoveryParams recovery = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Authorization for replaying an evicted upload.
+  message RecoveryParams {
+    // Exact finalized source-object version authorized for replay.
+    // (-- api-linter: core::0215::foreign-type-reference=disabled
+    //     aip.dev/not-precedent: Recovery deliberately reuses the standard
+    //     WorkItem exact-object identity rather than defining a duplicate
+    //     source message. --)
+    wfa.measurement.securecomputation.controlplane.v1alpha.WorkItem
+        .WorkItemParams.DataPathParams source = 1
+        [(google.api.field_behavior) = REQUIRED];
+
+    // Resource name of the evicted RawImpressionUpload under data_provider.
+    string source_upload = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type =
+          "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    ];
+
+    // Resource name of the operation whose approved steps determine ModelLines.
+    string upload_healing_operation = 3 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type =
+          "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    ];
+  }
 }

@@ -166,6 +166,7 @@ private fun run(
         // which is gated by this same concurrency value.
         kingdomMeasurementBatchConcurrency =
           reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
+        logMeasurementValues = v2AlphaFlags.logMeasurementValues,
       )
       .withTrustedPrincipalAuthentication()
 

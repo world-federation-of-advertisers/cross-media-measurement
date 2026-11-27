@@ -17,6 +17,9 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.DescriptorProtos.FileDescriptorProto
+import com.google.protobuf.DescriptorProtos.FileOptions
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import io.grpc.Status
 import io.grpc.StatusException
@@ -48,6 +51,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -130,6 +134,54 @@ class ResultsFulfiller(
   private val metrics: ResultsFulfillerMetrics,
 ) {
 
+  init {
+    if (groupedRequisitions.requireModelLineFinalization) {
+      val selectedModelLine =
+        checkNotNull(groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)) {
+          "Missing selected model line for cutover fulfillment"
+        }
+      val visibleModelInfo = modelLineInfoMap.getValue(groupedRequisitions.modelLine)
+      val selectedModelInfo = modelLineInfoMap.getValue(selectedModelLine)
+      require(selectedModelInfo.populationSpec == visibleModelInfo.populationSpec) {
+        "Selected model line $selectedModelLine has an incompatible PopulationSpec"
+      }
+      require(
+        selectedModelInfo.eventDescriptor.fullName == visibleModelInfo.eventDescriptor.fullName &&
+          eventSchema(selectedModelInfo.eventDescriptor) ==
+            eventSchema(visibleModelInfo.eventDescriptor)
+      ) {
+        "Selected model line $selectedModelLine has an incompatible EventTemplate descriptor"
+      }
+    }
+  }
+
+  private fun eventSchema(descriptor: Descriptors.Descriptor): Map<String, Message> = buildMap {
+    fun addFileContext(typeName: String, file: Descriptors.FileDescriptor) {
+      val proto = file.toProto()
+      put(
+        "$typeName#file-context",
+        FileDescriptorProto.newBuilder()
+          .setSyntax(proto.syntax.ifEmpty { "proto2" })
+          .setEdition(proto.edition)
+          .setOptions(FileOptions.newBuilder().setFeatures(proto.options.features))
+          .build(),
+      )
+    }
+    fun addMessage(message: Descriptors.Descriptor) {
+      if (put(message.fullName, message.toProto()) != null) return
+      addFileContext(message.fullName, message.file)
+      for (field in message.fields + message.extensions) {
+        if (field.javaType == Descriptors.FieldDescriptor.JavaType.MESSAGE) {
+          addMessage(field.messageType)
+        } else if (field.javaType == Descriptors.FieldDescriptor.JavaType.ENUM) {
+          put(field.enumType.fullName, field.enumType.toProto())
+          addFileContext(field.enumType.fullName, field.enumType.file)
+        }
+      }
+    }
+    addMessage(descriptor)
+  }
+
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
     EventProcessingOrchestrator<Message>(privateEncryptionKey = privateEncryptionKey)
   }
@@ -195,7 +247,7 @@ class ResultsFulfiller(
     ReportTraceLogging.log(
       logger,
       Level.SEVERE,
-      error,
+      ExceptionDiagnostics.forLogging(error),
       "edp_aggregator.results_fulfiller.group_failed",
       ReportTraceAttributes.BASIC_REPORT_NAME_STRING to groupedRequisitions.basicReport,
       ReportTraceAttributes.REPORT_NAME_STRING to groupedRequisitions.report,
@@ -301,7 +353,8 @@ class ResultsFulfiller(
       }
     val modelLineKey = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLineKey)
-    val modelLine = modelInfo.localAlias ?: modelLineKey
+    val selectedModelLine = groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
+    val modelLine = selectedModelLine ?: modelInfo.localAlias ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
@@ -316,6 +369,9 @@ class ResultsFulfiller(
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        reportInterval =
+          groupedRequisitions.reportInterval.takeIf { groupedRequisitions.hasReportInterval() },
+        requireModelLineFinalization = groupedRequisitions.requireModelLineFinalization,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 
@@ -620,12 +676,12 @@ class ResultsFulfiller(
           requisitionName = requisition.name,
           outcome = "refused",
         )
-        logger.log(Level.WARNING, e) {
+        logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
           "Refused requisition ${requisition.name} for report=$reportId " +
-            "groupId=${groupedRequisitions.groupId}"
+            "groupId=${groupedRequisitions.groupId}; ${publicRefusalDescription(e)}"
         }
         val metadataForRefusal = processingMetadata ?: requisitionMetadata
-        signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
+        signalRequisitionRefused(metadataForRefusal, publicRefusalDescription(e))
         refuseRequisitionInCmms(requisition, e)
         false
       } catch (e: CancellationException) {
@@ -774,7 +830,7 @@ class ResultsFulfiller(
               refusal =
                 RequisitionKt.refusal {
                   justification = e.justification
-                  message = e.message ?: "Requisition refused"
+                  message = publicRefusalDescription(e)
                 }
             }
           )
@@ -784,16 +840,13 @@ class ResultsFulfiller(
         throw cancellation
       } catch (refusalError: Exception) {
         span
-          .setStatus(
-            io.opentelemetry.api.trace.StatusCode.ERROR,
-            refusalError.message ?: refusalError::class.java.name,
-          )
+          .setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "Refusal reporting failed")
           .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
           .setAttribute(
             ReportTraceAttributes.ERROR_TYPE,
             ReportTraceAttributes.errorType(refusalError),
           )
-          .recordException(refusalError)
+          .recordException(ExceptionDiagnostics.forLogging(refusalError))
         val errorCode = ReportTraceAttributes.errorCode(refusalError)
         if (errorCode != null) {
           span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
@@ -801,7 +854,7 @@ class ResultsFulfiller(
         logger.log(
           Level.SEVERE,
           "Failed to refuse requisition ${requisition.name} in CMMS",
-          refusalError,
+          ExceptionDiagnostics.forLogging(refusalError),
         )
       }
     }
@@ -901,6 +954,13 @@ class ResultsFulfiller(
             ReportTraceAttributes.REFUSAL_ORIGIN,
             ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
           )
+          if (throwable is RequisitionRefusalException) {
+            it
+              .setAttribute(ATTR_REFUSAL_JUSTIFICATION_KEY, throwable.justification.name)
+              .setAttribute(ATTR_REFUSAL_CATEGORY_KEY, REFUSAL_CATEGORY)
+              .setAttribute(ATTR_REFUSAL_CODE_KEY, refusalCode(throwable.justification))
+              .recordException(ExceptionDiagnostics.forLogging(throwable))
+          }
         }
       }
     val errorCode = ReportTraceAttributes.errorCode(throwable)
@@ -932,11 +992,30 @@ class ResultsFulfiller(
     metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
   }
 
+  private fun publicRefusalDescription(error: RequisitionRefusalException): String =
+    "Requisition refused; justification=${error.justification.name}; " +
+      "category=$REFUSAL_CATEGORY; code=${refusalCode(error.justification)}"
+
+  private fun refusalCode(justification: Requisition.Refusal.Justification): String =
+    when (justification) {
+      Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID -> "INVALID_CONSENT_SIGNAL"
+      Requisition.Refusal.Justification.SPEC_INVALID -> "INVALID_REQUISITION_SPECIFICATION"
+      Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET -> "PRIVACY_BUDGET_EXHAUSTED"
+      Requisition.Refusal.Justification.UNFULFILLABLE -> "FULFILLMENT_FAILED"
+      Requisition.Refusal.Justification.DECLINED -> "POLICY_DECLINED"
+      Requisition.Refusal.Justification.JUSTIFICATION_UNSPECIFIED,
+      Requisition.Refusal.Justification.UNRECOGNIZED -> "UNKNOWN_REFUSAL"
+    }
+
   private class RequisitionProcessingException(val failure: Exception) :
-    Exception(failure.message, failure)
+    Exception("Requisition processing failed", failure)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val REFUSAL_CATEGORY = "REQUISITION_REFUSAL"
+    private val ATTR_REFUSAL_JUSTIFICATION_KEY = AttributeKey.stringKey("xmm.refusal.justification")
+    private val ATTR_REFUSAL_CATEGORY_KEY = AttributeKey.stringKey("xmm.refusal.category")
+    private val ATTR_REFUSAL_CODE_KEY = AttributeKey.stringKey("xmm.refusal.code")
     private const val SPAN_REQUISITION_PROCESSING = "requisition_processing"
 
     /**

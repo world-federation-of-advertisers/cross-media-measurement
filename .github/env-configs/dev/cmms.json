@@ -51,5 +51,6 @@
   "EDP5_NAME": "dataProviders/HlFzHaAQ5pA",
   "EDP5_CERT_NAME": "dataProviders/HlFzHaAQ5pA/certificates/dNeXLaAQ5pA",
   "EDP6_NAME": "dataProviders/QNqyjKAQ5i4",
-  "EDP6_CERT_NAME": "dataProviders/QNqyjKAQ5i4/certificates/a5mnb1_vGdM"
+  "EDP6_CERT_NAME": "dataProviders/QNqyjKAQ5i4/certificates/a5mnb1_vGdM",
+  "REQUISITION_FETCHER_SCHEDULER_JOB_NAME": "requisition-fetcher-scheduler-requisition-fetcher"
 }

@@ -65,6 +65,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.integration.common.HighOverlapDataAvailability
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach.ExpectedMetrics
@@ -90,11 +91,10 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 /**
  * Tests BasicReport reporting over the EDP Aggregator, against a deployed environment.
  *
- * The rules below provision the high overlap synthetic dataset the reports are computed over. It is
- * pre-labeled and carries its own Population, ModelLine and EventGroups, so none of the VID
- * labeling pipeline or low overlap data set that `EdpAggregatorCorrectnessTest` sets up is needed
- * here. Every rule is a no-op unless `model_line` is set, so an environment opts in only once its
- * ModelLine has been provisioned.
+ * Reads the high overlap dataset prepared by `SeedHighOverlapDataset`. Its Population, ModelLine
+ * and EventGroups are separate from the low overlap data that `EdpAggregatorCorrectnessTest`
+ * provisions. This test verifies the seed manifest and creates reports; it does not seed
+ * impressions or run EventGroupSync. The configured `model_line` must refer to the seeded dataset.
  *
  * Test methods run in name order, so they must be named to sort lexicographically in ascending
  * order of size. A cheaper report then reaches its result before a larger one can exhaust the test
@@ -121,7 +121,10 @@ class EdpAggregatorReportingIntegrationTest {
           if (MODEL_LINE.isEmpty()) {
             logger.info("No high overlap model line configured; skipping the dataset check.")
           } else {
-            runBlocking { verify(readManifest()) }
+            runBlocking {
+              verify(readManifest())
+              verifyDataAvailability()
+            }
           }
           base.evaluate()
         }
@@ -143,6 +146,21 @@ class EdpAggregatorReportingIntegrationTest {
             "No seeded dataset for $MODEL_LINE: $key is absent. Run the high overlap seeding job."
           )
       return HighOverlapDatasetManifest.parseFrom(blob.read().flatten())
+    }
+
+    private suspend fun verifyDataAvailability() {
+      val modelLineId = requireNotNull(ModelLineKey.fromName(MODEL_LINE)).modelLineId
+      val blobUri = SelectedStorageClient.parseBlobUri("gs://${TEST_CONFIG.storageBucket}/")
+      HighOverlapDataAvailability(
+          SelectedStorageClient(
+              blobUri = blobUri,
+              rootDirectory = null,
+              projectId = googleProjectId,
+            )
+            .underlyingClient,
+          modelLineId,
+        )
+        .requirePublished(HighOverlapDataset.datesByImpressionPath(IMPRESSION_TEST_DATA_CONFIG))
     }
 
     /**

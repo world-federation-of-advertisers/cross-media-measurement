@@ -29,6 +29,16 @@ class RequestIdsTest {
   fun `request ids are stable across calls`() {
     assertThat(RequestIds.forRawImpressionUpload(DONE_BLOB, 1L))
       .isEqualTo(RequestIds.forRawImpressionUpload(DONE_BLOB, 1L))
+    assertThat(RequestIds.forRawImpressionUploadRecovery(DONE_BLOB, 1L, "operation"))
+      .isEqualTo(RequestIds.forRawImpressionUploadRecovery(DONE_BLOB, 1L, "operation"))
+    assertThat(RequestIds.forRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L))
+      .isEqualTo(RequestIds.forRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L))
+    assertThat(RequestIds.forRegisterRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L))
+      .isEqualTo(RequestIds.forRegisterRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L))
+    assertThat(RequestIds.forResolveRawImpressionUploadCorrectionCandidate("candidate"))
+      .isEqualTo(RequestIds.forResolveRawImpressionUploadCorrectionCandidate("candidate"))
+    assertThat(RequestIds.forActivateQuarantinedRawImpressionUpload(UPLOAD, "operation"))
+      .isEqualTo(RequestIds.forActivateQuarantinedRawImpressionUpload(UPLOAD, "operation"))
     assertThat(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG))
       .isEqualTo(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG))
     assertThat(RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI))
@@ -112,6 +122,11 @@ class RequestIdsTest {
     val ids =
       listOf(
         RequestIds.forRawImpressionUpload(DONE_BLOB, 1L),
+        RequestIds.forRawImpressionUploadRecovery(DONE_BLOB, 1L, "operation"),
+        RequestIds.forRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L),
+        RequestIds.forRegisterRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L),
+        RequestIds.forResolveRawImpressionUploadCorrectionCandidate("candidate"),
+        RequestIds.forActivateQuarantinedRawImpressionUpload(UPLOAD, "operation"),
         RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG),
         RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI),
         RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE),
@@ -128,7 +143,6 @@ class RequestIdsTest {
         RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "DRAINING", ETAG),
         RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING"),
         RequestIds.forAdvanceUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING", ETAG),
-        RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, ETAG),
         RequestIds.forHealingRetryPoolAssigning(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forHealingRetryRanking(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
@@ -159,13 +173,14 @@ class RequestIdsTest {
   fun `fence request ids distinguish actions states and versions`() {
     val acquire = RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "DRAINING")
     val advance = RequestIds.forAdvanceUploadEvictionFence(EVICTION_OPERATION_ID, "DRAINING", ETAG)
-    val release = RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, ETAG)
 
-    assertThat(setOf(acquire, advance, release)).hasSize(3)
+    assertThat(advance).isNotEqualTo(acquire)
     assertThat(acquire)
       .isNotEqualTo(RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING"))
-    assertThat(release)
-      .isNotEqualTo(RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, "new-etag"))
+    assertThat(advance)
+      .isNotEqualTo(
+        RequestIds.forAdvanceUploadEvictionFence(EVICTION_OPERATION_ID, "DRAINING", "new-etag")
+      )
   }
 
   @Test

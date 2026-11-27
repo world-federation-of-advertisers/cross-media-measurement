@@ -192,6 +192,7 @@ class DefaultFulfillerSelector(
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
   private val trusTeeV2ImpressionCountMode: TrusTeeV2Config.ImpressionCountMode,
   private val trusTeeV2MaxFrequencyPerUser: Int?,
+  private val logMeasurementValues: Boolean,
 ) : FulfillerSelector {
 
   init {
@@ -451,6 +452,7 @@ class DefaultFulfillerSelector(
         impressionMaxFrequencyPerUser = overrideImpressionMaxFrequencyPerUser,
         totalUncappedImpressions = totalUncappedImpressions,
         impressionCapMode = impressionCapMode,
+        logMeasurementValues = logMeasurementValues,
       )
     return DirectMeasurementFulfiller(
       requisition.name,
@@ -465,6 +467,7 @@ class DefaultFulfillerSelector(
       requisitionsStub,
       requisitionsThrottler,
       kingdomThrottler,
+      logMeasurementValues = logMeasurementValues,
     )
   }
 

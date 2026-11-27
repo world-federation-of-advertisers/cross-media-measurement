@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
@@ -128,6 +129,7 @@ abstract class InProcessReachMeasurementAccuracyTest(
         publicMeasurementsClient,
         publicMeasurementConsumersClient,
         publicCertificatesClient,
+        ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel),
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         inProcessCmmsComponents.eventQuery,
         NoiseMechanism.CONTINUOUS_GAUSSIAN,

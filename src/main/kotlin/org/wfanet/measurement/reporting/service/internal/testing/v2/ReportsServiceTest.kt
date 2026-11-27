@@ -488,6 +488,38 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
   }
 
   @Test
+  fun `createReport returns the original report when request id is reused with a new report id`() =
+    runBlocking {
+      createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+      val createdReportingSet =
+        createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService, "reporting-set")
+      val createdMetricCalculationSpec =
+        createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+      val request = createReportRequest {
+        requestId = "1234"
+        report = createReportForRequest(createdReportingSet, createdMetricCalculationSpec)
+        externalReportId = "original-report-id"
+      }
+      val createdReport = service.createReport(request)
+
+      val replayedReport =
+        service.createReport(request.copy { externalReportId = "retry-report-id" })
+
+      assertThat(replayedReport).isEqualTo(createdReport)
+      assertThat(replayedReport.externalReportId).isEqualTo("original-report-id")
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.getReport(
+            getReportRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalReportId = "retry-report-id"
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
+
+  @Test
   fun `createReport succeeds when report schedule info set`() = runBlocking {
     createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
     val createdReportingSet =

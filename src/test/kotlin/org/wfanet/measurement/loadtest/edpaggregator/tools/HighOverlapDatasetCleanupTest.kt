@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -25,6 +26,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.measurement.integration.k8s.testing.highOverlapDatasetCleanupState
 import org.measurement.integration.k8s.testing.highOverlapDatasetManifest
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.StorageException
@@ -275,10 +277,231 @@ class HighOverlapDatasetCleanupTest {
       assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
     }
 
+  @Test
+  fun `prepareIfNeeded preserves the current manifest and impressions`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      val manifest = currentManifest.toBuilder().setImpressionRowCount(100).build()
+      storage.writeBlob(MANIFEST_KEY, manifest.toByteString())
+      writeBlobs(storage, listOf(IMPRESSION_KEY))
+
+      val needsSeeding =
+        HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+          .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+
+      assertThat(needsSeeding).isFalse()
+      assertThat(storage.contents.keys).containsExactly(MANIFEST_KEY, IMPRESSION_KEY)
+      assertThat(storage.getBlob(MANIFEST_KEY)!!.read().flatten())
+        .isEqualTo(manifest.toByteString())
+    }
+
+  @Test
+  fun `prepareIfNeeded cleans a partial seed when the manifest is missing`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      HighOverlapDatasetCleanup(storage, MODEL_LINE_ID).prepareForReseeding(setOf(IMPRESSION_PATH))
+      writeBlobs(storage, listOf(IMPRESSION_KEY))
+
+      val needsSeeding =
+        HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+          .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+
+      assertThat(needsSeeding).isTrue()
+      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
+    }
+
+  @Test
+  fun `prepareIfNeeded removes old paths when specs change without touching another model line`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      val oldPath = "old/output"
+      val staleKey = "$oldPath/model-line/$MODEL_LINE_ID/impressions.binpb"
+      val otherLineKey = "$oldPath/model-line/other-line/impressions.binpb"
+      storage.writeBlob(
+        CLEANUP_STATE_KEY,
+        highOverlapDatasetCleanupState { impressionPaths += oldPath }.toByteString(),
+      )
+      storage.writeBlob(
+        MANIFEST_KEY,
+        currentManifest.toBuilder().setSpecFingerprint("old-specs").build().toByteString(),
+      )
+      writeBlobs(storage, listOf(staleKey, otherLineKey, IMPRESSION_KEY))
+
+      val needsSeeding =
+        HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+          .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+
+      assertThat(needsSeeding).isTrue()
+      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY, otherLineKey)
+    }
+
+  @Test
+  fun `prepareIfNeeded reseeds after adding or removing an EDP`() =
+    runBlocking<Unit> {
+      for (previousEdps in listOf(emptyList(), listOf("test-edp", "removed-edp"))) {
+        val storage = InMemoryStorageClient()
+        storage.writeBlob(
+          MANIFEST_KEY,
+          currentManifest
+            .toBuilder()
+            .clearSeededEdps()
+            .addAllSeededEdps(previousEdps)
+            .build()
+            .toByteString(),
+        )
+        val removedKey = "edp/removed-edp/model-line/$MODEL_LINE_ID/impressions.binpb"
+        if ("removed-edp" in previousEdps) writeBlobs(storage, listOf(removedKey))
+
+        val needsSeeding =
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+
+        assertThat(needsSeeding).isTrue()
+        assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
+      }
+    }
+
+  @Test
+  fun `prepareIfNeeded rejects a manifest for a different model line`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      storage.writeBlob(
+        MANIFEST_KEY,
+        currentManifest.toBuilder().setModelLine("other-model-line").build().toByteString(),
+      )
+      writeBlobs(storage, listOf(IMPRESSION_KEY))
+
+      assertThat(
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+        )
+        .isTrue()
+      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY)
+    }
+
+  @Test
+  fun `prepareIfNeeded preserves all data when the manifest is invalid without cleanup state`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      storage.writeBlob(MANIFEST_KEY, ByteString.copyFromUtf8("invalid"))
+      val removedKey = "edp/removed-edp/model-line/$MODEL_LINE_ID/impressions.binpb"
+      writeBlobs(storage, listOf(IMPRESSION_KEY, removedKey))
+      val originalContents = storage.contents.toMap()
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+        }
+
+      assertThat(exception.message).contains("previous impression paths")
+      assertThat(storage.contents).isEqualTo(originalContents)
+    }
+
+  @Test
+  fun `prepareForReseeding preserves all data when the manifest is invalid without cleanup state`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      storage.writeBlob(MANIFEST_KEY, ByteString.copyFromUtf8("invalid"))
+      val renamedKey = "previous/output/model-line/$MODEL_LINE_ID/impressions.binpb"
+      writeBlobs(storage, listOf(IMPRESSION_KEY, renamedKey))
+      val originalContents = storage.contents.toMap()
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareForReseeding(setOf(IMPRESSION_PATH))
+        }
+
+      assertThat(exception.message).contains("previous impression paths")
+      assertThat(storage.contents).isEqualTo(originalContents)
+    }
+
+  @Test
+  fun `prepareIfNeeded cleans previous paths from cleanup state when the manifest is truncated`() =
+    runBlocking<Unit> {
+      val storage = InMemoryStorageClient()
+      val oldPath = "old/output"
+      val staleKey = "$oldPath/model-line/$MODEL_LINE_ID/impressions.binpb"
+      val otherLineKey = "$oldPath/model-line/other-line/impressions.binpb"
+      storage.writeBlob(
+        CLEANUP_STATE_KEY,
+        highOverlapDatasetCleanupState { impressionPaths += oldPath }.toByteString(),
+      )
+      val manifestBytes = currentManifest.toByteString()
+      storage.writeBlob(MANIFEST_KEY, manifestBytes.substring(0, manifestBytes.size() - 1))
+      writeBlobs(storage, listOf(staleKey, otherLineKey, IMPRESSION_KEY))
+
+      val needsSeeding =
+        HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+          .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+
+      assertThat(needsSeeding).isTrue()
+      assertThat(storage.contents.keys).containsExactly(CLEANUP_STATE_KEY, otherLineKey)
+    }
+
+  @Test
+  fun `prepareIfNeeded propagates manifest read errors without deleting data`() =
+    runBlocking<Unit> {
+      val delegate = InMemoryStorageClient()
+      delegate.writeBlob(MANIFEST_KEY, currentManifest.toByteString())
+      writeBlobs(delegate, listOf(IMPRESSION_KEY))
+      val failure = StorageException("Cannot read manifest")
+      val storage =
+        object : StorageClient by delegate {
+          override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+            throw failure
+          }
+        }
+
+      val exception =
+        assertFailsWith<StorageException> {
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+        }
+
+      assertThat(exception).isSameInstanceAs(failure)
+      assertThat(delegate.contents.keys).containsExactly(MANIFEST_KEY, IMPRESSION_KEY)
+    }
+
+  @Test
+  fun `prepareIfNeeded propagates blob read errors without deleting data`() =
+    runBlocking<Unit> {
+      val delegate = InMemoryStorageClient()
+      delegate.writeBlob(MANIFEST_KEY, currentManifest.toByteString())
+      writeBlobs(delegate, listOf(IMPRESSION_KEY))
+      val failure = StorageException("Cannot read manifest bytes")
+      val storage =
+        object : StorageClient by delegate {
+          override suspend fun getBlob(blobKey: String): StorageClient.Blob? {
+            val blob = delegate.getBlob(blobKey) ?: return null
+            if (blobKey != MANIFEST_KEY) return blob
+            return object : StorageClient.Blob by blob {
+              override fun read(): Flow<ByteString> = flow { throw failure }
+            }
+          }
+        }
+
+      val exception =
+        assertFailsWith<StorageException> {
+          HighOverlapDatasetCleanup(storage, MODEL_LINE_ID)
+            .prepareIfNeeded(currentManifest, setOf(IMPRESSION_PATH))
+        }
+
+      assertThat(exception).isSameInstanceAs(failure)
+      assertThat(delegate.contents.keys).containsExactly(MANIFEST_KEY, IMPRESSION_KEY)
+    }
+
   private suspend fun writeBlobs(storage: StorageClient, keys: Iterable<String>) {
     for (key in keys) {
       storage.writeBlob(key, ByteString.EMPTY)
     }
+  }
+
+  private val currentManifest = highOverlapDatasetManifest {
+    modelLine = "modelProviders/provider/modelSuites/suite/modelLines/$MODEL_LINE_ID"
+    specFingerprint = "current-specs"
+    seededEdps += "test-edp"
   }
 
   companion object {

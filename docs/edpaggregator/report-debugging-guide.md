@@ -27,6 +27,44 @@ Two fulfillment paths exist for an EDP, and this guide covers both:
 A single measurement can mix both kinds of EDP. The Reporting, Kingdom, and
 Duchy stages are common to both; only stage 4 branches.
 
+## Measurement value diagnostics
+
+Application flags default to disabled. Halo's committed Terraform and Kubernetes
+examples and cloud-test fixtures explicitly enable value logging by default to
+support diagnosis. Markets may want to disable it according to their data-access
+and log-retention policies. See [Measurement value logging](/docs/edpaggregator/deployment-guide.md#measurement-value-logging)
+for the deployment settings.
+
+When value logging is disabled, fulfillment logs omit full measurement results
+and dynamically chosen impression clips. Requisition identifiers, measurement types, and fulfillment
+outcomes remain available for tracing progress.
+
+To include values while debugging, start ResultsFulfiller, the EDP simulator
+(including its legacy metadata runner), or the population requisition fulfiller
+with `--log-measurement-values=true`. On standalone data providers, this also
+enables full measurement and requisition specification logs. Choose the setting
+for your market; collected logs and report-trace artifacts may contain these
+values when logging is enabled.
+
+The impression verification tool also accepts `--log-measurement-values=true`
+for aggregate impression counts. Its default logs retain verification outcomes
+and blob/error counts. It never logs raw impression fields from samples or
+validation failures, even with the flag enabled. Failure logs retain the blob,
+verification stage, and exception type.
+
+Publisher-validation components are not yet deployed or connected to
+ResultsFulfiller; runtime integration is tracked in #4476. Their library logging
+requires an explicit `logMeasurementValues` constructor setting. When disabled,
+logs retain validation verdicts and skip reasons while omitting counts,
+deviations, and free-form publisher details.
+
+The Reporting API server and report jobs accept the same flag for detailed
+variance-calculation exceptions, which can contain measurement values. When the
+flag is disabled, logs retain the metric identifier and failure type.
+
+Post-processing has a separate opt-in flag, `--log-noise-correction-values`,
+which also controls exception details during processing and result writeback.
+
 ## Golden rule: trace one report, in order
 
 Pick one report, walk it down the lifecycle, and stop at the first stage that is
@@ -529,6 +567,25 @@ bazel run \
   --work-item-page-limit=100 \
   --output-dir=/tmp/vid-labeling-traces
 ```
+
+To inspect dispatch before an upload record exists, replace
+`--raw-impression-upload` with `--data-provider`, `--done-object-uri`,
+`--done-object-generation`, and `--done-object-create-time` (ISO-8601 creation
+time of that exact GCS generation). Lookup computes DataWatcher's deterministic
+task name and uses GetWorkItem, independently of global history and the inventory
+page limit. Only the object-path hash is rendered.
+
+Ordinary dispatch requires no recovery flags. To also inspect an authorized
+recovery intent, supply both `--dispatch-source-upload` and
+`--dispatch-healing-operation` with its immutable resource names. Lookup reads
+at most two task names and lists attempts only for tasks found. It does not
+discover unspecified recovery intents from mutable object metadata.
+`--dispatch-data-watcher-identifier` defaults to `vid-labeling-dispatch`;
+override it when the admitting watched-path configuration uses another identifier.
+Upload lookup obtains source creation time from the upload; supply the same
+recovery flags to identify an authorized historical replay intent.
+Missing identity or failed RPCs leave lookup incomplete, rather than certifying
+absence. Stored task/attempt states remain separate from telemetry completeness.
 
 Repeat `--raw-impression-upload` for a batch. Each upload is isolated into a
 path-safe Markdown artifact, and one malformed or failed upload does not stop
@@ -1329,12 +1386,14 @@ These validation skips do not necessarily increment
 `edpa.event_group.sync_failure`, so check the invalid-input metric and the
 EventGroupSync logs directly.
 
-During a batched EventGroup migration, a report can temporarily select both
-reference-ID-only and entity-key EventGroups. RequisitionFetcher refuses that
-report as `UNFULFILLABLE`; a ResultsFulfiller mapping does not bypass this
-validation. Before enabling EventGroupSync mapping, deploy the identical mapping
-to ResultsFulfiller and prevent report creation against partially migrated
-cohorts until their EventGroups have all been upgraded.
+During a batched EventGroup migration, a requisition may select both
+reference-ID-only and entity-key EventGroups if the RequisitionFetcher's
+`work_item_dispatch.results_fulfiller_params` contains
+`event_group_reference_id_entity_key_mapping`. Without it, mixed selectors are
+refused as `UNFULFILLABLE`. Every selected EventGroup must still have a nonblank
+entity ID or reference ID. Before enabling EventGroupSync mapping, deploy a
+RequisitionFetcher that supports mixed selectors and the identical mapping in
+its dispatched ResultsFulfiller params.
 
 For blobs whose impression records lack entity keys,
 `ResultsFulfillerParams.whole_blob_entity_types` may identify an exhaustive

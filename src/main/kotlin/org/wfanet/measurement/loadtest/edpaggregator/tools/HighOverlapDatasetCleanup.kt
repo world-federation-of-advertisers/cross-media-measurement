@@ -14,6 +14,9 @@
 
 package org.wfanet.measurement.loadtest.edpaggregator.tools
 
+import com.google.protobuf.InvalidProtocolBufferException
+import java.util.logging.Level
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.collect
 import org.measurement.integration.k8s.testing.HighOverlapDatasetCleanupState
 import org.measurement.integration.k8s.testing.HighOverlapDatasetManifest
@@ -29,7 +32,32 @@ class HighOverlapDatasetCleanup(
 ) {
   private val cleanupStateKey = "high-overlap/$modelLineId/cleanup-state.binpb"
 
-  /** Invalidates the manifest and removes data under both previous and new impression paths. */
+  /** Cleans the dataset when its manifest differs; returns false when it can be reused. */
+  suspend fun prepareIfNeeded(
+    expectedManifest: HighOverlapDatasetManifest,
+    impressionPaths: Set<String>,
+  ): Boolean {
+    val manifestBlob = storageClient.getBlob(HighOverlapDataset.manifestBlobKey(modelLineId))
+    if (manifestBlob != null) {
+      val manifest = readManifest(manifestBlob)
+      if (
+        manifest != null &&
+          manifest.modelLine == expectedManifest.modelLine &&
+          manifest.specFingerprint == expectedManifest.specFingerprint &&
+          manifest.seededEdpsList.toSet() == expectedManifest.seededEdpsList.toSet()
+      ) {
+        return false
+      }
+    }
+    prepareForReseeding(impressionPaths)
+    return true
+  }
+
+  /**
+   * Invalidates the manifest and removes data under both previous and new impression paths.
+   *
+   * @throws IllegalStateException if the manifest is invalid and no cleanup state is saved.
+   */
   suspend fun prepareForReseeding(impressionPaths: Set<String>) {
     val manifestBlob = storageClient.getBlob(HighOverlapDataset.manifestBlobKey(modelLineId))
     val cleanupStateBlob = storageClient.getBlob(cleanupStateKey)
@@ -39,9 +67,12 @@ class HighOverlapDatasetCleanup(
           .impressionPathsList
       } else if (manifestBlob != null) {
         // Seeds written before cleanup state used the fixed edp/<name> layout.
-        HighOverlapDatasetManifest.parseFrom(manifestBlob.read().flatten()).seededEdpsList.map {
-          "edp/$it"
-        }
+        val manifest =
+          checkNotNull(readManifest(manifestBlob)) {
+            "Cannot determine previous impression paths for model line $modelLineId: " +
+              "invalid manifest and no cleanup state"
+          }
+        manifest.seededEdpsList.map { "edp/$it" }
       } else {
         emptyList()
       }
@@ -55,10 +86,28 @@ class HighOverlapDatasetCleanup(
     writeCleanupState(impressionPaths)
   }
 
+  private suspend fun readManifest(blob: StorageClient.Blob): HighOverlapDatasetManifest? {
+    val manifestBytes = blob.read().flatten()
+    return try {
+      HighOverlapDatasetManifest.parseFrom(manifestBytes)
+    } catch (e: InvalidProtocolBufferException) {
+      logger.log(
+        Level.WARNING,
+        "Invalid high overlap dataset manifest for model line $modelLineId",
+        e,
+      )
+      null
+    }
+  }
+
   private suspend fun writeCleanupState(paths: Set<String>) {
     storageClient.writeBlob(
       cleanupStateKey,
       highOverlapDatasetCleanupState { impressionPaths += paths.sorted() }.toByteString(),
     )
+  }
+
+  companion object {
+    private val logger = Logger.getLogger(HighOverlapDatasetCleanup::class.java.name)
   }
 }
