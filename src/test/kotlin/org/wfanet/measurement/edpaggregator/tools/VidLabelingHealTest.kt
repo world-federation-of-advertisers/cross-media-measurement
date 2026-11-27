@@ -16,29 +16,71 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
-import com.google.cloud.storage.Blob
-import com.google.cloud.storage.BlobId
-import com.google.cloud.storage.BlobInfo
-import com.google.cloud.storage.Storage
 import com.google.common.truth.Truth.assertThat
+import com.google.devtools.build.runfiles.Runfiles
+import com.google.protobuf.Any
+import io.grpc.Status
+import io.grpc.netty.NettyServerBuilder
+import java.nio.file.Paths
+import java.util.concurrent.TimeUnit.SECONDS
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
-import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
-import org.wfanet.measurement.config.edpaggregator.storageParams
-import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
-import org.wfanet.measurement.config.edpaggregator.vidLabelingConfigs
-import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
+import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
+import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import picocli.CommandLine
 
 @RunWith(JUnit4::class)
 class VidLabelingHealTest {
+  @Test
+  fun `command exposes only supported operator actions`() {
+    assertThat(CommandLine(VidLabelingHeal()).subcommands.keys)
+      .containsExactly(
+        "mark-failed",
+        "retry-failed",
+        "backfill-model-line",
+        "list-correction-candidates",
+        "get-correction-candidate",
+        "list-correction-plans",
+        "get-correction-plan",
+        "approve-correction-plan",
+        "retry-correction-plan",
+        "redeliver-dlq",
+        "help",
+      )
+  }
+
   @Test
   fun `command line rejects negative RPC interval`() {
     val exception =
@@ -62,244 +104,171 @@ class VidLabelingHealTest {
   }
 
   @Test
-  fun `isAffirmative accepts y and yes case-insensitively, ignoring surrounding whitespace`() {
-    assertThat(isAffirmative("yes")).isTrue()
-    assertThat(isAffirmative("y")).isTrue()
-    assertThat(isAffirmative("YES")).isTrue()
-    assertThat(isAffirmative("Yes")).isTrue()
-    assertThat(isAffirmative("  yes  ")).isTrue()
-    assertThat(isAffirmative(" Y ")).isTrue()
-  }
-
-  @Test
-  fun `isAffirmative rejects anything that is not exactly y or yes`() {
-    assertThat(isAffirmative("no")).isFalse()
-    assertThat(isAffirmative("n")).isFalse()
-    assertThat(isAffirmative("yep")).isFalse()
-    assertThat(isAffirmative("yesss")).isFalse()
-    assertThat(isAffirmative("ye")).isFalse()
-    assertThat(isAffirmative("")).isFalse()
-    assertThat(isAffirmative("   ")).isFalse()
-  }
-
-  @Test
-  fun `isAffirmative treats null (no stdin or EOF) as a decline`() {
-    assertThat(isAffirmative(null)).isFalse()
-  }
-
-  @Test
-  fun `dataProviderOf accepts multiple uploads under the same DataProvider`() {
-    val dataProvider =
-      EvictUploadsCommand.dataProviderOf(
-        listOf(
-          "$DATA_PROVIDER/rawImpressionUploads/upload-A",
-          "$DATA_PROVIDER/rawImpressionUploads/upload-B",
-        )
-      )
-
-    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
-  }
-
-  @Test
-  fun `labeled impressions prefix is validated before eviction`() {
-    val parsed =
-      EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-        "gs://output-bucket/edp/edp7/",
-        VID_LABELING_CONFIGS,
-        DATA_PROVIDER,
-      )
-
-    assertThat(parsed.scheme).isEqualTo("gs")
-    assertThat(parsed.bucket).isEqualTo("output-bucket")
-    assertThat(parsed.key).isEqualTo("edp/edp7")
-    assertFailsWith<IllegalArgumentException> {
-      EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-        "https://output-bucket/edp/edp7",
-        VID_LABELING_CONFIGS,
-        DATA_PROVIDER,
-      )
+  fun `retry failed reads owner metadata from EDPA and republishes through the control plane`() {
+    val upload = "dataProviders/dp/rawImpressionUploads/upload"
+    val model = "modelProviders/mp/modelSuites/ms/modelLines/ml"
+    val row = rawImpressionUploadModelLine {
+      name = "$upload/rawImpressionUploadModelLines/ml"
+      cmmsModelLine = model
+      state = RawImpressionUploadModelLine.State.FAILED
+      failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+      failureAttemptId = "failed-attempt"
     }
-  }
-
-  @Test
-  fun `labeled impressions prefix rejects a bucket root`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-          "gs://output-bucket",
-          VID_LABELING_CONFIGS,
-          DATA_PROVIDER,
+    val models: RawImpressionUploadModelLineServiceCoroutineImplBase = mockService {
+      onBlocking { listRawImpressionUploadModelLines(any()) }
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse { rawImpressionUploadModelLines += row }
         )
-      }
-
-    assertThat(error).hasMessageThat().contains("must exactly match")
-  }
-
-  @Test
-  fun `labeled impressions prefix rejects the wrong bucket`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-          "gs://other-bucket/edp/edp7",
-          VID_LABELING_CONFIGS,
-          DATA_PROVIDER,
+      onBlocking { markRawImpressionUploadModelLineRanking(any()) }
+        .thenReturn(row.copy { state = RawImpressionUploadModelLine.State.RANKING })
+    }
+    val uploads: RawImpressionUploadServiceCoroutineImplBase = mockService {
+      onBlocking { getRawImpressionUpload(any()) }
+        .thenReturn(
+          rawImpressionUpload {
+            name = upload
+            registrationComplete = true
+            state = RawImpressionUpload.State.ACTIVE
+          }
         )
-      }
-
-    assertThat(error).hasMessageThat().contains("must exactly match")
-  }
-
-  @Test
-  fun `labeled impressions prefix rejects the wrong DataProvider root`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-          "gs://output-bucket/edp/edp8",
-          VID_LABELING_CONFIGS,
-          DATA_PROVIDER,
+      onBlocking { listRawImpressionUploads(any()) }.thenReturn(listRawImpressionUploadsResponse {})
+    }
+    val ranks: RankerJobServiceCoroutineImplBase = mockService {
+      onBlocking { listRankerJobs(any()) }
+        .thenReturn(
+          listRankerJobsResponse {
+            rankerJobs += rankerJob {
+              name = "$upload/rankerJobs/rank"
+              state = RankerJob.State.CREATED
+            }
+          }
         )
-      }
-
-    assertThat(error).hasMessageThat().contains("must exactly match")
-  }
-
-  @Test
-  fun `labeled impressions prefix rejects a path below the configured root`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-          "gs://output-bucket/edp/edp7/model-line",
-          VID_LABELING_CONFIGS,
-          DATA_PROVIDER,
+    }
+    val labels: VidLabelingJobServiceCoroutineImplBase = mockService {
+      onBlocking { listVidLabelingJobs(any()) }.thenReturn(listVidLabelingJobsResponse {})
+    }
+    val original = workItem {
+      name = "workItems/${WorkItemIds.forVidRankBuilder("$upload/rankerJobs/rank")}"
+      queue = "rank-queue"
+      state = WorkItem.State.FAILED
+      generation = 1L
+      workItemParams =
+        Any.pack(
+          workItemParams {
+            appParams =
+              Any.pack(
+                vidRankBuilderParams {
+                  modelLine = model
+                  allowedPriorSnapshotRawImpressionUploads += "stale-owner"
+                }
+              )
+          }
         )
-      }
-
-    assertThat(error).hasMessageThat().contains("must exactly match")
-  }
-
-  @Test
-  fun `rewriteDoneBlob replaces the expected source generation`() {
-    val storage = mock<Storage>()
-    val current = mock<Blob>()
-    val created = mock<Blob>()
-    val recoveryMetadata =
-      mapOf(
-        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
-        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
-      )
-    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(10L)
-    whenever(current.metadata).thenReturn(mapOf("existing-key" to "existing-value"))
-    whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
-      .thenReturn(created)
-    whenever(created.generation).thenReturn(7L)
-
-    val generation =
-      RecoverUploadCommand.rewriteDoneBlob(
-        storage,
-        "gs://bucket/path/done",
-        expectedGeneration = 10L,
-        metadata = recoveryMetadata,
-      )
-
-    assertThat(generation).isEqualTo(7L)
-    val blobInfo = argumentCaptor<BlobInfo>()
-    val targetOption = argumentCaptor<Storage.BlobTargetOption>()
-    verify(storage).create(blobInfo.capture(), any<ByteArray>(), targetOption.capture())
-    assertThat(blobInfo.firstValue.metadata)
-      .containsExactlyEntriesIn(mapOf("existing-key" to "existing-value") + recoveryMetadata)
-    assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(10L))
-  }
-
-  @Test
-  fun `rewriteDoneBlob can retry a lower-numbered undelivered recovery generation`() {
-    val storage = mock<Storage>()
-    val current = mock<Blob>()
-    val created = mock<Blob>()
-    val metadata =
-      mapOf(
-        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
-        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
-      )
-    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(9L)
-    whenever(current.metadata).thenReturn(metadata)
-    whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
-      .thenReturn(created)
-    whenever(created.generation).thenReturn(12L)
-    val generation =
-      RecoverUploadCommand.rewriteDoneBlob(
-        storage,
-        "gs://bucket/path/done",
-        expectedGeneration = 10L,
-        metadata = metadata,
-      )
-
-    assertThat(generation).isEqualTo(12L)
-    val blobInfo = argumentCaptor<BlobInfo>()
-    val targetOption = argumentCaptor<Storage.BlobTargetOption>()
-    verify(storage).create(blobInfo.capture(), any<ByteArray>(), targetOption.capture())
-    assertThat(blobInfo.firstValue.metadata).containsAtLeastEntriesIn(metadata)
-    assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(9L))
-  }
-
-  @Test
-  fun `resumeDoneBlob reuses an existing matching recovery generation`() {
-    val storage = mock<Storage>()
-    val current = mock<Blob>()
-    val metadata =
-      mapOf(
-        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
-        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
-      )
-    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(9L)
-    whenever(current.metadata).thenReturn(metadata)
-
-    val generation =
-      RecoverUploadCommand.resumeDoneBlob(
-        storage,
-        "gs://bucket/path/done",
-        expectedGeneration = 10L,
-        metadata = metadata,
-      )
-
-    assertThat(generation).isEqualTo(9L)
-    verify(storage, org.mockito.kotlin.never())
-      .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
-  }
-
-  @Test
-  fun `rewriteDoneBlob rejects a newer unrelated generation`() {
-    val storage = mock<Storage>()
-    val current = mock<Blob>()
-    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(11L)
-    whenever(current.metadata).thenReturn(emptyMap())
-
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        RecoverUploadCommand.rewriteDoneBlob(
-          storage,
-          "gs://bucket/path/done",
-          expectedGeneration = 10L,
-          mapOf(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1"),
-        )
-      }
-
-    assertThat(error).hasMessageThat().contains("does not carry the same recovery metadata")
-  }
-
-  companion object {
-    private const val DATA_PROVIDER = "dataProviders/dp1"
-    private val VID_LABELING_CONFIGS = vidLabelingConfigs {
-      configs += vidLabelingConfig {
-        dataProvider = DATA_PROVIDER
-        vidLabeledImpressionsStorageParams = storageParams {
-          gcs = gcsStorage { bucketName = "output-bucket" }
+    }
+    val workItems: WorkItemsCoroutineImplBase = mockService {
+      onBlocking { getWorkItem(any()) }
+        .thenAnswer { invocation ->
+          if (invocation.getArgument<GetWorkItemRequest>(0).name != original.name) {
+            throw Status.NOT_FOUND.asRuntimeException()
+          }
+          original
         }
-        edpImpressionPath = "edp/edp7"
-      }
+      onBlocking { createWorkItem(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<CreateWorkItemRequest>(0)
+          request.workItem.copy {
+            name = "workItems/${request.workItemId}"
+            state = WorkItem.State.QUEUED
+            generation = 1L
+          }
+        }
     }
+    val secrets =
+      checkNotNull(
+        Runfiles.preload()
+          .withSourceRepository("")
+          .getRuntimePath(
+            Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+          )
+      )
+    val certs =
+      SigningCerts.fromPemFiles(
+        certificateFile = secrets.resolve("kingdom_tls.pem").toFile(),
+        privateKeyFile = secrets.resolve("kingdom_tls.key").toFile(),
+        trustedCertCollectionFile = secrets.resolve("edp7_root.pem").toFile(),
+      )
+    val edpa =
+      NettyServerBuilder.forPort(0)
+        .sslContext(certs.toServerTlsContext())
+        .addService(models)
+        .addService(uploads)
+        .addService(ranks)
+        .addService(labels)
+        .build()
+        .start()
+    val controlPlane =
+      NettyServerBuilder.forPort(0)
+        .sslContext(certs.toServerTlsContext())
+        .addService(workItems)
+        .build()
+        .start()
+    try {
+      val code =
+        CommandLine(VidLabelingHeal())
+          .execute(
+            "retry-failed",
+            "--edpa-public-api-target=localhost:${edpa.port}",
+            "--edpa-public-api-cert-host=localhost",
+            "--control-plane-api-target=localhost:${controlPlane.port}",
+            "--control-plane-api-cert-host=localhost",
+            "--raw-impression-upload=$upload",
+            "--model-line=$model",
+            "--tls-cert-file=${secrets.resolve("edp7_tls.pem")}",
+            "--tls-key-file=${secrets.resolve("edp7_tls.key")}",
+            "--cert-collection-file=${secrets.resolve("kingdom_root.pem")}",
+            "--control-plane-tls-cert-file=${secrets.resolve("edp7_tls.pem")}",
+            "--control-plane-tls-key-file=${secrets.resolve("edp7_tls.key")}",
+            "--control-plane-cert-collection-file=${secrets.resolve("kingdom_root.pem")}",
+            "--metadata-read-rpc-min-interval=1ms",
+            "--metadata-write-rpc-min-interval=1ms",
+            "--control-plane-rpc-min-interval=1ms",
+          )
+      assertThat(code).isEqualTo(0)
+      verifyBlocking(uploads) { getRawImpressionUpload(any()) }
+      val requests = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItems) { createWorkItem(requests.capture()) }
+      val params =
+        requests.firstValue.workItem.workItemParams
+          .unpack(WorkItem.WorkItemParams::class.java)
+          .appParams
+          .unpack(VidRankBuilderParams::class.java)
+      assertThat(params.allowedPriorSnapshotRawImpressionUploadsList).isEmpty()
+    } finally {
+      edpa.shutdownNow().awaitTermination(1, SECONDS)
+      controlPlane.shutdownNow().awaitTermination(1, SECONDS)
+    }
+  }
+
+  @Test
+  fun `retry failed accepts separate EDPA and control plane TLS files`() {
+    val result =
+      CommandLine(VidLabelingHeal())
+        .parseArgs(
+          "retry-failed",
+          "--edpa-public-api-target=edpa.example:443",
+          "--control-plane-api-target=control-plane.example:443",
+          "--raw-impression-upload=dataProviders/dp/rawImpressionUploads/upload",
+          "--model-line=modelProviders/mp/modelSuites/ms/modelLines/ml",
+          "--tls-cert-file=edpa.pem",
+          "--tls-key-file=edpa.key",
+          "--cert-collection-file=edpa-roots.pem",
+          "--control-plane-tls-cert-file=control-plane.pem",
+          "--control-plane-tls-key-file=control-plane.key",
+          "--control-plane-cert-collection-file=control-plane-roots.pem",
+        )
+
+    val retryFailed = checkNotNull(result.subcommand())
+    assertThat(retryFailed.hasMatchedOption("--tls-cert-file")).isTrue()
+    assertThat(retryFailed.hasMatchedOption("--control-plane-tls-cert-file")).isTrue()
   }
 }

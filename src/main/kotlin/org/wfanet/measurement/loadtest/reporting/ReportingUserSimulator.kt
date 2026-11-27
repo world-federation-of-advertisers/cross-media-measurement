@@ -96,6 +96,18 @@ class ReportingUserSimulator(
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
 ) {
   private val dataProviderByName: MutableMap<String, DataProvider> = mutableMapOf()
+  private val basicReportHttpClient =
+    BasicReportHttpClient(
+      httpClient = okHttpReportingClient,
+      retryBackoff =
+        ExponentialBackoff(
+          initialDelay = initialResultPollingDelay,
+          multiplier = 2.0,
+          randomnessFactor = 0.0,
+        ),
+      maximumRetryDelay = maximumResultPollingDelay,
+      maxAttempts = 6,
+    )
 
   suspend fun testBasicReport(runId: String) {
     logger.info("Creating Basic Report...")
@@ -458,32 +470,7 @@ class ReportingUserSimulator(
       ExponentialBackoff(initialDelay = initialResultPollingDelay, randomnessFactor = 0.0)
     var attempt = 1
     while (true) {
-      val retrievedBasicReport =
-        try {
-          val retrievedBasicReportJson: String =
-            try {
-              val response = okHttpReportingClient.newCall(getBasicReportRequest).execute()
-
-              val responseBody = response.body!!.string()
-              if (!response.isSuccessful) {
-                throw Exception(
-                  "Error retrieving Basic Report: ${response.code} ${response.message} $responseBody"
-                )
-              }
-
-              responseBody
-            } catch (e: StatusException) {
-              throw Exception("Error retrieving Basic Report", e)
-            }
-
-          BasicReport.newBuilder()
-            .also {
-              JsonFormat.parser().ignoringUnknownFields().merge(retrievedBasicReportJson, it)
-            }
-            .build()
-        } catch (e: StatusException) {
-          throw Exception("Error getting BasicReport", e)
-        }
+      val retrievedBasicReport = basicReportHttpClient.getBasicReport(getBasicReportRequest)
 
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedBasicReport.state) {

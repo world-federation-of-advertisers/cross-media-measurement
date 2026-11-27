@@ -79,6 +79,12 @@ length.
 | `entity_keys` | Required for new writers | One or more EDP entity identifiers used to select and filter impressions |
 | `event_group_reference_id` | Legacy | Older campaign reference; new writers use `entity_keys` |
 
+Each impression should include all applicable entity keys, rather than only one
+hierarchy level. Account, campaign, ad-set, ad, and creative are examples of entity
+types, not a required taxonomy. Use the types and IDs agreed with the operator and
+registered on the corresponding EventGroups. Omitting an applicable type can
+prevent measurements at that level from selecting the impression.
+
 An entity key contains:
 
 * `entity_type`: a URL-safe type such as `campaign`, `creative`, or
@@ -259,6 +265,7 @@ then run:
 
 ```bash
 java -jar VerifyVidLabeledImpressions_deploy.jar \
+  --log-measurement-values=true \
   --kms-type=GCP \
   --kek-uri='<EDP_KEY_URI>' \
   --scheme='gs://' \
@@ -267,6 +274,10 @@ java -jar VerifyVidLabeledImpressions_deploy.jar \
   --event-message-type-url='type.googleapis.com/<MARKET_EVENT_MESSAGE>' \
   --event-message-descriptor-set='<FILE_DESCRIPTOR_SET>'
 ```
+
+This example enables aggregate count diagnostics, as Halo's cloud tests do.
+Markets may omit the flag or set `--log-measurement-values=false`. Raw impression
+fields are omitted from sample and failure logs with either setting.
 
 The date-folder scan verifies every nonempty file whose filename contains
 `metadata`, including every sidecar for a split upload. To verify explicitly

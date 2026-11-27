@@ -37,13 +37,18 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -95,7 +100,10 @@ class RequisitionGrouperByReportIdTest {
   private val eventGroupsStub by lazy { EventGroupsCoroutineStub(grpcTestServerRule.channel) }
   private val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1L))
   private val validator by lazy {
-    RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    RequisitionsValidator(
+      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+      allowMixedEventGroupSelectors = false,
+    )
   }
   private lateinit var grouper: RequisitionGrouperByReportId
 
@@ -116,35 +124,7 @@ class RequisitionGrouperByReportIdTest {
     startOffsetHours: Long,
     endOffsetHours: Long,
   ): Requisition {
-    val spec =
-      TestRequisitionData.REQUISITION_SPEC.copy {
-        events =
-          RequisitionSpecKt.events {
-            eventGroups +=
-              RequisitionSpecKt.eventGroupEntry {
-                key = TestRequisitionData.EVENT_GROUP_NAME
-                value =
-                  RequisitionSpecKt.EventGroupEntryKt.value {
-                    collectionInterval = interval {
-                      startTime =
-                        TestRequisitionData.TIME_RANGE.start
-                          .plus(startOffsetHours, ChronoUnit.HOURS)
-                          .toProtoTime()
-                      endTime =
-                        TestRequisitionData.TIME_RANGE.endExclusive
-                          .plus(endOffsetHours, ChronoUnit.HOURS)
-                          .toProtoTime()
-                    }
-                    filter =
-                      RequisitionSpecKt.eventFilter {
-                        expression =
-                          "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
-                            "person.gender == ${Person.Gender.FEMALE_VALUE}"
-                      }
-                  }
-              }
-          }
-      }
+    val spec = makeRequisitionSpecWithInterval(startOffsetHours, endOffsetHours)
     return TestRequisitionData.REQUISITION.copy {
       this.name = name
       encryptedRequisitionSpec =
@@ -154,6 +134,63 @@ class RequisitionGrouperByReportIdTest {
         )
     }
   }
+
+  private fun makeMultimeasurementRequisitionWithInterval(
+    name: String,
+    startOffsetHours: Long,
+    endOffsetHours: Long,
+  ): Requisition {
+    val spec =
+      makeRequisitionSpecWithInterval(startOffsetHours, endOffsetHours).copy { clearNonce() }
+    return TestRequisitionData.REQUISITION.copy {
+      this.name = name
+      clearMeasurementSpec()
+      clearEncryptedRequisitionSpec()
+      unsignedMeasurementSpec =
+        TestRequisitionData.MEASUREMENT_SPEC.copy {
+          nonceHashes.clear()
+          multi = MeasurementSpecKt.multiMeasurementSpec {}
+        }
+      requisitionSpec = spec
+      protocolConfig = protocolConfig {
+        measurementType = ProtocolConfig.MeasurementType.MULTI
+        protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
+      }
+    }
+  }
+
+  private fun makeRequisitionSpecWithInterval(
+    startOffsetHours: Long,
+    endOffsetHours: Long,
+  ): RequisitionSpec =
+    TestRequisitionData.REQUISITION_SPEC.copy {
+      events =
+        RequisitionSpecKt.events {
+          eventGroups +=
+            RequisitionSpecKt.eventGroupEntry {
+              key = TestRequisitionData.EVENT_GROUP_NAME
+              value =
+                RequisitionSpecKt.EventGroupEntryKt.value {
+                  collectionInterval = interval {
+                    startTime =
+                      TestRequisitionData.TIME_RANGE.start
+                        .plus(startOffsetHours, ChronoUnit.HOURS)
+                        .toProtoTime()
+                    endTime =
+                      TestRequisitionData.TIME_RANGE.endExclusive
+                        .plus(endOffsetHours, ChronoUnit.HOURS)
+                        .toProtoTime()
+                  }
+                  filter =
+                    RequisitionSpecKt.eventFilter {
+                      expression =
+                        "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE} && " +
+                          "person.gender == ${Person.Gender.FEMALE_VALUE}"
+                    }
+                }
+            }
+        }
+    }
 
   @Test
   fun `groupForReport returns null for empty input`() = runBlocking {
@@ -193,6 +230,37 @@ class RequisitionGrouperByReportIdTest {
       )
     assertThat(result.requisitionsList).hasSize(2)
   }
+
+  @Test
+  fun `groups several multimeasurement requisitions from one DataProvider`() =
+    runBlocking<Unit> {
+      val r1 =
+        makeMultimeasurementRequisitionWithInterval(
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/vector0",
+          startOffsetHours = 0,
+          endOffsetHours = 0,
+        )
+      val r2 =
+        makeMultimeasurementRequisitionWithInterval(
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/vector1",
+          startOffsetHours = 1,
+          endOffsetHours = 1,
+        )
+
+      val result = grouper.groupForReport(REPORT_ID, listOf(r1, r2), GROUP_ID)
+
+      assertThat(result).isNotNull()
+      assertThat(result!!.requisitionsList.map { it.requisition.unpack(Requisition::class.java) })
+        .containsExactly(r1, r2)
+      assertThat(result.modelLine).isEqualTo("some-model-line")
+      assertThat(result.eventGroupMapList.single().details.collectionIntervalsList)
+        .containsExactly(
+          interval {
+            startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+            endTime = TestRequisitionData.TIME_RANGE.endExclusive.plusSeconds(3600).toProtoTime()
+          }
+        )
+    }
 
   @Test
   fun `groupForReport keeps sole non-empty BasicReport`() = runBlocking {
@@ -365,6 +433,94 @@ class RequisitionGrouperByReportIdTest {
     assertThat(result).isNotNull()
     assertThat(result!!.eventGroupMapList).hasSize(2)
     result.eventGroupMapList.forEach { entry -> assertThat(entry.details.hasEntityKey()).isTrue() }
+  }
+
+  @Test
+  fun `groupForReport preserves mixed selector forms when enabled`() = runBlocking {
+    val sourceEventGroups =
+      listOf(
+        eventGroup {
+          name = TestRequisitionData.EVENT_GROUP_NAME
+          eventGroupReferenceId = "ref-1"
+        },
+        eventGroup {
+          name = "${TestRequisitionData.EDP_NAME}/eventGroups/entity-only"
+          entityKey =
+            EventGroupKt.entityKey {
+              entityType = "campaign"
+              entityId = "campaign-2"
+            }
+        },
+        eventGroup {
+          name = "${TestRequisitionData.EDP_NAME}/eventGroups/dual"
+          eventGroupReferenceId = "ref-3"
+          entityKey =
+            EventGroupKt.entityKey {
+              entityType = "campaign"
+              entityId = "campaign-3"
+            }
+        },
+      )
+    eventGroupsServiceMock.stub {
+      onBlocking { getEventGroup(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<GetEventGroupRequest>(0)
+          sourceEventGroups.single { it.name == request.name }
+        }
+    }
+    val requisitionSpec =
+      TestRequisitionData.REQUISITION_SPEC.copy {
+        events =
+          RequisitionSpecKt.events {
+            eventGroups +=
+              sourceEventGroups.map { eventGroup ->
+                RequisitionSpecKt.eventGroupEntry {
+                  key = eventGroup.name
+                  value =
+                    RequisitionSpecKt.EventGroupEntryKt.value {
+                      collectionInterval = interval {
+                        startTime = TestRequisitionData.TIME_RANGE.start.toProtoTime()
+                        endTime = TestRequisitionData.TIME_RANGE.endExclusive.toProtoTime()
+                      }
+                    }
+                }
+              }
+          }
+      }
+    val requisition =
+      TestRequisitionData.REQUISITION.copy {
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signedMessage { message = requisitionSpec.pack() },
+            TestRequisitionData.DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
+    val mappedGrouper =
+      RequisitionGrouperByReportId(
+        requisitionValidator =
+          RequisitionsValidator(
+            privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+            allowMixedEventGroupSelectors = true,
+          ),
+        requisitionsClient = requisitionsStub,
+        eventGroupsClient = eventGroupsStub,
+        kingdomMutationThrottler = throttler,
+        kingdomEventGroupThrottler = throttler,
+      )
+
+    val result =
+      checkNotNull(mappedGrouper.groupForReport(REPORT_ID, listOf(requisition), GROUP_ID))
+
+    assertThat(result.requisitionsList).hasSize(1)
+    assertThat(result.eventGroupMapList.map { it.eventGroup })
+      .containsExactlyElementsIn(sourceEventGroups.map { it.name })
+    for (entry in result.eventGroupMapList) {
+      val eventGroup = sourceEventGroups.single { it.name == entry.eventGroup }
+      assertThat(entry.details.eventGroupReferenceId).isEqualTo(eventGroup.eventGroupReferenceId)
+      assertThat(entry.details.entityKey.entityType).isEqualTo(eventGroup.entityKey.entityType)
+      assertThat(entry.details.entityKey.entityId).isEqualTo(eventGroup.entityKey.entityId)
+      assertThat(entry.details.hasEntityKey()).isEqualTo(eventGroup.hasEntityKey())
+    }
   }
 
   @Test

@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.StringValue
 import com.google.protobuf.kotlin.toByteString
@@ -34,9 +35,11 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
 import org.wfanet.measurement.api.v2alpha.DuchyKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.liquidLegionsV2
@@ -91,7 +94,10 @@ class RequisitionsValidatorTest {
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(requisitionsServiceMock) }
 
   private val requisitionValidator by lazy {
-    RequisitionsValidator(privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey)
+    RequisitionsValidator(
+      privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+      allowMixedEventGroupSelectors = false,
+    )
   }
 
   @Test
@@ -99,6 +105,103 @@ class RequisitionsValidatorTest {
 
     assertNotNull(requisitionValidator.validateRequisitionSpec(TestRequisitionData.REQUISITION))
     assertNotNull(requisitionValidator.validateMeasurementSpec(TestRequisitionData.REQUISITION))
+  }
+
+  @Test
+  fun `validates multimeasurement Requisition with unsigned and plaintext specs`() {
+    val requisition = multimeasurementRequisition(MULTI_MEASUREMENT_SPEC)
+
+    assertThat(requisitionValidator.validateMeasurementSpec(requisition))
+      .isEqualTo(MULTI_MEASUREMENT_SPEC)
+    assertThat(requisitionValidator.validateRequisitionSpec(requisition))
+      .isEqualTo(MULTI_REQUISITION_SPEC)
+  }
+
+  @Test
+  fun `refuses multimeasurement Requisition whose unsigned MeasurementSpec has no report`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC.copy { clearReportingMetadata() })
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses Requisition with an unsigned MeasurementSpec and a non-TrusTEE v2 protocol`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
+        protocolConfig =
+          TestRequisitionData.REQUISITION.protocolConfig.copy {
+            measurementType = ProtocolConfig.MeasurementType.MULTI
+          }
+      }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses Requisition with an unsigned MeasurementSpec but no MULTI measurement type`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
+        protocolConfig =
+          TRUS_TEE_V2_PROTOCOL_CONFIG.copy {
+            measurementType = ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
+          }
+      }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses MULTI Requisition with signed and encrypted specs`() {
+    val requisition =
+      TestRequisitionData.REQUISITION.copy { protocolConfig = TRUS_TEE_V2_PROTOCOL_CONFIG }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateRequisitionSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses Requisition with both signed and unsigned MeasurementSpecs`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
+        measurementSpec = TestRequisitionData.REQUISITION.measurementSpec
+      }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses Requisition whose unsigned MeasurementSpec is not a multimeasurement`() {
+    val requisition =
+      multimeasurementRequisition(TestRequisitionData.MEASUREMENT_SPEC.copy { nonceHashes.clear() })
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateMeasurementSpec(requisition)
+    }
+  }
+
+  @Test
+  fun `refuses multimeasurement Requisition with both plaintext and encrypted RequisitionSpecs`() {
+    val requisition =
+      multimeasurementRequisition(MULTI_MEASUREMENT_SPEC).copy {
+        encryptedRequisitionSpec = TestRequisitionData.REQUISITION.encryptedRequisitionSpec
+      }
+
+    assertFailsWith<InvalidRequisitionException> {
+      requisitionValidator.validateRequisitionSpec(requisition)
+    }
   }
 
   @Test
@@ -314,6 +417,88 @@ class RequisitionsValidatorTest {
     }
   }
 
+  @Test
+  fun `validateEventGroupSelectors accepts mixed selector forms when enabled`() {
+    val validator =
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = true,
+      )
+    val referenceOnly = eventGroupDetails {
+      eventGroupReferenceId = "ref-1"
+      entityKey = entityKey { entityType = "campaign" }
+    }
+    val entityOnly = eventGroupDetails {
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "campaign-2"
+      }
+    }
+    val dualIdentifier = eventGroupDetails {
+      eventGroupReferenceId = "ref-3"
+      entityKey = entityKey {
+        entityType = "campaign"
+        entityId = "campaign-3"
+      }
+    }
+
+    validator.validateEventGroupSelectors(
+      mapOf("eg1" to referenceOnly, "eg2" to entityOnly, "eg3" to dualIdentifier)
+    )
+    validator.validateEventGroupSelectors(mapOf("eg1" to referenceOnly, "eg2" to entityOnly))
+    validator.validateEventGroupSelectors(mapOf("eg1" to referenceOnly, "eg3" to dualIdentifier))
+    validator.validateEventGroupSelectors(mapOf("eg2" to entityOnly, "eg3" to dualIdentifier))
+    validator.validateEventGroupSelectors(mapOf("eg1" to referenceOnly))
+    validator.validateEventGroupSelectors(mapOf("eg2" to entityOnly))
+  }
+
+  @Test
+  fun `validateEventGroupSelectors rejects missing identifiers when mixed selectors are enabled`() {
+    val validator =
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = true,
+      )
+    for (blankValue in listOf("", "   ")) {
+      val missingIdentifiers = eventGroupDetails {
+        eventGroupReferenceId = blankValue
+        entityKey = entityKey {
+          entityType = "campaign"
+          entityId = blankValue
+        }
+      }
+      val entityOnly = eventGroupDetails {
+        entityKey = entityKey {
+          entityType = "campaign"
+          entityId = "campaign-2"
+        }
+      }
+      val referenceOnly = eventGroupDetails { eventGroupReferenceId = "ref-1" }
+      assertFailsWith<InconsistentEventGroupSelectorsException> {
+        validator.validateEventGroupSelectors(
+          mapOf("eg1" to referenceOnly, "eg2" to entityOnly, "eg3" to missingIdentifiers)
+        )
+      }
+      assertFailsWith<InconsistentEventGroupSelectorsException> {
+        validator.validateEventGroupSelectors(mapOf("eg1" to missingIdentifiers))
+      }
+    }
+  }
+
+  @Test
+  fun `validateEventGroupSelectors rejects empty maps in both modes`() {
+    for (allowMixedSelectors in listOf(false, true)) {
+      val validator =
+        RequisitionsValidator(
+          privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+          allowMixedEventGroupSelectors = allowMixedSelectors,
+        )
+      assertFailsWith<IllegalArgumentException> {
+        validator.validateEventGroupSelectors(emptyMap())
+      }
+    }
+  }
+
   companion object {
     private const val MC_ID = "mc"
     private const val MC_NAME = "measurementConsumers/$MC_ID"
@@ -375,6 +560,29 @@ class RequisitionsValidatorTest {
         .toEncryptionPublicKey()
 
     private const val EVENT_GROUP_NAME = "$EDP_NAME/eventGroups/name"
+    private val MULTI_REQUISITION_SPEC: RequisitionSpec =
+      TestRequisitionData.REQUISITION_SPEC.copy { clearNonce() }
+
+    private val MULTI_MEASUREMENT_SPEC: MeasurementSpec =
+      TestRequisitionData.MEASUREMENT_SPEC.copy {
+        nonceHashes.clear()
+        multi = MeasurementSpecKt.multiMeasurementSpec {}
+      }
+
+    private fun multimeasurementRequisition(unsignedSpec: MeasurementSpec): Requisition =
+      TestRequisitionData.REQUISITION.copy {
+        clearMeasurementSpec()
+        clearEncryptedRequisitionSpec()
+        unsignedMeasurementSpec = unsignedSpec
+        requisitionSpec = MULTI_REQUISITION_SPEC
+        protocolConfig = TRUS_TEE_V2_PROTOCOL_CONFIG
+      }
+
+    private val TRUS_TEE_V2_PROTOCOL_CONFIG = protocolConfig {
+      measurementType = ProtocolConfig.MeasurementType.MULTI
+      protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
+    }
+
     private val REQUISITION_SPEC = requisitionSpec {
       events =
         RequisitionSpecKt.events {

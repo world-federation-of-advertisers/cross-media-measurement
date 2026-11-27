@@ -16,16 +16,13 @@
 
 package org.wfanet.measurement.integration.k8s
 
-import com.google.cloud.storage.StorageOptions
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.TypeRegistry
-import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
 import com.google.type.DayOfWeek
-import com.google.type.interval
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import java.io.File
@@ -38,14 +35,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
 import java.util.logging.Logger
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
@@ -60,27 +51,22 @@ import org.junit.runner.Description
 import org.junit.runners.MethodSorters
 import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.EdpaReportingIntegrationTestConfig
+import org.measurement.integration.k8s.testing.HighOverlapDatasetManifest
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.adMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.entityKey
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
-import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
-import org.wfanet.measurement.integration.common.EventGroupConfig
+import org.wfanet.measurement.integration.common.HighOverlapDataAvailability
+import org.wfanet.measurement.integration.common.HighOverlapDataset
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach
 import org.wfanet.measurement.integration.common.HighOverlapExpectedReach.ExpectedMetrics
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
@@ -100,17 +86,15 @@ import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualification
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
-import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
  * Tests BasicReport reporting over the EDP Aggregator, against a deployed environment.
  *
- * The rules below provision the high overlap synthetic dataset the reports are computed over. It is
- * pre-labeled and carries its own Population, ModelLine and EventGroups, so none of the VID
- * labeling pipeline or low overlap data set that `EdpAggregatorCorrectnessTest` sets up is needed
- * here. Every rule is a no-op unless `model_line` is set, so an environment opts in only once its
- * ModelLine has been provisioned.
+ * Reads the high overlap dataset prepared by `SeedHighOverlapDataset`. Its Population, ModelLine
+ * and EventGroups are separate from the low overlap data that `EdpAggregatorCorrectnessTest`
+ * provisions. This test verifies the seed manifest and creates reports; it does not seed
+ * impressions or run EventGroupSync. The configured `model_line` must refer to the seeded dataset.
  *
  * Test methods run in name order, so they must be named to sort lexicographically in ascending
  * order of size. A cheaper report then reaches its result before a larger one can exhaust the test
@@ -119,192 +103,82 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class EdpAggregatorReportingIntegrationTest {
 
-  /** Writes the high overlap EventGroup blob and waits for `EventGroupSync` to register them. */
-  private class UploadEventGroups : TestRule {
+  /**
+   * Refuses to run unless the seeded dataset matches the specs this test computes against.
+   *
+   * Seeding is a separate job, so the impressions being reported over were written by an earlier
+   * run. A mismatch would otherwise surface as results that disagree with expectations for no
+   * visible reason.
+   */
+  private class RequireSeededDataset : TestRule {
 
-    private val bucket = TEST_CONFIG.storageBucket
     private val googleProjectId: String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
-    private val storageClient = StorageOptions.getDefaultInstance().service
+
+    override fun apply(base: Statement, description: Description): Statement {
+      return object : Statement() {
+        override fun evaluate() {
+          if (MODEL_LINE.isEmpty()) {
+            logger.info("No high overlap model line configured; skipping the dataset check.")
+          } else {
+            runBlocking {
+              verify(readManifest())
+              verifyDataAvailability()
+            }
+          }
+          base.evaluate()
+        }
+      }
+    }
+
+    private suspend fun readManifest(): HighOverlapDatasetManifest {
+      val modelLineId =
+        requireNotNull(ModelLineKey.fromName(MODEL_LINE)) {
+            "model_line must be a full ModelLine resource name: $MODEL_LINE"
+          }
+          .modelLineId
+      val key = HighOverlapDataset.manifestBlobKey(modelLineId)
+      val blobUri = SelectedStorageClient.parseBlobUri("gs://${TEST_CONFIG.storageBucket}/$key")
+      val blob =
+        SelectedStorageClient(blobUri = blobUri, rootDirectory = null, projectId = googleProjectId)
+          .getBlob(key)
+          ?: error(
+            "No seeded dataset for $MODEL_LINE: $key is absent. Run the high overlap seeding job."
+          )
+      return HighOverlapDatasetManifest.parseFrom(blob.read().flatten())
+    }
+
+    private suspend fun verifyDataAvailability() {
+      val modelLineId = requireNotNull(ModelLineKey.fromName(MODEL_LINE)).modelLineId
+      val blobUri = SelectedStorageClient.parseBlobUri("gs://${TEST_CONFIG.storageBucket}/")
+      HighOverlapDataAvailability(
+          SelectedStorageClient(
+              blobUri = blobUri,
+              rootDirectory = null,
+              projectId = googleProjectId,
+            )
+            .underlyingClient,
+          modelLineId,
+        )
+        .requirePublished(HighOverlapDataset.datesByImpressionPath(IMPRESSION_TEST_DATA_CONFIG))
+    }
 
     /**
-     * Per-EDP blobs for the high overlap EventGroups.
-     *
-     * [objectKey] is a distinct object under the EDP's `event-groups/` prefix, which is what the
-     * DataWatcher matches on; `EventGroupSync` reads whichever blob triggered it. [objectMapKey] is
-     * not derived from it: the sync always writes its output to the `event_group_map_blob_uri`
-     * fixed per EDP in `EventGroupSyncConfig`, so it is shared with every other test seeding this
-     * EDP.
+     * The fingerprint and the EDP set are checked separately: adding an EDP leaves the specs
+     * untouched, so a fingerprint match alone would let a report silently omit it.
      */
-    private data class EdpStorage(
-      val objectMapKey: String,
-      val objectKey: String,
-      val blobUri: String,
-      val eventGroupReferenceIds: Set<String>,
-    )
-
-    private val edpStorageList: List<EdpStorage> =
-      highOverlapEventGroupRefIdsByEdp.map { (edpName, referenceIds) ->
-        EdpStorage(
-          objectMapKey = "$edpName/event-groups-map/$edpName-event-group.binpb",
-          objectKey = "$edpName/event-groups/$edpName-high-overlap-event-group.binpb",
-          blobUri = "gs://$bucket/$edpName/event-groups/$edpName-high-overlap-event-group.binpb",
-          eventGroupReferenceIds = referenceIds,
-        )
+    private fun verify(manifest: HighOverlapDatasetManifest) {
+      val expected = HighOverlapDataset.fingerprint(HighOverlapDataset.CONFIG_RESOURCE_PATH)
+      check(manifest.specFingerprint == expected) {
+        "Seeded dataset is stale for $MODEL_LINE: seeded ${manifest.specFingerprint} " +
+          "(${manifest.generateTime}), specs are $expected. Re-run the high overlap seeding job."
       }
-
-    override fun apply(base: Statement, description: Description): Statement {
-      return object : Statement() {
-        override fun evaluate() {
-          if (MODEL_LINE.isEmpty()) {
-            logger.info("No high overlap model line configured; skipping EventGroup upload.")
-          } else {
-            runBlocking {
-              edpStorageList.forEach { storageClient.delete(bucket, it.objectMapKey) }
-              val allEventGroups = buildEventGroups(highOverlapEventGroupMap)
-              for (edpStorage in edpStorageList) {
-                val groups =
-                  allEventGroups.filter {
-                    it.eventGroupReferenceId in edpStorage.eventGroupReferenceIds
-                  }
-                uploadEventGroups(edpStorage, groups)
-                waitForEventGroupSyncToComplete(edpStorage)
-              }
-              logger.info("High overlap EventGroup sync completed.")
-            }
-          }
-          base.evaluate()
-        }
+      val missing = EDP_DISPLAY_NAMES - manifest.seededEdpsList.toSet()
+      check(missing.isEmpty()) {
+        "$MODEL_LINE is seeded for ${manifest.seededEdpsList} but this test covers $EDP_DISPLAY_NAMES; " +
+          "$missing were never written. Re-run the high overlap seeding job."
       }
-    }
-
-    private suspend fun waitForEventGroupSyncToComplete(storage: EdpStorage) {
-      withTimeout(EVENT_GROUP_SYNC_TIMEOUT) {
-        while (storageClient.get(bucket, storage.objectMapKey) == null) {
-          logger.info("Waiting on high overlap Event Group Sync to complete...")
-          delay(EVENT_GROUP_SYNC_POLLING_INTERVAL)
-        }
-      }
-    }
-
-    private suspend fun uploadEventGroups(storage: EdpStorage, eventGroups: List<EventGroup>) {
-      val eventGroupsBlobUri = SelectedStorageClient.parseBlobUri(storage.blobUri)
-      MesosRecordIoStorageClient(
-          SelectedStorageClient(
-            blobUri = eventGroupsBlobUri,
-            rootDirectory = null,
-            projectId = googleProjectId,
-          )
-        )
-        .writeBlob(storage.objectKey, eventGroups.asFlow().map { it.toByteString() })
-    }
-
-    private fun buildEventGroups(eventGroupMap: Map<String, EventGroupConfig>): List<EventGroup> {
-      return eventGroupMap.flatMap { (referenceId, config) ->
-        when (config) {
-          // Every high overlap event group carries an entity key: EventGroupSync filters its
-          // Kingdom listing by entity type, so one without a key would be re-created on every sync.
-          is EventGroupConfig.LegacySpec ->
-            error("high overlap event group $referenceId has no entity key")
-          // One EventGroup per entity key, spanning every date spec. The Kingdom enforces
-          // uniqueness on both reference ID and entity key, so a row per date spec would
-          // collide.
-          is EventGroupConfig.MultiEntityKey ->
-            config.entityKeySpecs.map { entityKeySpec ->
-              val dateRanges = entityKeySpec.spec.dateSpecsList.map { it.dateRange }
-              val startTime =
-                dateRanges
-                  .minOf { LocalDate.of(it.start.year, it.start.month, it.start.day) }
-                  .atStartOfDay(ZONE_ID)
-                  .toInstant()
-              // Both bounds are exclusive: the date spec's and the interval's.
-              val endTime =
-                dateRanges.maxOf { it.endExclusive.toLocalDate() }.atStartOfDay(ZONE_ID).toInstant()
-              eventGroup {
-                eventGroupReferenceId =
-                  "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}"
-                measurementConsumer = TEST_CONFIG.measurementConsumer
-                dataAvailabilityInterval = interval {
-                  this.startTime = timestamp { seconds = startTime.epochSecond }
-                  this.endTime = timestamp { seconds = endTime.epochSecond }
-                }
-                eventGroupMetadata = eventGroupMetadata {
-                  adMetadata = adMetadata {
-                    campaignMetadata = campaignMetadata {
-                      brand = "some-brand"
-                      campaign = "some-campaign"
-                    }
-                  }
-                  entityKeySpec.entityMetadata?.let { entityMetadata = it }
-                }
-                entityKey = entityKey {
-                  entityType = entityKeySpec.entityKey.entityType
-                  entityId = entityKeySpec.entityKey.entityId
-                }
-                // Every segment alternates media per stripe.
-                mediaTypes += listOf(MediaType.VIDEO, MediaType.DISPLAY)
-              }
-            }
-        }
-      }
-    }
-
-    companion object {
-      // Inferred as kotlin.time.Duration, which withTimeout and delay take; the java.time.Duration
-      // this file imports for the HTTP client is a different type.
-      private val EVENT_GROUP_SYNC_TIMEOUT = 5.minutes
-      private val EVENT_GROUP_SYNC_POLLING_INTERVAL = 5.seconds
-    }
-  }
-
-  /**
-   * Writes the `done` markers that trigger `DataAvailabilitySync` for the high overlap impressions.
-   */
-  private class CreateDoneBlobs : TestRule {
-
-    private val bucket = TEST_CONFIG.storageBucket
-    private val googleProjectId: String =
-      System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
-
-    override fun apply(base: Statement, description: Description): Statement {
-      return object : Statement() {
-        override fun evaluate() {
-          if (MODEL_LINE.isEmpty()) {
-            logger.info("No high overlap model line configured; skipping DONE blobs.")
-          } else {
-            runBlocking {
-              val modelLineId =
-                requireNotNull(ModelLineKey.fromName(MODEL_LINE)) {
-                    "model_line must be a full ModelLine resource name: $MODEL_LINE"
-                  }
-                  .modelLineId
-              val paths =
-                highOverlapDatesByImpressionPath.flatMap { (impressionPath, dates) ->
-                  dates.map { date ->
-                    "gs://$bucket/$impressionPath/model-line/$modelLineId/$date/done"
-                  }
-                }
-              logger.info("Creating ${paths.size} high overlap DONE blob(s)...")
-              writeDoneBlobs(paths)
-            }
-          }
-          base.evaluate()
-        }
-      }
-    }
-
-    private suspend fun writeDoneBlobs(paths: List<String>) {
-      paths.forEach { path ->
-        val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
-        val selectedStorageClient =
-          SelectedStorageClient(
-            blobUri = doneBlobUri,
-            rootDirectory = null,
-            projectId = googleProjectId,
-          )
-        selectedStorageClient.getBlob(doneBlobUri.key)?.delete()
-        selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
-      }
+      logger.info("Seeded dataset ${manifest.specFingerprint} covers ${manifest.seededEdpsList}")
     }
   }
 
@@ -473,6 +347,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertWeeklyShape(report)
+    assertWeeklyMetricsMatchSpecs(report)
     assertCumulativeReachIsMonotonic(report)
     assertStackedIncrementalReach(report)
     assertPopulationSizeMatchesSpec(report)
@@ -481,6 +356,23 @@ class EdpAggregatorReportingIntegrationTest {
 
   /** Component EDPs of the weekly reporting unit, in the order the request lists them. */
   private lateinit var weeklyComponentEdpNames: List<String>
+
+  /** EDP display name per DataProvider resource name. */
+  private lateinit var weeklyEdpNameByDataProvider: Map<String, String>
+
+  /** Expected weekly metrics per demographic cell and filter, indexed by week. */
+  private val expectedWeeklyMetrics:
+    Map<String, Map<String, List<HighOverlapExpectedReach.ExpectedWeeklyMetrics>>> by lazy {
+    HighOverlapExpectedReach.computeWeeklyRangesByDemographic(
+      PROVISIONED_CONFIG,
+      WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
+      POPULATION_SPEC,
+      WEEKLY_REPORT_START,
+      WEEKLY_PERIOD_COUNT,
+      BASIC_REPORT_METRIC_SPEC_CONFIG,
+      K_PLUS_REACH,
+    )
+  }
 
   /** Expected whole-interval metrics per demographic cell, by impression qualification filter. */
   private val expectedWholeIntervalMetrics:
@@ -519,6 +411,7 @@ class EdpAggregatorReportingIntegrationTest {
         it.cmmsDataProvider to EDP_NAME_BY_EVENT_GROUP_REF_ID.getValue(it.eventGroupReferenceId)
       }
     weeklyComponentEdpNames = dataProviderNames.map { edpNameByDataProvider.getValue(it) }
+    weeklyEdpNameByDataProvider = edpNameByDataProvider
 
     return listOf(
       resultGroupSpec {
@@ -649,8 +542,6 @@ class EdpAggregatorReportingIntegrationTest {
    * Non-cumulative reach is only required to be non-negative: the `e7-meta-video` flight ends
    * inside the interval, so a later week legitimately reaches nobody.
    */
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4672): Compare weekly metrics
-  // against expectations generated from the synthetic spec.
   private fun assertWeeklyShape(report: BasicReport) {
     assertThat(report.resultGroupsList.map { it.title })
       .containsExactly(WEEKLY_GROUP_TITLE, TOTAL_GROUP_TITLE)
@@ -677,7 +568,15 @@ class EdpAggregatorReportingIntegrationTest {
       byWeek.forEachIndexed { index, result ->
         val metricSet = result.metricSet.reportingUnit
         val week = result.metadata.metricEndTime.seconds
-        if (index < NOISE_DOMINATED_WEEKS) {
+        // A week whose expected reach sits inside the noise floor can legitimately clamp to zero,
+        // so the strict check is keyed on the expectation rather than on a fitted week index.
+        val expectedReach =
+          expectedWeeklyMetrics
+            .getValue(demographicOf(result))
+            .getValue(filterLabel(result))[index]
+            .cumulative
+            .reach
+        if (expectedReach.start <= 0.0) {
           assertWithMessage("$series week $week cumulative reach")
             .that(metricSet.cumulative.reach)
             .isAtLeast(0L)
@@ -764,6 +663,112 @@ class EdpAggregatorReportingIntegrationTest {
         .isWithin(STACKED_REACH_TOLERANCE * unionReach)
         .of(unionReach.toDouble())
     }
+  }
+
+  /** Checks every weekly value against expectations derived from the synthetic specs. */
+  private fun assertWeeklyMetricsMatchSpecs(report: BasicReport) {
+    val resultGroup = resultGroupOf(report, WEEKLY_GROUP_TITLE)
+    val expectedByCell = expectedWeeklyMetrics
+
+    assertWithMessage("expected demographic cells")
+      .that(expectedByCell)
+      .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
+
+    val expectedWeekEnds: List<Long> =
+      (1..WEEKLY_PERIOD_COUNT).map {
+        WEEKLY_REPORT_START.plusWeeks(it.toLong()).atStartOfDay(ZONE_ID).toInstant().epochSecond
+      }
+
+    val comparisons = mutableListOf<MetricComparison>()
+    for ((series, results) in weeklySeries(resultGroup)) {
+      val byWeek = results.sortedBy { it.metadata.metricEndTime.seconds }
+      assertWithMessage("$series weeks").that(byWeek).hasSize(WEEKLY_PERIOD_COUNT)
+
+      val expectedSeries =
+        expectedByCell.getValue(demographicOf(byWeek.first())).getValue(filterLabel(byWeek.first()))
+      assertWithMessage("$series expected weeks").that(expectedSeries).hasSize(WEEKLY_PERIOD_COUNT)
+
+      byWeek.forEachIndexed { week, result ->
+        val expected = expectedSeries[week]
+        val metricSet = result.metricSet.reportingUnit
+        val prefix = "$WEEKLY_GROUP_TITLE: $series week $week"
+
+        // A period ending elsewhere would silently be compared against the wrong window.
+        assertWithMessage("$prefix period end")
+          .that(result.metadata.metricEndTime.seconds)
+          .isEqualTo(expectedWeekEnds[week])
+
+        comparisons +=
+          MetricComparison(
+            "$prefix cumulative reach",
+            metricSet.cumulative.reach.toDouble(),
+            expected.cumulative.reach,
+          )
+        comparisons +=
+          MetricComparison(
+            "$prefix non-cumulative reach",
+            metricSet.nonCumulative.reach.toDouble(),
+            expected.nonCumulative.reach,
+          )
+
+        comparisons +=
+          MetricComparison(
+            "$prefix cumulative percent reach",
+            metricSet.cumulative.percentReach.toDouble(),
+            expected.cumulativePercentReach,
+          )
+
+        // TODO(world-federation-of-advertisers/cross-media-measurement#4698): Assert
+        // impressions and average frequency once the environments use deterministic noise. The
+        // impression metric's sensitivity is its maximum frequency per user, which is far above
+        // what this dataset reaches, so the noise exceeds the values being measured.
+
+        metricSet.nonCumulative.kPlusReachList.forEachIndexed { index, value ->
+          if (index < expected.nonCumulative.kPlusReach.size) {
+            comparisons +=
+              MetricComparison(
+                "$prefix non-cumulative ${index + 1}+ reach",
+                value.toDouble(),
+                expected.nonCumulative.kPlusReach[index],
+              )
+          }
+        }
+
+        // Declared by the population spec, so the report returns it unnoised.
+        assertWithMessage("$prefix population size")
+          .that(result.metricSet.populationSize)
+          .isEqualTo(expected.nonCumulative.populationSize)
+
+        // Components are keyed by DataProvider resource name; expectations by EDP display name.
+        val componentsByEdp =
+          result.metricSet.componentsList.associate { entry ->
+            weeklyEdpNameByDataProvider.getValue(entry.key) to entry.value
+          }
+        assertWithMessage("$prefix components")
+          .that(componentsByEdp.keys)
+          .containsExactlyElementsIn(expected.componentNonCumulativeReach.keys)
+        for ((edpName, componentMetricSet) in componentsByEdp) {
+          comparisons +=
+            MetricComparison(
+              "$prefix $edpName non-cumulative reach",
+              componentMetricSet.nonCumulative.reach.toDouble(),
+              expected.componentNonCumulativeReach.getValue(edpName),
+            )
+        }
+      }
+    }
+
+    logger.info(comparisons.joinToString("\n", prefix = "Weekly metrics measured against specs:\n"))
+    val outOfRange = comparisons.filter { !it.inRange }
+    assertWithMessage(
+        outOfRange.size.toString() +
+          " of " +
+          comparisons.size +
+          " weekly metrics outside the expected range:\n" +
+          comparisons.joinToString("\n")
+      )
+      .that(outOfRange)
+      .isEmpty()
   }
 
   /**
@@ -1155,14 +1160,6 @@ class EdpAggregatorReportingIntegrationTest {
     private const val WEEKLY_PERIOD_COUNT = 9
 
     /**
-     * Opening weeks whose cumulative reach is only required to be non-negative.
-     *
-     * Reach noise has a fixed sigma, so the smallest values in a cumulative series carry the
-     * largest relative error and can clamp to zero.
-     */
-    private const val NOISE_DOMINATED_WEEKS = 3
-
-    /**
      * EventGroups the weekly report covers, spanning every EDP in [EDP_DISPLAY_NAMES].
      *
      * `all4` runs the whole dataset, so every EDP contributes to every week. `e7-meta-video` runs
@@ -1197,9 +1194,9 @@ class EdpAggregatorReportingIntegrationTest {
      *
      * A VID's impressions are spread across that whole range, so a short interval samples only a
      * fraction of each VID's frequency and leaves the K+ reach metrics under their noise floor.
-     * Thirty-six days puts 2+ reach at roughly 18x sigma.
+     * Thirty-five days puts 2+ reach at roughly 18x sigma.
      */
-    private val REPORT_START: LocalDate = LocalDate.of(2026, 4, 1)
+    private val REPORT_START: LocalDate = LocalDate.of(2026, 4, 2)
     private val REPORT_END: LocalDate = LocalDate.of(2026, 5, 7)
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
@@ -1207,9 +1204,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       parseTextProto(
-        ImpressionTestDataConfigs.resolveSpecPath(
-          "high_overlap_impression_test_data_config.textproto"
-        ),
+        ImpressionTestDataConfigs.resolveSpecPath(HighOverlapDataset.CONFIG_RESOURCE_PATH),
         ImpressionTestDataConfig.getDefaultInstance(),
       )
     }
@@ -1252,51 +1247,6 @@ class EdpAggregatorReportingIntegrationTest {
           )
           .build()
       }
-    }
-
-    val highOverlapEventGroupMap: Map<String, EventGroupConfig> by lazy {
-      ImpressionTestDataConfigs.toEventGroupMap(PROVISIONED_CONFIG)
-    }
-
-    /** High overlap event group reference IDs by EDP, keyed `"${entityType}-${entityId}"`. */
-    val highOverlapEventGroupRefIdsByEdp: Map<String, Set<String>> by lazy {
-      PROVISIONED_CONFIG.eventGroupsList
-        .groupBy { it.edpName }
-        .mapValues { (_, eventGroups) ->
-          eventGroups
-            .flatMap { eventGroup ->
-              eventGroup.entityKeySpecsList.map { "${it.entityType}-${it.entityId}" }
-            }
-            .toSet()
-        }
-    }
-
-    /** Every date covered by the provisioned specs, keyed by the EDP's `output_base_path`. */
-    val highOverlapDatesByImpressionPath: Map<String, Set<LocalDate>> by lazy {
-      val datesByPath = mutableMapOf<String, MutableSet<LocalDate>>()
-      for (eventGroup in PROVISIONED_CONFIG.eventGroupsList) {
-        val dates = datesByPath.getOrPut(eventGroup.outputBasePath) { mutableSetOf() }
-        for (entityKeySpec in eventGroup.entityKeySpecsList) {
-          val spec =
-            ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
-              entityKeySpec.dataSpecResourcePath
-            )
-          for (dateSpec in spec.dateSpecsList) {
-            var date = dateSpec.dateRange.start.toLocalDate()
-            val endExclusive = dateSpec.dateRange.endExclusive.toLocalDate()
-            while (date.isBefore(endExclusive)) {
-              dates.add(date)
-              date = date.plusDays(1)
-            }
-          }
-        }
-      }
-      datesByPath
-    }
-
-    /** First date the dataset has events for. Empty unless the dataset is configured. */
-    private val highOverlapEarliestEventDate: LocalDate by lazy {
-      highOverlapDatesByImpressionPath.values.flatten().min()
     }
 
     /** Entity types of the reported EventGroups; CMMS defaults `entity_type_in` to `campaign`. */
@@ -1342,39 +1292,11 @@ class EdpAggregatorReportingIntegrationTest {
       HighOverlapExpectedReach.populationSize(POPULATION_SPEC)
     }
 
-    private val provisionModelResources =
-      HighOverlapModelResourcesRule(
-        populationSpecProvider = { POPULATION_SPEC },
-        populationDataProvider = TEST_CONFIG.populationDataProvider,
-        modelLineName = MODEL_LINE,
-        earliestEventDateProvider = { highOverlapEarliestEventDate },
-        kingdomPublicApiTarget = TEST_CONFIG.kingdomPublicApiTarget,
-        kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
-      )
-    private val uploadEventGroups = UploadEventGroups()
-    private val writeImpressions =
-      WriteHighOverlapImpressionsRule(
-        configProvider = { PROVISIONED_CONFIG },
-        populationSpecProvider = { POPULATION_SPEC },
-        bucket = TEST_CONFIG.storageBucket,
-        modelLineProvider = { MODEL_LINE.ifEmpty { null } },
-        edp7KekUri = TEST_CONFIG.edp7KekUri,
-        edpaMetaKekUri = TEST_CONFIG.edpaMetaKekUri,
-        edpaMetaAwsRoleArn = TEST_CONFIG.edpaMetaAwsRoleArn,
-        edpaMetaAwsRegion = TEST_CONFIG.edpaMetaAwsRegion,
-      )
-    private val createDoneBlobs = CreateDoneBlobs()
+    private val requireSeededDataset = RequireSeededDataset()
     private val reportingSystem = ReportingSystem()
 
     @ClassRule
     @JvmField
-    val chainedRule =
-      chainRulesSequentially(
-        provisionModelResources,
-        uploadEventGroups,
-        writeImpressions,
-        createDoneBlobs,
-        reportingSystem,
-      )
+    val chainedRule = chainRulesSequentially(requireSeededDataset, reportingSystem)
   }
 }

@@ -1,0 +1,1209 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
+
+import com.google.api.gax.paging.Page
+import com.google.auth.oauth2.GoogleCredentials
+import com.google.auth.oauth2.IdTokenProvider
+import com.google.cloud.functions.HttpRequest
+import com.google.cloud.storage.Blob
+import com.google.cloud.storage.BlobId
+import com.google.cloud.storage.BlobInfo
+import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageException
+import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.devtools.build.runfiles.Runfiles
+import com.google.type.date
+import io.grpc.ManagedChannel
+import io.grpc.Status
+import io.grpc.netty.NettyServerBuilder
+import java.nio.file.Paths
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.yield
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
+import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.crypto.SigningCerts
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.grpc.toServerTlsContext
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
+import org.wfanet.measurement.config.edpaggregator.storageParams
+import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
+import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
+import org.wfanet.measurement.config.securecomputation.dataWatcherConfig
+import org.wfanet.measurement.config.securecomputation.watchedPath
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.purgeRawImpressionUploadCorrectionCandidatesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
+import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy as copyWorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
+
+@RunWith(JUnit4::class)
+class VidLabelingHealingControllerFunctionTest {
+  @Test
+  fun `service runs controller and returns no content`() {
+    val invoked = CompletableDeferred<Unit>()
+    val response = mock<com.google.cloud.functions.HttpResponse>()
+    val function = VidLabelingHealingControllerFunction { invoked.complete(Unit) }
+
+    function.service(httpRequest(), response)
+
+    assertThat(invoked.isCompleted).isTrue()
+    verify(response).setStatusCode(204)
+  }
+
+  @Test
+  fun `default scheduled function retries the original deferred availability task before completing handoff`() =
+    runBlocking<Unit> {
+      val provider = "dataProviders/dp"
+      val oldUpload = "$provider/rawImpressionUploads/old"
+      val replacement = "$provider/rawImpressionUploads/replacement"
+      val model = "modelProviders/mp/modelSuites/ms/modelLines/ml"
+      val rowName = "$replacement/rawImpressionUploadModelLines/ml"
+      val operationName = "$provider/uploadHealingOperations/correction"
+      val candidateName = "$provider/rawImpressionUploadCorrectionCandidates/candidate"
+      val prefix = "gs://output/edp/provider"
+      val eventDate = LocalDate.of(2026, 1, 1)
+      val createTime = Instant.parse("2026-01-01T00:00:00Z")
+      val operation =
+        AtomicReference(
+          uploadHealingOperation {
+            name = operationName
+            state = UploadHealingOperation.State.AVAILABILITY_HANDOFF_PENDING
+            etag = "handoff"
+            labeledImpressionsBlobPrefix = prefix
+            planFormatVersion = 2
+            outputManifestState =
+              UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_FINALIZED
+            rawImpressionUploadCorrectionCandidates += candidateName
+            steps += uploadHealingStep {
+              name = "$operationName/uploadHealingSteps/step"
+              sequenceNumber = 1L
+              sourceRawImpressionUpload = oldUpload
+              rawImpressionUploadModelLine = "$oldUpload/rawImpressionUploadModelLines/ml"
+              cmmsModelLine = model
+              state = UploadHealingStep.State.COMPLETE
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+              replacementRawImpressionUpload = replacement
+              rawImpressionUploadCorrectionCandidate = candidateName
+            }
+          }
+        )
+      val operations: UploadHealingOperationServiceCoroutineImplBase = mockService {
+        onBlocking { listUploadHealingOperations(any()) }
+          .thenAnswer { invocation ->
+            val request = invocation.getArgument<ListUploadHealingOperationsRequest>(0)
+            assertThat(request.parent).isEqualTo(provider)
+            listUploadHealingOperationsResponse {
+              if (operation.get().state in request.filter.stateInList)
+                uploadHealingOperations += operation.get()
+            }
+          }
+        onBlocking { advanceUploadHealingOperation(any()) }
+          .thenAnswer { invocation ->
+            val request = invocation.getArgument<AdvanceUploadHealingOperationRequest>(0)
+            assertThat(request.name).isEqualTo(operationName)
+            operation.updateAndGet {
+              it.copy {
+                state = request.state
+                etag = "completed"
+              }
+            }
+          }
+      }
+      val uploads: RawImpressionUploadServiceCoroutineImplBase = mockService {
+        onBlocking { getRawImpressionUpload(any()) }
+          .thenAnswer { invocation ->
+            val name = invocation.getArgument<GetRawImpressionUploadRequest>(0).name
+            assertThat(name).isIn(listOf(oldUpload, replacement))
+            rawImpressionUpload {
+              this.name = name
+              registrationComplete = true
+              state =
+                if (name == oldUpload) RawImpressionUpload.State.FAILED
+                else RawImpressionUpload.State.ACTIVE
+              if (name == replacement) uploadHealingOperation = operationName
+            }
+          }
+      }
+      val models: RawImpressionUploadModelLineServiceCoroutineImplBase = mockService {
+        onBlocking { listRawImpressionUploadModelLines(any()) }
+          .thenAnswer { invocation ->
+            val parent = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0).parent
+            assertThat(parent).isIn(listOf(oldUpload, replacement))
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = "$parent/rawImpressionUploadModelLines/ml"
+                cmmsModelLine = model
+                state =
+                  if (parent == oldUpload) RawImpressionUploadModelLine.State.FAILED
+                  else RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+                if (parent == oldUpload)
+                  failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+                else
+                  pendingAvailabilityDates += date {
+                    year = eventDate.year
+                    month = eventDate.monthValue
+                    day = eventDate.dayOfMonth
+                  }
+              }
+            }
+          }
+      }
+      val candidates: RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase = mockService {
+        onBlocking { getRawImpressionUploadCorrectionCandidate(any()) }
+          .thenReturn(
+            rawImpressionUploadCorrectionCandidate {
+              name = candidateName
+              rawImpressionUpload = "$provider/rawImpressionUploads/candidate"
+              state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED
+              classification = RawImpressionUploadCorrectionCandidate.Classification.EDITED
+              decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+              uploadHealingOperation = operationName
+            }
+          )
+        onBlocking { purgeRawImpressionUploadCorrectionCandidates(any()) }
+          .thenReturn(purgeRawImpressionUploadCorrectionCandidatesResponse {})
+      }
+      val doneUri = LabeledImpressionsBlobKeys.forDoneUri(prefix, replacement, model, eventDate)
+      val originalRequest =
+        DataAvailabilitySyncWorkItems.createRequest(
+          provider,
+          replacement,
+          rowName,
+          model,
+          eventDate,
+          doneUri,
+          321L,
+          createTime,
+          emptyMap(),
+        )
+      val original =
+        originalRequest.workItem.copy {
+          name = "workItems/${originalRequest.workItemId}"
+          state = WorkItem.State.FAILED
+          generation = 7L
+        }
+      val retries = mutableListOf<RetryWorkItemRequest>()
+      val workItems: WorkItemsCoroutineImplBase = mockService {
+        onBlocking { createWorkItem(any()) }
+          .thenAnswer { invocation ->
+            assertThat(invocation.getArgument<CreateWorkItemRequest>(0).workItemId)
+              .isEqualTo(originalRequest.workItemId)
+            throw Status.ALREADY_EXISTS.asRuntimeException()
+          }
+        onBlocking { getWorkItem(any()) }
+          .thenAnswer { invocation ->
+            assertThat(invocation.getArgument<GetWorkItemRequest>(0).name).isEqualTo(original.name)
+            original
+          }
+        onBlocking { retryWorkItem(any()) }
+          .thenAnswer { invocation ->
+            val request = invocation.getArgument<RetryWorkItemRequest>(0)
+            retries += request
+            original.copy {
+              generation = request.expectedWorkItemGeneration + 1L
+              state = WorkItem.State.QUEUED
+            }
+          }
+      }
+      val secrets =
+        checkNotNull(
+          Runfiles.preload()
+            .withSourceRepository("")
+            .getRuntimePath(
+              Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
+            )
+        )
+      val certs =
+        SigningCerts.fromPemFiles(
+          secrets.resolve("kingdom_tls.pem").toFile(),
+          secrets.resolve("kingdom_tls.key").toFile(),
+          secrets.resolve("edp7_root.pem").toFile(),
+        )
+      val edpa =
+        NettyServerBuilder.forPort(0)
+          .sslContext(certs.toServerTlsContext())
+          .addService(operations)
+          .addService(uploads)
+          .addService(models)
+          .addService(candidates)
+          .build()
+          .start()
+      val controlPlane =
+        NettyServerBuilder.forPort(0)
+          .sslContext(certs.toServerTlsContext())
+          .addService(workItems)
+          .build()
+          .start()
+      val storage = mock<Storage>()
+      val key = doneUri.substringAfter("gs://output/")
+      val marker = blob(key, 321L)
+      whenever(marker.createTimeOffsetDateTime).thenReturn(createTime.atOffset(ZoneOffset.UTC))
+      whenever(storage.get(BlobId.of("output", key))).thenReturn(marker)
+      val tls = transportLayerSecurityParams {
+        certFilePath = secrets.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = secrets.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = secrets.resolve("kingdom_root.pem").toString()
+      }
+      val config = vidLabelingConfig {
+        dataProvider = provider
+        edpImpressionPath = "edp/provider"
+        rawImpressionMetadataStorageConnection = tls
+        controlPlaneConnection = tls
+        vidLabeledImpressionsStorageParams = storageParams {
+          gcs = gcsStorage { bucketName = "output" }
+        }
+      }
+      val restores = mutableListOf<() -> Unit>()
+      fun captureLazy(name: String, replacementValue: Any? = null, replace: Boolean = true) {
+        val field =
+          VidLabelingHealingControllerFunction::class.java.getDeclaredField("${name}\$delegate")
+        field.isAccessible = true
+        val holder = field.get(null) as Lazy<*>
+        val value = holder.javaClass.getDeclaredField("_value").apply { isAccessible = true }
+        val initializer =
+          holder.javaClass.getDeclaredField("initializer").apply { isAccessible = true }
+        val savedValue = value.get(holder)
+        val savedInitializer = initializer.get(holder)
+        restores += {
+          synchronized(holder) {
+            value.set(holder, savedValue)
+            initializer.set(holder, savedInitializer)
+          }
+        }
+        if (replace)
+          synchronized(holder) {
+            value.set(holder, replacementValue)
+            initializer.set(holder, null)
+          }
+      }
+      val channelsField =
+        VidLabelingFunctionHelpers::class.java.getDeclaredField("channelCache").apply {
+          isAccessible = true
+        }
+      @Suppress("UNCHECKED_CAST")
+      val channels = channelsField.get(null) as MutableMap<Any, ManagedChannel>
+      val originalChannels = channels.keys.toSet()
+      // Reflection only supplies and restores environment-bound factory dependencies. The test
+      // invokes the public scheduled function, and all progression runs through real gRPC clients.
+      try {
+        captureLazy("controller", replace = false)
+        captureLazy("grpcTelemetry", replace = false)
+        captureLazy("retention", replace = false)
+        captureLazy("stallTimeout", replace = false)
+        captureLazy("storage", storage)
+        captureLazy("vidLabelingConfigs", listOf(config))
+        captureLazy("dataWatcherConfig", dataWatcherConfig {})
+        captureLazy("rawApiTarget", "localhost:${edpa.port}")
+        captureLazy("rawApiCertHost", "localhost")
+        captureLazy("controlPlaneTarget", "localhost:${controlPlane.port}")
+        captureLazy("controlPlaneCertHost", "localhost")
+        captureLazy("rpcThrottlers", VidLabelingRpcThrottlersTestHelper.alwaysReady())
+        val credentials =
+          org.mockito.Mockito.mock(
+            GoogleCredentials::class.java,
+            org.mockito.Mockito.withSettings().extraInterfaces(IdTokenProvider::class.java),
+          )
+        org.mockito.Mockito.mockStatic(GoogleCredentials::class.java).use { defaults ->
+          defaults
+            .`when`<GoogleCredentials> { GoogleCredentials.getApplicationDefault() }
+            .thenReturn(credentials)
+          val response = mock<com.google.cloud.functions.HttpResponse>()
+          VidLabelingHealingControllerFunction().service(httpRequest(), response)
+          verify(response).setStatusCode(204)
+        }
+        assertThat(operation.get().state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+        assertThat(retries.single().name).isEqualTo(original.name)
+        assertThat(retries.single().expectedWorkItemGeneration).isEqualTo(7L)
+        verify(storage, never())
+          .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+      } finally {
+        restores.asReversed().forEach { it() }
+        channels.keys
+          .toList()
+          .filterNot { it in originalChannels }
+          .forEach { key ->
+            channels.remove(key)?.shutdownNow()?.awaitTermination(1, TimeUnit.SECONDS)
+          }
+        edpa.shutdownNow().awaitTermination(1, TimeUnit.SECONDS)
+        controlPlane.shutdownNow().awaitTermination(1, TimeUnit.SECONDS)
+      }
+    }
+
+  @Test
+  fun `service starts trace context for scheduled invocation across suspension`() {
+    val response = mock<com.google.cloud.functions.HttpResponse>()
+    val callerContext = Tracing.currentW3CTraceContext()
+    var beforeSuspension: Map<String, String> = emptyMap()
+    var afterSuspension: Map<String, String> = emptyMap()
+    val function = VidLabelingHealingControllerFunction {
+      beforeSuspension = Tracing.currentW3CTraceContext()
+      withContext(Dispatchers.Default) {
+        yield()
+        afterSuspension = Tracing.currentW3CTraceContext()
+      }
+    }
+
+    function.service(httpRequest(), response)
+
+    assertThat(beforeSuspension).containsKey("traceparent")
+    assertThat(afterSuspension).isEqualTo(beforeSuspension)
+    assertThat(Tracing.currentW3CTraceContext()).isEqualTo(callerContext)
+    verify(response).setStatusCode(204)
+  }
+
+  @Test
+  fun `service preserves incoming trace context across suspension`() {
+    val incomingTraceId = "11111111111111111111111111111111"
+    val incomingParent = "00-$incomingTraceId-2222222222222222-01"
+    val response = mock<com.google.cloud.functions.HttpResponse>()
+    val callerContext = Tracing.currentW3CTraceContext()
+    var beforeSuspension: Map<String, String> = emptyMap()
+    var afterSuspension: Map<String, String> = emptyMap()
+    val function = VidLabelingHealingControllerFunction {
+      beforeSuspension = Tracing.currentW3CTraceContext()
+      withContext(Dispatchers.Default) {
+        yield()
+        afterSuspension = Tracing.currentW3CTraceContext()
+      }
+    }
+
+    function.service(
+      httpRequest(
+        mapOf("traceparent" to listOf(incomingParent), "tracestate" to listOf("test=value"))
+      ),
+      response,
+    )
+
+    assertThat(beforeSuspension).containsKey("traceparent")
+    assertThat(beforeSuspension.getValue("traceparent")).startsWith("00-$incomingTraceId-")
+    assertThat(beforeSuspension.getValue("traceparent")).isNotEqualTo(incomingParent)
+    assertThat(beforeSuspension).containsEntry("tracestate", "test=value")
+    assertThat(afterSuspension).isEqualTo(beforeSuspension)
+    assertThat(Tracing.currentW3CTraceContext()).isEqualTo(callerContext)
+    verify(response).setStatusCode(204)
+  }
+
+  @Test
+  fun `service restores caller trace context when controller fails`() {
+    val response = mock<com.google.cloud.functions.HttpResponse>()
+    val callerContext = Tracing.currentW3CTraceContext()
+    val failure = IllegalStateException("Controller failed")
+    var controllerContext: Map<String, String> = emptyMap()
+    val function = VidLabelingHealingControllerFunction {
+      withContext(Dispatchers.Default) {
+        yield()
+        controllerContext = Tracing.currentW3CTraceContext()
+        throw failure
+      }
+    }
+
+    assertFailsWith<IllegalStateException> { function.service(httpRequest(), response) }
+
+    assertThat(controllerContext).containsKey("traceparent")
+    assertThat(Tracing.currentW3CTraceContext()).isEqualTo(callerContext)
+    verify(response, never()).setStatusCode(204)
+  }
+
+  @Test
+  fun `manifest reader returns live objects for exact done generation`() {
+    runBlocking {
+      val storage = mock<Storage>()
+      val done = blob("day/done", 11L)
+      val first = blob("day/first.avro", 21L)
+      val second = blob("day/second.avro", 22L)
+      val nestedDone = blob("day/backfill/DONE", 23L)
+      val page = mock<Page<Blob>>()
+      whenever(storage.get("raw", "day/done")).thenReturn(done)
+      whenever(storage.list(eq("raw"), any<Storage.BlobListOption>())).thenReturn(page)
+      whenever(page.iterateAll()).thenReturn(listOf(first, done, second, nestedDone))
+
+      val manifest =
+        GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
+
+      assertThat(manifest)
+        .containsExactly(
+          RawImpressionUploadManifestClassifier.File("gs://raw/day/first.avro", 21L),
+          RawImpressionUploadManifestClassifier.File("gs://raw/day/second.avro", 22L),
+        )
+    }
+  }
+
+  @Test
+  fun `manifest reader preserves persisted dates for exact object generations`() = runBlocking {
+    val storage = mock<Storage>()
+    val done = blob("day/done", 11L)
+    val input = blob("day/input.parquet", 21L)
+    val page = mock<Page<Blob>>()
+    whenever(storage.get("raw", "day/done")).thenReturn(done)
+    whenever(storage.list(eq("raw"), any<Storage.BlobListOption>())).thenReturn(page)
+    whenever(page.iterateAll()).thenReturn(listOf(input, done))
+    val persisted =
+      listOf(
+        RawImpressionUploadManifestClassifier.File(
+          "gs://raw/day/input.parquet",
+          21L,
+          date {
+            year = 2026
+            month = 9
+            day = 1
+          },
+        )
+      )
+
+    val live = GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, persisted)
+
+    val classifier = RawImpressionUploadManifestClassifier()
+    assertThat(live).containsExactlyElementsIn(persisted)
+    assertThat(classifier.digest(live)).isEqualTo(classifier.digest(persisted))
+  }
+
+  @Test
+  fun `manifest reader rejects changed done generation`() {
+    val storage = mock<Storage>()
+    val done = blob("day/done", 12L)
+    whenever(storage.get("raw", "day/done")).thenReturn(done)
+
+    val error =
+      kotlin.test.assertFailsWith<IllegalStateException> {
+        runBlocking {
+          GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
+        }
+      }
+
+    assertThat(error).hasMessageThat().contains("generation changed")
+  }
+
+  @Test
+  fun `manifest reader rejects done rewrite during listing`() {
+    val storage = mock<Storage>()
+    val original = blob("day/done", 11L)
+    val rewritten = blob("day/done", 12L)
+    val page = mock<Page<Blob>>()
+    whenever(storage.get("raw", "day/done")).thenReturn(original, rewritten)
+    whenever(storage.list(eq("raw"), any<Storage.BlobListOption>())).thenReturn(page)
+    whenever(page.iterateAll()).thenReturn(emptyList())
+
+    val error =
+      kotlin.test.assertFailsWith<IllegalStateException> {
+        runBlocking {
+          GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
+        }
+      }
+
+    assertThat(error).hasMessageThat().contains("generation changed")
+  }
+
+  @Test
+  fun `labeled output store deletes only the requested generation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val live = blob("day/output.avro", 42L)
+      val unqualified = BlobId.of("output", "day/output.avro")
+      val qualified = BlobId.of("output", "day/output.avro", 42L)
+      whenever(storage.get(unqualified)).thenReturn(live)
+      whenever(storage.delete(qualified)).thenReturn(true)
+      val outputStore = GcsLabeledOutputStore(storage)
+
+      assertThat(outputStore.getGeneration("gs://output/day/output.avro")).isEqualTo(42L)
+      assertThat(outputStore.delete("gs://output/day/output.avro", 42L)).isTrue()
+
+      verify(storage).delete(qualified)
+      verify(storage, never()).delete(unqualified)
+    }
+
+  @Test
+  fun `done object metadata reader returns exact generation and create time`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val done = blob("model-line/ml/2026-11-01/done", 42L)
+      val createTime = Instant.parse("2026-11-01T00:00:00Z")
+      whenever(done.createTimeOffsetDateTime).thenReturn(createTime.atOffset(ZoneOffset.UTC))
+      whenever(storage.get(BlobId.of("output", done.name))).thenReturn(done)
+
+      val metadata =
+        GcsDoneObjectMetadataReader(storage).read("gs://output/model-line/ml/2026-11-01/done")
+
+      assertThat(metadata!!.generation).isEqualTo(42L)
+      assertThat(metadata.createTime).isEqualTo(createTime)
+    }
+
+  @Test
+  fun `recovery writer creates a fresh generation with recovery metadata`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 11L)
+      val rewritten = blob("day/done", 12L)
+      whenever(current.metadata).thenReturn(mapOf("existing" to "value"))
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+      whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
+        .thenReturn(rewritten)
+
+      val generation =
+        GcsDoneBlobRecoveryWriter(storage)
+          .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "operation"))
+
+      assertThat(generation).isEqualTo(12L)
+      val blobInfo = argumentCaptor<BlobInfo>()
+      verify(storage).create(blobInfo.capture(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+      assertThat(blobInfo.firstValue.metadata)
+        .containsExactly("existing", "value", "recovery", "operation")
+    }
+
+  @Test
+  fun `recovery writer reuses a matching recovery generation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 12L)
+      whenever(current.metadata).thenReturn(mapOf("recovery" to "operation"))
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+
+      val generation =
+        GcsDoneBlobRecoveryWriter(storage)
+          .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "operation"))
+
+      assertThat(generation).isEqualTo(12L)
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `done version metadata reader uses the requested historical generation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val blob =
+        mock<Blob> {
+          on { generation } doReturn 11L
+          on { createTimeOffsetDateTime } doReturn
+            java.time.OffsetDateTime.parse("2026-01-01T00:00:00Z")
+        }
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenReturn(blob)
+      val result = GcsDoneObjectMetadataReader(storage).readVersion("gs://raw/day/done", 11L)
+      assertThat(result!!.generation).isEqualTo(11L)
+      assertThat(result.createTime).isEqualTo(java.time.Instant.parse("2026-01-01T00:00:00Z"))
+      verify(storage).get(BlobId.of("raw", "day/done", 11L))
+      verify(storage, never()).get(BlobId.of("raw", "day/done"))
+    }
+
+  @Test
+  fun `version metadata preserves retryable and permanent storage failure policies`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val temporary = com.google.cloud.storage.StorageException(503, "temporary")
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenThrow(temporary)
+      val error =
+        assertFailsWith<java.io.IOException> {
+          GcsDoneObjectMetadataReader(storage).readVersion("gs://raw/day/done", 11L)
+        }
+      assertThat(generateSequence<Throwable>(error) { it.cause }.last()).isSameInstanceAs(temporary)
+      org.mockito.kotlin.reset(storage)
+      val permanent = com.google.cloud.storage.StorageException(403, "forbidden")
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenThrow(permanent)
+      assertThat(
+          assertFailsWith<com.google.cloud.storage.StorageException> {
+            GcsDoneObjectMetadataReader(storage).readVersion("gs://raw/day/done", 11L)
+          }
+        )
+        .isSameInstanceAs(permanent)
+    }
+
+  @Test
+  fun `queued replay retains source identity and deduplicates after lost intake response`() =
+    runBlocking<Unit> {
+      val stored = mutableMapOf<String, WorkItem>()
+      var loseResponse = true
+      val service =
+        object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
+          override suspend fun ensureWorkItem(request: EnsureWorkItemRequest): WorkItem {
+            val previous = stored[request.workItemId]
+            if (previous != null) {
+              if (previous.workItemParams != request.workItem.workItemParams)
+                throw io.grpc.Status.ALREADY_EXISTS.asException()
+              return previous
+            }
+            val item =
+              request.workItem.copyWorkItem {
+                name = "workItems/${request.workItemId}"
+                generation = 1L
+                state = WorkItem.State.QUEUED
+              }
+            stored[request.workItemId] = item
+            if (loseResponse) {
+              loseResponse = false
+              throw io.grpc.Status.UNAVAILABLE.asException()
+            }
+            return item
+          }
+
+          override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem =
+            stored.values.single { it.name == request.name }
+        }
+      val server = io.grpc.netty.NettyServerBuilder.forPort(0).addService(service).build().start()
+      val channel =
+        io.grpc.netty.NettyChannelBuilder.forAddress("localhost", server.port)
+          .usePlaintext()
+          .build()
+      try {
+        val watcher =
+          DataWatcher(
+            WorkItemsGrpcKt.WorkItemsCoroutineStub(channel),
+            listOf(
+              watchedPath {
+                identifier = "vid-labeling-dispatch"
+                sourcePathRegex = "gs://raw/.*/done"
+                controlPlaneQueueSink = controlPlaneQueueSink {
+                  queue = VidLabelingDispatchWorkItems.QUEUE
+                  appParams =
+                    vidLabelingDispatcherParams { dataProvider = "dataProviders/dp" }.pack()
+                }
+              }
+            ),
+            idTokenProvider = mock(),
+          )
+        val source =
+          mapOf(
+            DataWatcher.GENERATION_METADATA_KEY to "11",
+            DataWatcher.CREATE_TIME_METADATA_KEY to "2026-01-01T00:00:00Z",
+            DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
+          )
+        val context =
+          io.opentelemetry.api.trace.SpanContext.create(
+            "11111111111111111111111111111111",
+            "1111111111111111",
+            io.opentelemetry.api.trace.TraceFlags.getSampled(),
+            io.opentelemetry.api.trace.TraceState.getDefault(),
+          )
+        io.opentelemetry.api.trace.Span.wrap(context).makeCurrent().use {
+          assertFailsWith<io.grpc.StatusException> {
+            watcher.receivePath("gs://raw/day/done", source)
+          }
+        }
+        watcher.receivePath("gs://raw/day/done", source)
+        assertThat(stored).hasSize(1)
+        val ordinary =
+          stored.values.single().workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+        assertThat(ordinary.traceContextMap)
+          .containsEntry("traceparent", "00-11111111111111111111111111111111-1111111111111111-01")
+        val request =
+          DoneBlobReplayer.Request(
+            "gs://raw/day/done",
+            11L,
+            "dataProviders/dp/rawImpressionUploads/source",
+            listOf("modelProviders/mp/modelSuites/ms/modelLines/first"),
+            "dataProviders/dp/uploadHealingOperations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          )
+        val replay =
+          DataWatcherDoneBlobReplayer(
+            watcher,
+            { _, generation ->
+              org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata(
+                generation,
+                java.time.Instant.parse("2026-01-01T00:00:00Z"),
+              )
+            },
+            org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+              .alwaysReady()
+              .metadataRead,
+          )
+        replay.replay(request)
+        replay.replay(request)
+        assertThat(stored).hasSize(2)
+        val recovery =
+          stored.values
+            .map { it.workItemParams.unpack(WorkItem.WorkItemParams::class.java) }
+            .single {
+              it.appParams
+                .unpack(VidLabelingDispatchWorkItemParams::class.java)
+                .recovery
+                .sourceUpload
+                .isNotEmpty()
+            }
+        assertThat(recovery.hasDataPathParams()).isFalse()
+        assertThat(
+            recovery.appParams
+              .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
+              .source
+              .generation
+          )
+          .isEqualTo(11L)
+        assertThat(
+            recovery.appParams
+              .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
+              .source
+              .createTime
+          )
+          .isEqualTo(java.time.Instant.parse("2026-01-01T00:00:00Z").toProtoTime())
+
+        assertThat(
+            recovery.appParams
+              .unpack(VidLabelingDispatchWorkItemParams::class.java)
+              .recovery
+              .uploadHealingOperation
+          )
+          .isEqualTo(
+            "dataProviders/dp/uploadHealingOperations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+          )
+      } finally {
+        channel.shutdownNow()
+        server.shutdownNow()
+      }
+    }
+
+  @Test
+  fun `done replayer routes exact recovery metadata`() {
+    runBlocking {
+      val dataWatcher = mock<DataWatcher>()
+      val request =
+        DoneBlobReplayer.Request(
+          doneBlobUri = "gs://raw/day/done",
+          doneBlobGeneration = 11L,
+          sourceRawImpressionUpload = "dataProviders/dp/rawImpressionUploads/source",
+          cmmsModelLines = listOf("modelLines/first", "modelLines/second"),
+          uploadHealingOperation =
+            "dataProviders/dp/uploadHealingOperations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        )
+
+      DataWatcherDoneBlobReplayer(
+          dataWatcher,
+          { _, generation ->
+            org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata(
+              generation,
+              java.time.Instant.parse("2026-01-01T00:00:00Z"),
+            )
+          },
+          org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+            .alwaysReady()
+            .metadataRead,
+        )
+        .replay(request)
+
+      verify(dataWatcher)
+        .receivePath(
+          "gs://raw/day/done",
+          mapOf(
+            DataWatcher.GENERATION_METADATA_KEY to "11",
+            DataWatcher.CREATE_TIME_METADATA_KEY to "2026-01-01T00:00:00Z",
+            DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
+            WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/first,modelLines/second",
+            WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to
+              "dataProviders/dp/rawImpressionUploads/source",
+            WatchedBlobs.EVICTION_OPERATION_ID_KEY to "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+              "dataProviders/dp/uploadHealingOperations/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+          ),
+        )
+    }
+  }
+
+  @Test
+  fun `generation reads overlap on IO instead of blocking the caller`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val entered = CountDownLatch(2)
+      val callerThread = Thread.currentThread()
+      whenever(storage.get(any<BlobId>())).thenAnswer { invocation ->
+        assertThat(Thread.currentThread()).isNotSameInstanceAs(callerThread)
+        entered.countDown()
+        check(entered.await(5, TimeUnit.SECONDS)) { "Generation reads did not overlap" }
+        blob(invocation.getArgument<BlobId>(0).name, 42L)
+      }
+      val store = GcsLabeledOutputStore(storage)
+
+      val generations = coroutineScope {
+        listOf("first", "second")
+          .map { key -> async { store.getGeneration("gs://output/$key") } }
+          .awaitAll()
+      }
+
+      assertThat(generations).containsExactly(42L, 42L)
+    }
+
+  @Test
+  fun `exact generation deletes overlap on IO instead of blocking the caller`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val entered = CountDownLatch(2)
+      val callerThread = Thread.currentThread()
+      whenever(storage.delete(any<BlobId>())).thenAnswer { invocation ->
+        assertThat(Thread.currentThread()).isNotSameInstanceAs(callerThread)
+        assertThat(invocation.getArgument<BlobId>(0).generation).isEqualTo(42L)
+        entered.countDown()
+        check(entered.await(5, TimeUnit.SECONDS)) { "Output deletes did not overlap" }
+        true
+      }
+      val store = GcsLabeledOutputStore(storage)
+
+      val deleted = coroutineScope {
+        listOf("first", "second")
+          .map { key -> async { store.delete("gs://output/$key", 42L) } }
+          .awaitAll()
+      }
+
+      assertThat(deleted).containsExactly(true, true)
+    }
+
+  @Test
+  fun `output store reports absent objects without substituting a version`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val store = GcsLabeledOutputStore(storage)
+
+      assertThat(store.getGeneration("gs://output/missing")).isNull()
+      assertThat(store.delete("gs://output/missing", 42L)).isFalse()
+      verify(storage).delete(BlobId.of("output", "missing", 42L))
+    }
+
+  @Test
+  fun `output store propagates read and delete failures`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val failure = StorageException(503, "unavailable")
+      whenever(storage.get(any<BlobId>())).thenThrow(failure)
+      whenever(storage.delete(any<BlobId>())).thenThrow(failure)
+      val store = GcsLabeledOutputStore(storage)
+
+      assertThat(assertFailsWith<StorageException> { store.getGeneration("gs://output/file") })
+        .isSameInstanceAs(failure)
+      assertThat(assertFailsWith<StorageException> { store.delete("gs://output/file", 42L) })
+        .isSameInstanceAs(failure)
+    }
+
+  @Test
+  fun `cancelled output operations never issue storage requests`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val store = GcsLabeledOutputStore(storage)
+      val job = launch {
+        yield()
+        store.getGeneration("gs://output/file")
+        store.delete("gs://output/file", 42L)
+      }
+      job.cancel()
+      job.join()
+
+      verify(storage, never()).get(any<BlobId>())
+      verify(storage, never()).delete(any<BlobId>())
+    }
+
+  @Test
+  fun `recovery reads and conditional writes run away from the caller thread`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val callerThread = Thread.currentThread()
+      val current = blob("day/done", 11L)
+      val rewritten = blob("day/done", 12L)
+      val calls = AtomicInteger()
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenAnswer {
+        assertThat(Thread.currentThread()).isNotSameInstanceAs(callerThread)
+        calls.incrementAndGet()
+        current
+      }
+      whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
+        .thenAnswer {
+          assertThat(Thread.currentThread()).isNotSameInstanceAs(callerThread)
+          calls.incrementAndGet()
+          rewritten
+        }
+
+      assertThat(GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, emptyMap()))
+        .isEqualTo(12L)
+      assertThat(calls.get()).isEqualTo(2)
+      verify(storage)
+        .create(
+          any<BlobInfo>(),
+          eq(ByteArray(0)),
+          eq(Storage.BlobTargetOption.generationMatch(11L)),
+        )
+    }
+
+  @Test
+  fun `recovery rejects a missing marker without creating one`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+
+      assertFailsWith<IllegalStateException> {
+        GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, emptyMap())
+      }
+
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `recovery rejects a newer marker for another operation`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 12L)
+      whenever(current.metadata).thenReturn(mapOf("recovery" to "other"))
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          GcsDoneBlobRecoveryWriter(storage)
+            .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "ours"))
+        }
+
+      assertThat(failure).hasMessageThat().contains("not 11")
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `recovery propagates a generation match rejection`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 11L)
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+      val failure = StorageException(412, "generation changed during write")
+      whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
+        .thenThrow(failure)
+
+      assertThat(
+          assertFailsWith<StorageException> {
+            GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, emptyMap())
+          }
+        )
+        .isSameInstanceAs(failure)
+    }
+
+  @Test
+  fun `recovery propagates a marker read failure without writing`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val failure = StorageException(503, "unavailable")
+      whenever(storage.get(any<BlobId>())).thenThrow(failure)
+
+      assertThat(
+          assertFailsWith<StorageException> {
+            GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, emptyMap())
+          }
+        )
+        .isSameInstanceAs(failure)
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `cancellation during recovery marker read prevents the conditional write`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val entered = CompletableDeferred<Unit>()
+      val release = CountDownLatch(1)
+      val current = blob("day/done", 11L)
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenAnswer {
+        entered.complete(Unit)
+        check(release.await(10, TimeUnit.SECONDS)) { "Marker read was not released" }
+        current
+      }
+      val recovery = async {
+        GcsDoneBlobRecoveryWriter(storage)
+          .rewrite("gs://raw/day/done", 11L, mapOf("recovery" to "ours"))
+      }
+      try {
+        withTimeout(5_000) { entered.await() }
+        recovery.cancel()
+      } finally {
+        release.countDown()
+      }
+      assertFailsWith<CancellationException> { recovery.await() }
+
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `recovery recognizes matching legacy authorization after an upgrade`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 12L)
+      val legacy =
+        mapOf(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+            "modelProviders/mp/modelSuites/ms/modelLines/first",
+          WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/source",
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY to "operation",
+        )
+      whenever(current.metadata).thenReturn(legacy)
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+      val metadata =
+        legacy +
+          (WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+            "dataProviders/dp/uploadHealingOperations/operation")
+      assertThat(GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, metadata))
+        .isEqualTo(12L)
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  @Test
+  fun `recovery rejects a conflicting full operation despite a matching legacy ID`() =
+    runBlocking<Unit> {
+      val storage = mock<Storage>()
+      val current = blob("day/done", 12L)
+      val metadata =
+        mapOf(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to
+            "modelProviders/mp/modelSuites/ms/modelLines/first",
+          WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/source",
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY to "operation",
+          WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+            "dataProviders/dp/uploadHealingOperations/operation",
+        )
+      whenever(current.metadata)
+        .thenReturn(
+          metadata +
+            (WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+              "dataProviders/other/uploadHealingOperations/operation")
+        )
+      whenever(storage.get(BlobId.of("raw", "day/done"))).thenReturn(current)
+      assertFailsWith<IllegalStateException> {
+        GcsDoneBlobRecoveryWriter(storage).rewrite("gs://raw/day/done", 11L, metadata)
+      }
+      verify(storage, never())
+        .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
+    }
+
+  private fun httpRequest(headers: Map<String, List<String>> = emptyMap()): HttpRequest {
+    return mock<HttpRequest>().also { whenever(it.headers).thenReturn(headers) }
+  }
+
+  private fun blob(name: String, generation: Long): Blob {
+    return mock<Blob>().also {
+      whenever(it.name).thenReturn(name)
+      whenever(it.generation).thenReturn(generation)
+    }
+  }
+
+  @Test
+  fun `manifest reader verifies retained versions without listing newer directory contents`() =
+    runBlocking {
+      val storage = mock<Storage>()
+      val marker = blob("day/done", 11L)
+      val input = blob("day/input.parquet", 21L)
+      val createTime = Instant.parse("2026-11-01T00:00:00Z")
+      whenever(marker.createTimeOffsetDateTime).thenReturn(createTime.atOffset(ZoneOffset.UTC))
+      whenever(input.createTimeOffsetDateTime)
+        .thenReturn(createTime.minusSeconds(1).atOffset(ZoneOffset.UTC))
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenReturn(marker)
+      whenever(storage.get(BlobId.of("raw", "day/input.parquet", 21L))).thenReturn(input)
+      val expected =
+        listOf(RawImpressionUploadManifestClassifier.File("gs://raw/day/input.parquet", 21L))
+
+      val result =
+        GcsCorrectionManifestReader(storage).readPersisted("gs://raw/day/done", 11L, expected)
+
+      assertThat(result).containsExactlyElementsIn(expected)
+      verify(storage, never()).get("raw", "day/done")
+      verify(storage, never()).list(any<String>(), any<Storage.BlobListOption>())
+      Unit
+    }
+
+  @Test
+  fun `manifest reader rejects a missing retained input instead of reading its live version`() =
+    runBlocking {
+      val storage = mock<Storage>()
+      val marker = blob("day/done", 11L)
+      whenever(marker.createTimeOffsetDateTime)
+        .thenReturn(Instant.parse("2026-11-01T00:00:00Z").atOffset(ZoneOffset.UTC))
+      whenever(storage.get(BlobId.of("raw", "day/done", 11L))).thenReturn(marker)
+
+      val error =
+        kotlin.test.assertFailsWith<IllegalStateException> {
+          GcsCorrectionManifestReader(storage)
+            .readPersisted(
+              "gs://raw/day/done",
+              11L,
+              listOf(RawImpressionUploadManifestClassifier.File("gs://raw/day/input.parquet", 21L)),
+            )
+        }
+
+      assertThat(error).hasMessageThat().contains("approved raw-object version")
+      verify(storage, never()).get("raw", "day/input.parquet")
+      Unit
+    }
+}

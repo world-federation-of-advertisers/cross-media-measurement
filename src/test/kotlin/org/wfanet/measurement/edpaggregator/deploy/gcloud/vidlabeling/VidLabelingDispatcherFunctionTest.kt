@@ -25,8 +25,12 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
+import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.attribute.BasicFileAttributes
+import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
@@ -59,7 +63,9 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigKt.modelLineConfig
 import org.wfanet.measurement.config.edpaggregator.storageParams
@@ -85,6 +91,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
@@ -92,8 +99,17 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResp
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -103,6 +119,37 @@ class VidLabelingDispatcherFunctionTest {
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
+  private val loseLeaseOnMetadataRead = AtomicBoolean(false)
+  private val leaseLost = AtomicBoolean(false)
+  private val activeAttempt = workItemAttempt {
+    name = "workItems/dispatch/workItemAttempts/attempt"
+    state = WorkItemAttempt.State.ACTIVE
+    workItemGeneration = 7L
+    leaseExpirationTime = Instant.parse("2099-01-01T00:00:00Z").toProtoTime()
+  }
+  private val attempts: WorkItemAttemptsCoroutineImplBase = mockService {
+    onBlocking { createWorkItemAttempt(any()) }.thenReturn(activeAttempt)
+    onBlocking { renewWorkItemAttempt(any()) }
+      .thenAnswer {
+        if (leaseLost.get()) throw io.grpc.Status.FAILED_PRECONDITION.asException()
+        activeAttempt
+      }
+    onBlocking { failWorkItemAttempt(any()) }
+      .thenReturn(activeAttempt.toBuilder().setState(WorkItemAttempt.State.FAILED).build())
+    onBlocking { completeWorkItemAttempt(any()) }
+      .thenReturn(activeAttempt.toBuilder().setState(WorkItemAttempt.State.SUCCEEDED).build())
+  }
+  private val items: WorkItemsCoroutineImplBase = mockService {
+    onBlocking { failWorkItem(any()) }
+      .thenReturn(
+        workItem {
+          name = "workItems/dispatch"
+          generation = 7L
+          state = WorkItem.State.FAILED
+        }
+      )
+  }
+
   private val rawImpressionUploadServiceMock: RawImpressionUploadServiceCoroutineImplBase =
     mockService {
       onBlocking { createRawImpressionUpload(any<CreateRawImpressionUploadRequest>()) }
@@ -110,6 +157,7 @@ class VidLabelingDispatcherFunctionTest {
           val request = invocation.getArgument<CreateRawImpressionUploadRequest>(0)
           RawImpressionUpload.newBuilder()
             .setName("${request.parent}/rawImpressionUploads/upload-1")
+            .setUploadHealingOperation(request.rawImpressionUpload.uploadHealingOperation)
             .setDoneBlobUri("file:////edp/edp_name/timestamp/done")
             .setEtag(UPLOAD_ETAG)
             .build()
@@ -125,7 +173,11 @@ class VidLabelingDispatcherFunctionTest {
         )
       // The fast-path sequencer lists uploads after registration; return none so it cleanly
       // no-ops in this Function-wiring test (dispatch behavior is covered by the unit tests).
-      onBlocking { listRawImpressionUploads(any()) }.thenReturn(listRawImpressionUploadsResponse {})
+      onBlocking { listRawImpressionUploads(any()) }
+        .thenAnswer {
+          if (loseLeaseOnMetadataRead.get()) leaseLost.set(true)
+          listRawImpressionUploadsResponse {}
+        }
     }
 
   private val rawImpressionUploadFileServiceMock: RawImpressionUploadFileServiceCoroutineImplBase =
@@ -144,6 +196,20 @@ class VidLabelingDispatcherFunctionTest {
     }
 
   private val rankIndexBlobServiceMock: RankIndexBlobServiceCoroutineImplBase = mockService()
+  private var activeHealingOperation:
+    org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation? =
+    null
+  private val healingOperationService =
+    object :
+      org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
+      override suspend fun getUploadHealingOperation(
+        request: org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+      ): org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation {
+        val operation = activeHealingOperation ?: throw io.grpc.Status.NOT_FOUND.asException()
+        check(request.name == operation.name)
+        return operation
+      }
+    }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
     onBlocking { listModelLines(any()) }
@@ -192,9 +258,12 @@ class VidLabelingDispatcherFunctionTest {
           services =
             listOf(
               rawImpressionUploadServiceMock.bindService(),
+              items.bindService(),
+              attempts.bindService(),
               rawImpressionUploadFileServiceMock.bindService(),
               rawImpressionUploadModelLineServiceMock.bindService(),
               rankIndexBlobServiceMock.bindService(),
+              healingOperationService.bindService(),
               modelLinesServiceMock.bindService(),
               modelRolloutsServiceMock.bindService(),
               modelShardsServiceMock.bindService(),
@@ -214,10 +283,26 @@ class VidLabelingDispatcherFunctionTest {
     grpcServer.shutdown()
   }
 
-  private fun startFunction(): Int {
+  private fun startFunction(useFileSystem: Boolean = true): Int {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
-    val runtimeConfig = vidLabelingConfigs { configs += fileSystemVidLabelingConfig() }
+    val runtimeConfig = vidLabelingConfigs {
+      configs += fileSystemVidLabelingConfig()
+      configs +=
+        fileSystemVidLabelingConfig()
+          .toBuilder()
+          .setDataProvider(SECOND_DATA_PROVIDER)
+          .setRawImpressionsBlobPrefix("other-provider")
+          .setRawImpressionsStorageParams(
+            storageParams {
+              gcs = gcsStorage {
+                projectId = "test-project"
+                bucketName = "other-raw-bucket"
+              }
+            }
+          )
+          .build()
+    }
     File(configBucketDir, "config.textproto")
       .writeText(TextFormat.printer().printToString(runtimeConfig))
 
@@ -232,6 +317,7 @@ class VidLabelingDispatcherFunctionTest {
           "MODEL_SHARDS_CERT_HOST" to "localhost",
           "RAW_IMPRESSION_UPLOAD_TARGET" to "localhost:${grpcServer.port}",
           "RAW_IMPRESSION_UPLOAD_CERT_HOST" to "localhost",
+          "CORRECTION_DETECTION_CERT_HOST" to "localhost",
           "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
           "CONTROL_PLANE_CERT_HOST" to "localhost",
           "VID_LABELER_QUEUE_NAME" to "queues/vid-labeler",
@@ -241,16 +327,228 @@ class VidLabelingDispatcherFunctionTest {
           "VID_LABELING_METADATA_READ_RPC_MIN_INTERVAL" to "1ms",
           "VID_LABELING_METADATA_WRITE_RPC_MIN_INTERVAL" to "1ms",
           "VID_LABELING_CONTROL_PLANE_RPC_MIN_INTERVAL" to "1ms",
-          "VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH" to tempFolder.root.path,
           "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
           "CONFIG_BLOB_KEY" to "config.textproto",
           "OTEL_METRICS_EXPORTER" to "none",
           "OTEL_TRACES_EXPORTER" to "none",
           "OTEL_LOGS_EXPORTER" to "none",
           "OTEL_PROPAGATORS" to "tracecontext,baggage",
-        )
+        ) +
+          if (useFileSystem)
+            mapOf("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH" to tempFolder.root.path)
+          else emptyMap()
       )
     }
+  }
+
+  private fun queuedRequest(
+    port: Int,
+    provider: String,
+    sourceUri: String,
+    generation: Long = 11L,
+    sourceCreateTime: com.google.protobuf.Timestamp? = null,
+    appRecovery:
+      org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams.RecoveryParams? =
+      null,
+  ): Int {
+    val task = workItem {
+      name = "workItems/dispatch"
+      queue = "vid-labeling-dispatch-queue"
+      this.generation = 7L
+      workItemParams =
+        workItemParams {
+            val source = dataPathParams {
+              dataPath = sourceUri
+              this.generation = generation
+              createTime =
+                sourceCreateTime
+                  ?: run {
+                    val file = File(tempFolder.root, sourceUri.substringAfter("file:////"))
+                    if (file.exists())
+                      Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+                        .creationTime()
+                        .toInstant()
+                        .toProtoTime()
+                    else Timestamps.fromMillis(1L)
+                  }
+            }
+            appParams =
+              vidLabelingDispatchWorkItemParams {
+                  dataProvider = provider
+                  if (appRecovery != null) recovery = appRecovery.copy { this.source = source }
+                }
+                .pack()
+            if (appRecovery == null) dataPathParams = source
+          }
+          .pack()
+    }
+    return HttpClient.newHttpClient()
+      .send(
+        HttpRequest.newBuilder(URI("http://localhost:$port"))
+          .header("Content-Type", "application/octet-stream")
+          .POST(HttpRequest.BodyPublishers.ofByteArray(task.toByteArray()))
+          .build(),
+        HttpResponse.BodyHandlers.ofString(),
+      )
+      .statusCode()
+  }
+
+  private fun assertNoMetadataMutations() {
+    verifyBlocking(rawImpressionUploadServiceMock, never()) { createRawImpressionUpload(any()) }
+    verifyBlocking(rawImpressionUploadFileServiceMock, never()) {
+      batchCreateRawImpressionUploadFiles(any())
+    }
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, never()) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(rawImpressionUploadServiceMock, never()) {
+      markRawImpressionUploadRegistrationComplete(any())
+    }
+    verifyBlocking(items, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `queued function rejects another configured provider raw root after claiming`() {
+    val port = startFunction(useFileSystem = false)
+    assertThat(
+        queuedRequest(
+          port,
+          SECOND_DATA_PROVIDER,
+          "gs://raw-impressions-bucket/edp/edp_name/timestamp/done",
+        )
+      )
+      .isEqualTo(200)
+    verifyBlocking(attempts, times(1)) { createWorkItemAttempt(any()) }
+    verifyBlocking(attempts, times(1)) { failWorkItemAttempt(any()) }
+    val failure =
+      argumentCaptor<
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
+      >()
+    verifyBlocking(items, times(1)) { failWorkItem(failure.capture()) }
+    assertThat(failure.firstValue.name).isEqualTo("workItems/dispatch")
+    assertThat(failure.firstValue.expectedWorkItemGeneration).isEqualTo(7L)
+    assertNoMetadataMutations()
+  }
+
+  @Test
+  fun `queued function rejects a path outside the configured provider prefix`() {
+    val port = startFunction(useFileSystem = false)
+    assertThat(
+        queuedRequest(
+          port,
+          DATA_PROVIDER,
+          "gs://raw-impressions-bucket/other-provider/timestamp/done",
+        )
+      )
+      .isEqualTo(200)
+    verifyBlocking(items, times(1)) { failWorkItem(any()) }
+    assertNoMetadataMutations()
+  }
+
+  @Test
+  fun `queued function rejects altered source creation time before metadata mutations`() {
+    val file = File(tempFolder.root, "edp/edp_name/timestamp/done")
+    file.parentFile.mkdirs()
+    val parquetConf =
+      Configuration().apply { set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem") }
+    val parquetStorageClient =
+      ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
+    runBlocking {
+      parquetStorageClient.writeBlob(
+        "edp/edp_name/timestamp/impressions_001",
+        emptyFlow(),
+        mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01"),
+      )
+    }
+    file.writeText("")
+    val actualTime =
+      Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+        .creationTime()
+        .toInstant()
+    val port = startFunction()
+    assertThat(
+        queuedRequest(
+          port,
+          DATA_PROVIDER,
+          DONE_BLOB_URI,
+          file.lastModified(),
+          actualTime.plusNanos(1).toProtoTime(),
+        )
+      )
+      .isEqualTo(200)
+    verifyBlocking(items, times(1)) { failWorkItem(any()) }
+    verifyBlocking(attempts, times(1)) { failWorkItemAttempt(any()) }
+    verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
+    assertNoMetadataMutations()
+  }
+
+  @Test
+  fun `queued function completes superseded ordinary source without metadata mutations`() {
+    val file = File(tempFolder.root, "edp/edp_name/timestamp/done")
+    file.parentFile.mkdirs()
+    file.writeText("")
+    val port = startFunction()
+    assertThat(queuedRequest(port, DATA_PROVIDER, DONE_BLOB_URI, file.lastModified() - 1L))
+      .isEqualTo(200)
+    verifyBlocking(items, times(0)) { failWorkItem(any()) }
+    verifyBlocking(attempts, times(1)) { completeWorkItemAttempt(any()) }
+    assertNoMetadataMutations()
+  }
+
+  @Test
+  fun `queued recovery cannot substitute current source for missing retained version`() {
+    val file = File(tempFolder.root, "edp/edp_name/timestamp/done")
+    file.parentFile.mkdirs()
+    file.writeText("")
+    val recovery =
+      org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt
+        .recoveryParams {
+          sourceUpload = RECOVERY_SOURCE_UPLOAD
+          uploadHealingOperation =
+            DATA_PROVIDER + "/uploadHealingOperations/" + EVICTION_OPERATION_ID
+        }
+    val port = startFunction()
+    assertThat(
+        queuedRequest(
+          port,
+          DATA_PROVIDER,
+          DONE_BLOB_URI,
+          file.lastModified() - 1L,
+          appRecovery = recovery,
+        )
+      )
+      .isEqualTo(200)
+    verifyBlocking(items, times(1)) { failWorkItem(any()) }
+    verifyBlocking(attempts, times(0)) { completeWorkItemAttempt(any()) }
+    assertNoMetadataMutations()
+  }
+
+  @Test
+  fun `queued function loses its lease after metadata read and cannot publish writes`() {
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val parquetConf =
+      Configuration().apply { set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem") }
+    val parquetStorageClient =
+      ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
+    runBlocking {
+      parquetStorageClient.writeBlob(
+        "edp/edp_name/timestamp/impressions_001",
+        emptyFlow(),
+        mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01"),
+      )
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
+    }
+    loseLeaseOnMetadataRead.set(true)
+    val port = startFunction()
+    val generation = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
+    assertThat(queuedRequest(port, DATA_PROVIDER, DONE_BLOB_URI, generation)).isEqualTo(503)
+    assertThat(leaseLost.get()).isTrue()
+    verifyBlocking(attempts, times(2)) { renewWorkItemAttempt(any()) }
+    verifyBlocking(attempts, times(1)) { failWorkItemAttempt(any()) }
+    verifyBlocking(attempts, never()) { completeWorkItemAttempt(any()) }
+    verifyBlocking(items, never()) { failWorkItem(any()) }
+    assertNoMetadataMutations()
   }
 
   @Test
@@ -268,9 +566,10 @@ class VidLabelingDispatcherFunctionTest {
     // metadata.
     val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
-      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
+      // Finalize the upload only after every raw file has been written.
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
     }
     val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
 
@@ -314,6 +613,58 @@ class VidLabelingDispatcherFunctionTest {
   }
 
   @Test
+  fun `queued upload verifies matching source and registers upload files and model lines`() {
+    File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    // Use RawLocalFileSystem so writes don't emit ".crc" checksum sidecars, which the dispatcher's
+    // directory listing would otherwise pick up as bogus raw-impression files.
+    val parquetConf =
+      Configuration().apply { set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem") }
+    val parquetStorageClient =
+      ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
+    // The dispatcher reads each raw-impression file's event_date from its plaintext Parquet footer,
+    // so the fixtures must be real Parquet files carrying the RawImpressionFileMetadata footer
+    // metadata.
+    val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
+    runBlocking {
+      parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
+      parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
+      // Finalize the upload only after every raw file has been written.
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
+    }
+    val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
+
+    val port = startFunction()
+
+    assertThat(queuedRequest(port, DATA_PROVIDER, DONE_BLOB_URI, doneGeneration)).isEqualTo(200)
+    verifyBlocking(attempts, times(1)) { completeWorkItemAttempt(any()) }
+    verifyBlocking(items, times(0)) { failWorkItem(any()) }
+
+    verifyBlocking(rawImpressionUploadServiceMock, times(1)) { createRawImpressionUpload(any()) }
+    val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileServiceMock, times(1)) {
+      batchCreateRawImpressionUploadFiles(requestCaptor.capture())
+    }
+    assertThat(
+        requestCaptor.firstValue.requestsList.all { it.rawImpressionUploadFile.blobGeneration > 0L }
+      )
+      .isTrue()
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(1)) {
+      batchCreateRawImpressionUploadModelLines(any())
+    }
+    val registrationRequestCaptor =
+      argumentCaptor<MarkRawImpressionUploadRegistrationCompleteRequest>()
+    verifyBlocking(rawImpressionUploadServiceMock, times(1)) {
+      markRawImpressionUploadRegistrationComplete(registrationRequestCaptor.capture())
+    }
+    assertThat(registrationRequestCaptor.firstValue.name)
+      .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    assertThat(registrationRequestCaptor.firstValue.etag).isEqualTo(UPLOAD_ETAG)
+    assertThat(registrationRequestCaptor.firstValue.requestId).isNotEmpty()
+    verifyBlocking(modelLinesServiceMock, times(1)) { listModelLines(any()) }
+  }
+
+  @Test
   fun `upload parses and forwards recovery headers`() {
     File("${tempFolder.root}/edp/edp_name/timestamp").mkdirs()
     val storageClient = FileSystemStorageClient(tempFolder.root)
@@ -323,13 +674,14 @@ class VidLabelingDispatcherFunctionTest {
       ParquetStorageClient(parquetConf, org.apache.hadoop.fs.Path(tempFolder.root.path))
     val footer = mapOf("event_group_reference_id" to "eg-1", "event_date" to "2026-06-01")
     runBlocking {
-      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
+      storageClient.writeBlob("edp/edp_name/timestamp/done", emptyFlow())
     }
     val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
     val sourceUpload = rawImpressionUpload {
       name = RECOVERY_SOURCE_UPLOAD
       state = RawImpressionUpload.State.FAILED
+      doneBlobCreateTime = Timestamps.fromMillis(1L)
       doneBlobUri = DONE_BLOB_URI
       doneBlobGeneration = doneGeneration + 1L
     }
@@ -340,10 +692,39 @@ class VidLabelingDispatcherFunctionTest {
     }
     val predecessorReplacement = rawImpressionUpload {
       name = RECOVERY_PREDECESSOR_REPLACEMENT
+      state = RawImpressionUpload.State.COMPLETED
+      registrationComplete = true
+      uploadHealingOperation = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
       doneBlobUri = RECOVERY_PREDECESSOR_DONE_BLOB_URI
       createTime = Timestamps.fromMillis(2L)
       replacesRawImpressionUpload = predecessorUpload.name
     }
+    activeHealingOperation =
+      org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation {
+        name = "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
+        state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation.State.RECOVERING
+        steps +=
+          org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+            name = "${this@uploadHealingOperation.name}/uploadHealingSteps/1"
+            sourceRawImpressionUpload = sourceUpload.name
+            cmmsModelLine = MODEL_LINE
+            recoveryTarget = true
+            state =
+              org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.RECOVERY_STARTED
+            recoveryDoneBlobGeneration = doneGeneration
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          }
+        steps +=
+          org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep {
+            name = "${this@uploadHealingOperation.name}/uploadHealingSteps/2"
+            sourceRawImpressionUpload = predecessorUpload.name
+            cmmsModelLine = MODEL_LINE
+            recoveryTarget = true
+            state = org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.COMPLETE
+            replacementRawImpressionUpload = predecessorReplacement.name
+          }
+      }
     wheneverBlocking { rawImpressionUploadServiceMock.getRawImpressionUpload(any()) }
       .thenAnswer { invocation ->
         val request = invocation.getArgument<GetRawImpressionUploadRequest>(0)
@@ -501,6 +882,7 @@ class VidLabelingDispatcherFunctionTest {
 
   private fun fileSystemVidLabelingConfig() = vidLabelingConfig {
     dataProvider = DATA_PROVIDER
+    rawImpressionsBlobPrefix = "edp/edp_name"
     edpImpressionPath = "edp7"
     maxFileBatchSizeBytes = 1_000_000_000
     rawImpressionsStorageParams = storageParams {
@@ -551,6 +933,7 @@ class VidLabelingDispatcherFunctionTest {
       eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       requiredEntityKeyFieldMapping["person"] = "person_col"
       populationSpecBlobUri = "gs://configs/population-spec.textproto"
+      eventTemplateVersion = 1
     }
     modelSuite = MODEL_SUITE
     numberOfShards = 2
@@ -570,6 +953,7 @@ class VidLabelingDispatcherFunctionTest {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     private const val DATA_PROVIDER = "dataProviders/edp123"
+    private const val SECOND_DATA_PROVIDER = "dataProviders/edp456"
     private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
     private const val MODEL_LINE = "$MODEL_SUITE/modelLines/ml1"
     private const val MODEL_RELEASE = "$MODEL_SUITE/modelReleases/mr1"

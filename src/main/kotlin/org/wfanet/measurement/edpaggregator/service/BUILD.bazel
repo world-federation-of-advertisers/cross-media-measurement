@@ -2,12 +2,14 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 
 package(
     default_visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:__subpackages__",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__subpackages__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/service:__subpackages__",
     ],
@@ -16,11 +18,13 @@ package(
 kt_jvm_library(
     name = "resource_key",
     srcs = [
+        "DataAvailabilitySyncLeaseKey.kt",
         "IdVariable.kt",
         "ImpressionMetadataKey.kt",
         "PoolAssignmentJobKey.kt",
         "RankIndexBlobKey.kt",
         "RankerJobKey.kt",
+        "RawImpressionUploadCorrectionCandidateKey.kt",
         "RawImpressionUploadKey.kt",
         "RawImpressionUploadModelLineKey.kt",
         "RequisitionMetadataKey.kt",

@@ -20,22 +20,31 @@ import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.Message
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Instant
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.single
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
 import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ensureWorkItemRequest
@@ -45,6 +54,9 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.processWor
 import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem as PublicWorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemPublicationExists
@@ -82,6 +94,179 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
         serviceDispatcher,
       ),
     )
+  }
+
+  @Test
+  fun `later-version-first creation supersedes delayed older version`() =
+    runBlocking<Unit> {
+      val publisher = RecordingPublisher()
+      val services = initServices(TestConfig.QUEUE_MAPPING, IdGenerator.Default, publisher)
+
+      val newer =
+        services.service.createWorkItem(
+          sourceWorkItemRequest(
+            resourceId = "newer-work-item",
+            generation = 200L,
+            createTime = SOURCE_CREATE_TIME.plusSeconds(1),
+          )
+        )
+      val older =
+        services.service.createWorkItem(
+          sourceWorkItemRequest(
+            resourceId = "older-work-item",
+            generation = 100L,
+            createTime = SOURCE_CREATE_TIME,
+          )
+        )
+
+      assertThat(newer.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(older.state).isEqualTo(WorkItem.State.SUCCEEDED)
+      assertThat(publisher.workItemNames).containsExactly("workItems/newer-work-item")
+    }
+
+  @Test
+  fun `receiver rejects a published WorkItem superseded by a newer source version`() =
+    runBlocking<Unit> {
+      val services =
+        initServices(TestConfig.QUEUE_MAPPING, IdGenerator.Default, RecordingPublisher())
+      val older =
+        services.service.createWorkItem(
+          sourceWorkItemRequest(
+            resourceId = "older-work-item",
+            generation = 100L,
+            createTime = SOURCE_CREATE_TIME,
+          )
+        )
+      services.service.createWorkItem(
+        sourceWorkItemRequest(
+          resourceId = "newer-work-item",
+          generation = 200L,
+          createTime = SOURCE_CREATE_TIME.plusSeconds(1),
+        )
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          services.workItemAttemptsService.createWorkItemAttempt(
+            createWorkItemAttemptRequest {
+              expectedWorkItemGeneration = older.generation
+              workItemAttempt = workItemAttempt {
+                workItemResourceId = older.workItemResourceId
+                workItemAttemptResourceId = "stale-delivery-attempt"
+              }
+            }
+          )
+        }
+      val persisted =
+        services.service.getWorkItem(
+          org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest {
+            workItemResourceId = older.workItemResourceId
+          }
+        )
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(persisted.state).isEqualTo(WorkItem.State.SUCCEEDED)
+    }
+
+  @Test
+  fun `ordinary dispatch source is indexed while historical recovery is admitted`() =
+    runBlocking<Unit> {
+      val publisher = RecordingPublisher()
+      val services = initServices(TestConfig.QUEUE_MAPPING, IdGenerator.Default, publisher)
+      val newer =
+        services.service.createWorkItem(
+          dispatchSourceRequest("ordinary-new", 200L, SOURCE_CREATE_TIME.plusSeconds(1))
+        )
+      val older =
+        services.service.createWorkItem(
+          dispatchSourceRequest("ordinary-old", 100L, SOURCE_CREATE_TIME)
+        )
+      val recovery =
+        services.service.createWorkItem(
+          dispatchSourceRequest("recovery-old", 100L, SOURCE_CREATE_TIME, recoveryReplay = true)
+        )
+      assertThat(newer.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(older.state).isEqualTo(WorkItem.State.SUCCEEDED)
+      assertThat(recovery.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(publisher.workItemNames)
+        .containsExactly("workItems/ordinary-new", "workItems/recovery-old")
+      val columns =
+        spannerDatabase.databaseClient
+          .singleUse()
+          .executeQuery(
+            com.google.cloud.spanner.Statement.newBuilder(
+                "SELECT SourceDataPath, SourceObjectGeneration, SourceObjectCreateTime FROM WorkItems WHERE WorkItemResourceId = @id"
+              )
+              .bind("id")
+              .to("ordinary-new")
+              .build()
+          )
+          .single()
+      assertThat(columns.getString("SourceDataPath")).isEqualTo(SOURCE_DATA_PATH)
+      assertThat(columns.getLong("SourceObjectGeneration")).isEqualTo(200L)
+      assertThat(columns.isNull("SourceObjectCreateTime")).isFalse()
+    }
+
+  private fun dispatchSourceRequest(
+    resourceId: String,
+    generation: Long,
+    createTime: Instant,
+    recoveryReplay: Boolean = false,
+  ): org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemRequest {
+    val original = sourceWorkItemRequest(resourceId, generation, createTime)
+    val source =
+      original.workItem.workItemParams
+        .unpack(PublicWorkItem.WorkItemParams::class.java)
+        .dataPathParams
+    return original.copy {
+      workItem =
+        original.workItem.copy {
+          serializationKey = ""
+          workItemParams =
+            workItemParams {
+                appParams =
+                  vidLabelingDispatchWorkItemParams {
+                      dataProvider = "dataProviders/provider"
+                      if (recoveryReplay)
+                        recovery = recoveryParams {
+                          this.source = source
+                          sourceUpload = "dataProviders/provider/rawImpressionUploads/source"
+                          uploadHealingOperation =
+                            "dataProviders/provider/uploadHealingOperations/operation"
+                        }
+                    }
+                    .pack()
+                if (!recoveryReplay) dataPathParams = source
+              }
+              .pack()
+        }
+    }
+  }
+
+  private fun sourceWorkItemRequest(resourceId: String, generation: Long, createTime: Instant) =
+    createWorkItemRequest {
+      workItem = workItem {
+        workItemResourceId = resourceId
+        queueResourceId = "test-topid-id"
+        serializationKey = SERIALIZATION_KEY
+        workItemParams =
+          workItemParams {
+              dataPathParams = dataPathParams {
+                dataPath = SOURCE_DATA_PATH
+                this.generation = generation
+                this.createTime = createTime.toProtoTime()
+              }
+            }
+            .pack()
+      }
+    }
+
+  private class RecordingPublisher : WorkItemPublisher {
+    val workItemNames = mutableListOf<String>()
+
+    override suspend fun publishMessage(queueName: String, message: Message) {
+      workItemNames += (message as PublicWorkItem).name
+    }
   }
 
   @Test
@@ -344,6 +529,10 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
   }
 
   companion object {
+    private const val SOURCE_DATA_PATH = "gs://bucket/model-line/model-line-1/2026-08-15/done"
+    private const val SERIALIZATION_KEY =
+      "data-availability:dataProviders/provider-1:modelLines/model-line-1"
+    private val SOURCE_CREATE_TIME = Instant.parse("2026-08-15T10:15:30Z")
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
   }
 }

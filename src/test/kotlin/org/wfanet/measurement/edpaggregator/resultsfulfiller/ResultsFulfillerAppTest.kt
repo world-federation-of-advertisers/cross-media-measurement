@@ -18,9 +18,11 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
+import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
+import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
@@ -294,6 +296,7 @@ class ResultsFulfillerAppTest {
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -310,7 +313,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -395,6 +401,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -440,6 +447,7 @@ class ResultsFulfillerAppTest {
         createWorkItemParams(
           ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
           resultMinimumThresholds = null,
+          disableMultiPartyFrequencyVectorSuppression = false,
         )
       val workItem = createWorkItem(workItemParams)
       workItemAttemptsServiceMock.stub {
@@ -456,7 +464,10 @@ class ResultsFulfillerAppTest {
       val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
       val requisitionValidator =
-        RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+        RequisitionsValidator(
+          privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+          allowMixedEventGroupSelectors = false,
+        )
       val groupedRequisitions =
         SingleRequisitionGrouper(
             requisitionsClient = requisitionsStub,
@@ -526,6 +537,7 @@ class ResultsFulfillerAppTest {
           metrics = ResultsFulfillerMetrics.create(),
           requisitionsThrottler = FakeThrottler(),
           kingdomThrottler = FakeThrottler(),
+          logMeasurementValues = false,
         )
       // Empty metadata is treated as transient (the fetcher writes metadata just after the blob,
       // and DataWatcher dispatches on the blob), so runWork throws to nack the work item for retry
@@ -571,6 +583,7 @@ class ResultsFulfillerAppTest {
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
       )
 
     val workItem = createWorkItem(workItemParams)
@@ -588,7 +601,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val requisition2 =
       REQUISITION.copy {
         protocolConfig = protocolConfig {
@@ -666,6 +682,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -703,6 +720,7 @@ class ResultsFulfillerAppTest {
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.UNSPECIFIED,
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -719,7 +737,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val requisition2 =
       REQUISITION.copy {
         protocolConfig = protocolConfig {
@@ -805,6 +826,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     assertFails { app.runWork(Any.pack(workItemParams)) }
 
@@ -853,6 +875,7 @@ class ResultsFulfillerAppTest {
             minImpressions = 10,
             reachMaxFrequencyPerUser = 10,
           ),
+        disableMultiPartyFrequencyVectorSuppression = false,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -869,7 +892,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -931,6 +957,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -983,7 +1010,12 @@ class ResultsFulfillerAppTest {
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
         resultMinimumThresholds =
-          ResultMinimumThresholds(minUsers = 10, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+          ResultMinimumThresholds(
+            minUsers = 10,
+            minImpressions = 10,
+            reachMaxFrequencyPerUser = 10,
+          ),
+        disableMultiPartyFrequencyVectorSuppression = false,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -1000,7 +1032,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -1085,6 +1120,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1130,6 +1166,7 @@ class ResultsFulfillerAppTest {
         ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
         resultMinimumThresholds =
           ResultMinimumThresholds(minUsers = 0, minImpressions = 10, reachMaxFrequencyPerUser = 10),
+        disableMultiPartyFrequencyVectorSuppression = false,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -1146,7 +1183,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -1240,6 +1280,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
 
     assertFails { app.runWork(Any.pack(workItemParams)) }
@@ -1282,8 +1323,14 @@ class ResultsFulfillerAppTest {
     }
     val workItemParams =
       createWorkItemParams(
-        ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-        resultMinimumThresholds = null,
+        ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+        resultMinimumThresholds =
+          ResultMinimumThresholds(
+            minUsers = 1000,
+            minImpressions = 1000,
+            reachMaxFrequencyPerUser = 127,
+          ),
+        disableMultiPartyFrequencyVectorSuppression = true,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -1300,7 +1347,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -1396,6 +1446,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
     app.runWork(Any.pack(workItemParams))
 
@@ -1406,6 +1457,10 @@ class ResultsFulfillerAppTest {
     assertThat(fulfilledRequests).isNotEmpty()
     assertThat(fulfilledRequests[0].header.name).isEqualTo(TRUSTEE_REQUISITION.name)
     assertThat(fulfilledRequests[0].header.hasTrusTee()).isTrue()
+    // The configured thresholds exceed the test data. A nonempty vector therefore proves that
+    // ResultsFulfillerApp propagated the multi-party suppression opt-out to the selected fulfiller.
+    val frequencies = decryptTrusTeeFrequencies(fulfilledRequests, kmsClient)
+    assertThat(frequencies.count { it > 0 }).isEqualTo(80)
   }
 
   @Test
@@ -1445,6 +1500,7 @@ class ResultsFulfillerAppTest {
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
         resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -1461,7 +1517,10 @@ class ResultsFulfillerAppTest {
     val requisitionsStorageClient = SelectedStorageClient(REQUISITIONS_FILE_URI, tmpPath)
 
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -1549,6 +1608,7 @@ class ResultsFulfillerAppTest {
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
+        logMeasurementValues = false,
       )
 
     // Should fail because TrusTeeConfig is missing but kekUri is present (impressions exist)
@@ -1614,6 +1674,24 @@ class ResultsFulfillerAppTest {
     return serializedEncryptionKey
   }
 
+  private fun decryptTrusTeeFrequencies(
+    requests: List<FulfillRequisitionRequest>,
+    kmsClient: KmsClient,
+  ): ByteArray {
+    val trusTee = requests.first().header.trusTee
+    val encryptedPayload =
+      requests.filter { it.hasBodyChunk() }.map { it.bodyChunk.data }.reduce(ByteString::concat)
+    val dekKeysetHandle =
+      KeysetHandle.read(
+        BinaryKeysetReader.withInputStream(trusTee.envelopeEncryption.encryptedDek.data.newInput()),
+        kmsClient.getAead(KEK_URI),
+      )
+    return dekKeysetHandle
+      .getPrimitive(StreamingAead::class.java)
+      .newDecryptingStream(encryptedPayload.newInput(), byteArrayOf())
+      .use { it.readAllBytes() }
+  }
+
   private fun getImpressionStorageClient(
     tmpPath: File,
     kmsClient: KmsClient,
@@ -1639,6 +1717,7 @@ class ResultsFulfillerAppTest {
   private fun createWorkItemParams(
     noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
     resultMinimumThresholds: ResultMinimumThresholds?,
+    disableMultiPartyFrequencyVectorSuppression: Boolean,
   ): WorkItemParams {
     return workItemParams {
       appParams =
@@ -1669,7 +1748,11 @@ class ResultsFulfillerAppTest {
                   this.minImpressions = resultMinimumThresholds.minImpressions
                   this.minUsers = resultMinimumThresholds.minUsers
                   this.reachMaxFrequencyPerUser = resultMinimumThresholds.reachMaxFrequencyPerUser
+                  this.disableMultiPartyFrequencyVectorSuppression =
+                    disableMultiPartyFrequencyVectorSuppression
                 }
+            } else {
+              require(!disableMultiPartyFrequencyVectorSuppression)
             }
           }
           .pack()

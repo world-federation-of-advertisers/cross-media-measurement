@@ -25,6 +25,12 @@ variable "scheduler_config" {
     scheduler_job_name        = optional(string)
     attempt_deadline          = optional(string, "180s")
     paused                    = optional(bool, false)
+    retry_config = optional(object({
+      retry_count          = number
+      min_backoff_duration = string
+      max_backoff_duration = string
+      max_doublings        = number
+    }))
   })
   nullable = false
 }

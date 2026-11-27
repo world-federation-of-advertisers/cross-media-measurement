@@ -39,6 +39,7 @@ object ReportTraceAttributes {
   const val BASIC_REPORT_STATE_STRING = "xmm.basic_report.state"
   const val REPORT_STATE_STRING = "xmm.report.state"
   const val METRIC_STATE_STRING = "xmm.metric.state"
+  const val METRIC_COUNT_STRING = "xmm.metric.count"
   const val MEASUREMENT_STATE_STRING = "xmm.measurement.state"
   const val REQUISITION_STATE_STRING = "xmm.requisition.state"
   const val LIFECYCLE_STAGE_STRING = XmmTraceAttributes.LIFECYCLE_STAGE_STRING

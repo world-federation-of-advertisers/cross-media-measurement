@@ -20,6 +20,7 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import com.google.type.Date
 import com.google.type.date
+import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
@@ -29,6 +30,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.roundToInt
@@ -52,7 +54,6 @@ import org.wfanet.measurement.internal.reporting.v2.EventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
-import org.wfanet.measurement.internal.reporting.v2.ListMetricCalculationSpecsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineStub as InternalMetricCalculationSpecsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.MetricFrequencySpec
@@ -61,13 +62,15 @@ import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportRe
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.Dimension.VennDiagramRegionType
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult.ReportingWindowResult.NoisyReportResultValues.NoisyMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
-import org.wfanet.measurement.internal.reporting.v2.batchCreateReportingSetResultsRequest
-import org.wfanet.measurement.internal.reporting.v2.createReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.batchCreateReportResultAssemblyRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsRequest
+import org.wfanet.measurement.internal.reporting.v2.beginReportResultAssemblyRequest
+import org.wfanet.measurement.internal.reporting.v2.cleanupReportResultAssembliesRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
+import org.wfanet.measurement.internal.reporting.v2.discardReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
-import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
@@ -118,6 +121,16 @@ class BasicReportsReportsJob(
       val cmmsMeasurementConsumerId =
         requireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
           .measurementConsumerId
+
+      try {
+        reportResultsStub.cleanupReportResultAssemblies(
+          cleanupReportResultAssembliesRequest {
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          }
+        )
+      } catch (e: StatusException) {
+        logger.log(Level.WARNING, "Unable to clean up abandoned report-result assemblies", e)
+      }
 
       val resourceLists =
         internalBasicReportsStub.listResources { pageToken: ListBasicReportsPageToken? ->
@@ -188,78 +201,118 @@ class BasicReportsReportsJob(
                 Report.State.SUCCEEDED -> {
                   span.addEvent("reporting.report_result.create_started")
                   val reportResult =
-                    reportResultsStub.createReportResult(
-                      createReportResultRequest {
-                        this.cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-                        reportResult = reportResult {
-                          reportStart = report.reportingInterval.reportStart
-                        }
-                      }
-                    )
-                  val reportingSetResultRequests: List<CreateReportingSetResultRequest> =
                     try {
-                      span.addEvent("reporting.report_result.transform_started")
-                      transformReportResults(
-                          reportResult,
-                          basicReport,
-                          report,
-                          eventTemplateFieldsByPath,
-                          eventTemplateFieldByPredicate,
-                        )
-                        .also { span.addEvent("reporting.report_result.transform_succeeded") }
-                      // There is a bug with CreateBasicReports involving the storing of
-                      // ImpressionQualificationFilter information that has been fixed.
-                      // BasicReports affected by the bug will be FAILED.
-                    } catch (e: InvalidBasicReportException) {
-                      span
-                        .setStatus(StatusCode.ERROR, "Invalid BasicReport result transformation")
-                        .setAttribute(
-                          ReportTraceAttributes.ERROR_TYPE,
-                          ReportTraceAttributes.errorType(e),
-                        )
-                        .recordException(e)
-                      val errorCode = ReportTraceAttributes.errorCode(e)
-                      if (errorCode != null) {
-                        span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+                      reportResultsStub.beginReportResultAssembly(
+                        beginReportResultAssemblyRequest {
+                          this.cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+                          externalBasicReportId = basicReport.externalBasicReportId
+                          requestId = UUID.randomUUID().toString()
+                          reportResult = reportResult {
+                            reportStart = report.reportingInterval.reportStart
+                          }
+                        }
+                      )
+                    } catch (e: StatusException) {
+                      if (e.status.code == Status.Code.ALREADY_EXISTS) {
+                        span.addEvent("reporting.report_result.assembly_already_active")
+                        return@trace
                       }
-                      span.addEvent(
-                        "reporting.basic_report.failed",
-                        Attributes.builder()
-                          .put(
-                            ReportTraceAttributes.LIFECYCLE_STAGE,
-                            "report_result_transformation",
+                      throw Exception("Unable to begin report-result assembly", e)
+                    }
+                  var resultAssociated = false
+                  try {
+                    val reportingSetResultRequests: List<CreateReportingSetResultRequest> =
+                      try {
+                        span.addEvent("reporting.report_result.transform_started")
+                        transformReportResults(
+                            reportResult,
+                            basicReport,
+                            report,
+                            eventTemplateFieldsByPath,
+                            eventTemplateFieldByPredicate,
                           )
-                          .put(ReportTraceAttributes.OUTCOME, "failed")
-                          .build(),
-                      )
-                      logger.log(
-                        Level.WARNING,
-                        "BasicReport is affected by a bug that has been fixed and must be FAILED",
-                        e,
-                      )
-                      failBasicReport(
-                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                        externalBasicReportId = basicReport.externalBasicReportId,
-                      )
-                      span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
-                      logReportResultAssembly(
-                        basicReportName,
-                        reportName,
-                        report.state,
-                        "failed",
-                        error = e,
-                      )
-                      return@trace
-                    }
+                          .also { span.addEvent("reporting.report_result.transform_succeeded") }
+                        // There is a bug with CreateBasicReports involving the storing of
+                        // ImpressionQualificationFilter information that has been fixed.
+                        // BasicReports affected by the bug will be FAILED.
+                      } catch (e: InvalidBasicReportException) {
+                        span
+                          .setStatus(StatusCode.ERROR, "Invalid BasicReport result transformation")
+                          .setAttribute(
+                            ReportTraceAttributes.ERROR_TYPE,
+                            ReportTraceAttributes.errorType(e),
+                          )
+                          .recordException(e)
+                        val errorCode = ReportTraceAttributes.errorCode(e)
+                        if (errorCode != null) {
+                          span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+                        }
+                        span.addEvent(
+                          "reporting.basic_report.failed",
+                          Attributes.builder()
+                            .put(
+                              ReportTraceAttributes.LIFECYCLE_STAGE,
+                              "report_result_transformation",
+                            )
+                            .put(ReportTraceAttributes.OUTCOME, "failed")
+                            .build(),
+                        )
+                        logger.log(
+                          Level.WARNING,
+                          "BasicReport is affected by a bug that has been fixed and must be FAILED",
+                          e,
+                        )
+                        failBasicReport(
+                          cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                          externalBasicReportId = basicReport.externalBasicReportId,
+                        )
+                        span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+                        logReportResultAssembly(
+                          basicReportName,
+                          reportName,
+                          report.state,
+                          "failed",
+                          error = e,
+                        )
+                        return@trace
+                      }
 
-                  reportResultsStub.batchCreateReportingSetResults(
-                    batchCreateReportingSetResultsRequest {
-                      this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-                      externalReportResultId = reportResult.externalReportResultId
-                      requests += reportingSetResultRequests
-                      externalBasicReportId = basicReport.externalBasicReportId
+                    // Validate dimensions across the entire result set before any partial writes.
+                    require(
+                      reportingSetResultRequests
+                        .map { it.reportingSetResult.dimension }
+                        .toSet()
+                        .size == reportingSetResultRequests.size
+                    ) {
+                      "Report results contain duplicate dimensions"
                     }
-                  )
+                    val resultBatches = batchReportingSetResultRequests(reportingSetResultRequests)
+                    for ((index, batch) in resultBatches.withIndex()) {
+                      reportResultsStub.batchCreateReportResultAssembly(
+                        batchCreateReportResultAssemblyRequest {
+                          this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+                          externalReportResultId = reportResult.externalReportResultId
+                          requests += batch
+                          externalBasicReportId = basicReport.externalBasicReportId
+                          finalBatch = index == resultBatches.lastIndex
+                        }
+                      )
+                    }
+                    resultAssociated = true
+                  } finally {
+                    if (!resultAssociated) {
+                      try {
+                        reportResultsStub.discardReportResult(
+                          discardReportResultRequest {
+                            this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+                            externalReportResultId = reportResult.externalReportResultId
+                          }
+                        )
+                      } catch (e: Exception) {
+                        logger.log(Level.WARNING, "Unable to discard abandoned report results", e)
+                      }
+                    }
+                  }
                   span.addEvent(
                     "reporting.basic_report.unprocessed_results_persisted",
                     Attributes.builder()
@@ -431,11 +484,7 @@ class BasicReportsReportsJob(
       populationCountByPopulationResultKey: Map<PopulationResultKey, Long>,
       reportingSetResultInfoByReportingSetResultInfoKey:
         Map<ReportingSetResultInfoKey, ReportingSetResultInfo>) =
-      buildReportResultInfo(
-        report,
-        basicReport.cmmsMeasurementConsumerId,
-        basicReport.externalCampaignGroupId,
-      )
+      buildReportResultInfo(report, basicReport.cmmsMeasurementConsumerId)
     val filterInfoByFilter: Map<String, FilterInfo> =
       buildFilterInfoByFilterString(basicReport, eventTemplateFieldsByPath)
 
@@ -562,19 +611,17 @@ class BasicReportsReportsJob(
    *
    * @param report [Report]
    * @param cmmsMeasurementConsumerId CmmsMeasurementConsumerId
-   * @param externalCampaignGroupId ExternalReportingSetId for CampaignGroup
    */
   private suspend fun buildReportResultInfo(
     report: Report,
     cmmsMeasurementConsumerId: String,
-    externalCampaignGroupId: String,
   ): ReportResultInfo {
     val reportStart = report.reportingInterval.reportStart
 
     val metricCalculationSpecInfoByName: Map<String, MetricCalculationSpecInfo> =
       buildMetricCalculationSpecInfoByNameMap(
+        report = report,
         cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-        externalCampaignGroupId = externalCampaignGroupId,
       )
 
     val populationCountByPopulationResultKey: MutableMap<PopulationResultKey, Long> = mutableMapOf()
@@ -710,34 +757,45 @@ class BasicReportsReportsJob(
     )
   }
 
-  /**
-   * Builds Map of [MetricCalculationSpec] name to [MetricCalculationSpecInfo]
-   *
-   * @param cmmsMeasurementConsumerId CmmsMeasurementConsumerId
-   * @param externalCampaignGroupId ExternalCampaignGroupId from [BasicReport]
-   * @return Map of [MetricCalculationSpec] name to [MetricCalculationSpecInfo]
-   */
+  /** Builds the calculation specification lookup for the results in [report]. */
   private suspend fun buildMetricCalculationSpecInfoByNameMap(
+    report: Report,
     cmmsMeasurementConsumerId: String,
-    externalCampaignGroupId: String,
   ): Map<String, MetricCalculationSpecInfo> {
-    return internalMetricCalculationSpecsStub
-      .listMetricCalculationSpecs(
-        listMetricCalculationSpecsRequest {
-          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-          filter =
-            ListMetricCalculationSpecsRequestKt.filter {
-              this.externalCampaignGroupId = externalCampaignGroupId
-            }
-          limit = Int.MAX_VALUE
+    val externalMetricCalculationSpecIds =
+      report.metricCalculationResultsList
+        .map {
+          val key = requireNotNull(MetricCalculationSpecKey.fromName(it.metricCalculationSpec))
+          require(key.cmmsMeasurementConsumerId == cmmsMeasurementConsumerId) {
+            "MetricCalculationSpec belongs to a different MeasurementConsumer"
+          }
+          key.metricCalculationSpecId
         }
-      )
-      .metricCalculationSpecsList
-      .associate {
-        MetricCalculationSpecKey(it.cmmsMeasurementConsumerId, it.externalMetricCalculationSpecId)
-          .toName() to
-          MetricCalculationSpecInfo(it.details.metricFrequencySpec, it.details.hasTrailingWindow())
+        .toSet()
+    return buildMap {
+      for (batch in externalMetricCalculationSpecIds.chunked(METRIC_CALCULATION_SPEC_BATCH_SIZE)) {
+        val response =
+          internalMetricCalculationSpecsStub.batchGetMetricCalculationSpecs(
+            batchGetMetricCalculationSpecsRequest {
+              this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+              this.externalMetricCalculationSpecIds += batch
+            }
+          )
+        for (spec in response.metricCalculationSpecsList) {
+          put(
+            MetricCalculationSpecKey(
+                spec.cmmsMeasurementConsumerId,
+                spec.externalMetricCalculationSpecId,
+              )
+              .toName(),
+            MetricCalculationSpecInfo(
+              spec.details.metricFrequencySpec,
+              spec.details.hasTrailingWindow(),
+            ),
+          )
+        }
       }
+    }
   }
 
   /** Transforms a [MetricCalculationSpec.MetricFrequencySpec] into [MetricFrequencySpec] */
@@ -1008,8 +1066,54 @@ class BasicReportsReportsJob(
     val dimensionSpecFilter: String,
   )
 
+  private fun batchReportingSetResultRequests(
+    requests: List<CreateReportingSetResultRequest>
+  ): List<List<CreateReportingSetResultRequest>> {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#5020): Bound histogram
+    // entries per batch before supporting 127 bins so requests and responses fit within 4 MiB.
+    return buildList {
+        // Preserve request boundaries so mutation splitting cannot regroup large payloads.
+        for (chunk in requests.chunked(REPORTING_SET_RESULT_BATCH_SIZE)) {
+          var batch = mutableListOf<CreateReportingSetResultRequest>()
+          var batchMutations = 0L
+          for (request in chunk) {
+            val requestMutations =
+              REPORTING_SET_RESULT_MUTATIONS +
+                REPORTING_WINDOW_RESULT_MUTATIONS *
+                  request.reportingSetResult.reportingWindowResultsCount
+            require(requestMutations <= SPANNER_MUTATION_LIMIT - REPORT_RESULT_MUTATION_RESERVE) {
+              "A reporting set result has too many windows for one Spanner transaction"
+            }
+            if (
+              batch.isNotEmpty() &&
+                batchMutations + requestMutations > REPORT_RESULT_BATCH_MUTATIONS
+            ) {
+              add(batch)
+              batch = mutableListOf()
+              batchMutations = 0L
+            }
+            batch += request
+            batchMutations += requestMutations
+          }
+          if (batch.isNotEmpty()) {
+            add(batch)
+          }
+        }
+      }
+      .ifEmpty { listOf(emptyList()) }
+  }
+
   companion object {
+    private const val REPORTING_SET_RESULT_BATCH_SIZE = 100
+    // Conservative cell counts include secondary indexes and the noisy-value row for each window.
+    private const val REPORTING_SET_RESULT_MUTATIONS = 32L
+    private const val REPORTING_WINDOW_RESULT_MUTATIONS = 24L
+    private const val REPORT_RESULT_BATCH_MUTATIONS = 60_000L
+    private const val SPANNER_MUTATION_LIMIT = 80_000L
+    private const val REPORT_RESULT_MUTATION_RESERVE = 1000L
+
     private val logger: Logger = Logger.getLogger(BasicReportsReportsJob::class.java.name)
     private const val BATCH_SIZE = 10
+    private const val METRIC_CALCULATION_SPEC_BATCH_SIZE = 1000
   }
 }

@@ -46,7 +46,10 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "resource_conversion",
-    srcs = ["ResourceConversion.kt"],
+    srcs = [
+        "ResourceConversion.kt",
+        "WorkItemPublicationCodec.kt",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempt_kt_jvm_proto",

@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.Statement
+import com.google.common.truth.Truth.assertThat
+import kotlinx.coroutines.flow.single
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -24,6 +28,29 @@ import org.wfanet.measurement.gcloud.spanner.testing.UsingSpannerEmulator
 
 @RunWith(JUnit4::class)
 class EdpAggregatorSchemaTest : UsingSpannerEmulator(Schemata.EDP_AGGREGATOR_CHANGELOG_PATH) {
+
+  @Test
+  fun `database resolves correction candidate proto`() = runBlocking {
+    val row =
+      databaseClient.singleUse().use { transaction ->
+        transaction
+          .executeQuery(
+            Statement.of(
+              """
+              SELECT candidate.data_provider_resource_id AS DataProviderResourceId
+              FROM (
+                SELECT CAST(B'' AS
+                  `wfa.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate`)
+                  AS candidate
+              )
+              """
+                .trimIndent()
+            )
+          )
+          .single()
+      }
+    assertThat(row.getString("DataProviderResourceId")).isEmpty()
+  }
 
   @Test
   fun `database is created`() {

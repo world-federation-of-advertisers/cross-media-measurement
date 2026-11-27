@@ -73,6 +73,12 @@ assumes that the event message type is
 
 ## Run the correctness test
 
+Population setup reuses a deterministic request ID and waits up to two minutes
+for its authenticated Kingdom connection to recover. The shared gRPC retry
+policy still applies; other RPCs retain their normal deadlines. If population
+setup fails, its error includes the population data provider and the underlying
+gRPC status.
+
 Run the following, substituting your own values:
 
 ```shell

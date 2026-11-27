@@ -17,15 +17,23 @@
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.common.truth.Truth.assertThat
+import com.google.devtools.build.runfiles.Runfiles
+import com.google.protobuf.TypeRegistry
+import java.nio.file.Paths
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedCommon
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.VersionedEvent
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
 import org.wfanet.measurement.api.v2alpha.populationSpec
+import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
@@ -33,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.storage.ParquetValue
 import org.wfanet.measurement.storage.parquetValue
 
@@ -42,6 +51,7 @@ class ParquetImpressionConverterTest {
 
   private val config: VidLabelerParams.ModelLineConfig =
     VidLabelerParamsKt.modelLineConfig {
+      eventTemplateVersion = 1
       labelerInputFieldMapping +=
         LabelerInputFieldMapping.newBuilder()
           .setFieldPath("event_id.id")
@@ -64,6 +74,8 @@ class ParquetImpressionConverterTest {
     DigestedEvent(row, EventIdDigest(0L, 0))
 
   private companion object {
+    private val RUNFILES = Runfiles.preload().withSourceRepository("")
+
     /**
      * Minimal spec covering the VIDs these tests never actually label; identity is what matters.
      */
@@ -89,6 +101,41 @@ class ParquetImpressionConverterTest {
             }
         },
       )
+    private val VERSION_ONE_POPULATION_ATTRIBUTE_WRITER =
+      PopulationAttributeWriter(
+        VersionedEvent.getDescriptor(),
+        loadVersionedPopulationSpec(VERSION_ONE_SPEC_FILE),
+        1,
+      )
+
+    private fun loadVersionedPopulationSpec(fileName: String): PopulationSpec {
+      val path =
+        checkNotNull(
+          RUNFILES.getRuntimePath(
+            Paths.get(
+              "wfa_measurement_system",
+              "src",
+              "test",
+              "kotlin",
+              "org",
+              "wfanet",
+              "measurement",
+              "api",
+              "v2alpha",
+              fileName,
+            )
+          )
+        ) {
+          "Runfile not found: $fileName"
+        }
+      return parseTextProto(
+        path.toFile(),
+        PopulationSpec.getDefaultInstance(),
+        TypeRegistry.newBuilder().add(VersionedCommon.getDescriptor()).build(),
+      )
+    }
+
+    private const val VERSION_ONE_SPEC_FILE = "versioned_population_spec_v1.textproto"
   }
 
   @Test
@@ -123,6 +170,7 @@ class ParquetImpressionConverterTest {
   fun `convert with empty event_template_field_mapping yields an empty event of the type`() {
     val emptyMappingConfig =
       VidLabelerParamsKt.modelLineConfig {
+        eventTemplateVersion = 1
         labelerInputFieldMapping +=
           LabelerInputFieldMapping.newBuilder()
             .setFieldPath("event_id.id")
@@ -159,6 +207,7 @@ class ParquetImpressionConverterTest {
     // nothing. Declared demographics belong in labeler_input_field_mapping.
     val badConfig =
       VidLabelerParamsKt.modelLineConfig {
+        eventTemplateVersion = 1
         labelerInputFieldMapping +=
           LabelerInputFieldMapping.newBuilder()
             .setFieldPath("event_id.id")
@@ -173,6 +222,44 @@ class ParquetImpressionConverterTest {
     val exception =
       assertFailsWith<IllegalArgumentException> { converter.convert(digestedEvent(row), badConfig) }
     assertThat(exception).hasMessageThat().contains("person.gender")
+  }
+
+  @Test
+  fun `convert maps a field before it becomes a population attribute`() {
+    val versionOneConfig =
+      VidLabelerParamsKt.modelLineConfig {
+        eventTemplateVersion = 1
+        labelerInputFieldMapping +=
+          LabelerInputFieldMapping.newBuilder()
+            .setFieldPath("event_id.id")
+            .setScalar(ScalarColumn.newBuilder().setColumn("eid"))
+            .build()
+        labelerInputFieldMapping +=
+          LabelerInputFieldMapping.newBuilder()
+            .setFieldPath("timestamp_usec")
+            .setScalar(ScalarColumn.newBuilder().setColumn("ts"))
+            .build()
+        eventTemplateFieldMapping.put("versioned_common.later", "later")
+        optionalEntityKeyFieldMapping.put("creative", "cr_col")
+      }
+    val converter =
+      ParquetImpressionConverter(
+        VersionedEvent.getDescriptor(),
+        VERSION_ONE_POPULATION_ATTRIBUTE_WRITER,
+      )
+    val row =
+      mapOf(
+        "eid" to parquetValue { stringValue = "event-1" },
+        "ts" to parquetValue { int64Value = 1_700_000_000_000_000L },
+        "later" to parquetValue { stringValue = "SEGMENT_B" },
+        "cr_col" to parquetValue { stringValue = "c-1" },
+      )
+
+    val converted = converter.convert(digestedEvent(row), versionOneConfig)
+
+    assertThat(converted).isNotNull()
+    val event = VersionedEvent.parseFrom(converted!!.buildEvent().toByteString())
+    assertThat(event.versionedCommon.later).isEqualTo(VersionedCommon.Segment.SEGMENT_B)
   }
 
   @Test
@@ -241,6 +328,35 @@ class ParquetImpressionConverterTest {
         }
       )
       .isTrue()
+  }
+
+  @Test
+  fun `convert excludes rejected raw values from validation exceptions`() {
+    val converter = ParquetImpressionConverter(eventDescriptor, POPULATION_ATTRIBUTE_WRITER)
+    val mapping =
+      config.copy {
+        labelerInputFieldMapping +=
+          org.wfanet.measurement.edpaggregator.v1alpha.labelerInputFieldMapping {
+            fieldPath = "profile_info.email_user_info.demo.demo_bucket.gender"
+            scalar = org.wfanet.measurement.edpaggregator.v1alpha.scalarColumn { column = "input" }
+          }
+      }
+    val failure =
+      assertFailsWith<IllegalArgumentException> {
+        converter.convert(
+          digestedEvent(
+            mapOf(
+              "eid" to parquetValue { stringValue = "event-1" },
+              "input" to parquetValue { stringValue = "SYNTHETIC_PRIVATE_VALUE" },
+            )
+          ),
+          mapping,
+        )
+      }
+    assertThat(failure).hasMessageThat().doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+    assertThat(failure).hasMessageThat().doesNotContain("column=")
+    assertThat(failure).hasMessageThat().contains("field=wfa_virtual_people.DemoBucket.gender")
+    assertThat(failure).hasMessageThat().contains("UNKNOWN_ENUM_VALUE")
   }
 
   @Test

@@ -104,7 +104,7 @@ class EventGroupSyncScaleTest {
       val current = listKingdomEventGroups(kingdomEventGroupsStub).map(::toStableSourceEventGroup)
       val bootstrap = buildBootstrap(current)
       val bootstrapMappings =
-        uploadAndAwaitMap(bootstrap.input, bootstrap.expectedMappedReferenceIds)
+        uploadAndAwaitMap(bootstrap.input, bootstrap.expectedActiveReferenceIds)
       val stable = listKingdomEventGroups(kingdomEventGroupsStub)
       assertThat(stable).hasSize(TARGET_EVENT_GROUP_COUNT)
       val stableByReferenceId = stable.associateBy(CmmsEventGroup::getEventGroupReferenceId)
@@ -118,7 +118,7 @@ class EventGroupSyncScaleTest {
           mutationCount = MUTATION_COUNT,
         )
       val mutation = buildMutation(stableSource, selection)
-      val mutationMappings = uploadAndAwaitMap(mutation.input, mutation.expectedMappedReferenceIds)
+      val mutationMappings = uploadAndAwaitMap(mutation.input, mutation.expectedActiveReferenceIds)
 
       val after = listKingdomEventGroups(kingdomEventGroupsStub)
       assertThat(after).hasSize(TARGET_EVENT_GROUP_COUNT)
@@ -165,7 +165,6 @@ class EventGroupSyncScaleTest {
 
   private data class SyncInput(
     val input: List<SourceEventGroup>,
-    val expectedMappedReferenceIds: Set<String>,
     val expectedActiveReferenceIds: Set<String>,
   )
 
@@ -185,7 +184,6 @@ class EventGroupSyncScaleTest {
     val activeReferenceIds = active.map(SourceEventGroup::getEventGroupReferenceId).toSet()
     return SyncInput(
       input = active + extras.map(::deletedSourceEventGroup),
-      expectedMappedReferenceIds = activeReferenceIds,
       expectedActiveReferenceIds = activeReferenceIds,
     )
   }
@@ -220,17 +218,7 @@ class EventGroupSyncScaleTest {
     selection.deletedReferenceIds.forEach(currentByReferenceId::remove)
     currentByReferenceId.putAll(updated)
     currentByReferenceId.putAll(added)
-    val expectedMapped =
-      input
-        .asSequence()
-        .filter { it.state != SourceEventGroup.State.DELETED }
-        .map(SourceEventGroup::getEventGroupReferenceId)
-        .toSet()
-    return SyncInput(
-      input = input,
-      expectedMappedReferenceIds = expectedMapped,
-      expectedActiveReferenceIds = currentByReferenceId.keys.toSet(),
-    )
+    return SyncInput(input = input, expectedActiveReferenceIds = currentByReferenceId.keys.toSet())
   }
 
   private fun newSourceEventGroup(referenceId: String): SourceEventGroup =
@@ -298,7 +286,7 @@ class EventGroupSyncScaleTest {
         eventGroupsStub.listEventGroups(
           kingdomListEventGroupsRequest {
             parent = measurementConsumer
-            pageSize = PAGE_SIZE
+            pageSize = KINGDOM_PAGE_SIZE
             this.pageToken = pageToken
             filter =
               KingdomListEventGroupsRequestKt.filter {
@@ -307,6 +295,9 @@ class EventGroupSyncScaleTest {
               }
           }
         )
+      if (response.nextPageToken.isNotEmpty()) {
+        assertThat(response.eventGroupsCount).isEqualTo(KINGDOM_PAGE_SIZE)
+      }
       result += response.eventGroupsList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -344,7 +335,7 @@ class EventGroupSyncScaleTest {
 
   private suspend fun uploadAndAwaitMap(
     input: List<SourceEventGroup>,
-    expectedMappedReferenceIds: Set<String>,
+    expectedActiveReferenceIds: Set<String>,
   ): List<MappedEventGroup> {
     val previousGeneration = storage.get(bucket, mapBlobKey)?.generation
     val json = JsonFormat.printer().print(sourceEventGroups { eventGroups += input })
@@ -369,8 +360,8 @@ class EventGroupSyncScaleTest {
           val mappedReferenceIds =
             mapped.mapTo(mutableSetOf(), MappedEventGroup::getEventGroupReferenceId)
           if (
-            mapped.size == expectedMappedReferenceIds.size &&
-              mappedReferenceIds == expectedMappedReferenceIds
+            mapped.size == expectedActiveReferenceIds.size &&
+              mappedReferenceIds == expectedActiveReferenceIds
           ) {
             logger.info(
               "EventGroupSync produced ${mapped.size} mappings in generation ${blob.generation}"
@@ -381,7 +372,7 @@ class EventGroupSyncScaleTest {
           if (blob.generation != lastObservedGeneration || mapped.size != lastObservedCount) {
             logger.info(
               "Observed map generation ${blob.generation} with ${mapped.size} mappings; " +
-                "expected ${expectedMappedReferenceIds.size}"
+                "expected ${expectedActiveReferenceIds.size}"
             )
             lastObservedGeneration = blob.generation
             lastObservedCount = mapped.size
@@ -438,6 +429,7 @@ class EventGroupSyncScaleTest {
     private const val TARGET_EVENT_GROUP_COUNT = 5_000
     private const val MUTATION_COUNT = 50
     private const val PAGE_SIZE = 500
+    private const val KINGDOM_PAGE_SIZE = 2_000
 
     private fun mutationCampaignName(seed: String): String = "changed-$seed"
   }

@@ -70,6 +70,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
 import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
@@ -139,6 +140,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
   private val hmssEnabled: Boolean,
   private val trusTeeEnabled: Boolean,
+  private val metricSpecConfigOverride: MetricSpecConfig? = null,
 ) {
 
   protected val expectedProtocol: ProtocolConfig.Protocol.ProtocolCase =
@@ -218,6 +220,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
           TestEvent.getDescriptor(),
           defaultModelLineName = inProcessCmmsComponents.modelLineResourceName,
           verboseGrpcLogging = false,
+          metricSpecConfigOverride = metricSpecConfigOverride,
           populationDataProviderName =
             inProcessCmmsComponents.getPopulationData().populationDataProviderName,
         )
@@ -660,6 +663,7 @@ abstract class InProcessLifeOfAReportIntegrationTest(
     processBuilder
       .command()
       .add("--internal-api-target=${"localhost:${reportingServer.internalReportingServer.port}"}")
+    processBuilder.command().add("--log-noise-correction-values=true")
     processBuilder.command().add("--tls-cert-file=${REPORTING_TLS_CERT_FILE.path}")
     processBuilder.command().add("--tls-key-file=${REPORTING_TLS_KEY_FILE.path}")
     processBuilder.command().add("--cert-collection-file=${ALL_ROOT_CERTS_FILE.path}")

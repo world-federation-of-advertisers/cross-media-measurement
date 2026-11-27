@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -33,18 +34,24 @@ import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadModelLineResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCompletedRawImpressionUploadModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findHistoricalAvailabilityUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findInProgressModelLinesForModelLine
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findNewerSnapshotBasis
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLineByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLinesByRequestIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasPendingVidLabelingCorrection
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasVidLabelingHealingDispatchGate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadModelLineState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
@@ -54,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesResponse
@@ -62,6 +70,8 @@ import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadModel
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineLabelingRequest
@@ -73,6 +83,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadModelLinesPageToken
@@ -375,10 +386,9 @@ class SpannerRawImpressionUploadModelLineService(
    *
    * Adding a model line to a COMPLETED upload (operator backfill) flips the denormalized parent
    * state back to ACTIVE in the same transaction so the dispatcher re-processes it. Adding a model
-   * line to a FAILED upload is rejected: reviving it would strand the new child (the dispatcher
-   * skips FAILED parents) and, once the child completed, leave the parent stuck ACTIVE because its
-   * FAILED siblings block the COMPLETED roll-up, mis-classifying it as stale. CREATED and ACTIVE
-   * parents need no change — the normal state cascade in [transitionState] handles them.
+   * line to a FAILED or CORRECTION_REQUIRED upload is rejected: reviving it would strand the new
+   * child and make the parent lifecycle inconsistent. CREATED and ACTIVE parents need no change —
+   * the normal state cascade in [transitionState] handles them.
    */
   private suspend fun reactivateParentForBackfill(
     txn: AsyncDatabaseClient.TransactionContext,
@@ -396,11 +406,13 @@ class SpannerRawImpressionUploadModelLineService(
           rawImpressionUploadId,
           RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
         )
-      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED ->
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT ->
         throw RawImpressionUploadStateInvalidException(
             dataProviderResourceId,
             rawImpressionUploadResourceId,
-            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+            parentState,
           )
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       // CREATED/ACTIVE need no reactivation — the normal child-Mark cascade handles them.
@@ -580,6 +592,171 @@ class SpannerRawImpressionUploadModelLineService(
       .modelLine
   }
 
+  override suspend fun markRawImpressionUploadModelLineAvailabilitySyncing(
+    request: MarkRawImpressionUploadModelLineAvailabilitySyncingRequest
+  ): RawImpressionUploadModelLine {
+    if (request.pendingAvailabilityDatesList.isEmpty()) {
+      throw RequiredFieldNotSetException("pending_availability_dates")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    request.pendingAvailabilityDatesList.forEachIndexed { index, date ->
+      validateDate(date.year, date.month, date.day, "pending_availability_dates.$index")
+    }
+    val pendingDates =
+      request.pendingAvailabilityDatesList
+        .distinct()
+        .sortedWith(compareBy({ it.year }, { it.month }, { it.day }))
+    val result =
+      transitionState(
+        request.dataProviderResourceId,
+        request.rawImpressionUploadResourceId,
+        request.rawImpressionUploadModelLineResourceId,
+        request.etag,
+        request.requestId,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
+        validPreviousStates = setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING),
+        markRequestIdColumn = "MarkAvailabilitySyncingRequestId",
+        currentMarkRequestId = { it.markAvailabilitySyncingRequestId },
+      ) {
+        set("PendingAvailabilityDates").toDateArray(pendingDates.map { it.toCloudDate() })
+        set("SynchronizedAvailabilityDates").toDateArray(emptyList<com.google.cloud.Date>())
+      }
+    return if (result.isReplay) {
+      result.modelLine
+    } else {
+      result.modelLine.copy {
+        pendingAvailabilityDates.clear()
+        pendingAvailabilityDates += pendingDates
+        synchronizedAvailabilityDates.clear()
+      }
+    }
+  }
+
+  override suspend fun markRawImpressionUploadModelLineAvailabilitySynchronized(
+    request: MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+  ): RawImpressionUploadModelLine {
+    validateResourceIdsAndRequestId(
+      request.dataProviderResourceId,
+      request.rawImpressionUploadResourceId,
+      request.rawImpressionUploadModelLineResourceId,
+      request.requestId,
+    )
+    if (!request.hasEventDate()) {
+      throw RequiredFieldNotSetException("event_date")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    validateDate(
+      request.eventDate.year,
+      request.eventDate.month,
+      request.eventDate.day,
+      "event_date",
+    )
+
+    val transactionRunner =
+      databaseClient.readWriteTransaction(
+        Options.tag("action=markRawImpressionUploadModelLineAvailabilitySynchronized")
+      )
+    val txnResult =
+      transactionRunner.run { txn ->
+        val result =
+          txn.getRawImpressionUploadModelLineByResourceIds(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+            request.rawImpressionUploadModelLineResourceId,
+          )
+            ?: throw RawImpressionUploadModelLineNotFoundException(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadResourceId,
+                request.rawImpressionUploadModelLineResourceId,
+              )
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+
+        val modelLine = result.rawImpressionUploadModelLine
+        val synchronizedDates = modelLine.synchronizedAvailabilityDatesList
+        if (modelLine.state == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED) {
+          if (request.eventDate in synchronizedDates) {
+            return@run TransactionResult(modelLine, isReplay = true)
+          }
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "event_date was not synchronized for this RawImpressionUploadModelLine"
+            )
+            .asRuntimeException()
+        }
+        if (modelLine.state != State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING) {
+          throw RawImpressionUploadModelLineStateInvalidException(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
+              request.rawImpressionUploadModelLineResourceId,
+              modelLine.state,
+              setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING),
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+
+        if (request.eventDate in synchronizedDates) {
+          return@run TransactionResult(modelLine, isReplay = true)
+        }
+        if (request.eventDate !in modelLine.pendingAvailabilityDatesList) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "event_date was not pending for this RawImpressionUploadModelLine"
+            )
+            .asRuntimeException()
+        }
+        val remainingDates = modelLine.pendingAvailabilityDatesList - request.eventDate
+        val nextSynchronizedDates =
+          (synchronizedDates + request.eventDate).sortedWith(
+            compareBy({ it.year }, { it.month }, { it.day })
+          )
+        val nextState =
+          if (remainingDates.isEmpty()) {
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+          } else {
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+          }
+        txn.updateRawImpressionUploadModelLineState(
+          request.dataProviderResourceId,
+          result.rawImpressionUploadId,
+          result.rawImpressionUploadModelLineId,
+          nextState,
+        ) {
+          set("PendingAvailabilityDates").toDateArray(remainingDates.map { it.toCloudDate() })
+          set("SynchronizedAvailabilityDates")
+            .toDateArray(nextSynchronizedDates.map { it.toCloudDate() })
+        }
+        if (
+          nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED &&
+            txn.countNonCompletedRawImpressionUploadModelLines(
+              request.dataProviderResourceId,
+              result.rawImpressionUploadId,
+              result.rawImpressionUploadModelLineId,
+            ) == 0L
+        ) {
+          txn.updateRawImpressionUploadState(
+            request.dataProviderResourceId,
+            result.rawImpressionUploadId,
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+          )
+        }
+        TransactionResult(
+          modelLine.copy {
+            state = nextState
+            pendingAvailabilityDates.clear()
+            pendingAvailabilityDates += remainingDates
+            synchronizedAvailabilityDates.clear()
+            synchronizedAvailabilityDates += nextSynchronizedDates
+          }
+        )
+      }
+    if (txnResult.isReplay) {
+      return txnResult.modelLine
+    }
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return txnResult.modelLine.copy {
+      updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
+    }
+  }
+
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
@@ -606,9 +783,11 @@ class SpannerRawImpressionUploadModelLineService(
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
           )
         FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
           setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
           )
@@ -627,6 +806,9 @@ class SpannerRawImpressionUploadModelLineService(
         validPreviousStates = validPreviousStates,
         markRequestIdColumn = "MarkFailedRequestId",
         currentMarkRequestId = { it.markFailedRequestId },
+        rejectSnapshotConsumer =
+          failureReason ==
+            FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE,
       ) {
         set("ErrorMessage").to(request.errorMessage)
         set("FailureReason").to(failureReason)
@@ -721,6 +903,7 @@ class SpannerRawImpressionUploadModelLineService(
     validPreviousStates: Set<State>,
     markRequestIdColumn: String,
     currentMarkRequestId: (RawImpressionUploadModelLineResult) -> String,
+    rejectSnapshotConsumer: Boolean = false,
     block: (com.google.cloud.spanner.Mutation.WriteBuilder.() -> Unit)? = null,
   ): TransactionResult {
     if (dataProviderResourceId.isEmpty()) {
@@ -792,6 +975,29 @@ class SpannerRawImpressionUploadModelLineService(
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
+        if (
+          rejectSnapshotConsumer &&
+            currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+        ) {
+          val consumers =
+            txn.findInProgressModelLinesForModelLine(
+              dataProviderResourceId,
+              result.rawImpressionUploadModelLine.cmmsModelLine,
+              excludeRawImpressionUploadId = result.rawImpressionUploadId,
+              onlyComputation = true,
+            )
+          if (consumers.isNotEmpty()) {
+            throw RawImpressionUploadModelLineConcurrentException(
+                dataProviderResourceId,
+                rawImpressionUploadModelLineResourceId,
+                result.rawImpressionUploadModelLine.cmmsModelLine,
+                nextState,
+                consumers.map { it.rawImpressionUploadResourceId to it.state },
+              )
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          }
+        }
+
         // FAILED is retryable only when it represents processing failure. This check is in the
         // same transaction as the state change so eviction and retry cannot both win.
         if (
@@ -809,14 +1015,46 @@ class SpannerRawImpressionUploadModelLineService(
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
-        if (nextState in PROCESSING_STATES) {
-          txn.requireProcessingAllowedDuringEviction(
-            dataProviderResourceId,
-            rawImpressionUploadResourceId,
-          )
+        val permittedEvictionOperationId =
+          if (nextState in PROCESSING_STATES) {
+            txn.requireProcessingAllowedDuringEviction(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+              currentState,
+            )
+          } else {
+            ""
+          }
+
+        if (
+          currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED &&
+            nextState in PROCESSING_STATES &&
+            txn
+              .getRawImpressionUploadByResourceId(
+                dataProviderResourceId,
+                rawImpressionUploadResourceId,
+              )
+              .rawImpressionUpload
+              .evictionOperationId
+              .isEmpty()
+        ) {
+          val newerBasis =
+            txn.findNewerSnapshotBasis(
+              dataProviderResourceId,
+              result.rawImpressionUploadModelLine.cmmsModelLine,
+              result.rawImpressionUploadId,
+            )
+          if (newerBasis != null) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "RawImpressionUpload $rawImpressionUploadResourceId retains a rank checkpoint whose " +
+                  "cumulative basis was advanced by ${newerBasis.rawImpressionUploadResourceId}; " +
+                  "use approved healing to reconcile the checkpoint before retrying"
+              )
+              .asRuntimeException()
+          }
         }
 
-        // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
+        // Serialize computation per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
         // would corrupt the shared cumulative rank index.
         if (nextState in PROCESSING_STATES) {
           val conflicts =
@@ -824,6 +1062,21 @@ class SpannerRawImpressionUploadModelLineService(
               dataProviderResourceId,
               result.rawImpressionUploadModelLine.cmmsModelLine,
               excludeRawImpressionUploadId = result.rawImpressionUploadId,
+              permittedEvictionOperationId = permittedEvictionOperationId,
+              historicalAvailabilityUploads =
+                txn.findHistoricalAvailabilityUploads(
+                  dataProviderResourceId,
+                  result.rawImpressionUploadModelLine.cmmsModelLine,
+                  result.rawImpressionUploadId,
+                ),
+              directLabeling =
+                (currentState in
+                  setOf(
+                    State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+                    State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+                  ) && nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING) ||
+                  (currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING &&
+                    nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING),
             )
           if (conflicts.isNotEmpty()) {
             throw RawImpressionUploadModelLineConcurrentException(
@@ -879,7 +1132,8 @@ class SpannerRawImpressionUploadModelLineService(
           }
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING -> {
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING -> {
             // Guard on CREATED|FAILED so a retry re-activates a FAILED upload, but a processing
             // transition never resurrects a just-set COMPLETED.
             val parentState =
@@ -935,18 +1189,48 @@ class SpannerRawImpressionUploadModelLineService(
       .asRuntimeException()
   }
 
-  private suspend fun AsyncDatabaseClient.ReadContext.requireProcessingAllowedDuringEviction(
+  private suspend fun AsyncDatabaseClient.TransactionContext.requireProcessingAllowedDuringEviction(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
-  ) {
-    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
-    val upload =
+    currentState: State,
+  ): String {
+    val fence = getVidLabelingEvictionFence(dataProviderResourceId)
+    val result =
       getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
-        .rawImpressionUpload
-    if (upload.evictionOperationId == operationId) return
+    val upload = result.rawImpressionUpload
+    if (fence == null) {
+      if (upload.processingDeferred) {
+        if (
+          upload.evictionOperationId.isNotEmpty() ||
+            upload.correctionCandidateId.isNotEmpty() ||
+            hasVidLabelingHealingDispatchGate(dataProviderResourceId) ||
+            hasPendingVidLabelingCorrection(dataProviderResourceId)
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "RawImpressionUpload $rawImpressionUploadResourceId remains deferred for correction healing"
+            )
+            .asRuntimeException()
+        }
+        updateRawImpressionUploadProcessingDeferred(
+          dataProviderResourceId,
+          result.rawImpressionUploadId,
+          false,
+        )
+      }
+      return ""
+    }
+    if (upload.evictionOperationId == fence.evictionOperationId) {
+      return fence.evictionOperationId
+    }
+    if (
+      fence.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING &&
+        currentState in PROCESSING_STATES
+    ) {
+      return ""
+    }
     throw Status.FAILED_PRECONDITION.withDescription(
         "RawImpressionUpload $rawImpressionUploadResourceId is waiting for VID-labeling " +
-          "eviction $operationId to complete"
+          "eviction ${fence.evictionOperationId} to complete"
       )
       .asRuntimeException()
   }
@@ -981,6 +1265,45 @@ class SpannerRawImpressionUploadModelLineService(
     }
   }
 
+  private fun validateResourceIdsAndRequestId(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    rawImpressionUploadModelLineResourceId: String,
+    requestId: String,
+  ) {
+    if (dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (rawImpressionUploadResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (rawImpressionUploadModelLineResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_model_line_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun validateDate(year: Int, month: Int, day: Int, fieldName: String) {
+    try {
+      LocalDate.of(year, month, day)
+    } catch (e: RuntimeException) {
+      throw InvalidFieldValueException(fieldName, e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
   companion object {
     private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_RESOURCE_ID_PREFIX = "riuml"
     private const val MAX_PAGE_SIZE = 100
@@ -992,6 +1315,7 @@ class SpannerRawImpressionUploadModelLineService(
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
       )
 
     private val RETRYABLE_FAILURE_REASONS =

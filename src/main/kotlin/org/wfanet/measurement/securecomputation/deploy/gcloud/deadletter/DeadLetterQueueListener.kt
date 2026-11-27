@@ -24,11 +24,14 @@ import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.telemetry.XmmTraceLogging
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.processWorkItemDeadLetterRequest
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.internal.Errors
 
 /**
@@ -78,14 +81,25 @@ class DeadLetterQueueListener(
       val processedWorkItem =
         workItemsStub.processWorkItemDeadLetter(
           processWorkItemDeadLetterRequest {
-            workItemResourceId = workItem.name
+            workItemResourceId = WorkItemKey.fromName(workItem.name)?.workItemId ?: workItem.name
             expectedWorkItemGeneration = workItem.generation.takeUnless { it == 0L } ?: 1L
           }
         )
       check(processedWorkItem.state == InternalWorkItem.State.FAILED) {
         "Unexpected state ${processedWorkItem.state} after processing ${workItem.name}"
       }
-      logger.info("Marked WorkItem ${workItem.name} FAILED after retries were exhausted")
+      XmmTraceLogging.log(
+        logger,
+        Level.WARNING,
+        "secure_computation.work_item.retry_exhausted",
+        XmmTraceLogging.COMMON_SAFE_FIELD_NAMES + "xmm.pubsub.subscription.id",
+        "xmm.pubsub.subscription.id" to subscriptionId.substringAfterLast('/'),
+        XmmTraceAttributes.WORK_ITEM_NAME_STRING to workItem.name,
+        XmmTraceAttributes.WORK_ITEM_GENERATION_STRING to
+          (workItem.generation.takeUnless { it == 0L } ?: 1L).toString(),
+        XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "dead_letter",
+        XmmTraceAttributes.OUTCOME_STRING to "retry_exhausted",
+      )
       queueMessage.ack()
     } catch (e: StatusException) {
       when {

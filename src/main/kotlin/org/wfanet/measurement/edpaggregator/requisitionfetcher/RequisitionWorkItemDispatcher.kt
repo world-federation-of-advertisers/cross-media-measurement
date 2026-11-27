@@ -19,18 +19,22 @@ package org.wfanet.measurement.edpaggregator.requisitionfetcher
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.service.Errors
 
 /** Dispatches a stored group of requisitions to the Secure Computation Control Plane. */
 interface RequisitionWorkItemDispatcher {
@@ -71,37 +75,66 @@ class SecureComputationRequisitionWorkItemDispatcher(
       this.workItemId = workItemId
       workItem = requestedWorkItem
     }
-    val ensured =
-      try {
-        controlPlaneThrottler.onReady { workItemsStub.ensureWorkItem(request) }
-      } catch (e: Exception) {
-        if (Status.fromThrowable(e).code != Status.Code.ALREADY_EXISTS) throw e
-        val existing =
-          controlPlaneThrottler.onReady {
-            workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName(groupId) })
-          }
-        val existingParams = validateExistingWorkItem(existing, requestedWorkItem)
-        controlPlaneThrottler.onReady {
-          workItemsStub.ensureWorkItem(
-            ensureWorkItemRequest {
-              this.workItemId = workItemId
-              workItem = workItem {
-                queue = requestedWorkItem.queue
-                workItemParams =
-                  workItemParams {
-                      appParams = existingParams.appParams
-                      dataPathParams = existingParams.dataPathParams
-                      traceContext.putAll(existingParams.traceContextMap)
-                    }
-                    .pack()
-              }
-            }
-          )
-        }
-      }
+    val ensured = ensureMatchingWorkItem(request)
     logger.info(
       "Ensured WorkItem $workItemId for requisition group $groupId in state ${ensured.state}"
     )
+  }
+
+  private suspend fun ensureMatchingWorkItem(request: EnsureWorkItemRequest): WorkItem {
+    val initialFailure =
+      try {
+        return controlPlaneThrottler.onReady { workItemsStub.ensureWorkItem(request) }
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.ALREADY_EXISTS && !isInvalidWorkItemState(e)) throw e
+        e
+      }
+
+    val existing =
+      controlPlaneThrottler.onReady {
+        workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/${request.workItemId}" })
+      }
+    if (
+      initialFailure.status.code != Status.Code.ALREADY_EXISTS &&
+        existing.state != WorkItem.State.SUCCEEDED
+    ) {
+      throw initialFailure
+    }
+    validateExistingWorkItem(existing, request.workItem)
+    if (existing.state == WorkItem.State.SUCCEEDED) return existing
+
+    val tracePreservingRequest =
+      request.copy {
+        workItem = workItem {
+          queue = request.workItem.queue
+          workItemParams = existing.workItemParams
+        }
+      }
+    val completionFailure =
+      try {
+        return controlPlaneThrottler.onReady {
+          workItemsStub.ensureWorkItem(tracePreservingRequest)
+        }
+      } catch (e: StatusException) {
+        if (!isInvalidWorkItemState(e)) throw e
+        e
+      }
+
+    // A worker can complete between the read and the trace-preserving ensure.
+    val completed =
+      controlPlaneThrottler.onReady {
+        workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/${request.workItemId}" })
+      }
+    if (completed.state != WorkItem.State.SUCCEEDED) throw completionFailure
+    validateExistingWorkItem(completed, request.workItem)
+    return completed
+  }
+
+  private fun isInvalidWorkItemState(exception: StatusException): Boolean {
+    val errorInfo = exception.errorInfo
+    return exception.status.code == Status.Code.FAILED_PRECONDITION &&
+      errorInfo?.domain == Errors.DOMAIN &&
+      errorInfo.reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name
   }
 
   override suspend fun fail(workItemName: String) {
@@ -142,10 +175,7 @@ class SecureComputationRequisitionWorkItemDispatcher(
     }
   }
 
-  private fun validateExistingWorkItem(
-    existing: WorkItem,
-    requested: WorkItem,
-  ): WorkItem.WorkItemParams {
+  private fun validateExistingWorkItem(existing: WorkItem, requested: WorkItem) {
     check(existing.queue == requested.queue) {
       "WorkItem ${existing.name} uses queue ${existing.queue}, not ${requested.queue}"
     }
@@ -157,7 +187,6 @@ class SecureComputationRequisitionWorkItemDispatcher(
     ) {
       "WorkItem ${existing.name} has parameters that do not match this requisition group"
     }
-    return existingParams
   }
 
   private fun workItemId(groupId: String): String = "$WORK_ITEM_ID_PREFIX-$groupId"

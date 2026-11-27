@@ -41,4 +41,10 @@ class DataAvailabilitySyncMetrics(meter: Meter = Instrumentation.meter) {
       .counterBuilder("edpa.data_availability.cmms_rpc_errors")
       .setDescription("Number of CMMS API call errors")
       .build()
+
+  val snapshotValidationFailuresCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.data_availability.snapshot_validation_failures")
+      .setDescription("Number of external labeled-output snapshot validation failures")
+      .build()
 }

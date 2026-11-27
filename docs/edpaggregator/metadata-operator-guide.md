@@ -64,7 +64,6 @@ Each scheduled invocation:
    deterministic WorkItem name `workItems/results-fulfiller-<group-id>`, and only
    then ensures that WorkItem through the Secure Computation API. The WorkItem
    carries the persisted blob URI and the configured `ResultsFulfillerParams`.
-   Pre-cutover legacy groups remain `STORED` under the original DataWatcher namespace.
 
 This ordering makes every handoff recoverable. A crash before metadata registration
 can leave only an unreferenced direct-prefix blob. A crash after registration leaves
@@ -73,8 +72,16 @@ can leave only an unreferenced direct-prefix blob. A crash after registration le
 matching queued or running WorkItem without republishing it. A WorkItem created by
 `EnsureWorkItem` cannot run before all metadata rows for its blob are durable and
 queued, and its initial publication cannot be stranded between the WorkItem commit
-and outbox commit. Use `RetryWorkItem` for explicit repair of a legacy queued
-WorkItem that has no outbox record.
+and outbox commit. Use `RetryWorkItem` for explicit repair of a queued WorkItem
+that has no outbox record.
+
+If a worker completes while the fetcher reconciles an existing WorkItem, the
+fetcher accepts `SUCCEEDED` only after verifying the queue, application parameters,
+and persisted blob URI. It does not republish completed work or automatically retry
+a `FAILED` WorkItem. A mismatched WorkItem remains an error requiring investigation.
+Completion reconciliation requires the control plane's `INVALID_WORK_ITEM_STATE`
+error details; other precondition and lookup failures remain errors. Reconciliation
+of active work preserves the original packed parameters, including trace context.
 
 Keep the configured direct-dispatch prefix unchanged while any direct group remains
 `STORED`, `QUEUED`, or `PROCESSING`. Recovery compares each persisted `blob_uri`
@@ -104,7 +111,8 @@ variable (see the memory row).
 | `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` | env var | none | Optional server name used to verify the Control Plane TLS certificate when it differs from the target host. |
 | `GRPC_REQUEST_INTERVAL` | env var | `1s` | Minimum interval between Kingdom mutation RPCs (e.g. `refuseRequisition`). |
 | `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL` | env var | `50ms` | Minimum interval between Kingdom `getEventGroup` RPCs (called during grouping). |
-| `PAGE_SIZE` | env var | `50` | Starting page size for `listRequisitions`. Halved and retried on gRPC `RESOURCE_EXHAUSTED` (surfaced by the `page_size_reductions` metric), down to a floor of 1. |
+| `KINGDOM_LIST_REQUEST_INTERVAL` | env var | `250ms` | Process-scoped minimum interval between application-level Kingdom `ListRequisitions` calls, shared across providers. |
+| `PAGE_SIZE` | env var | `50` | Starting page size for `listRequisitions`. Halved and retried only for identified oversized gRPC responses (surfaced by the `page_size_reductions` metric), down to a floor of 1. |
 | function timeout | terraform `timeout_seconds` | `600s` | How long a single invocation may run. **Must exceed `FLUSH_INTERVAL`** so at least one drain happens. Max for an HTTP-triggered gen2 function is **3600s (60m)**. |
 | max instances | terraform `max_instances` | `1` | Concurrency cap. `1` prevents overlapping invocations from processing the same `UNFULFILLED` requisitions. |
 | function memory | **hardcoded** `--memory=512MB` in `http-cloud-function/main.tf` | `512MB` | Heap ceiling. **Not a terraform variable** — sizing it per environment currently requires editing the module. Must be above the peak buffered working set (see scale section). |
@@ -254,6 +262,12 @@ the index efficiently.
 - **`ListImpressionMetadata` from the results-fulfiller** is the read hot path.
   It is paginated and index-backed; keep filters aligned to the index prefix
   (model line, then event group, then interval) so they stay range scans.
+  The fulfiller requests `IMPRESSION_METADATA_VIEW_BASIC` with 1,000 records per
+  page. This view omits `entity_keys` from the internal database projection while
+  preserving entity-key filtering and all other response fields. Other list
+  callers receive `IMPRESSION_METADATA_VIEW_FULL` unless they select a view.
+  For staged upgrades, deploy the internal metadata API and system API servers
+  before the results-fulfiller so both servers honor the compact view.
 - **`ComputeModelLineBounds`** aggregates over a model line's rows to find the
   covered interval. It scans more rows than a point lookup; call it deliberately
   (e.g. once per planning step), not in a tight loop, and expect its cost to grow
@@ -380,3 +394,27 @@ Check metrics and traces before grepping logs — see the
 | Requisitions remain `STORED` / `QUEUED` | Check RequisitionFetcher queue/dispatch logs and the deterministic `WorkItem` value |
 | Overlapping runs | Ensure `max_instances = 1` |
 | `BatchCreate` mutation-limit failure | Keep `MAX_REQUISITIONS_PER_GROUP` at its safe default |
+
+### Kingdom listing rate limits
+
+`KINGDOM_LIST_REQUEST_INTERVAL` controls a process-scoped throttle shared across
+RequisitionFetcher providers (default `250ms`). It paces each application-level
+ListRequisitions call, including retries with smaller pages. Account for the
+number of instances and other callers when sizing it against a shared Kingdom
+quota. Transport retries follow the existing common-jvm gRPC channel policy and
+are not paced separately by this throttle.
+
+Kingdom's [RateLimitConfig](../../src/main/proto/wfa/measurement/config/rate_limit_config.proto)
+can exempt an authenticated client from `ListRequisitions` while retaining its
+other limits. Add a principal override containing only that method with
+`maximum_request_count: -1`, and omit `default_rate_limit`. Other methods use the
+regular shared buckets. The Kingdom public API identifies the client by its TLS
+certificate's authority key identifier. The checked-in cloud-test configuration
+applies this policy to EDPA clients; the fetcher's throttle still applies.
+Deploy the updated Kingdom server together with this configuration: older
+servers interpret the omitted default as a blocked limit for other methods.
+
+Page sizes are reduced only for `RESOURCE_EXHAUSTED` errors with gRPC's explicit
+inbound message-size diagnostics, including decompressed response limits. Quota,
+overload, and unspecified resource errors remain invocation errors and do not
+shrink pages. The fetcher adds no application-level transient retry loop.

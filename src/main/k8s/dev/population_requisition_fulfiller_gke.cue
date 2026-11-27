@@ -30,6 +30,12 @@ objectSets: [
 ]
 
 populationRequisitionFulfiller: #PopulationRequisitionFulfiller & {
+	if _measurementValueLoggingEnabled {
+		_logMeasurementValues: true
+	}
+	if !_measurementValueLoggingEnabled {
+		_logMeasurementValues: false
+	}
 	_config: _populationRequisitionFulfillerConfig
 	deployment: _container: {
 		_javaOptions: maxHeapSize: "128M"

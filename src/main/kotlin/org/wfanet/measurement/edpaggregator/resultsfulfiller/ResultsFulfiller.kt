@@ -17,8 +17,10 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
+import com.google.protobuf.DescriptorProtos.FileDescriptorProto
+import com.google.protobuf.DescriptorProtos.FileOptions
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
-import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -47,10 +49,9 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
-import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
-import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -60,8 +61,9 @@ import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -132,6 +134,54 @@ class ResultsFulfiller(
   private val metrics: ResultsFulfillerMetrics,
 ) {
 
+  init {
+    if (groupedRequisitions.requireModelLineFinalization) {
+      val selectedModelLine =
+        checkNotNull(groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)) {
+          "Missing selected model line for cutover fulfillment"
+        }
+      val visibleModelInfo = modelLineInfoMap.getValue(groupedRequisitions.modelLine)
+      val selectedModelInfo = modelLineInfoMap.getValue(selectedModelLine)
+      require(selectedModelInfo.populationSpec == visibleModelInfo.populationSpec) {
+        "Selected model line $selectedModelLine has an incompatible PopulationSpec"
+      }
+      require(
+        selectedModelInfo.eventDescriptor.fullName == visibleModelInfo.eventDescriptor.fullName &&
+          eventSchema(selectedModelInfo.eventDescriptor) ==
+            eventSchema(visibleModelInfo.eventDescriptor)
+      ) {
+        "Selected model line $selectedModelLine has an incompatible EventTemplate descriptor"
+      }
+    }
+  }
+
+  private fun eventSchema(descriptor: Descriptors.Descriptor): Map<String, Message> = buildMap {
+    fun addFileContext(typeName: String, file: Descriptors.FileDescriptor) {
+      val proto = file.toProto()
+      put(
+        "$typeName#file-context",
+        FileDescriptorProto.newBuilder()
+          .setSyntax(proto.syntax.ifEmpty { "proto2" })
+          .setEdition(proto.edition)
+          .setOptions(FileOptions.newBuilder().setFeatures(proto.options.features))
+          .build(),
+      )
+    }
+    fun addMessage(message: Descriptors.Descriptor) {
+      if (put(message.fullName, message.toProto()) != null) return
+      addFileContext(message.fullName, message.file)
+      for (field in message.fields + message.extensions) {
+        if (field.javaType == Descriptors.FieldDescriptor.JavaType.MESSAGE) {
+          addMessage(field.messageType)
+        } else if (field.javaType == Descriptors.FieldDescriptor.JavaType.ENUM) {
+          put(field.enumType.fullName, field.enumType.toProto())
+          addFileContext(field.enumType.fullName, field.enumType.file)
+        }
+      }
+    }
+    addMessage(descriptor)
+  }
+
   private val orchestrator: EventProcessingOrchestrator<Message> by lazy {
     EventProcessingOrchestrator<Message>(privateEncryptionKey = privateEncryptionKey)
   }
@@ -197,7 +247,7 @@ class ResultsFulfiller(
     ReportTraceLogging.log(
       logger,
       Level.SEVERE,
-      error,
+      ExceptionDiagnostics.forLogging(error),
       "edp_aggregator.results_fulfiller.group_failed",
       ReportTraceAttributes.BASIC_REPORT_NAME_STRING to groupedRequisitions.basicReport,
       ReportTraceAttributes.REPORT_NAME_STRING to groupedRequisitions.report,
@@ -244,21 +294,10 @@ class ResultsFulfiller(
     // fulfilled or refused already
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    // Empty metadata is almost always transient, not a permanent orphan. The direct Requisition
-    // Fetcher dispatch path creates and queues metadata before creating the WorkItem, preventing
-    // this race. The legacy DataWatcher path dispatches on the blob write, however, and can still
-    // land moments later. Throwing fails the attempt so the control plane durably schedules another
-    // execution once the metadata exists — do NOT skip the work, which would abandon requisitions
-    // that are about to become fulfillable and leave the report permanently unfulfilled.
-    //
-    // The genuinely-orphaned case (fetcher crashed between blob and metadata, so metadata never
-    // arrives) is indistinguishable from the race at read time; it retries up to the queue's
-    // max_delivery_attempts and then dead-letters. Migrating the watched path to direct dispatch
-    // makes empty metadata a true orphan; until all deployments migrate, this stays a
-    // throw-and-retry. See #4119 (blocked by #4213).
-    //
-    // emptyMetadataRetries is the observability hook: a low steady rate is the normal race, a
-    // sustained climb on the same groupId is a stuck orphan worth investigating.
+    // RequisitionFetcher queues metadata before creating the WorkItem, so empty metadata indicates
+    // orphaned work. Throwing retries the attempt up to the queue's max delivery count and then
+    // dead-letters it instead of silently abandoning the requisitions. emptyMetadataRetries is the
+    // observability hook for finding these orphans.
     if (requisitionsMetadata.isEmpty()) {
       metrics.emptyMetadataRetries.add(
         1,
@@ -314,7 +353,8 @@ class ResultsFulfiller(
       }
     val modelLineKey = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLineKey)
-    val modelLine = modelInfo.localAlias ?: modelLineKey
+    val selectedModelLine = groupedRequisitions.selectedModelLine.takeIf(String::isNotEmpty)
+    val modelLine = selectedModelLine ?: modelInfo.localAlias ?: modelLineKey
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
@@ -329,6 +369,9 @@ class ResultsFulfiller(
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,
         batchSize = pipelineConfiguration.batchSize,
+        reportInterval =
+          groupedRequisitions.reportInterval.takeIf { groupedRequisitions.hasReportInterval() },
+        requireModelLineFinalization = groupedRequisitions.requireModelLineFinalization,
         readConcurrency = pipelineConfiguration.readConcurrency,
       )
 
@@ -530,18 +573,16 @@ class ResultsFulfiller(
           "Requisition metadata not found for requisition: ${requisition.name}"
         )
 
-    val measurementSpec: MeasurementSpec = requisition.measurementSpec.message.unpack()
-    val signedRequisitionSpec: SignedMessage =
+    val measurementSpec: MeasurementSpec = RequisitionSpecs.readMeasurementSpec(requisition)
+    // TODO: Issue #2914
+    val requisitionSpec: RequisitionSpec =
       try {
         withContext(Dispatchers.IO) {
-          val result =
-            decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-          result
+          RequisitionSpecs.readRequisitionSpec(requisition, privateEncryptionKey)
         }
       } catch (e: GeneralSecurityException) {
-        throw Exception("RequisitionSpec decryption failed", e)
+        throw Exception("RequisitionSpec could not be read", e)
       }
-    val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack() // TODO: Issue #2914
     val reportId =
       requireNotNull(requisitionMetadata.report) {
         "Report ID is missing from requisition metadata: ${requisitionMetadata.name}"
@@ -635,12 +676,12 @@ class ResultsFulfiller(
           requisitionName = requisition.name,
           outcome = "refused",
         )
-        logger.log(Level.WARNING, e) {
+        logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
           "Refused requisition ${requisition.name} for report=$reportId " +
-            "groupId=${groupedRequisitions.groupId}"
+            "groupId=${groupedRequisitions.groupId}; ${publicRefusalDescription(e)}"
         }
         val metadataForRefusal = processingMetadata ?: requisitionMetadata
-        signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
+        signalRequisitionRefused(metadataForRefusal, publicRefusalDescription(e))
         refuseRequisitionInCmms(requisition, e)
         false
       } catch (e: CancellationException) {
@@ -789,7 +830,7 @@ class ResultsFulfiller(
               refusal =
                 RequisitionKt.refusal {
                   justification = e.justification
-                  message = e.message ?: "Requisition refused"
+                  message = publicRefusalDescription(e)
                 }
             }
           )
@@ -799,16 +840,13 @@ class ResultsFulfiller(
         throw cancellation
       } catch (refusalError: Exception) {
         span
-          .setStatus(
-            io.opentelemetry.api.trace.StatusCode.ERROR,
-            refusalError.message ?: refusalError::class.java.name,
-          )
+          .setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "Refusal reporting failed")
           .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
           .setAttribute(
             ReportTraceAttributes.ERROR_TYPE,
             ReportTraceAttributes.errorType(refusalError),
           )
-          .recordException(refusalError)
+          .recordException(ExceptionDiagnostics.forLogging(refusalError))
         val errorCode = ReportTraceAttributes.errorCode(refusalError)
         if (errorCode != null) {
           span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
@@ -816,7 +854,7 @@ class ResultsFulfiller(
         logger.log(
           Level.SEVERE,
           "Failed to refuse requisition ${requisition.name} in CMMS",
-          refusalError,
+          ExceptionDiagnostics.forLogging(refusalError),
         )
       }
     }
@@ -916,6 +954,13 @@ class ResultsFulfiller(
             ReportTraceAttributes.REFUSAL_ORIGIN,
             ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
           )
+          if (throwable is RequisitionRefusalException) {
+            it
+              .setAttribute(ATTR_REFUSAL_JUSTIFICATION_KEY, throwable.justification.name)
+              .setAttribute(ATTR_REFUSAL_CATEGORY_KEY, REFUSAL_CATEGORY)
+              .setAttribute(ATTR_REFUSAL_CODE_KEY, refusalCode(throwable.justification))
+              .recordException(ExceptionDiagnostics.forLogging(throwable))
+          }
         }
       }
     val errorCode = ReportTraceAttributes.errorCode(throwable)
@@ -947,11 +992,30 @@ class ResultsFulfiller(
     metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
   }
 
+  private fun publicRefusalDescription(error: RequisitionRefusalException): String =
+    "Requisition refused; justification=${error.justification.name}; " +
+      "category=$REFUSAL_CATEGORY; code=${refusalCode(error.justification)}"
+
+  private fun refusalCode(justification: Requisition.Refusal.Justification): String =
+    when (justification) {
+      Requisition.Refusal.Justification.CONSENT_SIGNAL_INVALID -> "INVALID_CONSENT_SIGNAL"
+      Requisition.Refusal.Justification.SPEC_INVALID -> "INVALID_REQUISITION_SPECIFICATION"
+      Requisition.Refusal.Justification.INSUFFICIENT_PRIVACY_BUDGET -> "PRIVACY_BUDGET_EXHAUSTED"
+      Requisition.Refusal.Justification.UNFULFILLABLE -> "FULFILLMENT_FAILED"
+      Requisition.Refusal.Justification.DECLINED -> "POLICY_DECLINED"
+      Requisition.Refusal.Justification.JUSTIFICATION_UNSPECIFIED,
+      Requisition.Refusal.Justification.UNRECOGNIZED -> "UNKNOWN_REFUSAL"
+    }
+
   private class RequisitionProcessingException(val failure: Exception) :
-    Exception(failure.message, failure)
+    Exception("Requisition processing failed", failure)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val REFUSAL_CATEGORY = "REQUISITION_REFUSAL"
+    private val ATTR_REFUSAL_JUSTIFICATION_KEY = AttributeKey.stringKey("xmm.refusal.justification")
+    private val ATTR_REFUSAL_CATEGORY_KEY = AttributeKey.stringKey("xmm.refusal.category")
+    private val ATTR_REFUSAL_CODE_KEY = AttributeKey.stringKey("xmm.refusal.code")
     private const val SPAN_REQUISITION_PROCESSING = "requisition_processing"
 
     /**
@@ -959,10 +1023,7 @@ class ResultsFulfiller(
      */
     private const val DEFAULT_LIST_MAX_ATTEMPTS = 4
 
-    // Memory-based parallelism limit to prevent OOM with large frequency vectors
-    // With 360M sized frequency vector sampled at 10%, we get 36M x 16 bytes for
-    // the intermediate integer list in FrequencyVectorBuilder, ~0.5GB per requisition.
-    // For 15 parallel fulfillments we end up at ~8GB in total.
+    // Bound concurrent payloads and encryption buffers.
     private const val MAX_FULFILLMENT_PARALLELISM: Int = 15
 
     /** Utilize all cpu cores but keep one free for GC and system work, capped by memory limit. */

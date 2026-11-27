@@ -19,6 +19,7 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.Message
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.ForkJoinPool
+import java.util.concurrent.ForkJoinWorkerThread
 import java.util.concurrent.TimeUnit
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -29,10 +30,9 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
-import org.wfanet.measurement.api.v2alpha.SignedMessage
-import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
-import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
+import org.wfanet.measurement.edpaggregator.RequisitionSpecs
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.size
 
@@ -79,9 +79,8 @@ data class FilterSpecIndex(
       val reqNameToFilterSpec = mutableMapOf<String, FilterSpec>()
 
       for (requisition in requisitions) {
-        val signedRequisitionSpec: SignedMessage =
-          decryptRequisitionSpec(requisition.encryptedRequisitionSpec, privateEncryptionKey)
-        val requisitionSpec: RequisitionSpec = signedRequisitionSpec.unpack()
+        val requisitionSpec: RequisitionSpec =
+          RequisitionSpecs.readRequisitionSpec(requisition, privateEncryptionKey)
 
         require(!requisitionSpec.events.eventGroupsList.isEmpty()) {
           "event groups list is empty for requisition"
@@ -249,9 +248,6 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
 
       logger.info("Completed processing ${results.size} requisitions")
       return results
-    } catch (e: Exception) {
-      logger.severe("Fatal error in event processing: ${e.message}")
-      throw e
     } finally {
       shutdownExecutorService(executorService)
     }
@@ -275,7 +271,16 @@ class EventProcessingOrchestrator<T : Message>(private val privateEncryptionKey:
         thread.isDaemon = false
         thread
       },
-      { t, e -> logger.log(Level.SEVERE, "Uncaught exception in thread pool: ${t.name}", e) },
+      { t, e ->
+        // Rebuild the factory-assigned label from the pool index rather than logging the mutable
+        // thread name.
+        val worker = (t as? ForkJoinWorkerThread)?.let { "SharedPool-${it.poolIndex}" } ?: "${t.id}"
+        logger.log(
+          Level.SEVERE,
+          "Uncaught exception in thread pool: $worker",
+          ExceptionDiagnostics.forLogging(e),
+        )
+      },
       true, /* asyncMode */
     )
   }

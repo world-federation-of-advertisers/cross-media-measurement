@@ -99,6 +99,12 @@ _edpConfigs: [
 edp_simulators: {
 	for i, edp in _edpConfigs {
 		"\(edp.displayName)": #EdpSimulator & {
+			if _measurementValueLoggingEnabled {
+				_logMeasurementValues: true
+			}
+			if !_measurementValueLoggingEnabled {
+				_logMeasurementValues: false
+			}
 			_edpConfig:          edp
 			_populationSpecPath: _populationSpec
 			_imageConfig: repoSuffix: "simulator/edp"

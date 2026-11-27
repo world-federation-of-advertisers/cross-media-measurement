@@ -74,20 +74,30 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setExternalR
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.internal.BasicReportAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.BasicReportInsertValidator
 import org.wfanet.measurement.reporting.service.internal.BasicReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.BasicReportStateInvalidException
+import org.wfanet.measurement.reporting.service.internal.CampaignGroupInvalidException
 import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterNotFoundException
 import org.wfanet.measurement.reporting.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportingSetValidator
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
 
+/**
+ * Spanner BasicReports service with ReportingSet references in Postgres.
+ *
+ * [validateInsertBasicReport] enables completed-insert identity checks and the Report ID
+ * requirement. It does not change CreateBasicReport, which assigns its Report later.
+ */
 class SpannerBasicReportsService(
   private val spannerClient: AsyncDatabaseClient,
   private val postgresClient: DatabaseClient,
   private val impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+  private val validateInsertBasicReport: Boolean,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val idGenerator: IdGenerator = IdGenerator.Default,
 ) : BasicReportsCoroutineImplBase(coroutineContext) {
@@ -516,8 +526,23 @@ class SpannerBasicReportsService(
   override suspend fun insertBasicReport(request: InsertBasicReportRequest): BasicReport {
     try {
       validateBasicReport(request.basicReport)
+      if (validateInsertBasicReport) {
+        val reportingSetValidator =
+          ReportingSetValidator(request.basicReport.cmmsMeasurementConsumerId) { ids ->
+            getReportingSets(request.basicReport.cmmsMeasurementConsumerId, ids).map {
+              it.reportingSet
+            }
+          }
+        BasicReportInsertValidator(reportingSetValidator).validate(request.basicReport)
+      }
     } catch (e: RequiredFieldNotSetException) {
       throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: ReportingSetNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: CampaignGroupInvalidException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ImpressionQualificationFilterNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
@@ -605,8 +630,6 @@ class SpannerBasicReportsService(
    * @throws ImpressionQualificationFilterNotFoundException
    */
   private fun validateBasicReport(basicReport: BasicReport) {
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4551): Require
-    //   external_report_id after existing rows and callers have been migrated.
     if (basicReport.cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
     }
@@ -625,6 +648,10 @@ class SpannerBasicReportsService(
 
     if (!basicReport.hasResultDetails()) {
       throw RequiredFieldNotSetException("result_details")
+    }
+
+    if (validateInsertBasicReport && basicReport.externalReportId.isEmpty()) {
+      throw RequiredFieldNotSetException("external_report_id")
     }
 
     basicReport.resultDetails.resultGroupsList.forEachIndexed { resultGroupIndex, resultGroup ->

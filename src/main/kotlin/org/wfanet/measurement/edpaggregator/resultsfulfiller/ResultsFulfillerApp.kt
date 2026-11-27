@@ -32,7 +32,9 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.edpaggregator.EventGroupReferenceIdEntityKeyMapping
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -100,6 +102,7 @@ class ResultsFulfillerApp(
   private val requisitionsThrottler: Throttler,
   private val kingdomThrottler: Throttler,
   private val metrics: ResultsFulfillerMetrics,
+  private val logMeasurementValues: Boolean,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -162,6 +165,15 @@ class ResultsFulfillerApp(
         impressionMetadataStub = impressionMetadataStub,
         dataProvider = fulfillerParams.dataProvider,
         impressionsMetadataStorageConfig = impressionsMetadataStorageConfig,
+        modelLineDataSources =
+          fulfillerParams.modelLineDataSourcesMap.mapValues { (_, source) ->
+            ModelLineDataSource(
+              blobUriPrefix = source.blobUriPrefix,
+              validStartDate =
+                source.validStartDate.takeIf { source.hasValidStartDate() }?.toLocalDate(),
+              validEndDate = source.validEndDate.takeIf { source.hasValidEndDate() }?.toLocalDate(),
+            )
+          },
       )
     val noiseSelector =
       when (fulfillerParams.noiseParams.noiseType) {
@@ -210,6 +222,8 @@ class ResultsFulfillerApp(
         dataProviderSigningKeyHandle = dataProviderResultSigningKeyHandle,
         noiserSelector = noiseSelector,
         resultMinimumThresholds = resultMinimumThresholds,
+        disableMultiPartyFrequencyVectorSuppression =
+          fulfillerParams.kAnonymityParams.disableMultiPartyFrequencyVectorSuppression,
         // Read under UNSPECIFIED and CUSTOM_CAP. -1 means no cap, 0 or unset means the
         // MeasurementSpec's value. The explicit modes carry the choice themselves.
         overrideImpressionMaxFrequencyPerUser =
@@ -224,6 +238,7 @@ class ResultsFulfillerApp(
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
         trusTeeV2ImpressionCountMode = fulfillerParams.trusTeeV2Config.impressionCountMode,
         trusTeeV2MaxFrequencyPerUser = fulfillerParams.trusTeeV2Config.maxFrequencyPerUserOrNull,
+        logMeasurementValues = logMeasurementValues,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {

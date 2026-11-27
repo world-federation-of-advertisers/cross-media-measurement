@@ -16,12 +16,17 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
 
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
 import com.google.rpc.ErrorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -123,8 +128,24 @@ class DeadLetterQueueListenerTest {
 
     verify(fixture.workItemsStub, timeout(5_000))
       .processWorkItemDeadLetter(requestCaptor.capture(), any())
-    assertEquals(WORK_ITEM_NAME, requestCaptor.firstValue.workItemResourceId)
+    assertEquals("test-work-item", requestCaptor.firstValue.workItemResourceId)
     assertEquals(7L, requestCaptor.firstValue.expectedWorkItemGeneration)
+    verify(fixture.message, timeout(5_000)).ack()
+    fixture.close()
+  }
+
+  @Test
+  fun `legacy bare identifier is sent unchanged with generation one`(): Unit = runBlocking {
+    val item = workItem { name = "test-work-item" }
+    val requestCaptor = argumentCaptor<ProcessWorkItemDeadLetterRequest>()
+    val fixture = fixture(item, terminalWorkItemsStub())
+
+    fixture.channel.send(fixture.message)
+
+    verify(fixture.workItemsStub, timeout(5_000))
+      .processWorkItemDeadLetter(requestCaptor.capture(), any())
+    assertEquals("test-work-item", requestCaptor.firstValue.workItemResourceId)
+    assertEquals(1L, requestCaptor.firstValue.expectedWorkItemGeneration)
     verify(fixture.message, timeout(5_000)).ack()
     fixture.close()
   }
@@ -320,6 +341,147 @@ class DeadLetterQueueListenerTest {
 
     messageChannel.close()
     job.cancel()
+  }
+
+  @Test
+  fun `exhaustion evidence survives acknowledgement and excludes payload`(): Unit = runBlocking {
+    val records = CopyOnWriteArrayList<LogRecord>()
+    val logger = Logger.getLogger(DeadLetterQueueListener::class.java.name)
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          records += record
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    logger.addHandler(handler)
+    val item = workItem {
+      name = WORK_ITEM_NAME
+      generation = 7L
+      workItemParams =
+        Any.newBuilder()
+          .setTypeUrl("secret-type")
+          .setValue(com.google.protobuf.ByteString.copyFromUtf8("secret gs://private/raw"))
+          .build()
+    }
+    val fixture = fixture(item, terminalWorkItemsStub())
+    try {
+      doAnswer {
+          assertThat(
+              records.any {
+                it.message.startsWith("event=secure_computation.work_item.retry_exhausted ")
+              }
+            )
+            .isTrue()
+          null
+        }
+        .whenever(fixture.message)
+        .ack()
+      fixture.channel.send(fixture.message)
+      verify(fixture.message, timeout(5_000)).ack()
+      val evidence =
+        records.filter {
+          it.message.startsWith("event=secure_computation.work_item.retry_exhausted ")
+        }
+      assertThat(evidence).hasSize(1)
+      assertThat(
+          evidence.single().message.contains("xmm.pubsub.subscription.id=" + SUBSCRIPTION_ID)
+        )
+        .isTrue()
+      assertThat(evidence.single().message.contains("xmm.work_item.name=" + WORK_ITEM_NAME))
+        .isTrue()
+      assertThat(evidence.single().message.contains("xmm.work_item.generation=7")).isTrue()
+      assertThat(evidence.single().message.contains("xmm.outcome=retry_exhausted")).isTrue()
+      assertThat(evidence.none { it.message.contains("secret") || it.message.contains("gs://") })
+        .isTrue()
+    } finally {
+      fixture.close()
+      logger.removeHandler(handler)
+    }
+  }
+
+  @Test
+  fun `unconfirmed failure does not emit exhaustion evidence`(): Unit = runBlocking {
+    val records = CopyOnWriteArrayList<LogRecord>()
+    val logger = Logger.getLogger(DeadLetterQueueListener::class.java.name)
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          records += record
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    logger.addHandler(handler)
+    val stub =
+      mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
+        onBlocking { processWorkItemDeadLetter(any(), any()) } doReturn
+          internalWorkItem { state = InternalWorkItem.State.QUEUED }
+      }
+    val fixture =
+      fixture(
+        workItem {
+          name = WORK_ITEM_NAME
+          generation = 7L
+        },
+        stub,
+      )
+    try {
+      fixture.channel.send(fixture.message)
+      verify(fixture.message, timeout(5_000)).nack()
+      assertThat(
+          records.none {
+            it.message.startsWith("event=secure_computation.work_item.retry_exhausted ")
+          }
+        )
+        .isTrue()
+    } finally {
+      fixture.close()
+      logger.removeHandler(handler)
+    }
+  }
+
+  @Test
+  fun `stale delivery does not emit exhaustion evidence`(): Unit = runBlocking {
+    val records = CopyOnWriteArrayList<LogRecord>()
+    val logger = Logger.getLogger(DeadLetterQueueListener::class.java.name)
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          records += record
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    logger.addHandler(handler)
+    val fixture =
+      fixture(
+        workItem {
+          name = WORK_ITEM_NAME
+          generation = 1L
+        },
+        WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServer.channel),
+      )
+    try {
+      fixture.channel.send(fixture.message)
+      verify(fixture.message, timeout(5_000)).ack()
+      assertThat(
+          records.none {
+            it.message.startsWith("event=secure_computation.work_item.retry_exhausted ")
+          }
+        )
+        .isTrue()
+    } finally {
+      fixture.close()
+      logger.removeHandler(handler)
+    }
   }
 
   private fun fixture(

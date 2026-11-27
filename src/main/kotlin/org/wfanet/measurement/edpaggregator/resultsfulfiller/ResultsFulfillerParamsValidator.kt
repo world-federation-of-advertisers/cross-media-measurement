@@ -18,9 +18,12 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.api.v2alpha.ModelLineKey
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
+import org.wfanet.measurement.storage.SelectedStorageClient
 
 /** Validates configuration carried in a ResultsFulfiller WorkItem. */
 object ResultsFulfillerParamsValidator {
@@ -90,6 +93,11 @@ object ResultsFulfillerParamsValidator {
     }
 
     if (params.hasKAnonymityParams()) {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4466): Support Direct results
+      // that use both noise and minimum thresholds.
+      require(params.noiseParams.noiseType == NoiseType.NONE) {
+        "noise_params.noise_type must be NONE when k_anonymity_params is set"
+      }
       require(params.kAnonymityParams.minUsers > 0) {
         "Result minimum thresholds minUsers must be greater than 0, got " +
           params.kAnonymityParams.minUsers
@@ -112,6 +120,21 @@ object ResultsFulfillerParamsValidator {
         params.impressionMaxFrequencyPerUser
     }
     requireCapMatchesMode(params.impressionCapMode, params.impressionMaxFrequencyPerUser)
+
+    for ((modelLine, source) in params.modelLineDataSourcesMap) {
+      requireNotNull(ModelLineKey.fromName(modelLine)) {
+        "Invalid model line in results_fulfiller_params.model_line_data_sources: $modelLine"
+      }
+      require(source.blobUriPrefix.isNotBlank()) {
+        "Missing blob_uri_prefix for model line $modelLine"
+      }
+      SelectedStorageClient.parseBlobUri(source.blobUriPrefix)
+      val start = source.validStartDate.takeIf { source.hasValidStartDate() }?.toLocalDate()
+      val end = source.validEndDate.takeIf { source.hasValidEndDate() }?.toLocalDate()
+      require(start == null || end == null || start <= end) {
+        "Invalid validity window for model line $modelLine"
+      }
+    }
 
     require(params.multiPartyConfig.supportedNoiseTypesList.all { it.isSupported() }) {
       "Unsupported multi-party noise type in results_fulfiller_params"

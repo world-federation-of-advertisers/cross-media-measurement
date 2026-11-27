@@ -44,8 +44,10 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.logging.Handler
+import java.util.logging.Level
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -250,6 +252,7 @@ import org.wfanet.measurement.measurementconsumer.stats.ImpressionMetricVariance
 import org.wfanet.measurement.measurementconsumer.stats.ReachMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.ReachMetricVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.Variances
+import org.wfanet.measurement.measurementconsumer.stats.VariancesImpl
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMeasurementVarianceParams
 import org.wfanet.measurement.measurementconsumer.stats.WatchDurationMetricVarianceParams
 import org.wfanet.measurement.reporting.service.api.Errors
@@ -2768,16 +2771,20 @@ class MetricsServiceTest {
       on { nextLong() } doReturn RANDOM_OUTPUT_LONG
     }
 
-    service = createService()
+    service = createService(variancesMock, logMeasurementValues = false)
   }
 
-  private fun createService(signingPrivateKeyDir: File = SECRETS_DIR): MetricsService {
+  private fun createService(
+    variances: Variances,
+    signingPrivateKeyDir: File = SECRETS_DIR,
+    logMeasurementValues: Boolean,
+  ): MetricsService {
     return MetricsService(
       METRIC_SPEC_CONFIG,
       MEASUREMENT_CONSUMER_CONFIGS,
       InternalReportingSetsGrpcKt.ReportingSetsCoroutineStub(grpcTestServerRule.channel),
       InternalMetricsGrpcKt.MetricsCoroutineStub(grpcTestServerRule.channel),
-      variancesMock,
+      variances,
       InternalMeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
       DataProvidersGrpcKt.DataProvidersCoroutineStub(grpcTestServerRule.channel),
       MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
@@ -2795,6 +2802,7 @@ class MetricsServiceTest {
       MEASUREMENT_CONSUMER_MODEL_LINES,
       POPULATION_DATA_PROVIDER_NAME,
       kingdomMeasurementBatchConcurrency = 8,
+      logMeasurementValues = logMeasurementValues,
     )
   }
 
@@ -4401,6 +4409,7 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates CMMS measurements when no event filter at all`() = runBlocking {
+    val reportInterval = TIME_INTERVAL
     val internalSinglePublisherReportingSet =
       INTERNAL_SINGLE_PUBLISHER_REPORTING_SET.copy {
         clearFilter()
@@ -4430,7 +4439,11 @@ class MetricsServiceTest {
               details = InternalMeasurementKt.details { dataProviderCount = 1 }
             }
           }
-          details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
+          details =
+            InternalMetricKt.details {
+              containingReport = CONTAINING_REPORT
+              this.reportInterval = reportInterval
+            }
         }
       externalMetricId = METRIC_ID
     }
@@ -4450,7 +4463,11 @@ class MetricsServiceTest {
               }
             }
         }
-        details = InternalMetricKt.details { containingReport = CONTAINING_REPORT }
+        details =
+          InternalMetricKt.details {
+            containingReport = CONTAINING_REPORT
+            this.reportInterval = reportInterval
+          }
       }
 
     wheneverBlocking {
@@ -4475,7 +4492,11 @@ class MetricsServiceTest {
 
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      metric = REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy { filters.clear() }
+      metric =
+        REQUESTING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          filters.clear()
+          this.reportInterval = reportInterval
+        }
       metricId = METRIC_ID
     }
 
@@ -4491,6 +4512,10 @@ class MetricsServiceTest {
     capturedMeasurementRequests.single().requestsList.forEach { createMeasurementRequest ->
       val dataProvidersList =
         createMeasurementRequest.measurement.dataProvidersList.sortedBy { it.key }
+
+      val measurementSpec: MeasurementSpec =
+        createMeasurementRequest.measurement.measurementSpec.unpack()
+      assertThat(measurementSpec.reportingMetadata.reportInterval).isEqualTo(reportInterval)
 
       val filters: List<String> =
         dataProvidersList.flatMap { dataProviderEntry ->
@@ -5061,6 +5086,55 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `createMetric throws INVALID_ARGUMENT when ReportInterval endTime is unspecified`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          reportInterval = interval { startTime = timestamp { seconds = 5 } }
+        }
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).isEqualTo("Report interval in metric is invalid.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when Metric starts before ReportInterval`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    val metric = REQUESTING_INCREMENTAL_REACH_METRIC
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      this.metric =
+        metric.copy {
+          reportInterval = interval {
+            startTime = timestamp { seconds = metric.timeInterval.startTime.seconds + 1 }
+            endTime = metric.timeInterval.endTime
+          }
+        }
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description)
+      .isEqualTo("Metric time interval must be within the Report interval.")
+  }
+
+  @Test
   fun `createMetric throws INVALID_ARGUMENT when metric spec in Metric is unspecified`() {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -5569,7 +5643,12 @@ class MetricsServiceTest {
   @Test
   fun `createMetric attributes signing key load failure to pending Measurements`(): Unit =
     runBlocking {
-      service = createService(SECRETS_DIR.resolve("missing-signing-key-directory"))
+      service =
+        createService(
+          variancesMock,
+          SECRETS_DIR.resolve("missing-signing-key-directory"),
+          logMeasurementValues = false,
+        )
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
       } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
@@ -6425,6 +6504,7 @@ class MetricsServiceTest {
         emptyMap(),
         POPULATION_DATA_PROVIDER_NAME,
         kingdomMeasurementBatchConcurrency = 8,
+        logMeasurementValues = false,
       )
 
     wheneverBlocking {
@@ -9862,11 +9942,11 @@ class MetricsServiceTest {
         )
       assertThat(measurementLog).contains("xmm.measurement.state=SUCCEEDED")
       assertThat(measurementLog).contains("xmm.outcome=succeeded")
-      val metricLog = reportTraceLogMessages("reporting.metric.result_synchronized").single()
-      assertThat(metricLog)
-        .contains("xmm.metric.name=${SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name}")
+      val metricLog = reportTraceLogMessages("reporting.metrics.results_synchronized").single()
       assertThat(metricLog).contains("xmm.metric.state=SUCCEEDED")
+      assertThat(metricLog).contains("xmm.metric.count=1")
       assertThat(metricLog).contains("xmm.outcome=succeeded")
+      assertThat(reportTraceLogMessages("reporting.metric.result_synchronized")).isEmpty()
 
       // Verify proto argument of internal
       // MeasurementsCoroutineImplBase::batchSetMeasurementResults
@@ -9991,6 +10071,84 @@ class MetricsServiceTest {
 
       assertThat(result).isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC)
     }
+
+  @Test
+  fun `getMetric retains frequency statistics at zero reach`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+    service = createService(variances = VariancesImpl, logMeasurementValues = false)
+
+    for ((noiseMechanism, relativeFrequencies) in
+      listOf(
+        NoiseMechanism.CONTINUOUS_GAUSSIAN to REACH_FREQUENCY_FREQUENCY_VALUE,
+        NoiseMechanism.CONTINUOUS_GAUSSIAN to REACH_FREQUENCY_FREQUENCY_VALUE.mapValues { 0.0 },
+        NoiseMechanism.NONE to REACH_FREQUENCY_FREQUENCY_VALUE,
+      )) {
+      val measurement =
+        INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_TRUSTEE_MEASUREMENT.copy {
+          details =
+            details.copy {
+              val measurementResult = results.single()
+              results.clear()
+              results +=
+                measurementResult.copy {
+                  reach =
+                    reach.copy {
+                      value = 0
+                      this.noiseMechanism = noiseMechanism
+                    }
+                  frequency =
+                    frequency.copy {
+                      relativeFrequencyDistribution.clear()
+                      relativeFrequencyDistribution.putAll(relativeFrequencies)
+                      this.noiseMechanism = noiseMechanism
+                    }
+                }
+            }
+        }
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(
+          internalBatchGetMetricsResponse {
+            metrics +=
+              INTERNAL_SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.copy {
+                weightedMeasurements.clear()
+                weightedMeasurements += weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1
+                  this.measurement = measurement
+                }
+              }
+          }
+        )
+
+      val result =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            service.getMetric(
+              getMetricRequest { name = SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name }
+            )
+          }
+          .result
+          .reachAndFrequency
+
+      assertThat(result.reach.value).isEqualTo(0)
+      assertThat(result.frequencyHistogram.binsCount).isEqualTo(REACH_FREQUENCY_MAXIMUM_FREQUENCY)
+      for (bin in result.frequencyHistogram.binsList) {
+        assertThat(bin.binResult.value).isEqualTo(0.0)
+        assertThat(bin.hasResultUnivariateStatistics()).isTrue()
+        assertThat(bin.hasRelativeUnivariateStatistics()).isTrue()
+        assertThat(bin.hasKPlusUnivariateStatistics()).isTrue()
+        assertThat(bin.hasRelativeKPlusUnivariateStatistics()).isTrue()
+        val standardDeviation = bin.resultUnivariateStatistics.standardDeviation
+        assertThat(standardDeviation.isFinite()).isTrue()
+        if (noiseMechanism == NoiseMechanism.NONE) {
+          assertThat(standardDeviation).isEqualTo(0.0)
+        } else {
+          assertThat(standardDeviation).isGreaterThan(0.0)
+        }
+      }
+    }
+  }
 
   @Test
   fun `getMetric uses TrusTee over other protocols when multiple protocols present in config`() =
@@ -10949,12 +11107,10 @@ class MetricsServiceTest {
                   frequencyHistogram =
                     MetricResultKt.histogramResult {
                       bins +=
-                        (1..REACH_FREQUENCY_MAXIMUM_FREQUENCY).map { frequency ->
-                          MetricResultKt.HistogramResultKt.bin {
-                            label = frequency.toString()
-                            binResult = MetricResultKt.HistogramResultKt.binResult { value = 0.0 }
-                          }
-                        }
+                        SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.result.reachAndFrequency
+                          .frequencyHistogram
+                          .binsList
+                          .map { bin -> bin.copy { binResult = binResult.copy { value = 0.0 } } }
                     }
                 }
             }
@@ -12616,6 +12772,14 @@ class MetricsServiceTest {
           runBlocking { service.batchGetMetrics(request) }
         }
 
+      val summaries = reportTraceLogMessages("reporting.metrics.results_synchronized")
+      assertThat(summaries).hasSize(2)
+      assertThat(summaries.single { "xmm.metric.state=SUCCEEDED" in it })
+        .contains("xmm.metric.count=1")
+      assertThat(summaries.single { "xmm.metric.state=RUNNING" in it })
+        .contains("xmm.metric.count=1")
+      assertThat(reportTraceLogMessages("reporting.metric.result_synchronized")).isEmpty()
+
       // Verify proto argument of internal MetricsCoroutineImplBase::batchGetMetrics
       val batchGetInternalMetricsCaptor: KArgumentCaptor<InternalBatchGetMetricsRequest> =
         argumentCaptor()
@@ -12657,6 +12821,177 @@ class MetricsServiceTest {
             metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
           }
         )
+    }
+
+  @Test
+  fun `batchGetMetrics suppresses synchronization logs above INFO`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC }
+      )
+    val logger = Logger.getLogger(MetricsService::class.java.name)
+    val previousLevel = logger.level
+    try {
+      logger.level = Level.WARNING
+      val result =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking {
+            service.batchGetMetrics(
+              batchGetMetricsRequest {
+                parent = MEASUREMENT_CONSUMERS.values.first().name
+                names += SUCCEEDED_INCREMENTAL_REACH_METRIC.name
+              }
+            )
+          }
+        }
+      assertThat(result.metricsList).containsExactly(SUCCEEDED_INCREMENTAL_REACH_METRIC)
+      assertThat(reportTraceLogMessages("reporting.metrics.results_synchronized")).isEmpty()
+      assertThat(reportTraceLogMessages("reporting.metric.result_synchronized")).isEmpty()
+      assertThat(
+          spanExporter.finishedSpanItems.filter {
+            it.name == "reporting.metric.result_synchronized"
+          }
+        )
+        .hasSize(1)
+    } finally {
+      logger.level = previousLevel
+    }
+  }
+
+  @Test
+  fun `batchGetMetrics retains metric details at FINE and summarizes each report separately`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+      val consumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      val basicReport = BasicReportKey(consumerId, "report-a").toName()
+      val firstReport = ReportKey(consumerId, "report-a").toName()
+      val secondReport = ReportKey(consumerId, "report-b").toName()
+      val internalMetrics =
+        List(3) { index ->
+          INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+            externalMetricId = "metric-$index"
+            details =
+              details.copy {
+                this.basicReport = basicReport
+                containingReport = if (index < 2) firstReport else secondReport
+              }
+          }
+        }
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(internalBatchGetMetricsResponse { metrics += internalMetrics })
+      val logger = Logger.getLogger(MetricsService::class.java.name)
+      val previousLevel = logger.level
+      val previousHandlerLevel = traceLogHandler.level
+      try {
+        logger.level = Level.FINE
+        traceLogHandler.level = Level.FINE
+        val result =
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            runBlocking {
+              service.batchGetMetrics(
+                batchGetMetricsRequest {
+                  parent = MEASUREMENT_CONSUMERS.values.first().name
+                  names +=
+                    internalMetrics.map {
+                      MetricKey(it.cmmsMeasurementConsumerId, it.externalMetricId).toName()
+                    }
+                }
+              )
+            }
+          }
+        assertThat(result.metricsList).hasSize(3)
+        val summaries = reportTraceLogMessages("reporting.metrics.results_synchronized")
+        assertThat(summaries).hasSize(2)
+        assertThat(summaries.single { "xmm.report.name=$firstReport " in it })
+          .contains("xmm.metric.count=2")
+        assertThat(summaries.single { "xmm.report.name=$secondReport " in it })
+          .contains("xmm.metric.count=1")
+        for (summary in summaries) {
+          assertThat(summary).contains("xmm.basic_report.name=$basicReport")
+          assertThat(summary).contains("xmm.metric.state=SUCCEEDED")
+        }
+        val details =
+          traceLogRecords.filter { "event=reporting.metric.result_synchronized " in it.message }
+        assertThat(details).hasSize(3)
+        assertThat(details.map { it.level }).containsExactlyElementsIn(List(3) { Level.FINE })
+        for (metric in result.metricsList) {
+          assertThat(details.map { it.message }.joinToString("\n"))
+            .contains("xmm.metric.name=${metric.name}")
+        }
+      } finally {
+        logger.level = previousLevel
+        traceLogHandler.level = previousHandlerLevel
+      }
+    }
+
+  @Test
+  fun `batchGetMetrics INFO summaries retain every metric identity in bounded groups`() =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+      val consumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      val basicReport = BasicReportKey(consumerId, "report-a").toName()
+      val report = ReportKey(consumerId, "report-a").toName()
+      val internalMetrics =
+        List(101) { index ->
+          INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+            externalMetricId = "metric-$index"
+            details =
+              details.copy {
+                this.basicReport = basicReport
+                containingReport = report
+              }
+          }
+        }
+      whenever(internalMetricsMock.batchGetMetrics(any()))
+        .thenReturn(internalBatchGetMetricsResponse { metrics += internalMetrics })
+      val logger = Logger.getLogger(MetricsService::class.java.name)
+      val previousLevel = logger.level
+      val previousHandlerLevel = traceLogHandler.level
+      try {
+        logger.level = Level.INFO
+        traceLogHandler.level = Level.INFO
+        val result =
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+            runBlocking {
+              service.batchGetMetrics(
+                batchGetMetricsRequest {
+                  parent = MEASUREMENT_CONSUMERS.values.first().name
+                  names +=
+                    internalMetrics.map {
+                      MetricKey(it.cmmsMeasurementConsumerId, it.externalMetricId).toName()
+                    }
+                }
+              )
+            }
+          }
+        val summaries = reportTraceLogMessages("reporting.metrics.results_synchronized")
+        assertThat(summaries).hasSize(3)
+        val loggedNames =
+          summaries.flatMap { summary ->
+            summary
+              .split(' ')
+              .filter { it.startsWith("xmm.metric.name=") }
+              .map { it.removePrefix("xmm.metric.name=") }
+          }
+        assertThat(loggedNames).containsExactlyElementsIn(result.metricsList.map { it.name })
+        assertThat(
+            summaries.map { summary ->
+              summary.split(' ').single { it.startsWith("xmm.metric.count=") }
+            }
+          )
+          .containsExactly("xmm.metric.count=50", "xmm.metric.count=50", "xmm.metric.count=1")
+        assertThat(reportTraceLogMessages("reporting.metric.result_synchronized")).isEmpty()
+      } finally {
+        logger.level = previousLevel
+        traceLogHandler.level = previousHandlerLevel
+      }
     }
 
   @Test
@@ -12712,6 +13047,67 @@ class MetricsServiceTest {
           metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
         }
       )
+  }
+
+  @Test
+  fun `variance failure logs omit result values when value logging is disabled`() {
+    val logs = captureVarianceFailureLogs(logMeasurementValues = false)
+
+    assertThat(logs).contains("buildMetricResult failed for")
+    assertThat(logs).contains("MeasurementVarianceNotComputableException")
+    assertThat(logs).doesNotContain("reach=938475629")
+    assertThat(logs).doesNotContain("IllegalArgumentException")
+  }
+
+  @Test
+  fun `variance failure logs include exception values when value logging is enabled`() {
+    val logs = captureVarianceFailureLogs(logMeasurementValues = true)
+
+    assertThat(logs).contains("buildMetricResult exception:")
+    assertThat(logs).contains("reach=938475629")
+    assertThat(logs).contains("IllegalArgumentException")
+  }
+
+  private fun captureVarianceFailureLogs(logMeasurementValues: Boolean): String {
+    service = createService(variancesMock, logMeasurementValues = logMeasurementValues)
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+    whenever(variancesMock.computeMetricVariance(any<ReachMetricVarianceParams>()))
+      .thenThrow(IllegalArgumentException("Invalid reach=938475629"))
+    wheneverBlocking { internalMetricsMock.batchGetMetrics(any()) } doReturn
+      internalBatchGetMetricsResponse { metrics += INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC }
+    val request = batchGetMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      names += SUCCEEDED_INCREMENTAL_REACH_METRIC.name
+    }
+
+    val logs = StringBuffer()
+    val formatter = SimpleFormatter()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          logs.append(formatter.format(record))
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger(MetricsService::class.java.name)
+    logger.addHandler(handler)
+    try {
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking { service.batchGetMetrics(request) }
+        }
+      assertThat(response.metricsList.single().state).isEqualTo(Metric.State.FAILED)
+      assertThat(response.metricsList.single().failure.reason)
+        .isEqualTo(Metric.Failure.Reason.MEASUREMENT_RESULT_INVALID)
+    } finally {
+      logger.removeHandler(handler)
+    }
+    return logs.toString()
   }
 
   @Test

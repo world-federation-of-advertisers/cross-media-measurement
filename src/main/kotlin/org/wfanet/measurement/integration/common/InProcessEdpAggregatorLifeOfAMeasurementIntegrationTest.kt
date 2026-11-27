@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutine
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -49,6 +50,7 @@ import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.throttler.testing.FakeThrottler
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ModelLineInfo
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.InMemoryVidIndexMap
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
@@ -73,6 +75,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   secureComputationDatabaseAdmin: SpannerDatabaseAdmin,
   hmssEnabled: Boolean,
   trusTeeEnabled: Boolean,
+  private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams>,
 ) {
 
   private val pubSubClient: GooglePubSubEmulatorClient by lazy {
@@ -127,27 +130,29 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", "edpa-eg-reference-id-2"),
+                    listOf(EntityKey("ad_group", "edpa-eg-reference-id-2")),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             ),
           "multi-creative" to
             EventGroupConfig.MultiEntityKey(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_A_ID)),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   ),
                   EntityKeySpec(
-                    EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID),
+                    listOf(EntityKey(CREATIVE_ID_ENTITY_TYPE, MULTI_CREATIVE_B_ID)),
                     syntheticEventGroupSpec2,
                     ENTITY_METADATA,
                   ),
-                )
+                ),
+              legacyEndDate = null,
             ),
         ),
       "edp3" to
@@ -157,11 +162,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", "edpa-eg-reference-id-3"),
+                    listOf(EntityKey("ad_group", "edpa-eg-reference-id-3")),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             )
         ),
       "edp4" to
@@ -171,11 +177,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
               entityKeySpecs =
                 listOf(
                   EntityKeySpec(
-                    EntityKey("ad_group", "edpa-eg-reference-id-4"),
+                    listOf(EntityKey("ad_group", "edpa-eg-reference-id-4")),
                     syntheticEventGroupSpec,
                     ENTITY_METADATA,
                   )
-                )
+                ),
+              legacyEndDate = null,
             )
         ),
     )
@@ -187,9 +194,11 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         when (config) {
           is EventGroupConfig.LegacySpec -> listOf(refId to config)
           is EventGroupConfig.MultiEntityKey ->
-            config.entityKeySpecs.map { spec ->
-              "${spec.entityKey.entityType}/${spec.entityKey.entityId}" to
-                EventGroupConfig.MultiEntityKey(entityKeySpecs = listOf(spec))
+            config.entityKeySpecs.flatMap { spec ->
+              spec.entityKeys.map { entityKey ->
+                "${entityKey.entityType}/${entityKey.entityId}" to
+                  config.copy(entityKeySpecs = listOf(spec))
+              }
             }
         }
       }
@@ -205,6 +214,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       populationSpec = populationSpec,
       modelLineInfoMap = modelLineInfoMap,
       externalKmsClient = sharedKmsClient,
+      eventGroupReferenceIdEntityKeyMappingsByEdp = emptyMap(),
+      wholeBlobEntityTypes = emptySet(),
     )
 
   @Before
@@ -247,14 +258,17 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       ),
       duchyMap,
       edpNoise =
-        mapOf(
-          "edp1" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-          "edp2" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-          "edp3" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-          "edp4" to ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN,
-        ),
+        ALL_EDP_DISPLAY_NAMES.associateWith { edpDisplayName ->
+          if (edpDisplayName in resultMinimumThresholdsByEdp) {
+            ResultsFulfillerParams.NoiseParams.NoiseType.NONE
+          } else {
+            ResultsFulfillerParams.NoiseParams.NoiseType.CONTINUOUS_GAUSSIAN
+          }
+        },
       edpMultiPartyNoiseTypes =
         mapOf("edp4" to listOf(ResultsFulfillerParams.NoiseParams.NoiseType.NONE)),
+      edpsWithDeferredUploads = emptySet(),
+      resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
     )
     initMcSimulator()
   }
@@ -297,6 +311,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         publicMeasurementsClient,
         publicMeasurementConsumersClient,
         publicCertificatesClient,
+        ModelLinesCoroutineStub(inProcessCmmsComponents.kingdom.publicApiChannel),
         InProcessCmmsComponents.TRUSTED_CERTIFICATES,
         TestEvent.getDefaultInstance(),
         NoiseMechanism.CONTINUOUS_GAUSSIAN,
@@ -325,6 +340,17 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
   }
 
   companion object {
+    internal val ALL_EDP_DISPLAY_NAMES = setOf("edp1", "edp2", "edp3", "edp4")
+    internal val SUPPRESSING_RESULT_MINIMUM_THRESHOLDS_BY_EDP =
+      ALL_EDP_DISPLAY_NAMES.associateWith {
+        ResultsFulfillerParamsKt.kAnonymityParams {
+          minUsers = 1_000_000
+          minImpressions = 1_000_000
+          reachMaxFrequencyPerUser = 127
+          disableMultiPartyFrequencyVectorSuppression = true
+        }
+      }
+
     // edp1 deliberately has no entity_key/entity_metadata override (legacy path); it also
     // happens
     // to be the EDP that requires no measurement noise on the HMSS protocol, used by the

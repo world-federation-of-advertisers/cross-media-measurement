@@ -382,6 +382,8 @@ abstract class BaseTeeAppRunner : Runnable {
     init {
       configureCloudLoggingHandler()
       EdpaTelemetry.ensureInitialized()
+      // After logging is configured, so dumps reach Cloud Logging. No-op unless opted in.
+      TeeStackDumpLogger.startFromEnvironment()
     }
 
     private fun configureCloudLoggingHandler() {

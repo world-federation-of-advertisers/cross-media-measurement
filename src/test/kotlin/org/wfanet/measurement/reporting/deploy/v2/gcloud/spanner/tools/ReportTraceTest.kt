@@ -22,6 +22,7 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.MonitoredResource
 import com.google.cloud.logging.LogEntry
 import com.google.cloud.logging.Logging
+import com.google.cloud.logging.LoggingException
 import com.google.cloud.logging.Payload
 import com.google.cloud.logging.SourceLocation
 import com.google.common.truth.Truth.assertThat
@@ -75,6 +76,14 @@ private fun main(args: Array<String>, dependencies: ReportTraceDependencies): In
 @RunWith(JUnit4::class)
 class ReportTraceTest {
   @get:Rule val temporaryFolder = TemporaryFolder()
+
+  @Test
+  fun `Logging RESOURCE_EXHAUSTED is recognized as quota exhaustion`() {
+    val exception = mock<LoggingException>()
+    whenever(exception.code).thenReturn(8)
+
+    assertThat(exception.isQuotaExhaustion()).isTrue()
+  }
 
   @Test
   fun `context before Report creation only correlates by BasicReport`() {
@@ -6371,6 +6380,108 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `grouped INFO metric logs retain complete lifecycle coverage without spans`() {
+    val metricNames =
+      listOf(
+        "measurementConsumers/mc-1/metrics/metric-1",
+        "measurementConsumers/mc-1/metrics/metric-2",
+      )
+    val context =
+      reportTraceContext()
+        .copy(metricNames = metricNames, metricStates = metricNames.associateWith { "SUCCEEDED" })
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val routes =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val stageResources =
+      listOf(
+        "basic_report_creation" to ("xmm.basic_report.name" to context.basicReportName!!),
+        "report_creation" to ("xmm.report.name" to context.reportName),
+        "measurement_creation" to ("xmm.measurement.name" to context.measurementNames.single()),
+        "measurement_linkage" to ("xmm.measurement.name" to context.measurementNames.single()),
+        "requisition_available" to ("xmm.requisition.name" to requisitionName),
+        "kingdom_requisition_result_acceptance" to ("xmm.requisition.name" to requisitionName),
+        "kingdom_measurement_sync" to ("xmm.measurement.name" to context.measurementNames.single()),
+        "report_result_assembly" to ("xmm.report.name" to context.reportName),
+        "noise_correction" to ("xmm.basic_report.name" to context.basicReportName!!),
+        "processed_result_writeback" to ("xmm.basic_report.name" to context.basicReportName!!),
+      ) + metricNames.map { "metric_creation" to ("xmm.metric.name" to it) }
+    val logEntries =
+      stageResources.mapIndexed { index, (stage, resource) ->
+        successfulLifecycleLog(stage, mapOf(resource), index)
+      } + groupedMetricSyncLog(context, metricNames, "SUCCEEDED", "succeeded")
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routes, emptyList(), logEntries)
+
+    assertThat(
+        coverage.filter { it.name == "metric_result_sync" }.associate { it.resource to it.status }
+      )
+      .containsExactly(metricNames[0], "SUCCEEDED", metricNames[1], "SUCCEEDED")
+    assertThat(ReportTraceOutput.artifactStatus(emptyList(), logEntries, emptyList(), coverage))
+      .isEqualTo(ReportTraceArtifactStatus.COMPLETE)
+    assertThat(
+        ReportTraceOutput.render(
+          context,
+          routes,
+          emptyList(),
+          logEntries,
+          emptyList(),
+          emptyList(),
+          false,
+        )
+      )
+      .contains("Collection completeness: COMPLETE")
+  }
+
+  @Test
+  fun `grouped metric logs attribute failure only to explicitly listed metrics`() {
+    val metricNames =
+      listOf(
+        "measurementConsumers/mc-1/metrics/metric-1",
+        "measurementConsumers/mc-1/metrics/metric-2",
+        "measurementConsumers/mc-1/metrics/metric-3",
+      )
+    val context =
+      reportTraceContext()
+        .copy(metricNames = metricNames, metricStates = metricNames.associateWith { "FAILED" })
+    val routes =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val entry = groupedMetricSyncLog(context, metricNames.take(2), "FAILED", "failed")
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routes, emptyList(), listOf(entry))
+
+    assertThat(
+        coverage.filter { it.name == "metric_result_sync" }.associate { it.resource to it.status }
+      )
+      .containsExactly(
+        metricNames[0],
+        "FAILED",
+        metricNames[1],
+        "FAILED",
+        metricNames[2],
+        "MISSING",
+      )
+    val countOnlyEntry =
+      entry.copy(
+        message =
+          entry.message.split(' ').filterNot { it.startsWith("xmm.metric.name=") }.joinToString(" ")
+      )
+    val countOnlyCoverage =
+      ReportTraceOutput.lifecycleCoverage(context, routes, emptyList(), listOf(countOnlyEntry))
+    assertThat(countOnlyCoverage.filter { it.name == "metric_result_sync" }.map { it.status })
+      .containsExactly("UNKNOWN", "UNKNOWN", "UNKNOWN")
+  }
+
+  @Test
   fun `structured errors render for every MPC and Duchy lifecycle stage`() {
     val context = reportTraceContext()
     val measurementName = context.measurementNames.single()
@@ -6515,6 +6626,26 @@ class ReportTraceTest {
     assertThat(rendered).doesNotContain("secret-password")
     assertThat(rendered).doesNotContain("secret-customer-data")
     assertThat(rendered).doesNotContain("secret-authorization")
+  }
+
+  @Test
+  fun `renderLogPayload keeps WorkItem publication attempt`() {
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf(
+          "message" to "WorkItem publication failed",
+          "attributes" to
+            mapOf(
+              "xmm.work_item.name" to "workItems/work-item-1",
+              "xmm.work_item.publication_attempt" to "2",
+            ),
+        )
+      )
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
+
+    assertThat(rendered).contains("xmm.work_item.name=workItems/work-item-1")
+    assertThat(rendered).contains("xmm.work_item.publication_attempt=2")
   }
 
   @Test
@@ -8297,6 +8428,61 @@ class ReportTraceTest {
     assertThat(output.toString()).contains(partialEntry.message)
   }
 
+  @Test
+  fun `main reports rendered Cloud Logging truncation as partial`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val partialEntry =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "reporting",
+        severity = "INFO",
+        trace = null,
+        message = "reporting.success xmm.report.name=$reportName",
+      )
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { _, _, _, _ ->
+            throw ReportTraceLogCollectionTruncatedException(
+              partialEntries = listOf(partialEntry),
+              contextEntriesExamined = 0,
+              contextEntryLimit = 1000,
+              grpcClassificationIncomplete = false,
+              rawEntriesExamined = 2,
+              rawEntryLimit = 1001,
+              rawQueriesTruncated = 0,
+              outputTruncated = true,
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--limit=1",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+    assertThat(output.toString()).contains("rendered output reached its 1-entry limit")
+    assertThat(output.toString()).contains("| test | Cloud Logging | TRUNCATED | 1 | 1 |")
+  }
+
   private fun traceSpan(spanId: String, startTime: Instant): ReportTraceSpan {
     return ReportTraceSpan(
       sourceProject = "test",
@@ -8425,6 +8611,49 @@ class ReportTraceTest {
       severity = "ERROR",
       trace = "projects/test/traces/trace-$secondsAfterNow",
       message = message,
+    )
+  }
+
+  private fun groupedMetricSyncLog(
+    context: ReportTraceContext,
+    metricNames: List<String>,
+    state: String,
+    outcome: String,
+  ): ReportTraceLogEntry {
+    val records = mutableListOf<LogRecord>()
+    val logger =
+      Logger.getAnonymousLogger().apply {
+        useParentHandlers = false
+        addHandler(
+          object : Handler() {
+            override fun publish(record: LogRecord) {
+              records += record
+            }
+
+            override fun flush() {}
+
+            override fun close() {}
+          }
+        )
+      }
+    ReportTraceLogging.log(
+      logger,
+      "reporting.metrics.results_synchronized",
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+      ReportTraceAttributes.BASIC_REPORT_NAME_STRING to context.basicReportName,
+      ReportTraceAttributes.REPORT_NAME_STRING to context.reportName,
+      ReportTraceAttributes.METRIC_STATE_STRING to state,
+      ReportTraceAttributes.METRIC_COUNT_STRING to metricNames.size.toString(),
+      ReportTraceAttributes.OUTCOME_STRING to outcome,
+      *metricNames.map { ReportTraceAttributes.METRIC_NAME_STRING to it }.toTypedArray(),
+    )
+    return ReportTraceLogEntry(
+      sourceProject = "test",
+      timestamp = NOW.plusSeconds(60),
+      service = "reporting",
+      severity = records.single().level.name,
+      trace = null,
+      message = records.single().message,
     )
   }
 

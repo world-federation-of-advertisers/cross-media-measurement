@@ -28,7 +28,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
  *
  * A `PopulationSpec` is multi-MB and its VID ranges are indexed once into the writer, so reading
  * and building it per WorkItem would be wasteful. Cached per (population-spec blob URI,
- * event-template descriptor blob URI, event-template type) for the life of the process.
+ * event-template descriptor blob URI, event-template type, event-template version) for the life of
+ * the process.
  *
  * @param readBlob reads a config-storage blob's bytes by URI.
  */
@@ -53,11 +54,18 @@ class PopulationAttributeWriterLoader(
       "population_spec_blob_uri must be set; without it the labeled output would carry the " +
         "DataProvider's uploaded demographics instead of the ones the model assigned"
     }
+    val eventTemplateVersion = config.eventTemplateVersion
+    require(eventTemplateVersion > 0) { "event_template_version must be set" }
     // Keyed on the descriptor blob too: two model lines can share a spec URI and event type name
     // while resolving that type from different descriptor blobs, and the writer is bound to the
     // descriptor it was built against.
     val cacheKey =
-      CacheKey(blobUri, config.eventTemplateDescriptorBlobUri, config.eventTemplateType)
+      CacheKey(
+        blobUri,
+        config.eventTemplateDescriptorBlobUri,
+        config.eventTemplateType,
+        eventTemplateVersion,
+      )
     cache[cacheKey]?.let {
       return it
     }
@@ -69,17 +77,18 @@ class PopulationAttributeWriterLoader(
       readBlob(blobUri).inputStream().reader(Charsets.UTF_8).use { reader ->
         parseTextProto(reader, PopulationSpec.getDefaultInstance(), typeRegistry)
       }
-    val writer = PopulationAttributeWriter(eventDescriptor, populationSpec)
+    val writer = PopulationAttributeWriter(eventDescriptor, populationSpec, eventTemplateVersion)
     return cache.computeIfAbsent(cacheKey) { writer }
   }
 
   /**
    * Identifies a cached writer by every input it was built from: the population-spec blob URI, the
-   * event-template descriptor blob URI, and the event-template type.
+   * event-template descriptor blob URI, event-template type, and event-template version.
    */
   private data class CacheKey(
     val populationSpecBlobUri: String,
     val eventTemplateDescriptorBlobUri: String,
     val eventTemplateType: String,
+    val eventTemplateVersion: Int,
   )
 }

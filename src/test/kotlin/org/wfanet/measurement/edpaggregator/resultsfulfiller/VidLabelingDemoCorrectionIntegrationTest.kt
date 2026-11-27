@@ -235,6 +235,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
   private fun eventSourceFor(blobDetails: BlobDetails): SingleGroupEventSource =
     SingleGroupEventSource(
       StorageEventReader(
+        blobGeneration = 0L,
         blobDetails = blobDetails,
         kmsClient = kmsClient,
         impressionsStorageConfig = StorageConfig(rootDirectory = tempFolder.root),
@@ -444,6 +445,7 @@ class VidLabelingDemoCorrectionIntegrationTest {
      */
     private val MODEL_LINE_CONFIG: VidLabelerParams.ModelLineConfig =
       VidLabelerParamsKt.modelLineConfig {
+        eventTemplateVersion = 1
         labelerInputFieldMapping += labelerInputFieldMapping {
           fieldPath = "event_id.id"
           scalar = scalarColumn { column = EVENT_ID_COLUMN }
