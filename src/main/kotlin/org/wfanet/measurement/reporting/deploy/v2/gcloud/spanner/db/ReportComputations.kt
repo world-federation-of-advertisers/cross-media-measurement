@@ -30,14 +30,13 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.reporting.v2.ReportComputation
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.reportComputation
+import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
-/**
- * Reads the [ReportComputation]s of the BasicReport with the specified internal key, with the
- * internal impression qualification filter ID of each.
- */
+/** Reads the [ReportComputation]s of the BasicReport with the specified internal key. */
 fun AsyncDatabaseClient.ReadContext.readReportComputations(
-  basicReportResult: BasicReportResult
-): Flow<ReportComputationResult> {
+  basicReportResult: BasicReportResult,
+  impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
+): Flow<ReportComputation> {
   val sql =
     """
     SELECT
@@ -56,7 +55,9 @@ fun AsyncDatabaseClient.ReadContext.readReportComputations(
         bind("basicReportId").to(basicReportResult.basicReportId)
       }
     )
-    .map { row -> buildReportComputationResult(basicReportResult, row) }
+    .map { row ->
+      buildReportComputation(basicReportResult, impressionQualificationFilterMapping, row)
+    }
 }
 
 /**
@@ -65,8 +66,9 @@ fun AsyncDatabaseClient.ReadContext.readReportComputations(
  */
 suspend fun AsyncDatabaseClient.ReadContext.getReportComputation(
   basicReportResult: BasicReportResult,
+  impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   impressionQualificationFilterId: Long,
-): ReportComputationResult? {
+): ReportComputation? {
   val row: Struct =
     readRow(
       "ReportComputations",
@@ -77,15 +79,12 @@ suspend fun AsyncDatabaseClient.ReadContext.getReportComputation(
       ),
       ReportComputationsInternal.COLUMNS,
     ) ?: return null
-  return buildReportComputationResult(basicReportResult, row)
+  return buildReportComputation(basicReportResult, impressionQualificationFilterMapping, row)
 }
 
 /**
- * Buffers an insert mutation for the ReportComputations table.
- *
- * Ignores [ReportComputation.getCmmsMeasurementId] and
- * [ReportComputation.getExternalImpressionQualificationFilterId], which
- * [impressionQualificationFilterId] stands for.
+ * Buffers an insert mutation for the ReportComputations table, keyed by
+ * [impressionQualificationFilterId] rather than the external ID in [reportComputation].
  */
 fun AsyncDatabaseClient.TransactionContext.insertReportComputation(
   measurementConsumerId: Long,
@@ -122,37 +121,29 @@ fun AsyncDatabaseClient.TransactionContext.setReportComputationMeasurementId(
   }
 }
 
-/**
- * A [ReportComputation] read from the database, with
- * [ReportComputation.getExternalImpressionQualificationFilterId] unset.
- *
- * @property impressionQualificationFilterId internal ID of its impression qualification filter
- */
-data class ReportComputationResult(
-  val impressionQualificationFilterId: Long,
-  val reportComputation: ReportComputation,
-)
-
-private fun buildReportComputationResult(
+private fun buildReportComputation(
   basicReportResult: BasicReportResult,
+  impressionQualificationFilterMapping: ImpressionQualificationFilterMapping,
   row: Struct,
-): ReportComputationResult {
-  return ReportComputationResult(
-    row.getLong("ImpressionQualificationFilterId"),
-    reportComputation {
-      cmmsMeasurementConsumerId = basicReportResult.basicReport.cmmsMeasurementConsumerId
-      externalBasicReportId = basicReportResult.basicReport.externalBasicReportId
-      cmmsCreateMeasurementRequestId = row.getString("CmmsCreateMeasurementRequestId")
-      if (!row.isNull("CmmsMeasurementId")) {
-        cmmsMeasurementId = row.getString("CmmsMeasurementId")
+): ReportComputation {
+  return reportComputation {
+    cmmsMeasurementConsumerId = basicReportResult.basicReport.cmmsMeasurementConsumerId
+    externalBasicReportId = basicReportResult.basicReport.externalBasicReportId
+    externalImpressionQualificationFilterId =
+      ReportingSetResults.getExternalImpressionQualificationFilterId(
+        impressionQualificationFilterMapping,
+        row.getLong("ImpressionQualificationFilterId"),
+      )
+    cmmsCreateMeasurementRequestId = row.getString("CmmsCreateMeasurementRequestId")
+    if (!row.isNull("CmmsMeasurementId")) {
+      cmmsMeasurementId = row.getString("CmmsMeasurementId")
+    }
+    multimeasurement = row.getBytesAsByteString("Multimeasurement")
+    mappings +=
+      row.getBytesList("ResultGroupQueryMappings").map {
+        ResultGroupQueryMapping.parseFrom(it.toByteArray())
       }
-      multimeasurement = row.getBytesAsByteString("Multimeasurement")
-      mappings +=
-        row.getBytesList("ResultGroupQueryMappings").map {
-          ResultGroupQueryMapping.parseFrom(it.toByteArray())
-        }
-    },
-  )
+  }
 }
 
 private object ReportComputationsInternal {

@@ -32,10 +32,7 @@ kt_jvm_grpc_proto_library(
 
 proto_and_kt_jvm_proto_library(
     name = "report_computation",
-    deps = [
-        "@com_google_googleapis//google/type:date_proto",
-        "@com_google_protobuf//:empty_proto",
-    ],
+    deps = ["@com_google_googleapis//google/type:date_proto"],
 )
 
 proto_and_kt_jvm_proto_library(
