@@ -1278,6 +1278,8 @@ class MeasurementsServiceTest {
   @Test
   fun `createMeasurement throws INVALID_ARGUMENT when multimeasurement repeats a DataProvider`() {
     stubTrusTeeV2CapableDataProviders()
+    val firstDataProvider: String =
+      MULTIMEASUREMENT.multimeasurement.dataProviderVectorsList[0].dataProvider
     val request = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement =
@@ -1285,7 +1287,7 @@ class MeasurementsServiceTest {
           multimeasurement =
             multimeasurement.copy {
               dataProviderVectors[1] =
-                dataProviderVectors[1].copy { dataProvider = dataProviderVectors[0].dataProvider }
+                dataProviderVectors[1].copy { dataProvider = firstDataProvider }
             }
         }
     }
