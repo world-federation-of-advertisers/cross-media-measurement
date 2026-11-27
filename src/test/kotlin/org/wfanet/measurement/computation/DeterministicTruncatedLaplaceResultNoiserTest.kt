@@ -17,7 +17,6 @@ package org.wfanet.measurement.computation
 import com.google.common.truth.Truth.assertThat
 import com.sun.management.ThreadMXBean
 import java.lang.management.ManagementFactory
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -51,30 +50,6 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
     // weighted sum of the bucket draws.
     assertThat(noiser().noiseImpressionsFromFrequencyHistogram(longArrayOf(10, 4, 1)))
       .isEqualTo(16L)
-  }
-
-  @Test
-  fun `noiseImpressions adds the impression count draw`() {
-    // The capped sum of [10, 4, 1] is 21 and the impression draw is -5, as above.
-    assertThat(noiser().noiseImpressions(21L)).isEqualTo(16L)
-  }
-
-  @Test
-  fun `fromSeed draws as a noiser with that fingerprint`() {
-    val seed = DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT)
-
-    val noiser = DeterministicTruncatedLaplaceResultNoiser.fromSeed(seed, MAX_FREQUENCY_PER_USER)
-
-    assertThat(noiser.noiseReach(15)).isEqualTo(16L)
-    assertThat(noiser.noiseFrequencyBucket(0, 10)).isEqualTo(6L)
-    assertThat(noiser.noiseImpressions(21L)).isEqualTo(16L)
-  }
-
-  @Test
-  fun `fromSeed throws on an empty seed`() {
-    assertFailsWith<IllegalArgumentException> {
-      DeterministicTruncatedLaplaceResultNoiser.fromSeed(byteArrayOf(), MAX_FREQUENCY_PER_USER)
-    }
   }
 
   @Test

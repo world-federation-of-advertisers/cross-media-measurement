@@ -92,9 +92,6 @@ kt_jvm_library(
 kt_jvm_library(
     name = "result_minimum_thresholds",
     srcs = ["ResultMinimumThresholds.kt"],
-    visibility = _DEFAULT_VISIBILITY + [
-        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/trustee:__pkg__",
-    ],
     deps = [
         ":computation_params",
     ],
