@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.common.VidHashing
+import org.wfanet.measurement.computation.VidHashing
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntryKt.value
 import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
