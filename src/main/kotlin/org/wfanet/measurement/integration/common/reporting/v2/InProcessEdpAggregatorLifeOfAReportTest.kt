@@ -45,6 +45,7 @@ import kotlin.math.ceil
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.ClassRule
@@ -66,6 +67,7 @@ import org.wfanet.measurement.access.v1alpha.createRoleRequest
 import org.wfanet.measurement.access.v1alpha.policy
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.access.v1alpha.role
+import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProviderKt
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroup as CmmsEventGroup
@@ -277,6 +279,18 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           InProcessCmmsComponents.DEFAULT_MODEL_LINE_POPULATION_SPEC
         },
     )
+
+  /**
+   * Capabilities of every DataProvider. The Kingdom reads TrusTEE v2 support only for
+   * multimeasurements, so it follows TrusTEE support.
+   */
+  private val dataProviderCapabilities: DataProvider.Capabilities =
+    DataProviderKt.capabilities {
+      honestMajorityShareShuffleSupported = hmssEnabled
+      trusTeeSupported = trusTeeEnabled
+      trusTeeV2Supported = trusTeeEnabled
+      noiseMechanismDeterministicTruncatedLaplaceSupported = deterministicTruncatedLaplaceSupported
+    }
 
   @JvmField
   @get:Rule
@@ -508,40 +522,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           kingdomChannel,
           measurementConsumerData,
           edpDisplayNameToResourceMap,
-          mapOf(
-            "edp1" to
-              DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = hmssEnabled
-                trusTeeSupported = trusTeeEnabled
-                trusTeeV2Supported = trusTeeEnabled && multimeasurementEnabled
-                noiseMechanismDeterministicTruncatedLaplaceSupported =
-                  deterministicTruncatedLaplaceSupported
-              },
-            "edp2" to
-              DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = hmssEnabled
-                trusTeeSupported = trusTeeEnabled
-                trusTeeV2Supported = trusTeeEnabled && multimeasurementEnabled
-                noiseMechanismDeterministicTruncatedLaplaceSupported =
-                  deterministicTruncatedLaplaceSupported
-              },
-            "edp3" to
-              DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = hmssEnabled
-                trusTeeSupported = trusTeeEnabled
-                trusTeeV2Supported = trusTeeEnabled && multimeasurementEnabled
-                noiseMechanismDeterministicTruncatedLaplaceSupported =
-                  deterministicTruncatedLaplaceSupported
-              },
-            "edp4" to
-              DataProviderKt.capabilities {
-                honestMajorityShareShuffleSupported = hmssEnabled
-                trusTeeSupported = trusTeeEnabled
-                trusTeeV2Supported = trusTeeEnabled && multimeasurementEnabled
-                noiseMechanismDeterministicTruncatedLaplaceSupported =
-                  deterministicTruncatedLaplaceSupported
-              },
-          ),
+          listOf("edp1", "edp2", "edp3", "edp4").associateWith { dataProviderCapabilities },
           duchyMap,
           edpNoise =
             mapOf(
@@ -1433,22 +1414,30 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         reportingServer.internalReportResultsClient,
         publicMeasurementsClient,
       )
-    while (true) {
-      job.execute()
-      val state =
-        reportingServer.internalBasicReportsClient
-          .getBasicReport(
-            internalGetBasicReportRequest {
-              cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
-              externalBasicReportId = basicReportKey.basicReportId
-            }
-          )
-          .state
-      if (state != InternalBasicReport.State.MEASUREMENTS_CREATED) {
-        return state
+    var state: InternalBasicReport.State = InternalBasicReport.State.MEASUREMENTS_CREATED
+    val finished: Boolean? =
+      withTimeoutOrNull(MULTIMEASUREMENT_RESULTS_TIMEOUT.toMillis()) {
+        while (state == InternalBasicReport.State.MEASUREMENTS_CREATED) {
+          job.execute()
+          state =
+            reportingServer.internalBasicReportsClient
+              .getBasicReport(
+                internalGetBasicReportRequest {
+                  cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+                  externalBasicReportId = basicReportKey.basicReportId
+                }
+              )
+              .state
+          if (state == InternalBasicReport.State.MEASUREMENTS_CREATED) {
+            delay(MULTIMEASUREMENT_RESULTS_POLLING_INTERVAL.toMillis())
+          }
+        }
+        true
       }
-      delay(1000)
+    checkNotNull(finished) {
+      "BasicReport $basicReportName still in state $state after $MULTIMEASUREMENT_RESULTS_TIMEOUT"
     }
+    return state
   }
 
   private fun measurementConsumerConfigs(): MeasurementConsumerConfigs =
@@ -1640,6 +1629,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
      * tests are never treated as stuck.
      */
     private val MAX_CREATED_BASIC_REPORT_AGE: Duration = Duration.ofHours(1)
+    private val MULTIMEASUREMENT_RESULTS_POLLING_INTERVAL: Duration = Duration.ofSeconds(1)
+    private val MULTIMEASUREMENT_RESULTS_TIMEOUT: Duration = Duration.ofMinutes(10)
 
     // edp1 has no entity_key/entity_metadata override (legacy path).
     // edp4 is configured with multi-party noise CONTINUOUS_GAUSSIAN, so it's the "restricted"

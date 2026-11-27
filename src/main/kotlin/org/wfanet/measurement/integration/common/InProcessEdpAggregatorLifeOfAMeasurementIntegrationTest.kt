@@ -379,6 +379,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       )
     private const val MULTI_CREATIVE_A_ID = "creative-a"
     private const val MULTI_CREATIVE_B_ID = "creative-b"
+
+    /** EventGroup of edp2, a TrusTEE v2 DataProvider, generated from `syntheticEventGroupSpec2`. */
+    internal const val TRUSTEE_V2_SPEC_2_EVENT_GROUP_REF_ID =
+      "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_B_ID"
     private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
 
     /** EventGroups whose EDPs cannot satisfy a single-party HMSS measurement's noise contract. */
