@@ -145,10 +145,9 @@ class MultimeasurementCompiler(
         )
       val builder = ComputationBuilder(clock, periods)
       for ((specIndex, specPlan) in specPlans.withIndex()) {
-        builder.addSpec(specIndex, specPlan, iqfFilter)
+        builder.addSpec(specIndex, specPlan, iqf.externalImpressionQualificationFilterId, iqfFilter)
       }
       reportComputation {
-        externalImpressionQualificationFilterId = iqf.externalImpressionQualificationFilterId
         mappings += builder.mappings
         multimeasurement = builder.buildMultimeasurement().toByteString()
       }
@@ -283,7 +282,16 @@ class MultimeasurementCompiler(
     private val queryIndexesByCells = mutableMapOf<Query, Int>()
     val mappings = mutableListOf<ResultGroupQueryMapping>()
 
-    fun addSpec(specIndex: Int, plan: SpecPlan, iqfFilter: String) {
+    /**
+     * Adds the queries of the `ResultGroupSpec` at [specIndex] under the impression qualification
+     * filter with [externalImpressionQualificationFilterId], whose CEL form is [iqfFilter].
+     */
+    fun addSpec(
+      specIndex: Int,
+      plan: SpecPlan,
+      externalImpressionQualificationFilterId: String,
+      iqfFilter: String,
+    ) {
       val filter: String = buildCelExpressions(listOf(iqfFilter), plan.dimensionFilter).single()
       val metricSpec: ResultGroupMetricSpec = plan.spec.resultGroupMetricSpec
       val componentIndexes: List<Int> = plan.components.indices.toList()
@@ -291,7 +299,15 @@ class MultimeasurementCompiler(
       fun addWindows(windows: List<Window>, slots: List<Slot>, maxFrequency: Int) {
         for (window in windows) {
           for (slot in slots) {
-            addQuery(specIndex, plan, filter, window, slot, maxFrequency)
+            addQuery(
+              specIndex,
+              plan,
+              externalImpressionQualificationFilterId,
+              filter,
+              window,
+              slot,
+              maxFrequency,
+            )
           }
         }
       }
@@ -335,6 +351,7 @@ class MultimeasurementCompiler(
     private fun addQuery(
       specIndex: Int,
       plan: SpecPlan,
+      externalImpressionQualificationFilterId: String,
       filter: String,
       window: Window,
       slot: Slot,
@@ -387,6 +404,7 @@ class MultimeasurementCompiler(
         windowStart = window.start.toProtoDate()
         windowEnd = window.end.toProtoDate()
         cumulative = window.cumulative
+        this.externalImpressionQualificationFilterId = externalImpressionQualificationFilterId
         when (slot) {
           is Slot.ReportingUnit ->
             reportingUnit =
