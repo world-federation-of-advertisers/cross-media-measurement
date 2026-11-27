@@ -157,6 +157,61 @@ java_test(
 )
 
 kt_jvm_library(
+    name = "trus_tee_v2_mill_test",
+    srcs = ["TrusTeeV2MillTest.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy:computation_stage",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill:mill_base",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:trus_tee_requisition_decryptor",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:multimeasurement_evaluator",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:trus_tee_v2_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:computation_store",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/storage:requisition_store",
+        "//src/main/kotlin/org/wfanet/measurement/system/v1alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_stats_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computation_token_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:computations_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:query_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:requisition_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_v2_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_log_entries_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_participant_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computation_participants_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/system/v1alpha:computations_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:security_provider",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_key_storage",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/identity",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
+    ],
+)
+
+java_test(
+    name = "TrusTeeV2MillTest",
+    test_class = "org.wfanet.measurement.duchy.mill.trustee.v2.TrusTeeV2MillTest",
+    runtime_deps = [":trus_tee_v2_mill_test"],
+)
+
+kt_jvm_library(
     name = "hash_rank_order_cache_test",
     srcs = ["HashRankOrderCacheTest.kt"],
     deps = [
