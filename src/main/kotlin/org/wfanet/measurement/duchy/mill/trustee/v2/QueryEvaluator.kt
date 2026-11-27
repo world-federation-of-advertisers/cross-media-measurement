@@ -100,6 +100,16 @@ private constructor(
     failedDataProviders: Map<CellKey, Set<String>>?,
   ) {
     private val summands: IntArray = query.summands.toIndexes()
+    /** The `DataProvider`s with a vector among [summands], in order of first appearance. */
+    private val summandDataProviders: List<String> = summands.map { dataProviders[it] }.distinct()
+    /** For each summand, the index of its `DataProvider` in [summandDataProviders]. */
+    private val summandDataProviderIndexes: IntArray =
+      IntArray(summands.size) { summandDataProviders.indexOf(dataProviders[summands[it]]) }
+    /** For each of [summandDataProviders], the indexes into [summands] of its vectors. */
+    private val summandsOfDataProvider: Array<IntArray> =
+      Array(summandDataProviders.size) { dataProvider ->
+        summands.indices.filter { summandDataProviderIndexes[it] == dataProvider }.toIntArray()
+      }
     private val reachClauses: List<CompiledReachClause> =
       query.vidFilter.reachClausesList.map { CompiledReachClause(it) }
     private val maxFrequency: Int = query.maxFrequency
@@ -119,11 +129,16 @@ private constructor(
     /** Scratch buffer for folding a position and its summand counts into a fingerprint. */
     private val fingerprintBuffer: ByteBuffer =
       ByteBuffer.allocate(Int.SIZE_BYTES * (1 + summands.size))
+    /** The count of each summand at the position being added, read once per position. */
+    private val summandCounts = IntArray(summands.size)
+    /** The position at which each summand `DataProvider` was last counted toward its slice. */
+    private val slicePositions = IntArray(summandDataProviders.size) { -1 }
 
     val cellKeys: List<CellKey>
       get() = groups.map { CellKey(query.id, it) }
 
     init {
+      require(summands.isNotEmpty()) { "Query ${query.id} has no summands" }
       require(maxFrequency >= 1) { "Query ${query.id} has max_frequency $maxFrequency" }
       require(impressionCap == null || impressionCap >= 1) {
         "Invalid impression cap $impressionCap"
@@ -167,7 +182,7 @@ private constructor(
             failedDataProviders?.get(CellKey(query.id, groups[group])) ?: emptySet()
           if (failed.isEmpty()) null else BooleanArray(vectorCount) { dataProviders[it] in failed }
         }
-      accumulators = Array(groups.size) { CellAccumulator(maxFrequency) }
+      accumulators = Array(groups.size) { CellAccumulator(maxFrequency, summandDataProviders.size) }
     }
 
     fun add(counts: List<IntArray>, offset: Int, position: Int, subpopulation: Int) {
@@ -179,8 +194,10 @@ private constructor(
         return
       }
       var frequency = 0L
-      for (vector in summands) {
-        frequency += countAt(counts, vector, offset, zeroed)
+      for (index in summands.indices) {
+        val count: Int = countAt(counts, summands[index], offset, zeroed)
+        summandCounts[index] = count
+        frequency += count
       }
       if (frequency == 0L) return
       val accumulator = accumulators[group]
@@ -188,21 +205,30 @@ private constructor(
 
       fingerprintBuffer.clear()
       fingerprintBuffer.putInt(position)
-      for (vector in summands) {
-        fingerprintBuffer.putInt(countAt(counts, vector, offset, zeroed))
+      for (count in summandCounts) {
+        fingerprintBuffer.putInt(count)
       }
       accumulator.fingerprint.update(fingerprintBuffer.array(), 0, fingerprintBuffer.position())
 
       // A VID counts once toward each DataProvider's slice, however many of that DataProvider's
-      // vectors reached it.
-      val reachedDataProviders = mutableSetOf<String>()
-      for (vector in summands) {
-        if (countAt(counts, vector, offset, zeroed) > 0) {
-          reachedDataProviders.add(dataProviders[vector])
+      // vectors reached it. The slice's own fingerprint covers only that DataProvider's counts, so
+      // that one DataProvider's vectors do not change another's slice test.
+      for (index in summands.indices) {
+        if (summandCounts[index] == 0) continue
+        val dataProvider: Int = summandDataProviderIndexes[index]
+        if (slicePositions[dataProvider] == position) continue
+        slicePositions[dataProvider] = position
+        accumulator.sliceReach[dataProvider]++
+        fingerprintBuffer.clear()
+        fingerprintBuffer.putInt(position)
+        for (summandIndex in summandsOfDataProvider[dataProvider]) {
+          fingerprintBuffer.putInt(summandCounts[summandIndex])
         }
-      }
-      for (dataProvider in reachedDataProviders) {
-        accumulator.addSliceReach(dataProvider)
+        accumulator.sliceFingerprints[dataProvider].update(
+          fingerprintBuffer.array(),
+          0,
+          fingerprintBuffer.position(),
+        )
       }
     }
 
@@ -218,9 +244,16 @@ private constructor(
             frequencyHistogram = accumulator.histogram.copyOf(),
             impressions = accumulator.impressions,
             populationSize = populationSizes[group],
-            sliceReach = accumulator.sliceReach.toMap(),
-            summandDataProviders = summands.map { dataProviders[it] }.toSet(),
-            fingerprint = accumulator.fingerprintDigest(),
+            sliceReach =
+              summandDataProviders.indices
+                .filter { accumulator.sliceReach[it] > 0L }
+                .associate { summandDataProviders[it] to accumulator.sliceReach[it] },
+            summandDataProviders = summandDataProviders.toSet(),
+            fingerprint = digestOf(accumulator.fingerprint),
+            sliceFingerprints =
+              summandDataProviders.indices.associate {
+                summandDataProviders[it] to digestOf(accumulator.sliceFingerprints[it])
+              },
           )
         }
   }
@@ -253,16 +286,24 @@ private constructor(
   }
 
   /** Per-cell running totals. */
-  private class CellAccumulator(maxFrequency: Int) {
+  private class CellAccumulator(maxFrequency: Int, dataProviderCount: Int) {
     /** Bin `k - 1` counts VIDs with frequency `k`; the last bin also counts higher frequencies. */
     val histogram = LongArray(maxFrequency)
     var impressions = 0L
       private set
 
-    val sliceReach = mutableMapOf<String, Long>()
+    /** The slice reach of each summand `DataProvider`, by its index. */
+    val sliceReach = LongArray(dataProviderCount)
 
     /** Running SHA-256 over each reached VID's position and summand counts, in position order. */
     val fingerprint: MessageDigest = MessageDigest.getInstance(FINGERPRINT_ALGORITHM)
+
+    /**
+     * Running SHA-256 of each summand `DataProvider`'s slice, by its index, over the position and
+     * that `DataProvider`'s summand counts of each VID in the slice, in position order.
+     */
+    val sliceFingerprints: Array<MessageDigest> =
+      Array(dataProviderCount) { MessageDigest.getInstance(FINGERPRINT_ALGORITHM) }
 
     /** Adds a VID reached [frequency] times, contributing at most [impressionCap] impressions. */
     fun addFrequency(frequency: Long, impressionCap: Int?) {
@@ -270,13 +311,6 @@ private constructor(
       impressions +=
         if (impressionCap == null) frequency else minOf(frequency, impressionCap.toLong())
     }
-
-    fun addSliceReach(dataProvider: String) {
-      sliceReach[dataProvider] = (sliceReach[dataProvider] ?: 0L) + 1L
-    }
-
-    /** Returns the fingerprint so far, leaving the running digest unchanged. */
-    fun fingerprintDigest(): ByteArray = (fingerprint.clone() as MessageDigest).digest()
   }
 
   /**
@@ -310,6 +344,9 @@ private constructor(
    *   whose slices the suppression test covers
    * @property fingerprint SHA-256 over each reached VID's position and summand counts, in position
    *   order, which seeds the cell's noise
+   * @property sliceFingerprints for each of [summandDataProviders], SHA-256 over the position and
+   *   that `DataProvider`'s summand counts of each VID in its slice, in position order, which seeds
+   *   the noise of its slice test
    */
   class Cell(
     val queryId: String,
@@ -321,6 +358,7 @@ private constructor(
     val sliceReach: Map<String, Long>,
     val summandDataProviders: Set<String>,
     val fingerprint: ByteArray,
+    val sliceFingerprints: Map<String, ByteArray>,
   ) {
     val reach: Long
       get() = frequencyHistogram.sum()
@@ -331,6 +369,10 @@ private constructor(
 
   companion object {
     private const val FINGERPRINT_ALGORITHM = "SHA-256"
+
+    /** Returns the digest of [running] so far, leaving it unchanged. */
+    private fun digestOf(running: MessageDigest): ByteArray =
+      (running.clone() as MessageDigest).digest()
 
     /**
      * Creates an evaluator for the corrective pass, which evaluates only the cells in

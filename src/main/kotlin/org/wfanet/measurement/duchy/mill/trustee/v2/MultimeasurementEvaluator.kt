@@ -19,6 +19,7 @@ package org.wfanet.measurement.duchy.mill.trustee.v2
 import org.wfanet.measurement.api.v2alpha.Measurement.Result.MultimeasurementResult
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.multimeasurementResult
+import org.wfanet.measurement.api.v2alpha.TrusTeeV2Methodology
 import org.wfanet.measurement.internal.duchy.Query
 
 /**
@@ -51,6 +52,18 @@ class MultimeasurementEvaluator(
     CellReleaser(privacyParams.resultMinimumThresholds, noise, vidSamplingIntervalWidth)
 
   /**
+   * A replayable source of the base vectors, read once per evaluation pass, so that the vectors
+   * need not be held whole.
+   */
+  fun interface VectorSource {
+    /**
+     * Returns the vectors in aligned chunks in position order, each holding one array per base
+     * vector, indexed by vector index.
+     */
+    fun chunks(): Sequence<QueryEvaluator.VectorChunk>
+  }
+
+  /**
    * Evaluates the queries over [vectors], the base vectors indexed by vector index, each holding
    * one unsigned count per position.
    *
@@ -63,10 +76,18 @@ class MultimeasurementEvaluator(
     }
     val vectorSize: Int = vectors.firstOrNull()?.size ?: 0
     require(vectors.all { it.size == vectorSize }) { "Base vectors must have the same length" }
+    return evaluate { inMemoryChunks(vectors, vectorSize) }
+  }
 
+  /**
+   * Evaluates the queries over the base vectors of [vectors].
+   *
+   * @throws IllegalArgumentException if a chunk does not hold one aligned array per base vector
+   */
+  fun evaluate(vectors: VectorSource): MultimeasurementResult {
     val firstPass =
       QueryEvaluator(queries, dataProviders, subpopulations, privacyParams.impressionCap)
-    addAll(firstPass, vectors, vectorSize)
+    addAll(firstPass, vectors)
     val firstPassCells: List<QueryEvaluator.Cell> = firstPass.cells()
 
     val verdicts: Map<QueryEvaluator.CellKey, SliceSuppression.Verdict> =
@@ -88,7 +109,7 @@ class MultimeasurementEvaluator(
             corrections,
             privacyParams.impressionCap,
           )
-        addAll(correctivePass, vectors, vectorSize)
+        addAll(correctivePass, vectors)
         correctivePass.cells().associateBy { it.key }
       }
 
@@ -112,22 +133,30 @@ class MultimeasurementEvaluator(
             reachNoiseMechanism = noise.publicNoiseMechanism
             frequencyNoiseMechanism = noise.publicNoiseMechanism
             impressionNoiseMechanism = noise.publicNoiseMechanism
-            // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Report the
-            //  TrusTEE v2 methodology once the public API pinned here has it.
+            trusTeeV2 = TrusTeeV2Methodology.getDefaultInstance()
           }
       }
     }
   }
 
-  /** Adds [vectors] to [evaluator] in aligned chunks of at most [CHUNK_SIZE] positions. */
-  private fun addAll(evaluator: QueryEvaluator, vectors: List<ByteArray>, vectorSize: Int) {
-    for (start in 0 until vectorSize step CHUNK_SIZE) {
-      val length = minOf(CHUNK_SIZE, vectorSize - start)
-      val counts: List<IntArray> =
-        vectors.map { vector -> IntArray(length) { vector[start + it].toInt() and 0xFF } }
-      evaluator.add(QueryEvaluator.VectorChunk(start, counts))
+  private fun addAll(evaluator: QueryEvaluator, vectors: VectorSource) {
+    for (chunk in vectors.chunks()) {
+      evaluator.add(chunk)
     }
   }
+
+  /** Returns [vectors] in aligned chunks of at most [CHUNK_SIZE] positions. */
+  private fun inMemoryChunks(
+    vectors: List<ByteArray>,
+    vectorSize: Int,
+  ): Sequence<QueryEvaluator.VectorChunk> =
+    (0 until vectorSize step CHUNK_SIZE).asSequence().map { start ->
+      val length = minOf(CHUNK_SIZE, vectorSize - start)
+      QueryEvaluator.VectorChunk(
+        start,
+        vectors.map { vector -> IntArray(length) { vector[start + it].toInt() and 0xFF } },
+      )
+    }
 
   companion object {
     /** Number of positions converted and evaluated at a time. */
