@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
@@ -41,7 +42,12 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt.queryResult
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.multimeasurementResult
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.result as measurementResult
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.HexString
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -59,6 +65,11 @@ import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasuremen
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as InternalMeasurementsCoroutineService
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub as InternalMeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt
+import org.wfanet.measurement.internal.kingdom.PopulationDetailsKt.PopulationSpecKt as InternalPopulationSpecKt
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineImplBase as InternalPopulationsCoroutineService
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub as InternalPopulationsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig.NoiseMechanism as InternalNoiseMechanism
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt.TrusTeeKt.resultMinimumThresholds as internalTrusTeeResultMinimumThresholds
@@ -74,11 +85,17 @@ import org.wfanet.measurement.internal.kingdom.copy
 import org.wfanet.measurement.internal.kingdom.differentialPrivacyParams as internalDifferentialPrivacyParams
 import org.wfanet.measurement.internal.kingdom.duchyProtocolConfig
 import org.wfanet.measurement.internal.kingdom.getMeasurementByComputationIdRequest
+import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.liquidLegionsSketchParams
 import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails
+import org.wfanet.measurement.internal.kingdom.population as internalPopulation
+import org.wfanet.measurement.internal.kingdom.populationDetails
+import org.wfanet.measurement.internal.kingdom.populationKey
 import org.wfanet.measurement.internal.kingdom.protocolConfig
+import org.wfanet.measurement.internal.kingdom.requisitionDetails
+import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.Computation.MpcProtocolConfig.NoiseMechanism
@@ -92,6 +109,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.RequisitionParamsKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt.requisitionParams
 import org.wfanet.measurement.system.v1alpha.GetComputationRequest
+import org.wfanet.measurement.system.v1alpha.PopulationSpecKt
 import org.wfanet.measurement.system.v1alpha.Requisition
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
@@ -100,8 +118,11 @@ import org.wfanet.measurement.system.v1alpha.computation
 import org.wfanet.measurement.system.v1alpha.computationParticipant
 import org.wfanet.measurement.system.v1alpha.differentialPrivacyParams
 import org.wfanet.measurement.system.v1alpha.getComputationRequest
+import org.wfanet.measurement.system.v1alpha.populationSpec
+import org.wfanet.measurement.system.v1alpha.query
 import org.wfanet.measurement.system.v1alpha.requisition
 import org.wfanet.measurement.system.v1alpha.stageAttempt
+import org.wfanet.measurement.system.v1alpha.vectorSet
 
 private const val DUCHY_ID: String = "some-duchy-id"
 private const val MILL_ID: String = "some-mill-id"
@@ -145,6 +166,16 @@ private val DUCHY_ELGAMAL_KEY = ByteString.copyFromUtf8("an elgamal key.")
 private val DUCHY_ELGAMAL_KEY_SIGNATURE = ByteString.copyFromUtf8("an elgamal key signature.")
 private val RESULT_PUBLIC_KEY = ByteString.copyFromUtf8("result public key.")
 private val ENCRYPTED_RESULT = ByteString.copyFromUtf8("encrypted result.")
+private val MULTIMEASUREMENT_RESULT =
+  measurementResult {
+      multimeasurementResult = multimeasurementResult {
+        queryResults += queryResult {
+          queryId = "query-1"
+          maxFrequency = 5
+        }
+      }
+    }
+    .toByteString()
 
 private val INTERNAL_REQUISITION =
   InternalRequisition.newBuilder()
@@ -326,6 +357,80 @@ private val INTERNAL_TRUS_TEE_MEASUREMENT =
     computationParticipants += INTERNAL_TRUS_TEE_COMPUTATION_PARTICIPANT
   }
 
+private val PLAINTEXT_REQUISITION_SPEC = ByteString.copyFromUtf8("a requisition spec.")
+/** SHA-256 hash of [PLAINTEXT_REQUISITION_SPEC]. */
+private val PLAINTEXT_REQUISITION_SPEC_HASH =
+  HexString("DE322EE0628C8057AA18E36E4393ADF24A1190895BE2B2B0C8B8B28D5B383D82")
+private val QUERY = query {
+  id = "a query"
+  summands = vectorSet { baseVectors += 1 }
+  maxFrequency = 10
+}
+
+private const val EXTERNAL_MODEL_PROVIDER_ID = 8L
+private const val EXTERNAL_MODEL_SUITE_ID = 9L
+private const val EXTERNAL_MODEL_LINE_ID = 10L
+private const val EXTERNAL_POPULATION_ID = 12L
+private val MODEL_LINE_NAME =
+  "modelProviders/${externalIdToApiId(EXTERNAL_MODEL_PROVIDER_ID)}/" +
+    "modelSuites/${externalIdToApiId(EXTERNAL_MODEL_SUITE_ID)}/" +
+    "modelLines/${externalIdToApiId(EXTERNAL_MODEL_LINE_ID)}"
+private val MULTIMEASUREMENT_SPEC: ByteString =
+  measurementSpec { modelLine = MODEL_LINE_NAME }.toByteString()
+
+private val POPULATION_ATTRIBUTE: ProtoAny = ProtoAny.pack(timestamp { seconds = 42 })
+private val INTERNAL_POPULATION = internalPopulation {
+  externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+  externalPopulationId = EXTERNAL_POPULATION_ID
+  details = populationDetails {
+    populationSpec =
+      PopulationDetailsKt.populationSpec {
+        subpopulations +=
+          InternalPopulationSpecKt.subPopulation {
+            vidRanges +=
+              InternalPopulationSpecKt.vidRange {
+                startVid = 1L
+                endVidInclusive = 100L
+              }
+            attributes += POPULATION_ATTRIBUTE
+          }
+      }
+  }
+}
+private val SYSTEM_POPULATION_SPEC = populationSpec {
+  subpopulations +=
+    PopulationSpecKt.subPopulation {
+      attributes += POPULATION_ATTRIBUTE
+      vidRanges +=
+        PopulationSpecKt.vidRange {
+          startVid = 1L
+          endVidInclusive = 100L
+        }
+    }
+}
+
+private val INTERNAL_TRUS_TEE_V2_MEASUREMENT =
+  INTERNAL_TRUS_TEE_MEASUREMENT.copy {
+    details =
+      details.copy {
+        measurementSpec = MULTIMEASUREMENT_SPEC
+        protocolConfig = protocolConfig {
+          trusTeeV2 = ProtocolConfig.TrusTeeV2.getDefaultInstance()
+        }
+        queries += QUERY.toByteString()
+        population = populationKey {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID
+        }
+      }
+    requisitions.clear()
+    requisitions +=
+      INTERNAL_REQUISITION.copy {
+        details = requisitionDetails { requisitionSpec = PLAINTEXT_REQUISITION_SPEC }
+        vectorIndex = 1
+      }
+  }
+
 @RunWith(JUnit4::class)
 class ComputationsServiceTest {
   @get:Rule val duchyIdSetter = DuchyIdSetter(DUCHY_ID)
@@ -333,13 +438,20 @@ class ComputationsServiceTest {
   private val duchyIdProvider = { DuchyIdentity(DUCHY_ID) }
 
   private val internalMeasurementsServiceMock: InternalMeasurementsCoroutineService = mockService()
+  private val internalPopulationsServiceMock: InternalPopulationsCoroutineService = mockService {
+    onBlocking { getPopulation(any()) }.thenReturn(INTERNAL_POPULATION)
+  }
 
   @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(internalMeasurementsServiceMock) }
+  val grpcTestServerRule = GrpcTestServerRule {
+    addService(internalMeasurementsServiceMock)
+    addService(internalPopulationsServiceMock)
+  }
 
   private val service =
     ComputationsService(
       InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
+      InternalPopulationsCoroutineStub(grpcTestServerRule.channel),
       duchyIdentityProvider = duchyIdProvider,
     )
   private lateinit var openTelemetry: OpenTelemetrySdk
@@ -628,6 +740,79 @@ class ComputationsServiceTest {
   }
 
   @Test
+  fun `getComputation returns multimeasurement queries and vector requisitions for TrusTEE v2`() =
+    runBlocking<Unit> {
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+      val request = getComputationRequest { name = SYSTEM_COMPUTATION_NAME }
+
+      val response = service.getComputation(request)
+
+      assertThat(response.mpcProtocolConfig.hasTrusTeeV2()).isTrue()
+      assertThat(response.multimeasurement.queriesList).containsExactly(QUERY)
+      assertThat(response.multimeasurement.populationSpec).isEqualTo(SYSTEM_POPULATION_SPEC)
+      assertThat(response.requisitionsList)
+        .containsExactly(
+          requisition {
+            name = SYSTEM_REQUISITION_NAME
+            state = Requisition.State.FULFILLED
+            requisitionSpecHash = PLAINTEXT_REQUISITION_SPEC_HASH.bytes
+            fulfillingComputationParticipant = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+            vectorIndex = 1
+          }
+        )
+    }
+
+  @Test
+  fun `getComputation reads the pinned TrusTEE v2 Population`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+    service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+
+    verifyProtoArgument(
+        internalPopulationsServiceMock,
+        InternalPopulationsCoroutineService::getPopulation,
+      )
+      .isEqualTo(
+        getPopulationRequest {
+          externalDataProviderId = EXTERNAL_DATA_PROVIDER_ID
+          externalPopulationId = EXTERNAL_POPULATION_ID
+        }
+      )
+  }
+
+  @Test
+  fun `getComputation reads each pinned TrusTEE v2 Population once`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+    service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+    val computation =
+      service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+
+    verify(internalPopulationsServiceMock, times(1)).getPopulation(any())
+    assertThat(computation.multimeasurement.populationSpec).isEqualTo(SYSTEM_POPULATION_SPEC)
+  }
+
+  @Test
+  fun `getComputation throws FAILED_PRECONDITION when TrusTEE v2 population is not found`() =
+    runBlocking {
+      whenever(internalPopulationsServiceMock.getPopulation(any()))
+        .thenThrow(Status.NOT_FOUND.asRuntimeException())
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.getComputation(getComputationRequest { name = SYSTEM_COMPUTATION_NAME })
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
   fun `stream active computations successfully`() = runBlocking {
     var calls = 0L
     fun nextMeasurement() =
@@ -706,6 +891,8 @@ class ComputationsServiceTest {
 
   @Test
   fun `set computation result successfully`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_MEASUREMENT)
     whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
       .thenReturn(INTERNAL_MEASUREMENT)
 
@@ -765,6 +952,8 @@ class ComputationsServiceTest {
 
   @Test
   fun `setComputationResult emits failed lifecycle span when internal RPC fails`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+      .thenReturn(INTERNAL_MEASUREMENT)
     whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
       .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
     val request =
@@ -787,4 +976,79 @@ class ComputationsServiceTest {
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("StatusRuntimeException")
   }
+
+  @Test
+  fun `setComputationResult sets plaintext result without certificate for TrusTEE v2`() =
+    runBlocking {
+      whenever(internalMeasurementsServiceMock.getMeasurementByComputationId(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+      whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
+        .thenReturn(INTERNAL_TRUS_TEE_V2_MEASUREMENT)
+      val request =
+        SetComputationResultRequest.newBuilder()
+          .apply {
+            name = SYSTEM_COMPUTATION_NAME
+            result = MULTIMEASUREMENT_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
+          }
+          .build()
+
+      service.setComputationResult(request)
+
+      verifyProtoArgument(
+          internalMeasurementsServiceMock,
+          InternalMeasurementsCoroutineService::setMeasurementResult,
+        )
+        .isEqualTo(
+          setMeasurementResultRequest {
+            externalComputationId = EXTERNAL_COMPUTATION_ID
+            externalAggregatorDuchyId = DUCHY_ID
+            result = MULTIMEASUREMENT_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
+          }
+        )
+    }
+
+  @Test
+  fun `setComputationResult throws INVALID_ARGUMENT when TrusTEE v2 sets encrypted_result`() =
+    runBlocking {
+      whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
+        .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
+      val request =
+        SetComputationResultRequest.newBuilder()
+          .apply {
+            name = SYSTEM_COMPUTATION_NAME
+            aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+            resultPublicKey = RESULT_PUBLIC_KEY
+            encryptedResult = ENCRYPTED_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
+          }
+          .build()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.setComputationResult(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `setComputationResult throws INVALID_ARGUMENT when non-TrusTEE v2 sets result`() =
+    runBlocking {
+      whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
+        .thenThrow(Status.INVALID_ARGUMENT.asRuntimeException())
+      val request =
+        SetComputationResultRequest.newBuilder()
+          .apply {
+            name = SYSTEM_COMPUTATION_NAME
+            aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+            result = MULTIMEASUREMENT_RESULT
+            publicApiVersion = PUBLIC_API_VERSION
+          }
+          .build()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { service.setComputationResult(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
 }

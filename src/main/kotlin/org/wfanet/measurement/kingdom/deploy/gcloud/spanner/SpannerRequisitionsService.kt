@@ -32,6 +32,7 @@ import org.wfanet.measurement.internal.kingdom.RequisitionRefusal
 import org.wfanet.measurement.internal.kingdom.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.StreamRequisitionsRequest
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
@@ -92,7 +93,6 @@ class SpannerRequisitionsService(
   override suspend fun fulfillRequisition(request: FulfillRequisitionRequest): Requisition {
     with(request) {
       grpcRequire(externalRequisitionId != 0L) { "external_requisition_id not specified" }
-      grpcRequire(nonce != 0L) { "nonce not specified" }
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (request.paramsCase) {
         FulfillRequisitionRequest.ParamsCase.COMPUTED_PARAMS -> {
@@ -133,6 +133,10 @@ class SpannerRequisitionsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Duchy not found.")
     } catch (e: RequisitionEtagMismatchException) {
       throw e.asStatusRuntimeException(Status.Code.ABORTED, "Requisition etags mismatch")
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }

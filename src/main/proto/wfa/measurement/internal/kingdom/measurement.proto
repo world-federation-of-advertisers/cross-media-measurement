@@ -131,8 +131,14 @@ message Measurement {
       string external_aggregator_duchy_id = 1;
       fixed64 external_data_provider_id = 2;
     }
+    // Not set when `result` is set.
     fixed64 external_certificate_id = 3;
     bytes encrypted_result = 4;
+
+    // Serialized `Result` message from the public API, neither signed nor
+    // encrypted. Set in place of `encrypted_result` for a TrusTEE v2
+    // multimeasurement.
+    bytes result = 6;
 
     // Version of the public API for serialized message definitions.
     string api_version = 5;
@@ -236,4 +242,9 @@ message Requisition {
 
   // Current etag. Output only.
   string etag = 13;
+
+  // Index of the base vector this `Requisition` fulfills, from the public API
+  // `Measurement.Multimeasurement.Vector.index`. Set only for a
+  // multimeasurement.
+  optional int32 vector_index = 14;
 }

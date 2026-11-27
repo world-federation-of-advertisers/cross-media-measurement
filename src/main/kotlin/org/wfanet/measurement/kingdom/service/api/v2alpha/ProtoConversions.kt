@@ -42,8 +42,10 @@ import org.wfanet.measurement.api.v2alpha.Measurement.State
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.DataProviderEntryKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.MultimeasurementKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.dataProviderEntry
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.failure
+import org.wfanet.measurement.api.v2alpha.MeasurementKt.multimeasurement
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.resultOutput
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -77,7 +79,9 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.liquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.protocol
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.reachOnlyLiquidLegionsV2
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.trusTee
+import org.wfanet.measurement.api.v2alpha.Query
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.dateInterval
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
@@ -142,6 +146,7 @@ import org.wfanet.measurement.internal.kingdom.exchangeWorkflow
 import org.wfanet.measurement.internal.kingdom.measurement as internalMeasurement
 import org.wfanet.measurement.internal.kingdom.measurementDetails as internalMeasurementDetails
 import org.wfanet.measurement.internal.kingdom.modelLine as internalModelLine
+import org.wfanet.measurement.internal.kingdom.modelLineKey as internalModelLineKey
 import org.wfanet.measurement.internal.kingdom.modelOutage as internalModelOutage
 import org.wfanet.measurement.internal.kingdom.modelRelease as internalModelRelease
 import org.wfanet.measurement.internal.kingdom.modelRollout as internalModelRollout
@@ -328,8 +333,7 @@ fun InternalProtocolConfig.toProtocolConfig(
         MeasurementSpec.MeasurementTypeCase.IMPRESSION -> ProtocolConfig.MeasurementType.IMPRESSION
         MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
         MeasurementSpec.MeasurementTypeCase.POPULATION -> ProtocolConfig.MeasurementType.POPULATION
-        MeasurementSpec.MeasurementTypeCase.MULTI ->
-          throw IllegalArgumentException("Multi measurements are not supported")
+        MeasurementSpec.MeasurementTypeCase.MULTI -> ProtocolConfig.MeasurementType.MULTI
       }
 
     when (measurementType) {
@@ -400,8 +404,10 @@ fun InternalProtocolConfig.toProtocolConfig(
             }
         }
       }
-      ProtocolConfig.MeasurementType.MULTI ->
-        throw IllegalArgumentException("Multi measurements are not supported")
+      ProtocolConfig.MeasurementType.MULTI -> {
+        require(source.hasTrusTeeV2()) { "Expected TrusTEE v2 for a multimeasurement" }
+        protocols += protocol { trusTeeV2 = ProtocolConfig.TrusTeeV2.getDefaultInstance() }
+      }
       ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED,
       ProtocolConfig.MeasurementType.UNRECOGNIZED -> error("Invalid MeasurementType")
     }
@@ -1012,30 +1018,52 @@ fun InternalMeasurement.toMeasurement(): Measurement {
           externalIdToApiId(source.externalMeasurementConsumerCertificateId),
         )
         .toName()
-    measurementSpec = signedMessage {
-      setMessage(
-        any {
-          value = source.details.measurementSpec
-          typeUrl =
-            when (apiVersion) {
-              Version.V2_ALPHA -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
-            }
+    if (source.details.protocolConfig.hasTrusTeeV2()) {
+      unsignedMeasurementSpec =
+        when (apiVersion) {
+          Version.V2_ALPHA -> MeasurementSpec.parseFrom(source.details.measurementSpec)
         }
-      )
-      signature = source.details.measurementSpecSignature
-      signatureAlgorithmOid = source.details.measurementSpecSignatureAlgorithmOid
+      multimeasurement = source.toMultimeasurement()
+      protocolConfig =
+        source.details.protocolConfig.toProtocolConfig(
+          unsignedMeasurementSpec.measurementTypeCase,
+          multimeasurement.dataProviderVectorsCount,
+        )
+    } else {
+      measurementSpec = signedMessage {
+        setMessage(
+          any {
+            value = source.details.measurementSpec
+            typeUrl =
+              when (apiVersion) {
+                Version.V2_ALPHA -> ProtoReflection.getTypeUrl(MeasurementSpec.getDescriptor())
+              }
+          }
+        )
+        signature = source.details.measurementSpecSignature
+        signatureAlgorithmOid = source.details.measurementSpecSignatureAlgorithmOid
+      }
+      dataProviders += source.dataProvidersMap.entries.map { it.toDataProviderEntry(apiVersion) }
+
+      val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
+
+      protocolConfig =
+        source.details.protocolConfig.toProtocolConfig(measurementTypeCase, dataProvidersCount)
     }
-    dataProviders += source.dataProvidersMap.entries.map { it.toDataProviderEntry(apiVersion) }
-
-    val measurementTypeCase = measurementSpec.unpack<MeasurementSpec>().measurementTypeCase
-
-    protocolConfig =
-      source.details.protocolConfig.toProtocolConfig(measurementTypeCase, dataProvidersCount)
 
     state = source.state.toState()
     results +=
       source.resultsList.map {
         val resultApiVersion = Version.fromString(it.apiVersion)
+        if (!it.result.isEmpty) {
+          // A multimeasurement `Result` is neither signed nor encrypted, so it has no certificate.
+          return@map resultOutput {
+            result =
+              when (resultApiVersion) {
+                Version.V2_ALPHA -> Measurement.Result.parseFrom(it.result)
+              }
+          }
+        }
         val certificateApiId = externalIdToApiId(it.externalCertificateId)
         resultOutput {
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case fields cannot be null.
@@ -1070,6 +1098,66 @@ fun InternalMeasurement.toMeasurement(): Measurement {
     }
     createTime = source.createTime
     updateTime = source.updateTime
+  }
+}
+
+/**
+ * Builds a public [Measurement.Multimeasurement] from the vectors and queries of this internal
+ * multimeasurement.
+ */
+private fun InternalMeasurement.toMultimeasurement(): Measurement.Multimeasurement {
+  val source = this
+  return multimeasurement {
+    val vectorsByDataProvider: Map<Long, List<InternalMeasurement.MultimeasurementVector>> =
+      source.multimeasurementVectorsList.groupBy { it.externalDataProviderId }
+    for ((externalDataProviderId, internalVectors) in vectorsByDataProvider) {
+      dataProviderVectors +=
+        MultimeasurementKt.dataProviderVectors {
+          dataProvider = DataProviderKey(externalIdToApiId(externalDataProviderId)).toName()
+          for (internalVector in internalVectors) {
+            vectors +=
+              MultimeasurementKt.vector {
+                index = internalVector.index
+                requisitionSpec = RequisitionSpec.parseFrom(internalVector.requisitionSpec)
+              }
+          }
+        }
+    }
+    queries += source.details.queriesList.map { Query.parseFrom(it) }
+  }
+}
+
+/**
+ * Converts a public multimeasurement [Measurement] to an internal [InternalMeasurement] for
+ * creation.
+ *
+ * @param modelLineKey the key of the `MeasurementSpec`'s model line
+ */
+fun Measurement.toInternalMultimeasurement(
+  measurementConsumerCertificateKey: MeasurementConsumerCertificateKey,
+  modelLineKey: ModelLineKey,
+  multimeasurementVectors: List<InternalMeasurement.MultimeasurementVector>,
+  internalProtocolConfig: InternalProtocolConfig,
+): InternalMeasurement {
+  val source = this
+  return internalMeasurement {
+    providedMeasurementId = source.measurementReferenceId
+    externalMeasurementConsumerId =
+      apiIdToExternalId(measurementConsumerCertificateKey.measurementConsumerId)
+    externalMeasurementConsumerCertificateId =
+      apiIdToExternalId(measurementConsumerCertificateKey.certificateId)
+    this.multimeasurementVectors += multimeasurementVectors
+    details = internalMeasurementDetails {
+      apiVersion = Version.V2_ALPHA.string
+      measurementSpec = source.unsignedMeasurementSpec.toByteString()
+      protocolConfig = internalProtocolConfig
+      queries += source.multimeasurement.queriesList.map { it.toByteString() }
+      modelLine = internalModelLineKey {
+        externalModelProviderId = apiIdToExternalId(modelLineKey.modelProviderId)
+        externalModelSuiteId = apiIdToExternalId(modelLineKey.modelSuiteId)
+        externalModelLineId = apiIdToExternalId(modelLineKey.modelLineId)
+      }
+    }
   }
 }
 

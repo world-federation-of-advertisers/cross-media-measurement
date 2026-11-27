@@ -14,10 +14,13 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import com.google.protobuf.InvalidProtocolBufferException
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.time.Duration
@@ -32,6 +35,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.Measurement.Result as MeasurementResult
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.grpcRequire
@@ -44,30 +48,47 @@ import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.Population
+import org.wfanet.measurement.internal.kingdom.PopulationKey
+import org.wfanet.measurement.internal.kingdom.PopulationsGrpcKt.PopulationsCoroutineStub
+import org.wfanet.measurement.internal.kingdom.SetMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamMeasurementsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.computationKey
+import org.wfanet.measurement.internal.kingdom.getPopulationRequest
 import org.wfanet.measurement.internal.kingdom.setMeasurementResultRequest
 import org.wfanet.measurement.internal.kingdom.streamMeasurementsRequest
 import org.wfanet.measurement.system.v1alpha.Computation
 import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt.ComputationsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.GetComputationRequest
+import org.wfanet.measurement.system.v1alpha.PopulationSpec
 import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsContinuationToken
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsRequest
 import org.wfanet.measurement.system.v1alpha.StreamActiveComputationsResponse
+import org.wfanet.measurement.system.v1alpha.copy
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsContinuationToken
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
+/**
+ * System API `Computations` service.
+ *
+ * @param populationsClient used to read the `PopulationSpec` of a TrusTEE v2 multimeasurement's
+ *   pinned `Population`
+ */
 class ComputationsService(
   private val measurementsClient: MeasurementsCoroutineStub,
+  private val populationsClient: PopulationsCoroutineStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   private val duchyIdentityProvider: () -> DuchyIdentity = ::duchyIdentityFromContext,
   private val streamingTimeout: Duration = 10.minutes,
   private val streamingThrottle: Duration = 1.seconds,
   private val streamingLimit: Int = DEFAULT_STREAMING_LIMIT,
 ) : ComputationsCoroutineImplBase(coroutineContext) {
+  /** System `PopulationSpec` of each `Population` read so far. */
+  private val populationSpecs: MutableMap<PopulationKey, PopulationSpec> = ConcurrentHashMap()
+
   override suspend fun getComputation(request: GetComputationRequest): Computation {
     val computationKey =
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {
@@ -77,17 +98,13 @@ class ComputationsService(
       GetMeasurementByComputationIdRequest.newBuilder()
         .apply { externalComputationId = apiIdToExternalId(computationKey.computationId) }
         .build()
-    try {
-      return measurementsClient.getMeasurementByComputationId(internalRequest).toSystemComputation()
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }
-        .withCause(e)
-        .asRuntimeException()
-    }
+    val measurement: Measurement =
+      try {
+        measurementsClient.getMeasurementByComputationId(internalRequest)
+      } catch (e: StatusException) {
+        throw e.toSystemStatusRuntimeException()
+      }
+    return measurement.toResolvedSystemComputation()
   }
 
   override fun streamActiveComputations(
@@ -110,13 +127,7 @@ class ComputationsService(
         streamMeasurements(currentContinuationToken)
           .catch { cause ->
             if (cause !is StatusException) throw cause
-            throw when (cause.status.code) {
-                Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-                Status.Code.CANCELLED -> Status.CANCELLED
-                else -> Status.UNKNOWN
-              }
-              .withCause(cause)
-              .asRuntimeException()
+            throw cause.toSystemStatusRuntimeException()
           }
           .collect { measurement ->
             val continuationToken = streamActiveComputationsContinuationToken {
@@ -125,7 +136,7 @@ class ComputationsService(
             }
             val response = streamActiveComputationsResponse {
               this.continuationToken = ContinuationTokenConverter.encode(continuationToken)
-              computation = measurement.toSystemComputation()
+              computation = measurement.toResolvedSystemComputation()
             }
             currentContinuationToken = continuationToken
             emit(response)
@@ -151,45 +162,149 @@ class ComputationsService(
         }
       grpcRequire(request.publicApiVersion.isNotEmpty()) { "public_api_version unspecified" }
 
-      // This assumes that the Certificate resource name is compatible with public API version
-      // v2alpha.
-      val aggregatorCertificateKey =
-        grpcRequireNotNull(DuchyCertificateKey.fromName(request.aggregatorCertificate)) {
-          "aggregator_certificate unspecified or invalid"
-        }
+      grpcRequire(request.hasEncryptedResult() || request.hasResult()) {
+        "result_payload unspecified"
+      }
       val authenticatedDuchy: DuchyIdentity = duchyIdentityProvider()
-      if (aggregatorCertificateKey.duchyId != authenticatedDuchy.id) {
-        throw Status.PERMISSION_DENIED.withDescription(
-            "Aggregator certificate not owned by authenticated Duchy"
-          )
-          .asRuntimeException()
-      }
+      val externalComputationId = apiIdToExternalId(computationKey.computationId)
 
-      val internalRequest = setMeasurementResultRequest {
-        externalComputationId = apiIdToExternalId(computationKey.computationId)
-        resultPublicKey = request.resultPublicKey
-        externalAggregatorDuchyId = aggregatorCertificateKey.duchyId
-        externalAggregatorCertificateId = apiIdToExternalId(aggregatorCertificateKey.certificateId)
-        encryptedResult = request.encryptedResult
-        publicApiVersion = request.publicApiVersion
-      }
-      val computation =
-        try {
-          measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
-        } catch (e: StatusException) {
-          throw when (e.status.code) {
-              Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-              Status.Code.CANCELLED -> Status.CANCELLED
-              else -> Status.UNKNOWN
-            }
-            .withCause(e)
-            .asRuntimeException()
+      // The internal service rejects a payload that does not match the Measurement's protocol.
+      val internalRequest =
+        if (request.hasResult()) {
+          buildPlaintextResultRequest(request, externalComputationId, authenticatedDuchy)
+        } else {
+          buildEncryptedResultRequest(request, externalComputationId, authenticatedDuchy)
         }
+      val measurement: Measurement =
+        try {
+          measurementsClient.setMeasurementResult(internalRequest)
+        } catch (e: StatusException) {
+          throw e.toSystemStatusRuntimeException(
+            Status.Code.INVALID_ARGUMENT to
+              Status.INVALID_ARGUMENT.withDescription(e.status.description),
+            Status.Code.FAILED_PRECONDITION to
+              Status.FAILED_PRECONDITION.withDescription(e.status.description),
+          )
+        }
+      val computation: Computation = measurement.toResolvedSystemComputation()
       Span.current()
         .setAttribute(ReportTraceAttributes.MEASUREMENT_NAME, computation.measurement)
         .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
       computation
     }
+
+  /**
+   * Builds the internal request for the plaintext multimeasurement `Result` of a TrusTEE v2
+   * computation, which is neither signed nor encrypted and so has no aggregator certificate.
+   */
+  private fun buildPlaintextResultRequest(
+    request: SetComputationResultRequest,
+    externalComputationId: Long,
+    authenticatedDuchy: DuchyIdentity,
+  ): SetMeasurementResultRequest {
+    val parsedResult: MeasurementResult =
+      try {
+        MeasurementResult.parseFrom(request.result)
+      } catch (e: InvalidProtocolBufferException) {
+        throw Status.INVALID_ARGUMENT.withCause(e)
+          .withDescription("result is not a serialized Result")
+          .asRuntimeException()
+      }
+    grpcRequire(parsedResult.hasMultimeasurementResult()) {
+      "result must have a multimeasurement_result for a TrusTEE v2 Computation"
+    }
+
+    return setMeasurementResultRequest {
+      this.externalComputationId = externalComputationId
+      externalAggregatorDuchyId = authenticatedDuchy.id
+      this.result = request.result
+      publicApiVersion = request.publicApiVersion
+    }
+  }
+
+  /**
+   * Builds the internal request for the encrypted and signed `Result` of a computation, which is
+   * verified using the aggregator certificate.
+   */
+  private fun buildEncryptedResultRequest(
+    request: SetComputationResultRequest,
+    externalComputationId: Long,
+    authenticatedDuchy: DuchyIdentity,
+  ): SetMeasurementResultRequest {
+    // This assumes that the Certificate resource name is compatible with public API version
+    // v2alpha.
+    val aggregatorCertificateKey =
+      grpcRequireNotNull(DuchyCertificateKey.fromName(request.aggregatorCertificate)) {
+        "aggregator_certificate unspecified or invalid"
+      }
+    if (aggregatorCertificateKey.duchyId != authenticatedDuchy.id) {
+      throw Status.PERMISSION_DENIED.withDescription(
+          "Aggregator certificate not owned by authenticated Duchy"
+        )
+        .asRuntimeException()
+    }
+
+    return setMeasurementResultRequest {
+      this.externalComputationId = externalComputationId
+      resultPublicKey = request.resultPublicKey
+      externalAggregatorDuchyId = aggregatorCertificateKey.duchyId
+      externalAggregatorCertificateId = apiIdToExternalId(aggregatorCertificateKey.certificateId)
+      encryptedResult = request.encryptedResult
+      publicApiVersion = request.publicApiVersion
+    }
+  }
+
+  /**
+   * Converts this [Measurement] to a system [Computation], resolving the `population_spec` of a
+   * multimeasurement.
+   */
+  private suspend fun Measurement.toResolvedSystemComputation(): Computation {
+    val computation: Computation = toSystemComputation()
+    if (!computation.hasMultimeasurement()) {
+      return computation
+    }
+    val resolvedPopulationSpec: PopulationSpec = getPopulationSpec(this)
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Set `event_descriptor`
+    //  once the Kingdom stores the event message `FileDescriptorSet` for a model line's
+    //  event-template version. The Kingdom stores only the version number.
+    return computation.copy {
+      multimeasurement = multimeasurement.copy { populationSpec = resolvedPopulationSpec }
+    }
+  }
+
+  /** Returns the `PopulationSpec` of the `Population` pinned when [measurement] was created. */
+  private suspend fun getPopulationSpec(measurement: Measurement): PopulationSpec {
+    if (!measurement.details.hasPopulation()) {
+      throw Status.FAILED_PRECONDITION.withDescription("Multimeasurement has no Population")
+        .asRuntimeException()
+    }
+    val key: PopulationKey = measurement.details.population
+    // A Population is immutable, so each is read once.
+    populationSpecs[key]?.let {
+      return it
+    }
+    val population: Population =
+      try {
+        populationsClient.getPopulation(
+          getPopulationRequest {
+            externalDataProviderId = key.externalDataProviderId
+            externalPopulationId = key.externalPopulationId
+          }
+        )
+      } catch (e: StatusException) {
+        throw e.toSystemStatusRuntimeException(
+          Status.Code.NOT_FOUND to
+            Status.FAILED_PRECONDITION.withDescription("Population not found")
+        )
+      }
+    if (!population.details.hasPopulationSpec()) {
+      throw Status.FAILED_PRECONDITION.withDescription("Population has no PopulationSpec")
+        .asRuntimeException()
+    }
+    val populationSpec: PopulationSpec = population.details.populationSpec.toSystemPopulationSpec()
+    populationSpecs[key] = populationSpec
+    return populationSpec
+  }
 
   private fun streamMeasurements(
     continuationToken: StreamActiveComputationsContinuationToken?
@@ -215,13 +330,7 @@ class ComputationsService(
     try {
       return measurementsClient.streamMeasurements(request)
     } catch (e: StatusException) {
-      throw when (e.status.code) {
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          Status.Code.CANCELLED -> Status.CANCELLED
-          else -> Status.UNKNOWN
-        }
-        .withCause(e)
-        .asRuntimeException()
+      throw e.toSystemStatusRuntimeException()
     }
   }
 
@@ -242,6 +351,26 @@ class ComputationsService(
         Measurement.State.SUCCEEDED,
       )
   }
+}
+
+/**
+ * Converts this [StatusException] from an internal service to one for the system API.
+ *
+ * Deadline and cancellation codes pass through, a code in [overrides] becomes its [Status], and any
+ * other becomes `UNKNOWN`, so that internal details do not leak.
+ */
+private fun StatusException.toSystemStatusRuntimeException(
+  vararg overrides: Pair<Status.Code, Status>
+): StatusRuntimeException {
+  val code: Status.Code = status.code
+  val systemStatus: Status =
+    overrides.toMap()[code]
+      ?: when (code) {
+        Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+        Status.Code.CANCELLED -> Status.CANCELLED
+        else -> Status.UNKNOWN
+      }
+  return systemStatus.withCause(this).asRuntimeException()
 }
 
 private object ContinuationTokenConverter {

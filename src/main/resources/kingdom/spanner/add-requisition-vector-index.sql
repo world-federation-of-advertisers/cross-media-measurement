@@ -15,7 +15,7 @@
 -- limitations under the License.
 
 -- changeset raimundoltdf:37 dbms:cloudspanner
--- comment: Add VectorIndex to Requisitions, so that a multimeasurement may hold one Requisition per vector.
+-- comment: Add VectorIndex to Requisitions, so that a multimeasurement may hold one Requisition per vector, and PlaintextResult to Measurements.
 
 START BATCH DDL;
 
@@ -27,6 +27,12 @@ ALTER TABLE Requisitions ADD COLUMN VectorIndex INT64;
 -- multimeasurement still has at most one Requisition per DataProvider.
 CREATE UNIQUE INDEX RequisitionsByDataProviderIdAndVectorIndex
   ON Requisitions(MeasurementConsumerId, MeasurementId, DataProviderId, VectorIndex);
+
+-- Serialized wfa.measurement.internal.kingdom.Measurement.ResultInfo of a succeeded multimeasurement,
+-- whose Result is neither signed nor encrypted, or NULL for any other Measurement. It has no
+-- aggregator certificate, so it is not in DuchyMeasurementResults, and is kept out of
+-- MeasurementDetails, which every Measurement update rewrites.
+ALTER TABLE Measurements ADD COLUMN PlaintextResult BYTES(MAX);
 
 DROP INDEX RequisitionsByDataProviderId;
 

@@ -16,7 +16,6 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
@@ -41,7 +40,6 @@ class RequisitionsService(
       grpcRequireNotNull(RequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
-    grpcRequire(request.nonce != 0L) { "nonce unspecified" }
 
     val internalResponse =
       internalRequisitionsClient.fulfillRequisition(

@@ -184,6 +184,7 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
       Requisitions.State AS RequisitionState,
       FulfillingDuchyId,
       RequisitionDetails,
+      VectorIndex,
       ExternalMeasurementId,
       ExternalMeasurementConsumerId,
       ExternalMeasurementConsumerCertificateId,
@@ -325,6 +326,9 @@ class RequisitionReader private constructor(override val builder: Statement.Buil
           "RequisitionDetails",
           RequisitionDetails.getDefaultInstance(),
         )
+      if (!requisitionStruct.isNull("VectorIndex")) {
+        vectorIndex = requisitionStruct.getLong("VectorIndex").toInt()
+      }
       dataProviderCertificate = CertificateReader.buildDataProviderCertificate(requisitionStruct)
 
       parentMeasurement = buildParentMeasurement(measurementStruct, dataProviderCount)

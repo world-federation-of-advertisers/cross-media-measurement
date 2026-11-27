@@ -31,8 +31,11 @@ import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByComputationException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 
@@ -46,6 +49,8 @@ private val NEXT_MEASUREMENT_STATE = Measurement.State.SUCCEEDED
  * @throws [MeasurementNotFoundByComputationException] Measurement not found
  * @throws [DuchyNotFoundException] Duchy not found
  * @throws [DuchyCertificateNotFoundException] Duchy's Certificate not found
+ * @throws [InvalidFieldValueException] result payload does not match the Measurement's protocol
+ * @throws [RequiredFieldNotSetException] result payload not set
  */
 class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
   SpannerWriter<Measurement, Measurement>() {
@@ -64,10 +69,48 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         ?: throw DuchyNotFoundException(request.externalAggregatorDuchyId) {
           "Duchy with external ID ${request.externalAggregatorDuchyId} not found"
         }
+    val trusTeeV2: Boolean = measurement.details.protocolConfig.hasTrusTeeV2()
+    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf oneof case fields cannot be null.
+    when (request.resultPayloadCase) {
+      SetMeasurementResultRequest.ResultPayloadCase.ENCRYPTED_RESULT ->
+        if (trusTeeV2) {
+          throw InvalidFieldValueException("encrypted_result") {
+            "encrypted_result must not be set for a TrusTEE v2 Measurement"
+          }
+        }
+      SetMeasurementResultRequest.ResultPayloadCase.RESULT ->
+        if (!trusTeeV2) {
+          throw InvalidFieldValueException("result") {
+            "result must only be set for a TrusTEE v2 Measurement"
+          }
+        }
+      SetMeasurementResultRequest.ResultPayloadCase.RESULTPAYLOAD_NOT_SET ->
+        throw RequiredFieldNotSetException("result_payload")
+    }
+
+    return if (trusTeeV2) {
+      setPlaintextResult(measurementConsumerId, measurementId, measurement)
+    } else {
+      setEncryptedResult(
+        measurementConsumerId,
+        measurementId,
+        InternalId(aggregatorDuchyId),
+        measurement,
+      )
+    }
+  }
+
+  /** Sets the encrypted and signed result of [measurement], verified by an aggregator cert. */
+  private suspend fun TransactionScope.setEncryptedResult(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    aggregatorDuchyId: InternalId,
+    measurement: Measurement,
+  ): Measurement {
     val aggregatorCertificateId =
       CertificateReader.getDuchyCertificateId(
         transactionContext,
-        InternalId(aggregatorDuchyId),
+        aggregatorDuchyId,
         ExternalId(request.externalAggregatorCertificateId),
       )
         ?: throw DuchyCertificateNotFoundException(
@@ -111,6 +154,57 @@ class SetMeasurementResult(private val request: SetMeasurementResultRequest) :
         encryptedResult = request.encryptedResult
         apiVersion = request.publicApiVersion
       }
+    }
+  }
+
+  /**
+   * Sets the plaintext result of a TrusTEE v2 [measurement], which is neither signed nor encrypted
+   * and so has no aggregator certificate.
+   *
+   * The result is stored in the `PlaintextResult` column rather than in `DuchyMeasurementResults`,
+   * whose primary key requires a certificate.
+   *
+   * @throws MeasurementStateIllegalException if [measurement] is not in state `PENDING_COMPUTATION`
+   */
+  private fun TransactionScope.setPlaintextResult(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    measurement: Measurement,
+  ): Measurement {
+    // Unlike an encrypted result, nothing else keys a plaintext result, so a late or repeated call
+    // would otherwise overwrite it or revive a terminal Measurement.
+    if (measurement.state != Measurement.State.PENDING_COMPUTATION) {
+      throw MeasurementStateIllegalException(
+        ExternalId(measurement.externalMeasurementConsumerId),
+        ExternalId(measurement.externalMeasurementId),
+        measurement.state,
+      ) {
+        "Expected ${Measurement.State.PENDING_COMPUTATION}, got ${measurement.state}"
+      }
+    }
+    val resultInfo: Measurement.ResultInfo = resultInfo {
+      externalAggregatorDuchyId = request.externalAggregatorDuchyId
+      result = request.result
+      apiVersion = request.publicApiVersion
+    }
+    transactionContext.bufferUpdateMutation("Measurements") {
+      set("MeasurementConsumerId" to measurementConsumerId)
+      set("MeasurementId" to measurementId)
+      set("PlaintextResult" to resultInfo.toByteString().toGcloudByteArray())
+    }
+
+    updateMeasurementState(
+      measurementConsumerId = measurementConsumerId,
+      measurementId = measurementId,
+      nextState = NEXT_MEASUREMENT_STATE,
+      previousState = measurement.state,
+      measurementLogEntryDetails =
+        measurementLogEntryDetails { logMessage = "Measurement succeeded" },
+    )
+
+    return measurement.copy {
+      state = NEXT_MEASUREMENT_STATE
+      results += resultInfo
     }
   }
 
