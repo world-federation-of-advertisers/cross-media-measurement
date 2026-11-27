@@ -21,22 +21,16 @@ import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.sqrt
-import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.api.v2alpha.Measurement
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as CmmsMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.PopulationAttributeValue
 import org.wfanet.measurement.api.v2alpha.getMeasurementRequest
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.api.grpc.ResourceList
-import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportComputation
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
@@ -45,11 +39,9 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.createReportingSetResultRequest
-import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
-import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.internal.Normalization
 
 /**
@@ -72,60 +64,12 @@ class BasicReportsMultimeasurementResultsJob(
   private val assembler = ReportResultAssembler(reportResultsStub)
 
   suspend fun execute() {
-    for ((measurementConsumerName, measurementConsumerConfig) in
-      measurementConsumerConfigs.configsMap) {
-      if (measurementConsumerConfig.apiKey.isEmpty()) {
-        continue
-      }
-      val cmmsMeasurementConsumerId: String =
-        requireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
-          .measurementConsumerId
-
-      val resourceLists =
-        internalBasicReportsStub.listResources { pageToken: ListBasicReportsPageToken? ->
-          val response =
-            try {
-              internalBasicReportsStub.listBasicReports(
-                listBasicReportsRequest {
-                  pageSize = BATCH_SIZE
-                  if (pageToken != null) {
-                    this.pageToken = pageToken
-                  }
-                  filter =
-                    ListBasicReportsRequestKt.filter {
-                      this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                      state = BasicReport.State.MEASUREMENTS_CREATED
-                    }
-                }
-              )
-            } catch (e: StatusException) {
-              throw Exception("Unable to list BasicReports", e)
-            }
-          val nextPageToken = if (response.hasNextPageToken()) response.nextPageToken else null
-          ResourceList(response.basicReportsList, nextPageToken)
-        }
-
-      resourceLists.collect { resourceList ->
-        for (basicReport in resourceList.resources) {
-          try {
-            processBasicReport(basicReport, measurementConsumerConfig.apiKey)
-          } catch (e: CancellationException) {
-            throw e
-          } catch (e: Exception) {
-            val basicReportName: String =
-              BasicReportKey(
-                  basicReport.cmmsMeasurementConsumerId,
-                  basicReport.externalBasicReportId,
-                )
-                .toName()
-            logger.log(
-              Level.WARNING,
-              "Unable to write multimeasurement results for BasicReport $basicReportName",
-              e,
-            )
-          }
-        }
-      }
+    MultimeasurementBasicReports.forEach(
+      measurementConsumerConfigs,
+      internalBasicReportsStub,
+      BasicReport.State.MEASUREMENTS_CREATED,
+    ) { basicReport, _, measurementConsumerConfig ->
+      processBasicReport(basicReport, measurementConsumerConfig.apiKey)
     }
   }
 
@@ -343,7 +287,6 @@ class BasicReportsMultimeasurementResultsJob(
   companion object {
     private val logger: Logger =
       Logger.getLogger(BasicReportsMultimeasurementResultsJob::class.java.name)
-    private const val BATCH_SIZE = 10
 
     /**
      * Builds the grouping of [cell], mapping each of the `grouping_paths` of [queryResult] to the

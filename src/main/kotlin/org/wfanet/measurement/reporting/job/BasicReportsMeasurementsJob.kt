@@ -28,7 +28,6 @@ import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.api.v2alpha.CreateMeasurementRequest
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumer
-import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
@@ -40,18 +39,13 @@ import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.api.grpc.ResourceList
-import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageToken
-import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.ReportComputation
 import org.wfanet.measurement.internal.reporting.v2.copy
-import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.setMeasurementsCreatedRequest
 import org.wfanet.measurement.internal.reporting.v2.setReportComputationMeasurementIdRequest
@@ -79,56 +73,18 @@ class BasicReportsMeasurementsJob(
   private val failer = MultimeasurementBasicReportFailer(internalBasicReportsStub, measurementsStub)
 
   suspend fun execute() {
-    for ((measurementConsumerName, measurementConsumerConfig) in
-      measurementConsumerConfigs.configsMap) {
-      if (measurementConsumerConfig.apiKey.isEmpty()) {
-        continue
-      }
-      val cmmsMeasurementConsumerId =
-        requireNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
-          .measurementConsumerId
-
-      val resourceLists =
-        internalBasicReportsStub.listResources { pageToken: ListBasicReportsPageToken? ->
-          val response =
-            internalBasicReportsStub.listBasicReports(
-              listBasicReportsRequest {
-                pageSize = BATCH_SIZE
-                if (pageToken != null) {
-                  this.pageToken = pageToken
-                }
-                filter =
-                  ListBasicReportsRequestKt.filter {
-                    this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-                    state = BasicReport.State.CREATED_MULTIMEASUREMENT
-                  }
-              }
-            )
-          val nextPageToken = if (response.hasNextPageToken()) response.nextPageToken else null
-          ResourceList(response.basicReportsList, nextPageToken)
-        }
-
-      val cutoff: Instant = clock.instant().minus(maxCreatedBasicReportAge)
-      resourceLists.collect { resourceList ->
-        for (basicReport in resourceList.resources) {
-          try {
-            createMeasurements(
-              basicReport,
-              measurementConsumerName,
-              measurementConsumerConfig,
-              timedOut = basicReport.createTime.toInstant().isBefore(cutoff),
-            )
-          } catch (e: CancellationException) {
-            throw e
-          } catch (e: Exception) {
-            logger.log(
-              Level.WARNING,
-              "Failed to create Measurements for BasicReport ${basicReport.name}",
-              e,
-            )
-          }
-        }
-      }
+    val cutoff: Instant = clock.instant().minus(maxCreatedBasicReportAge)
+    MultimeasurementBasicReports.forEach(
+      measurementConsumerConfigs,
+      internalBasicReportsStub,
+      BasicReport.State.CREATED_MULTIMEASUREMENT,
+    ) { basicReport, measurementConsumerName, measurementConsumerConfig ->
+      createMeasurements(
+        basicReport,
+        measurementConsumerName,
+        measurementConsumerConfig,
+        timedOut = basicReport.createTime.toInstant().isBefore(cutoff),
+      )
     }
   }
 
@@ -137,7 +93,7 @@ class BasicReportsMeasurementsJob(
    * recorded, then sets its Measurements created, or fails it if [timedOut].
    *
    * Creating a Measurement replays its stored request ID, so a Measurement that was created but
-   * whose ID was not recorded is found rather than created again, and so is cancelled on timeout.
+   * whose ID was not recorded is found rather than created again.
    */
   private suspend fun createMeasurements(
     basicReport: BasicReport,
@@ -145,55 +101,41 @@ class BasicReportsMeasurementsJob(
     measurementConsumerConfig: MeasurementConsumerConfig,
     timedOut: Boolean,
   ) {
-    val reportComputations: List<ReportComputation> = listReportComputations(basicReport)
     val pendingReportComputations: List<ReportComputation> =
-      reportComputations.filter { it.cmmsMeasurementId.isEmpty() }
+      listReportComputations(basicReport).filter { it.cmmsMeasurementId.isEmpty() }
+    if (timedOut) {
+      failTimedOut(
+        basicReport,
+        pendingReportComputations,
+        measurementConsumerName,
+        measurementConsumerConfig,
+      )
+      return
+    }
+
     if (pendingReportComputations.isNotEmpty()) {
       val measurementConsumer: MeasurementConsumer =
         getMeasurementConsumer(measurementConsumerName, measurementConsumerConfig.apiKey)
       for (reportComputation in pendingReportComputations) {
-        val request: CreateMeasurementRequest =
-          buildCreateMeasurementRequest(
+        try {
+          createAndRecordMeasurement(
             basicReport,
             reportComputation,
             measurementConsumer,
             measurementConsumerConfig,
           )
-        val measurement: Measurement =
-          try {
-            measurementsStub
-              .withAuthenticationKey(measurementConsumerConfig.apiKey)
-              .createMeasurement(request)
-          } catch (e: StatusException) {
-            if (
-              e.status.code == Status.Code.INVALID_ARGUMENT ||
-                e.status.code == Status.Code.FAILED_PRECONDITION
-            ) {
-              logger.log(Level.WARNING, "CMMS rejected a Measurement of ${basicReport.name}", e)
-              failer.fail(
-                basicReport,
-                listReportComputations(basicReport),
-                measurementConsumerConfig.apiKey,
-              )
-              return
-            }
-            throw Exception("Unable to create Measurement for ${basicReport.name}", e)
-          }
-        val measurementId: String =
-          checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId
-        setReportComputationMeasurementId(reportComputation, measurementId)
+        } catch (e: MeasurementRejectedException) {
+          logger.log(Level.WARNING, "CMMS rejected a Measurement of ${basicReport.name}", e)
+          failer.fail(
+            basicReport,
+            listReportComputations(basicReport),
+            measurementConsumerConfig.apiKey,
+          )
+          return
+        }
       }
     }
 
-    if (timedOut) {
-      logger.warning { "BasicReport ${basicReport.name} timed out creating Measurements" }
-      failer.fail(
-        basicReport,
-        listReportComputations(basicReport),
-        measurementConsumerConfig.apiKey,
-      )
-      return
-    }
     try {
       internalBasicReportsStub.setMeasurementsCreated(
         setMeasurementsCreatedRequest {
@@ -205,6 +147,85 @@ class BasicReportsMeasurementsJob(
       throw Exception("Unable to set Measurements created for ${basicReport.name}", e)
     }
   }
+
+  /**
+   * Fails [basicReport], which timed out creating its Measurements, cancelling those it has.
+   *
+   * A pass creates the pending Measurements in order and ends at its first error, so only the first
+   * of [pendingReportComputations] can have been created without its ID being recorded. Its request
+   * ID is replayed so that it is found and cancelled; the others were never attempted, so none is
+   * created only to be cancelled.
+   */
+  private suspend fun failTimedOut(
+    basicReport: BasicReport,
+    pendingReportComputations: List<ReportComputation>,
+    measurementConsumerName: String,
+    measurementConsumerConfig: MeasurementConsumerConfig,
+  ) {
+    logger.warning { "BasicReport ${basicReport.name} timed out creating Measurements" }
+    val possiblyCreated: ReportComputation? = pendingReportComputations.firstOrNull()
+    if (possiblyCreated != null) {
+      try {
+        createAndRecordMeasurement(
+          basicReport,
+          possiblyCreated,
+          getMeasurementConsumer(measurementConsumerName, measurementConsumerConfig.apiKey),
+          measurementConsumerConfig,
+        )
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        // The BasicReport is failed regardless, so that it does not stay running.
+        logger.log(
+          Level.WARNING,
+          "Unable to replay a Measurement of timed-out ${basicReport.name}; if it was created, " +
+            "it is not cancelled",
+          e,
+        )
+      }
+    }
+    failer.fail(basicReport, listReportComputations(basicReport), measurementConsumerConfig.apiKey)
+  }
+
+  /**
+   * Creates the CMMS Measurement of [reportComputation] and records its ID.
+   *
+   * @throws MeasurementRejectedException if the CMMS rejects the Measurement
+   */
+  private suspend fun createAndRecordMeasurement(
+    basicReport: BasicReport,
+    reportComputation: ReportComputation,
+    measurementConsumer: MeasurementConsumer,
+    measurementConsumerConfig: MeasurementConsumerConfig,
+  ) {
+    val request: CreateMeasurementRequest =
+      buildCreateMeasurementRequest(
+        basicReport,
+        reportComputation,
+        measurementConsumer,
+        measurementConsumerConfig,
+      )
+    val measurement: Measurement =
+      try {
+        measurementsStub
+          .withAuthenticationKey(measurementConsumerConfig.apiKey)
+          .createMeasurement(request)
+      } catch (e: StatusException) {
+        if (
+          e.status.code == Status.Code.INVALID_ARGUMENT ||
+            e.status.code == Status.Code.FAILED_PRECONDITION
+        ) {
+          throw MeasurementRejectedException(e)
+        }
+        throw Exception("Unable to create Measurement for ${basicReport.name}", e)
+      }
+    val measurementId: String =
+      checkNotNull(MeasurementKey.fromName(measurement.name)).measurementId
+    setReportComputationMeasurementId(reportComputation, measurementId)
+  }
+
+  /** The CMMS rejected a Measurement, which no retry will change. */
+  private class MeasurementRejectedException(cause: StatusException) : Exception(cause)
 
   private suspend fun listReportComputations(basicReport: BasicReport): List<ReportComputation> {
     return try {
@@ -264,10 +285,15 @@ class BasicReportsMeasurementsJob(
                 )
                 .toName()
           }
+          // A multimeasurement BasicReport has no Report or Metric:
+          // * `report` names a Report under the BasicReport's ID, since DataProviders group
+          //   requisitions by it, though no such Report exists;
+          // * `metric` is not set, since one multimeasurement computes the cells of many metrics;
+          // * TODO(world-federation-of-advertisers/cross-media-measurement#4532): Set
+          //   `report_interval` from the BasicReport's reporting interval, which DataProviders
+          //   treat as optional.
           reportingMetadata =
             MeasurementSpecKt.reportingMetadata {
-              // A multimeasurement BasicReport has no Report. DataProviders group requisitions by
-              // `report`, so it names one under the BasicReport's ID.
               report =
                 ReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
                   .toName()
@@ -333,6 +359,5 @@ class BasicReportsMeasurementsJob(
 
   companion object {
     private val logger: Logger = Logger.getLogger(BasicReportsMeasurementsJob::class.java.name)
-    private const val BATCH_SIZE = 10
   }
 }

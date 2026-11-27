@@ -17,6 +17,7 @@
 package org.wfanet.measurement.reporting.deploy.v2.common.job
 
 import io.grpc.Channel
+import java.io.File
 import java.time.Duration
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as CmmsMeasurementConsumersCoroutineStub
@@ -33,12 +34,19 @@ import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicRepo
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
-import org.wfanet.measurement.reporting.deploy.v2.common.V2AlphaFlags
 import org.wfanet.measurement.reporting.job.BasicReportsMeasurementsJob
 import org.wfanet.measurement.reporting.job.BasicReportsMultimeasurementResultsJob
 import picocli.CommandLine
 
 class BasicReportsMultimeasurementJobFlags {
+  @CommandLine.Option(
+    names = ["--measurement-consumer-config-file"],
+    description = ["MeasurementConsumerConfigs proto message in text format."],
+    required = true,
+  )
+  lateinit var measurementConsumerConfigFile: File
+    private set
+
   @CommandLine.Option(
     names = ["--max-created-multimeasurement-basic-report-age"],
     defaultValue = "1h",
@@ -67,7 +75,6 @@ private fun run(
   @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
   @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
-  @CommandLine.Mixin v2AlphaFlags: V2AlphaFlags,
   @CommandLine.Mixin jobFlags: BasicReportsMultimeasurementJobFlags,
 ) {
   val clientCerts =
@@ -95,7 +102,7 @@ private fun run(
 
   val measurementConsumerConfigs =
     parseTextProto(
-      v2AlphaFlags.measurementConsumerConfigFile,
+      jobFlags.measurementConsumerConfigFile,
       MeasurementConsumerConfigs.getDefaultInstance(),
     )
   val internalBasicReportsStub = InternalBasicReportsCoroutineStub(channel)
