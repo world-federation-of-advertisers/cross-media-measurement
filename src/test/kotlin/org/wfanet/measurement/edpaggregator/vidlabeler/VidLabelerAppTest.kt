@@ -25,6 +25,8 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
+import com.google.protobuf.Message
+import com.google.protobuf.Parser
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusException
@@ -39,6 +41,7 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Instant
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
@@ -46,12 +49,20 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import java.util.logging.SimpleFormatter
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.Path
 import org.junit.After
 import org.junit.Before
 import org.junit.Rule
@@ -69,6 +80,11 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.api.v2alpha.PopulationSpecKt
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.populationSpec
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -100,7 +116,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ageBucket
+import org.wfanet.measurement.edpaggregator.v1alpha.ageRange
+import org.wfanet.measurement.edpaggregator.v1alpha.bucketLookup
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.enumLookup
+import org.wfanet.measurement.edpaggregator.v1alpha.labelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
@@ -110,22 +131,32 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.scalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
-import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
+import org.wfanet.measurement.queue.MessageConsumer
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
+import org.wfanet.measurement.storage.ParquetEncryptionConfig
 import org.wfanet.measurement.storage.ParquetStorageClient
+import org.wfanet.measurement.storage.ParquetValue
+import org.wfanet.measurement.storage.parquetRow
+import org.wfanet.measurement.storage.parquetValue
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -209,7 +240,7 @@ class VidLabelerAppTest {
   private lateinit var encryptedDek: EncryptedDek
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
-  private val logRecords = mutableListOf<LogRecord>()
+  private val logRecords = CopyOnWriteArrayList<LogRecord>()
   private val rootLogger = Logger.getLogger("")
   private val logHandler =
     object : Handler() {
@@ -303,6 +334,11 @@ class VidLabelerAppTest {
         mockVidAssigner
       },
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
+    queueSubscriber: QueueSubscriber = mockQueueSubscriber,
+    parquetStorageClient: ParquetStorageClient = mockParquetStorageClient,
+    impressionConverter: ImpressionConverter = ImpressionConverter { _, _ ->
+      error("impressionConverter should not be invoked")
+    },
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     writeGcsObject: suspend (String?, BlobInfo, ByteArray, Long) -> Long = { _, _, _, _ ->
       error("writeGcsObject should not be invoked")
@@ -314,7 +350,7 @@ class VidLabelerAppTest {
   ): VidLabelerApp {
     return VidLabelerApp(
       subscriptionId = "test-subscription",
-      queueSubscriber = mockQueueSubscriber,
+      queueSubscriber = queueSubscriber,
       parser = WorkItem.parser(),
       workItemsClient = workItemsStub,
       workItemAttemptsClient = workItemAttemptsStub,
@@ -329,14 +365,10 @@ class VidLabelerAppTest {
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
       rawImpressionUploadsStub = rawImpressionUploadsStub,
       uploadHealingOperationsStub = uploadHealingOperationsStub,
-      buildParquetStorageClient = { _, _ -> mockParquetStorageClient },
+      buildParquetStorageClient = { _, _ -> parquetStorageClient },
       buildVidRankMapStorageClient = { vidRankMapStorageClient },
-      // The model is loaded up-front by VidLabeler.label(); the converter never runs because the
-      // (mocked) RawImpressionUploadFileService returns no files, so there are no events to label.
       loadAssigner = loadAssigner,
-      buildImpressionConverter = { _, _ ->
-        ImpressionConverter { _, _ -> error("impressionConverter should not be invoked") }
-      },
+      buildImpressionConverter = { _, _ -> impressionConverter },
       rpcThrottlers = rpcThrottlers,
       writeGcsObject = writeGcsObject,
       getGcsObjectGeneration = getGcsObjectGeneration,
@@ -495,6 +527,305 @@ class VidLabelerAppTest {
           invocation.getArgument<CreateWorkItemRequest>(0).workItem
         }
     }
+  }
+
+  @Test
+  fun `run excludes enum lookup input from encrypted Parquet failure diagnostics`() = runBlocking {
+    assertParquetFailure(
+      labelerInputFieldMapping {
+        fieldPath = PRIVATE_GENDER_PATH
+        enumLookup = enumLookup {
+          column = "input"
+          lookupTable["M"] = "GENDER_MALE"
+        }
+      },
+      parquetValue { stringValue = PRIVATE_VALUE },
+      PRIVATE_VALUE,
+    )
+  }
+
+  @Test
+  fun `run excludes age bucket input from encrypted Parquet failure diagnostics`() = runBlocking {
+    assertParquetFailure(
+      labelerInputFieldMapping {
+        fieldPath = PRIVATE_AGE_PATH
+        ageRange = ageRange {
+          bucketLookup = bucketLookup {
+            column = "input"
+            bucketTable["18-24"] = ageBucket {
+              minAge = 18
+              maxAge = 24
+            }
+          }
+        }
+      },
+      parquetValue { stringValue = PRIVATE_VALUE },
+      PRIVATE_VALUE,
+    )
+  }
+
+  @Test
+  fun `run excludes scalar enum input from encrypted Parquet failure diagnostics`() = runBlocking {
+    assertParquetFailure(
+      privateScalar(PRIVATE_GENDER_PATH),
+      parquetValue { stringValue = PRIVATE_VALUE },
+      PRIVATE_VALUE,
+    )
+  }
+
+  @Test
+  fun `run excludes numeric input from encrypted Parquet failure diagnostics`() = runBlocking {
+    assertParquetFailure(
+      privateScalar("geo.country_id"),
+      parquetValue { int64Value = 9876543210L },
+      "9876543210",
+    )
+  }
+
+  @Test
+  fun `run excludes numeric age from encrypted Parquet failure diagnostics`() = runBlocking {
+    assertParquetFailure(
+      labelerInputFieldMapping {
+        fieldPath = PRIVATE_AGE_PATH
+        ageRange = ageRange { singleAgeColumn = "input" }
+      },
+      parquetValue { int64Value = -9876543210L },
+      "-9876543210",
+    )
+  }
+
+  @Test
+  fun `run excludes wrapped dependency text after decrypting Parquet`() = runBlocking {
+    assertParquetFailure(
+      privateScalar("timestamp_usec"),
+      parquetValue { int64Value = 1_500L },
+      PRIVATE_VALUE,
+      converterOverride =
+        ImpressionConverter { _, _ ->
+          throw IllegalStateException("Processing failed", IllegalArgumentException(PRIVATE_VALUE))
+            .apply { addSuppressed(IllegalArgumentException(PRIVATE_VALUE)) }
+        },
+    )
+  }
+
+  @Test
+  fun `run reports configured missing path before processing encrypted Parquet input`() =
+    runBlocking {
+      assertParquetFailure(
+        privateScalar("CONFIGURED_MISSING_FIELD"),
+        parquetValue { stringValue = PRIVATE_VALUE },
+        PRIVATE_VALUE,
+        expectedConfiguration = "CONFIGURED_MISSING_FIELD",
+      )
+    }
+
+  private suspend fun assertParquetFailure(
+    mapping: LabelerInputFieldMapping,
+    value: ParquetValue,
+    marker: String,
+    converterOverride: ImpressionConverter? = null,
+    expectedConfiguration: String? = null,
+  ) = coroutineScope {
+    val configuration =
+      Configuration().apply {
+        set("parquet.encryption.footer.key", "footer")
+        set("parquet.encryption.column.keys", "column:input")
+        set("parquet.encryption.plaintext.footer", "true")
+      }
+    val parquet =
+      ParquetStorageClient(
+        configuration,
+        Path(tempFolder.root.toURI()),
+        encryptionConfig =
+          ParquetEncryptionConfig(
+            kmsProvider = { kmsClient },
+            keyMapping = mapOf("footer" to kekUri, "column" to kekUri),
+          ),
+      )
+    val file = tempFolder.root.resolve("private-row.parquet")
+    val row = parquetRow {
+      columns["event_id_column"] = parquetValue { stringValue = "event-1" }
+      columns["entity"] = parquetValue { stringValue = "campaign-1" }
+      columns["input"] = value
+    }
+    parquet.writeBlob(file.name, flowOf(row.toByteString()), mapOf("event_date" to "2020-01-01"))
+    val physicalBytes = file.readBytes().toString(Charsets.ISO_8859_1)
+    assertThat(physicalBytes).doesNotContain(marker)
+    val inputFile = rawImpressionUploadFile {
+      name = "$UPLOAD/files/private-row"
+      blobUri = file.toURI().toString()
+      sizeBytes = file.length()
+      blobGeneration = 1L
+      eventDate =
+        com.google.type.date {
+          year = 2020
+          month = 1
+          day = 1
+        }
+    }
+    rawImpressionUploadFilesService.stub {
+      onBlocking { getRawImpressionUploadFile(any()) } doReturn inputFile
+    }
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "etag-1"
+          rawImpressionUploadFiles += inputFile.name
+        }
+    }
+    val attempt = workItemAttempt {
+      name = "workItems/private-parquet/workItemAttempts/attempt"
+      state = WorkItemAttempt.State.ACTIVE
+    }
+    val stored = AtomicReference(attempt)
+    workItemAttemptsService.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn attempt
+      onBlocking { failWorkItemAttempt(any()) } doAnswer
+        { invocation ->
+          val request = invocation.getArgument<FailWorkItemAttemptRequest>(0)
+          stored.set(
+            attempt.copy {
+              state = WorkItemAttempt.State.FAILED
+              errorMessage = request.errorMessage
+            }
+          )
+          stored.get()
+        }
+      onBlocking { getWorkItemAttempt(any()) } doAnswer { stored.get() }
+    }
+    val messages = Channel<QueueSubscriber.QueueMessage<WorkItem>>(1)
+    val subscriber =
+      object : QueueSubscriber {
+        @Suppress("UNCHECKED_CAST")
+        override fun <T : Message> subscribe(
+          subscriptionId: String,
+          parser: Parser<T>,
+        ): ReceiveChannel<QueueSubscriber.QueueMessage<T>> =
+          messages as ReceiveChannel<QueueSubscriber.QueueMessage<T>>
+
+        override fun close() {
+          messages.close()
+        }
+      }
+    val populationWriter =
+      PopulationAttributeWriter(
+        TestEvent.getDescriptor(),
+        populationSpec {
+          subpopulations +=
+            PopulationSpecKt.subPopulation {
+              attributes +=
+                com.google.protobuf.Any.pack(
+                  person {
+                    gender = Person.Gender.FEMALE
+                    ageGroup = Person.AgeGroup.YEARS_35_TO_54
+                    socialGradeGroup = Person.SocialGradeGroup.C2_D_E
+                  }
+                )
+              vidRanges +=
+                PopulationSpecKt.vidRange {
+                  startVid = 1L
+                  endVidInclusive = 1_000L
+                }
+            }
+        },
+      )
+    val converted = AtomicBoolean(false)
+    val delegate =
+      converterOverride ?: ParquetImpressionConverter(TestEvent.getDescriptor(), populationWriter)
+    val app =
+      createApp(
+        queueSubscriber = subscriber,
+        parquetStorageClient = parquet,
+        impressionConverter =
+          ImpressionConverter { event, config ->
+            converted.set(true)
+            assertThat(event.row.getValue("input")).isEqualTo(value)
+            delegate.convert(event, config)
+          },
+      )
+    val params =
+      nonMemoizedParams().copy {
+        modelLineConfigs[MODEL_LINE] =
+          modelLineConfigs.getValue(MODEL_LINE).copy {
+            eventTemplateVersion = 1
+            labelerInputFieldMapping += mapping
+            requiredEntityKeyFieldMapping["campaign"] = "entity"
+          }
+      }
+    val disposition = CompletableDeferred<String>()
+    val consumer =
+      object : MessageConsumer {
+        override fun ack() {
+          disposition.complete("ack")
+        }
+
+        override fun nack() {
+          disposition.complete("nack")
+        }
+      }
+    messages.send(
+      QueueSubscriber.QueueMessage(
+        body =
+          workItem {
+            name = "workItems/private-parquet"
+            generation = 1L
+            workItemParams = buildMessage(params)
+          },
+        consumer = consumer,
+        ackId = "private-parquet",
+      )
+    )
+    val job = launch { app.run() }
+    try {
+      assertThat(disposition.await()).isEqualTo("nack")
+    } finally {
+      job.cancelAndJoin()
+      subscriber.close()
+    }
+    val request = argumentCaptor<FailWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsService) { failWorkItemAttempt(request.capture()) }
+    if (expectedConfiguration == null) {
+      assertThat(converted.get()).isTrue()
+    } else {
+      assertThat(converted.get()).isFalse()
+    }
+    assertThat(request.firstValue.errorMessage).doesNotContain(marker)
+    assertThat(request.firstValue.errorMessage).isNotEmpty()
+    if (converterOverride == null) {
+      assertThat(request.firstValue.errorMessage).contains("ValidationFailure")
+      if (expectedConfiguration == null) {
+        assertThat(request.firstValue.errorMessage).contains("field=")
+      } else {
+        assertThat(request.firstValue.errorMessage).contains(expectedConfiguration)
+        assertThat(request.firstValue.errorMessage).contains("missing_segment=")
+      }
+    } else {
+      assertThat(request.firstValue.errorMessage).contains("IllegalStateException")
+    }
+    val readBack =
+      workItemAttemptsStub.getWorkItemAttempt(getWorkItemAttemptRequest { name = attempt.name })
+    assertThat(readBack.errorMessage).isEqualTo(request.firstValue.errorMessage)
+    assertThat(readBack.errorMessage).doesNotContain(marker)
+    if (expectedConfiguration != null) {
+      assertThat(readBack.errorMessage).contains(expectedConfiguration)
+      assertThat(logRecords.joinToString("\n") { SimpleFormatter().format(it) })
+        .contains(expectedConfiguration)
+    }
+
+    assertThat(logRecords.joinToString("\n") { SimpleFormatter().format(it) })
+      .doesNotContain(marker)
+    assertThat(logRecords.joinToString("\n") { SimpleFormatter().format(it) })
+      .contains("Error processing message")
+    assertThat(spanExporter.finishedSpanItems.joinToString()).doesNotContain(marker)
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobSucceeded(any()) }
+    verifyBlocking(vidLabelingJobsService, never()) { markVidLabelingJobFailed(any()) }
+  }
+
+  private fun privateScalar(path: String): LabelerInputFieldMapping = labelerInputFieldMapping {
+    fieldPath = path
+    scalar = scalarColumn { column = "input" }
   }
 
   @Test
@@ -702,6 +1033,128 @@ class VidLabelerAppTest {
   }
 
   @Test
+  fun `runWork preserves a filesystem marker after its committed handoff response is lost`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      tempFolder.root.resolve("output-bucket").mkdirs()
+      val requests = mutableListOf<CreateWorkItemRequest>()
+      var existing: WorkItem? = null
+      workItemsService.stub {
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<CreateWorkItemRequest>(0)
+            requests += request
+            if (existing != null) throw Status.ALREADY_EXISTS.asException()
+            existing =
+              request.workItem.copy {
+                name = "workItems/" + request.workItemId
+                state = WorkItem.State.QUEUED
+                generation = 1L
+              }
+            throw Status.UNAVAILABLE.asException()
+          }
+        onBlocking { getWorkItem(any()) } doAnswer
+          {
+            existing ?: throw Status.NOT_FOUND.asException()
+          }
+      }
+      val app = createApp()
+      assertFailsWith<StatusException> { app.runWork(buildMessage(memoizedParams())) }
+      val marker =
+        tempFolder.root.resolve(
+          "output-bucket/labeled/" +
+            LabeledImpressionsBlobKeys.forDone(UPLOAD, MODEL_LINE, LocalDate.of(2026, 6, 30))
+        )
+      assertThat(marker.exists()).isTrue()
+      val generation = marker.lastModified()
+      assertThat(generation).isGreaterThan(0L)
+      val original = checkNotNull(existing)
+
+      stubLastOutWithEventDate()
+      app.runWork(buildMessage(memoizedParams()))
+
+      assertThat(marker.lastModified()).isEqualTo(generation)
+      assertThat(existing).isEqualTo(original)
+      assertThat(requests).hasSize(2)
+      assertThat(requests.map { it.workItemId }.toSet()).hasSize(1)
+      assertThat(
+          requests.map {
+            it.workItem.workItemParams
+              .unpack(WorkItem.WorkItemParams::class.java)
+              .dataPathParams
+              .generation
+          }
+        )
+        .containsExactly(generation, generation)
+      assertThat(logRecords.count { it.message.startsWith("Wrote done marker ") }).isEqualTo(1)
+    }
+
+  @Test
+  fun `runWork preserves a GCS marker while a committed handoff lookup is unavailable`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      var existing: WorkItem? = null
+      var generation: Long? = null
+      var unavailableLookup = false
+      var writes = 0
+      val requests = mutableListOf<CreateWorkItemRequest>()
+      workItemsService.stub {
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<CreateWorkItemRequest>(0)
+            requests += request
+            if (existing != null) throw Status.ALREADY_EXISTS.asException()
+            existing =
+              request.workItem.copy {
+                name = "workItems/" + request.workItemId
+                state = WorkItem.State.QUEUED
+                this.generation = 1L
+              }
+            throw Status.UNAVAILABLE.asException()
+          }
+        onBlocking { getWorkItem(any()) } doAnswer
+          {
+            if (unavailableLookup) throw Status.UNAVAILABLE.asException()
+            existing ?: throw Status.NOT_FOUND.asException()
+          }
+      }
+      val app =
+        createApp(
+          getGcsObjectGeneration = { _, _, _ -> generation },
+          writeGcsObject = { _, _, _, expected ->
+            assertThat(expected).isEqualTo(0L)
+            writes++
+            generation = 321L
+            321L
+          },
+        )
+      assertFailsWith<StatusException> { app.runWork(buildMessage(taskParams())) }
+      val original = checkNotNull(existing)
+      unavailableLookup = true
+      stubLastOutWithEventDate()
+      assertFailsWith<StatusException> { app.runWork(buildMessage(taskParams())) }
+
+      unavailableLookup = false
+      stubLastOutWithEventDate()
+      app.runWork(buildMessage(taskParams()))
+
+      assertThat(writes).isEqualTo(1)
+      assertThat(generation).isEqualTo(321L)
+      assertThat(existing).isEqualTo(original)
+      assertThat(requests).hasSize(2)
+      assertThat(requests.map { it.workItemId }.toSet()).hasSize(1)
+      assertThat(
+          requests.map {
+            it.workItem.workItemParams
+              .unpack(WorkItem.WorkItemParams::class.java)
+              .dataPathParams
+              .generation
+          }
+        )
+        .containsExactly(321L, 321L)
+    }
+
+  @Test
   fun `runWork records file-system done object generation`() = runBlocking {
     stubLastOutWithEventDate()
     tempFolder.root.resolve("output-bucket").mkdirs()
@@ -839,7 +1292,6 @@ class VidLabelerAppTest {
       request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     assertThat(workItemParams.dataPathParams.dataPath).isEqualTo(doneBlobUri)
     assertThat(workItemParams.dataPathParams.generation).isEqualTo(321L)
-    assertThat(workItemParams.dataPathParams.eventType).isEqualTo(StorageEventType.FINALIZED)
     assertThat(workItemParams.traceContextMap).containsKey("traceparent")
     val appParams = workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
     assertThat(appParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
@@ -973,9 +1425,6 @@ class VidLabelerAppTest {
       .inOrder()
     assertThat(workItemParams.map { it.dataPathParams.generation })
       .containsExactly(321L, 322L)
-      .inOrder()
-    assertThat(workItemParams.map { it.dataPathParams.eventType })
-      .containsExactly(StorageEventType.FINALIZED, StorageEventType.FINALIZED)
       .inOrder()
     assertThat(
         workItemParams.map { it.appParams.unpack(DataAvailabilitySyncParams::class.java).eventDate }
@@ -1152,46 +1601,143 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork creates deterministic successor for failed availability WorkItem`() = runBlocking {
-    stubLastOutWithEventDate()
-    rawImpressionUploadModelLinesService.stub {
-      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
-        rawImpressionUploadModelLine {
-          name = PARENT_NAME
-          cmmsModelLine = MODEL_LINE
-          state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
-        }
-    }
-    val failedWorkItem =
-      availabilityWorkItem(UPLOAD, 321L)
-        .toBuilder()
-        .setState(WorkItem.State.FAILED)
-        .setUpdateTime(
-          timestamp {
-            seconds = 7L
-            nanos = 8
+  fun `runWork retries original failed availability execution without changing its source`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      rawImpressionUploadModelLinesService.stub {
+        onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
           }
+      }
+      val failedWorkItem =
+        availabilityWorkItem(UPLOAD, 321L)
+          .toBuilder()
+          .setState(WorkItem.State.FAILED)
+          .setUpdateTime(
+            timestamp {
+              seconds = 7L
+              nanos = 8
+            }
+          )
+          .build()
+      val requests = mutableListOf<CreateWorkItemRequest>()
+      val retries = mutableListOf<RetryWorkItemRequest>()
+      var retried: WorkItem? = null
+      workItemsService.stub {
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<CreateWorkItemRequest>(0)
+            requests += request
+            throw Status.ALREADY_EXISTS.asException()
+          }
+        onBlocking { getWorkItem(any()) } doReturn failedWorkItem
+        onBlocking { retryWorkItem(any<RetryWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<RetryWorkItemRequest>(0)
+            retries += request
+            failedWorkItem
+              .copy {
+                generation = request.expectedWorkItemGeneration + 1L
+                state = WorkItem.State.QUEUED
+              }
+              .also { retried = it }
+          }
+      }
+
+      createApp(writeGcsObject = { _, _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+
+      assertThat(requests).hasSize(1)
+      assertThat(retries.single().name).isEqualTo(failedWorkItem.name)
+      assertThat(retries.single().expectedWorkItemGeneration).isEqualTo(1L)
+      assertThat(checkNotNull(retried).generation).isEqualTo(2L)
+      assertThat(checkNotNull(retried).workItemParams).isEqualTo(failedWorkItem.workItemParams)
+      assertThat(
+          checkNotNull(retried)
+            .workItemParams
+            .unpack(WorkItem.WorkItemParams::class.java)
+            .dataPathParams
+            .generation
         )
-        .build()
-    val requests = mutableListOf<CreateWorkItemRequest>()
-    workItemsService.stub {
-      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
-        { invocation ->
-          val request = invocation.getArgument<CreateWorkItemRequest>(0)
-          requests += request
-          if (requests.size == 1) throw Status.ALREADY_EXISTS.asException()
-          request.workItem
-        }
-      onBlocking { getWorkItem(any()) } doReturn failedWorkItem
+        .isEqualTo(321L)
     }
 
-    createApp(writeGcsObject = { _, _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+  @Test
+  fun `runWork waits for the original availability retry RPC before advancing its owner`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      rawImpressionUploadModelLinesService.stub {
+        onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          }
+      }
+      val original = availabilityWorkItem(UPLOAD, 321L).copy { state = WorkItem.State.FAILED }
+      val entered = CompletableDeferred<Unit>()
+      val release = CompletableDeferred<Unit>()
+      val retries = mutableListOf<RetryWorkItemRequest>()
+      workItemsService.stub {
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doThrow
+          Status.ALREADY_EXISTS.asRuntimeException()
+        onBlocking { getWorkItem(any()) } doReturn original
+        onBlocking { retryWorkItem(any<RetryWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<RetryWorkItemRequest>(0)
+            retries += request
+            runBlocking {
+              entered.complete(Unit)
+              release.await()
+              original.copy {
+                generation = request.expectedWorkItemGeneration + 1L
+                state = WorkItem.State.QUEUED
+              }
+            }
+          }
+      }
+      val pending = async {
+        createApp(writeGcsObject = { _, _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+      }
+      entered.await()
+      verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
+      }
+      release.complete(Unit)
+      pending.await()
+      assertThat(retries.single().name).isEqualTo(original.name)
+      assertThat(retries.single().expectedWorkItemGeneration).isEqualTo(1L)
+      verifyBlocking(rawImpressionUploadModelLinesService) {
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
+      }
+    }
 
-    val originalId = requests.first().workItemId
-    assertThat(requests.map { it.workItemId })
-      .containsExactly(originalId, RequestIds.forRetriedWorkItem(originalId, "7:8"))
-      .inOrder()
-  }
+  @Test
+  fun `runWork preserves an availability checkpoint when its pinned marker generation vanishes`() =
+    runBlocking<Unit> {
+      stubLastOutWithEventDate()
+      stubModelLineList(
+        preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING),
+        postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING),
+      )
+      val failure =
+        assertFailsWith<IllegalStateException> {
+          createApp(
+              getGcsObjectGeneration = { _, _, _ -> 321L },
+              getGcsObjectCreateTime = { _, _, _, _ -> null },
+            )
+            .runWork(buildMessage(taskParams()))
+        }
+      assertThat(failure)
+        .hasMessageThat()
+        .contains("Observed done-marker generation is no longer available")
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+      verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
+      }
+    }
 
   @Test
   fun `runWork recovers the missing handoff when another upload date is already durable`() =
@@ -1805,6 +2351,7 @@ class VidLabelerAppTest {
       .toBuilder()
       .setName("workItems/${request.workItemId}")
       .setState(WorkItem.State.QUEUED)
+      .setGeneration(1L)
       .build()
   }
 
@@ -2408,6 +2955,9 @@ class VidLabelerAppTest {
   }
 
   companion object {
+    private const val PRIVATE_VALUE = "SYNTHETIC_PRIVATE_VALUE"
+    private const val PRIVATE_GENDER_PATH = "profile_info.email_user_info.demo.demo_bucket.gender"
+    private const val PRIVATE_AGE_PATH = "profile_info.email_user_info.demo.demo_bucket.age"
     private const val DATA_PROVIDER_NAME = "dataProviders/edp123"
     private const val UPLOAD = "dataProviders/edp123/rawImpressionUploads/up1"
     private const val VID_LABELING_JOB =

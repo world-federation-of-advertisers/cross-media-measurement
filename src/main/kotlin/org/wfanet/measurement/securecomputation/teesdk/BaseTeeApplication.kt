@@ -42,6 +42,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
@@ -148,12 +149,18 @@ abstract class BaseTeeApplication(
 
   /** Starts the TEE application by listening for messages on the specified queue. */
   suspend fun run() {
-    if (!workItemConsumptionEnabled) {
-      logger.info("WorkItem consumption is disabled; waiting without subscribing")
-      awaitCancellation()
+    try {
+      if (!workItemConsumptionEnabled) {
+        logger.info("WorkItem consumption is disabled; waiting without subscribing")
+        awaitCancellation()
+      }
+      logger.info("Starting BaseTeeApplication for subscription: $subscriptionId")
+      receiveAndProcessMessages()
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Throwable) {
+      throw ExceptionDiagnostics.forLogging(e)
     }
-    logger.info("Starting BaseTeeApplication for subscription: $subscriptionId")
-    receiveAndProcessMessages()
   }
 
   /**
@@ -222,7 +229,9 @@ abstract class BaseTeeApplication(
     if (body.name.isEmpty()) {
       val error = IllegalArgumentException("WorkItem name is empty")
       recordCurrentSpanError(error)
-      logger.log(Level.SEVERE, error) { "Cannot proceed. Nacking message." }
+      logger.log(Level.SEVERE, ExceptionDiagnostics.forLogging(error)) {
+        "Cannot proceed. Nacking message."
+      }
       queueMessage.nack()
       return
     }
@@ -293,7 +302,7 @@ abstract class BaseTeeApplication(
           return
         }
         recordCurrentSpanError(completionError)
-        logger.log(Level.SEVERE, completionError) {
+        logger.log(Level.SEVERE, ExceptionDiagnostics.forLogging(completionError)) {
           "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
         }
         queueMessage.nack()
@@ -305,7 +314,9 @@ abstract class BaseTeeApplication(
     } catch (e: InvalidProtocolBufferException) {
       if (!guard.finish()) return
       recordCurrentSpanError(e)
-      logger.log(Level.SEVERE, e) { "Failed to parse protobuf message ${queueMessage.ackId}" }
+      logger.log(Level.SEVERE, ExceptionDiagnostics.forLogging(e)) {
+        "Failed to parse protobuf message ${queueMessage.ackId}"
+      }
       try {
         failWorkItem(workItemName, body.generation.takeUnless { it == 0L } ?: 1L)
         logger.info("Marked WorkItem as failed. Acking message ${queueMessage.ackId}")
@@ -320,7 +331,7 @@ abstract class BaseTeeApplication(
           workItemAttemptName = workItemAttempt.name,
           error = error,
         )
-        logger.log(Level.SEVERE, error) {
+        logger.log(Level.SEVERE, ExceptionDiagnostics.forLogging(error)) {
           "Failed to report work item failure. Nacking message ${queueMessage.ackId}"
         }
         queueMessage.nack()
@@ -330,7 +341,9 @@ abstract class BaseTeeApplication(
     } catch (e: Exception) {
       if (!guard.finish()) return
       recordCurrentSpanError(e)
-      logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
+      logger.log(Level.SEVERE, ExceptionDiagnostics.forLogging(e)) {
+        "Error processing message ${queueMessage.ackId}"
+      }
       try {
         failWorkItemAttempt(workItemAttempt, e)
         logger.info("WorkItemAttempt failure reported. Nacking message ${queueMessage.ackId}")
@@ -344,7 +357,9 @@ abstract class BaseTeeApplication(
           workItemAttemptName = workItemAttempt.name,
           error = error,
         )
-        logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+        logger.log(Level.SEVERE, ExceptionDiagnostics.forLogging(error)) {
+          "Failed to report work item attempt failure"
+        }
       }
       queueMessage.nack()
     } finally {
@@ -441,15 +456,19 @@ abstract class BaseTeeApplication(
                 Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "stale_delivery")
               else -> recordCurrentSpanError(e)
             }
-            logger.log(Level.WARNING, e) {
-              "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
+            val diagnosticReason =
+              Errors.Reason.values().firstOrNull { it.name == reason }?.name ?: "UNKNOWN"
+            logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
+              "Non-retriable error. createWorkItemAttempt failure: reason=$diagnosticReason"
             }
             queueMessage.ack()
             return null
           }
         }
         recordCurrentSpanError(e)
-        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
+        logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
+          "Error creating a WorkItemAttempt. Nacking message."
+        }
         queueMessage.nack()
         return null
       }
@@ -522,7 +541,10 @@ abstract class BaseTeeApplication(
         return@launch
       }
       val error = AttemptRuntimeExceededException(workItemAttempt.name, limit)
-      logger.log(Level.SEVERE, error) { "Stopping work and lease renewal for abandoned attempt" }
+      logger.log(Level.SEVERE, ExceptionDiagnostics.forLogging(error)) {
+        "Stopping work and lease renewal for abandoned attempt ${workItemAttempt.name} " +
+          "after maximum runtime $limit"
+      }
       // Start the stop grace period now, before failure reporting, so slow or retried reporting
       // cannot extend how long non-cooperative work keeps running. UNDISPATCHED starts the grace
       // timer before reporting begins.
@@ -549,7 +571,9 @@ abstract class BaseTeeApplication(
           workItemAttemptName = workItemAttempt.name,
           error = e,
         )
-        logger.log(Level.SEVERE, e) { "Failed to report work item attempt failure" }
+        logger.log(Level.SEVERE, ExceptionDiagnostics.forLogging(e)) {
+          "Failed to report work item attempt failure"
+        }
       }
       queueMessage.nack()
       stopEnforcer.join()
@@ -619,7 +643,13 @@ abstract class BaseTeeApplication(
           workItemAttemptsStub.failWorkItemAttempt(
             failWorkItemAttemptRequest {
               this.name = workItemAttempt.name
-              this.errorMessage = e.toString()
+              this.errorMessage =
+                if (e is AttemptRuntimeExceededException) {
+                  "WorkItemAttempt exceeded its maximum runtime of ${e.maxAttemptRuntime}; " +
+                    ExceptionDiagnostics.summary(e)
+                } else {
+                  ExceptionDiagnostics.summary(e)
+                }
             }
           )
         }
@@ -673,7 +703,7 @@ abstract class BaseTeeApplication(
           Level.WARNING,
           "$operation failed transiently for $workItemAttemptName on attempt $attempt of " +
             "$ATTEMPT_UPDATE_MAX_ATTEMPTS; retrying",
-          e,
+          ExceptionDiagnostics.forLogging(e),
         )
         attemptUpdateRetryDelay(attempt)
         attempt++
@@ -683,7 +713,13 @@ abstract class BaseTeeApplication(
 
   override fun close() {
     logger.info("Closing BaseTeeApplication and QueueSubscriber for subscription: $subscriptionId")
-    queueSubscriber.close()
+    try {
+      queueSubscriber.close()
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Throwable) {
+      throw ExceptionDiagnostics.forLogging(e)
+    }
     logger.info("BaseTeeApplication closed")
   }
 
@@ -776,7 +812,10 @@ abstract class BaseTeeApplication(
 /**
  * Thrown, and reported as the attempt failure, when a WorkItemAttempt exceeds its maximum runtime.
  */
-class AttemptRuntimeExceededException(workItemAttemptName: String, maxAttemptRuntime: Duration) :
+class AttemptRuntimeExceededException(
+  workItemAttemptName: String,
+  val maxAttemptRuntime: Duration,
+) :
   Exception(
     "WorkItemAttempt $workItemAttemptName exceeded its maximum runtime of $maxAttemptRuntime"
   )

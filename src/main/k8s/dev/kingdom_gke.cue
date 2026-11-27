@@ -45,6 +45,16 @@ _systemApiAddressName: string @tag("system_api_address_name")
 	}
 }
 
+#SchemaUpdateResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "384Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 #CancellationJobMaxHeapSize:     "96M"
 #CancellationJobInitialHeapSize: "64M"
 
@@ -105,6 +115,11 @@ kingdom: #Kingdom & {
 
 	configMaps: "java": #JavaConfigMap
 
+	deploymentPodDisruptionBudgets: {
+		"gcp-kingdom-data-server": spec: minAvailable:   1
+		"v2alpha-public-api-server": spec: minAvailable: 1
+	}
+
 	deployments: {
 		"gcp-kingdom-data-server": {
 			_container: {
@@ -112,8 +127,20 @@ kingdom: #Kingdom & {
 				resources:           #InternalServerResourceRequirements
 				_javaOptions: maxHeapSize: #InternalServerMaxHeapSize
 			}
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalServerServiceAccount
+			_updateSchemaContainer: resources: #SchemaUpdateResourceRequirements
+			spec: {
+				replicas: 2
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalServerServiceAccount
+					// Prefer separate nodes for availability during drains without blocking
+					// scheduling when capacity is limited.
+					topologySpreadConstraints: [{
+						maxSkew:           1
+						topologyKey:       "kubernetes.io/hostname"
+						whenUnsatisfiable: "ScheduleAnyway"
+						labelSelector:     kingdom.deployments["gcp-kingdom-data-server"].spec.selector
+					}]
+				}
 			}
 		}
 		"system-api-server": {
@@ -123,6 +150,16 @@ kingdom: #Kingdom & {
 		}
 		"v2alpha-public-api-server": {
 			_rateLimitConfigPath: "/etc/\(#AppName)/config-files/rate_limit_config.textproto"
+			spec: {
+				replicas: 2
+				// Prefer separate nodes without blocking scheduling at limited capacity.
+				template: spec: topologySpreadConstraints: [{
+					maxSkew:           1
+					topologyKey:       "kubernetes.io/hostname"
+					whenUnsatisfiable: "ScheduleAnyway"
+					labelSelector:     kingdom.deployments["v2alpha-public-api-server"].spec.selector
+				}]
+			}
 		}
 	}
 

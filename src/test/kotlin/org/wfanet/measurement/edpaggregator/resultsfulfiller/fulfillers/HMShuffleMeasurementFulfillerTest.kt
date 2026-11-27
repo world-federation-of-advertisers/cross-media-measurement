@@ -231,7 +231,7 @@ class HMShuffleMeasurementFulfillerTest {
       val attempts = AtomicInteger(0)
       whenever(stub.fulfillRequisition(any(), any())).thenAnswer {
         if (attempts.incrementAndGet() < 3) {
-          throw StatusException(Status.UNAVAILABLE)
+          throw StatusException(Status.UNAVAILABLE.withDescription("SYNTHETIC_PRIVATE_VALUE"))
         }
         FulfillRequisitionResponse.getDefaultInstance()
       }
@@ -252,7 +252,26 @@ class HMShuffleMeasurementFulfillerTest {
           retryBackoff = FAST_BACKOFF,
         )
 
-      fulfiller.fulfillRequisition()
+      val output = java.util.concurrent.CopyOnWriteArrayList<String>()
+      val handler =
+        object : java.util.logging.Handler() {
+          override fun publish(record: java.util.logging.LogRecord) {
+            output += java.util.logging.SimpleFormatter().format(record)
+          }
+
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val logger = java.util.logging.Logger.getLogger("")
+      logger.addHandler(handler)
+      try {
+        fulfiller.fulfillRequisition()
+      } finally {
+        logger.removeHandler(handler)
+      }
+      assertThat(output.joinToString("\n")).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+      assertThat(output.joinToString("\n")).contains("grpc.UNAVAILABLE")
 
       assertThat(attempts.get()).isEqualTo(3)
       // getRequisition re-checks on every retry attempt (see the class KDoc), so the throttler

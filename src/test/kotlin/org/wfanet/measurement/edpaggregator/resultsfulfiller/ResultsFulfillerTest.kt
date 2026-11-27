@@ -23,6 +23,8 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos
+import com.google.protobuf.Descriptors
 import com.google.protobuf.Timestamp
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.timestamp
@@ -43,6 +45,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.data.SpanData
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -72,6 +75,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
@@ -169,6 +173,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.NoOpFulfill
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
@@ -458,7 +463,7 @@ class ResultsFulfillerTest {
       whenever(requisitionsServiceMock.getRequisition(any())).thenAnswer {
         val request = it.arguments[0] as org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
         if (request.name == DIRECT_RNF_REQUISITION.name) {
-          throw Status.UNAVAILABLE.asRuntimeException()
+          throw Status.UNAVAILABLE.withDescription("SYNTHETIC_PRIVATE_VALUE").asRuntimeException()
         }
         requisition { state = Requisition.State.UNFULFILLED }
       }
@@ -519,6 +524,8 @@ class ResultsFulfillerTest {
         }
       assertThat(failureLog.level).isEqualTo(Level.SEVERE)
       assertThat(failureLog.thrown).isNotNull()
+      assertThat(java.util.logging.SimpleFormatter().format(failureLog))
+        .doesNotContain("SYNTHETIC_PRIVATE_VALUE")
       assertThat(failureLog.message).contains("xmm.report.name=report-name")
       assertThat(failureLog.message).contains("xmm.edpa.group_id=preflight-group")
       assertThat(failureLog.message).contains("xmm.lifecycle.stage=results_fulfillment")
@@ -661,6 +668,8 @@ class ResultsFulfillerTest {
         multiplier = 1.0,
         randomnessFactor = 0.0,
       ),
+    groupedRequisitions: GroupedRequisitions = groupedRequisitions { groupId = "retry-group" },
+    modelLineInfoMap: Map<String, ModelLineInfo> = emptyMap(),
   ): ResultsFulfiller {
     val tmpDir = Files.createTempDirectory(null).toFile()
     return ResultsFulfiller(
@@ -670,8 +679,8 @@ class ResultsFulfillerTest {
       requisitionsThrottler = FakeThrottler(),
       kingdomThrottler = FakeThrottler(),
       privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-      groupedRequisitions = groupedRequisitions { groupId = "retry-group" },
-      modelLineInfoMap = emptyMap(),
+      groupedRequisitions = groupedRequisitions,
+      modelLineInfoMap = modelLineInfoMap,
       pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
       impressionDataSourceProvider =
         ImpressionDataSourceProvider(
@@ -687,6 +696,272 @@ class ResultsFulfillerTest {
       listMaxAttempts = listMaxAttempts,
       listRetryBackoff = listRetryBackoff,
     )
+  }
+
+  @Test
+  fun `selected model line with matching processing artifacts is accepted`() {
+    createRetryTestFulfiller(
+      groupedRequisitions =
+        groupedRequisitions {
+          groupId = "compatible"
+          modelLine = "visible"
+          selectedModelLine = "selected"
+          requireModelLineFinalization = true
+        },
+      modelLineInfoMap = mapOf("visible" to MODEL_LINE_INFO, "selected" to MODEL_LINE_INFO),
+    )
+  }
+
+  @Test
+  fun `selected model line with mismatched population spec is rejected`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+              requireModelLineFinalization = true
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO,
+              "selected" to MODEL_LINE_INFO.copy(populationSpec = populationSpec {}),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible PopulationSpec")
+  }
+
+  @Test
+  fun `selected model line with mismatched event descriptor is rejected`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+              requireModelLineFinalization = true
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO,
+              "selected" to
+                MODEL_LINE_INFO.copy(eventDescriptor = LabeledImpression.getDescriptor()),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible EventTemplate descriptor")
+  }
+
+  @Test
+  fun `selected model line with same descriptor shape in another package is rejected`() {
+    val messageDescriptor =
+      DescriptorProtos.DescriptorProto.newBuilder()
+        .setName("Event")
+        .addField(
+          DescriptorProtos.FieldDescriptorProto.newBuilder()
+            .setName("value")
+            .setNumber(1)
+            .setType(DescriptorProtos.FieldDescriptorProto.Type.TYPE_INT64)
+        )
+        .build()
+    fun descriptor(packageName: String): Descriptors.Descriptor =
+      Descriptors.FileDescriptor.buildFrom(
+          DescriptorProtos.FileDescriptorProto.newBuilder()
+            .setName("$packageName.proto")
+            .setPackage(packageName)
+            .addMessageType(messageDescriptor)
+            .build(),
+          emptyArray(),
+        )
+        .findMessageTypeByName(messageDescriptor.name)
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible-package"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+              requireModelLineFinalization = true
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO.copy(eventDescriptor = descriptor("visible")),
+              "selected" to MODEL_LINE_INFO.copy(eventDescriptor = descriptor("selected")),
+            ),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("incompatible EventTemplate descriptor")
+  }
+
+  @Test
+  fun `cutover event schema rejects a changed referenced message`() {
+    assertReferencedEventSchemaRejected(
+      referencedEventDescriptor(ageFieldNumber = 1),
+      referencedEventDescriptor(ageFieldNumber = 2),
+    )
+  }
+
+  @Test
+  fun `cutover event schema rejects a changed referenced enum`() {
+    assertReferencedEventSchemaRejected(
+      referencedEventDescriptor(activeEnumNumber = 1),
+      referencedEventDescriptor(activeEnumNumber = 2),
+    )
+  }
+
+  @Test
+  fun `cutover event schema rejects changed protobuf syntax`() {
+    assertReferencedEventSchemaRejected(
+      referencedEventDescriptor(syntax = "proto3"),
+      referencedEventDescriptor(syntax = "proto2"),
+    )
+  }
+
+  @Test
+  fun `cutover event schema accepts equivalent reachable definitions with unused changes`() {
+    createRetryTestFulfiller(
+      groupedRequisitions =
+        groupedRequisitions {
+          groupId = "same-reachable-schema"
+          modelLine = "visible"
+          selectedModelLine = "selected"
+          requireModelLineFinalization = true
+        },
+      modelLineInfoMap =
+        mapOf(
+          "visible" to
+            MODEL_LINE_INFO.copy(
+              eventDescriptor = referencedEventDescriptor(unusedFieldNumber = 1)
+            ),
+          "selected" to
+            MODEL_LINE_INFO.copy(eventDescriptor = referencedEventDescriptor(unusedFieldNumber = 2)),
+        ),
+    )
+  }
+
+  private fun assertReferencedEventSchemaRejected(
+    visible: Descriptors.Descriptor,
+    selected: Descriptors.Descriptor,
+  ) {
+    assertThat(visible.fullName).isEqualTo(selected.fullName)
+    assertThat(visible.toProto()).isEqualTo(selected.toProto())
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createRetryTestFulfiller(
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "incompatible-referenced-schema"
+              modelLine = "visible"
+              selectedModelLine = "selected"
+              requireModelLineFinalization = true
+            },
+          modelLineInfoMap =
+            mapOf(
+              "visible" to MODEL_LINE_INFO.copy(eventDescriptor = visible),
+              "selected" to MODEL_LINE_INFO.copy(eventDescriptor = selected),
+            ),
+        )
+      }
+    assertThat(error).hasMessageThat().contains("incompatible EventTemplate descriptor")
+  }
+
+  private fun referencedEventDescriptor(
+    ageFieldNumber: Int = 1,
+    activeEnumNumber: Int = 1,
+    syntax: String = "proto3",
+    unusedFieldNumber: Int = 1,
+  ): Descriptors.Descriptor {
+    fun field(
+      name: String,
+      number: Int,
+      type: DescriptorProtos.FieldDescriptorProto.Type,
+      typeName: String? = null,
+    ) =
+      DescriptorProtos.FieldDescriptorProto.newBuilder()
+        .apply {
+          setName(name)
+          setNumber(number)
+          setType(type)
+          setLabel(DescriptorProtos.FieldDescriptorProto.Label.LABEL_OPTIONAL)
+          if (typeName != null) setTypeName(typeName)
+        }
+        .build()
+    val descriptor =
+      DescriptorProtos.FileDescriptorProto.newBuilder()
+        .apply {
+          setName("events.proto")
+          setPackage("example")
+          setSyntax(syntax)
+          addEnumType(
+            DescriptorProtos.EnumDescriptorProto.newBuilder().apply {
+              setName("Status")
+              addValue(
+                DescriptorProtos.EnumValueDescriptorProto.newBuilder()
+                  .setName("UNSPECIFIED")
+                  .setNumber(0)
+              )
+              addValue(
+                DescriptorProtos.EnumValueDescriptorProto.newBuilder()
+                  .setName("ACTIVE")
+                  .setNumber(activeEnumNumber)
+              )
+            }
+          )
+          addMessageType(
+            DescriptorProtos.DescriptorProto.newBuilder().apply {
+              setName("Attributes")
+              addField(
+                field("age", ageFieldNumber, DescriptorProtos.FieldDescriptorProto.Type.TYPE_INT64)
+              )
+              addField(
+                field(
+                  "status",
+                  3,
+                  DescriptorProtos.FieldDescriptorProto.Type.TYPE_ENUM,
+                  ".example.Status",
+                )
+              )
+            }
+          )
+          addMessageType(
+            DescriptorProtos.DescriptorProto.newBuilder().apply {
+              setName("Unused")
+              addField(
+                field(
+                  "value",
+                  unusedFieldNumber,
+                  DescriptorProtos.FieldDescriptorProto.Type.TYPE_INT64,
+                )
+              )
+            }
+          )
+          addMessageType(
+            DescriptorProtos.DescriptorProto.newBuilder().apply {
+              setName("Event")
+              addField(
+                field(
+                  "attributes",
+                  1,
+                  DescriptorProtos.FieldDescriptorProto.Type.TYPE_MESSAGE,
+                  ".example.Attributes",
+                )
+              )
+            }
+          )
+        }
+        .build()
+    return Descriptors.FileDescriptor.buildFrom(descriptor, emptyArray())
+      .findMessageTypeByName("Event")
   }
 
   @Test
@@ -775,6 +1050,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -851,6 +1127,15 @@ class ResultsFulfillerTest {
 
   @Test
   fun `runWork uses mapped model line when provided`() = runBlocking {
+    assertMappedModelLineFulfillment(embeddedAlias = false)
+  }
+
+  @Test
+  fun `runWork fulfills a persisted legacy alias with visible model info only`() = runBlocking {
+    assertMappedModelLineFulfillment(embeddedAlias = true)
+  }
+
+  private suspend fun assertMappedModelLineFulfillment(embeddedAlias: Boolean) {
     val mappedModelLine = "mapped-model-line"
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -925,10 +1210,14 @@ class ResultsFulfillerTest {
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
-    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+    val groupedRequisitions =
+      loadGroupedRequisitions(requisitionsTmpPath).copy {
+        if (embeddedAlias) selectedModelLine = mappedModelLine
+      }
 
     val resultsFulfiller =
       ResultsFulfiller(
@@ -1053,6 +1342,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -1193,6 +1483,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -1344,6 +1635,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -1483,6 +1775,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -1620,6 +1913,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val resultsFulfiller =
@@ -1743,6 +2037,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -1858,6 +2153,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -1995,6 +2291,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -2112,6 +2409,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -2227,6 +2525,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -2350,6 +2649,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2441,7 +2741,7 @@ class ResultsFulfillerTest {
     whenever(requisitionsServiceMock.getRequisition(any()))
       .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
     whenever(requisitionsServiceMock.refuseRequisition(any()))
-      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+      .thenThrow(Status.UNAVAILABLE.withDescription("SYNTHETIC_PRIVATE_VALUE").asRuntimeException())
     whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
       .thenReturn(requisitionMetadata {})
 
@@ -2489,6 +2789,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2533,6 +2834,289 @@ class ResultsFulfillerTest {
       .isEqualTo("StatusException")
     assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
       .isEqualTo("grpc.UNAVAILABLE")
+    assertThat(refusalSpan.toString()).doesNotContain("SYNTHETIC_PRIVATE_VALUE")
+  }
+
+  @Test
+  fun `refusal boundaries stay safe with measurement value logging disabled`() = runBlocking {
+    assertSafeRefusal(logMeasurementValues = false)
+  }
+
+  @Test
+  fun `refusal boundaries stay safe with measurement value logging enabled`() = runBlocking {
+    assertSafeRefusal(logMeasurementValues = true)
+  }
+
+  private suspend fun assertSafeRefusal(logMeasurementValues: Boolean) {
+    val metadataName =
+      REQUISITION_NAME.substringBefore("/requisitions/") + "/requisitionMetadata/refusal-test"
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = metadataName
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.refuseRequisition(any())).thenReturn(requisition {})
+    whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
+      .thenReturn(requisitionMetadata {})
+    whenever(requisitionMetadataServiceMock.startProcessingRequisitionMetadata(any()))
+      .thenReturn(
+        requisitionMetadata {
+          name = metadataName
+          state = RequisitionMetadata.State.PROCESSING
+          cmmsRequisition = REQUISITION_NAME
+          cmmsCreateTime = timestamp { seconds = 12345 }
+          groupId = "an-existing-group-id"
+          report = "report-name"
+          etag = "processing"
+        }
+      )
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(DIRECT_RNF_REQUISITION),
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val cause =
+      IOException("SYNTHETIC_PRIVATE_CAUSE").apply {
+        stackTrace =
+          arrayOf(StackTraceElement("org.wfanet.fixture.Cause", "read", "CauseFixture.kt", 41))
+      }
+    val failure =
+      RequisitionRefusalException.Default(
+          Requisition.Refusal.Justification.UNFULFILLABLE,
+          "SYNTHETIC_PRIVATE_VALUE",
+          cause,
+        )
+        .apply {
+          stackTrace =
+            arrayOf(
+              StackTraceElement("org.wfanet.fixture.Refusal", "refuse", "RefusalFixture.kt", 27)
+            )
+          addSuppressed(
+            IllegalArgumentException("SYNTHETIC_PRIVATE_SUPPRESSED").apply {
+              stackTrace =
+                arrayOf(
+                  StackTraceElement(
+                    "org.wfanet.fixture.Suppressed",
+                    "close",
+                    "SuppressedFixture.kt",
+                    63,
+                  )
+                )
+            }
+          )
+        }
+    val fulfillmentClient = mock<RequisitionsCoroutineStub>()
+    whenever(fulfillmentClient.getRequisition(any(), any<io.grpc.Metadata>()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(fulfillmentClient.fulfillDirectRequisition(any(), any<io.grpc.Metadata>()))
+      .thenAnswer { throw failure }
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = fulfillmentClient,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        requisitionFulfillmentStubMap = emptyMap<String, RequisitionFulfillmentCoroutineStub>(),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        resultMinimumThresholds = null,
+        disableMultiPartyFrequencyVectorSuppression = false,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig = null,
+        kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+        trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = logMeasurementValues,
+      )
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        wholeBlobEntityTypes = emptySet(),
+        metrics = metrics,
+      )
+
+    val output = java.util.concurrent.CopyOnWriteArrayList<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          output += java.util.logging.SimpleFormatter().format(record)
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val logger = Logger.getLogger("")
+    logger.addHandler(handler)
+    try {
+      resultsFulfiller.fulfillRequisitions()
+    } finally {
+      logger.removeHandler(handler)
+    }
+    val metadataRequest =
+      argumentCaptor<
+        org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
+      >()
+    verifyBlocking(requisitionMetadataServiceMock) {
+      refuseRequisitionMetadata(metadataRequest.capture())
+    }
+    assertThat(metadataRequest.firstValue.name).isEqualTo(metadataName)
+    val kingdomRequest =
+      argumentCaptor<org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest>()
+    verifyBlocking(requisitionsServiceMock) { refuseRequisition(kingdomRequest.capture()) }
+    for (description in
+      listOf(
+        metadataRequest.firstValue.refusalMessage,
+        kingdomRequest.firstValue.refusal.message,
+      )) {
+      assertThat(description).contains("justification=UNFULFILLABLE")
+      assertThat(description).contains("category=REQUISITION_REFUSAL")
+      assertThat(description).contains("code=FULFILLMENT_FAILED")
+      for (privateText in
+        listOf(
+          "SYNTHETIC_PRIVATE_VALUE",
+          "SYNTHETIC_PRIVATE_CAUSE",
+          "SYNTHETIC_PRIVATE_SUPPRESSED",
+          "RequisitionRefusalException",
+          "IOException",
+          "IllegalArgumentException",
+          "RefusalFixture.kt",
+          "CauseFixture.kt",
+          "SuppressedFixture.kt",
+          "; at ",
+          "org.wfanet",
+        )) assertThat(description).doesNotContain(privateText)
+    }
+    assertThat(metadataRequest.firstValue.refusalMessage)
+      .isEqualTo(kingdomRequest.firstValue.refusal.message)
+    assertThat(kingdomRequest.firstValue.refusal.justification).isEqualTo(failure.justification)
+    val formattedLogs = output.joinToString("\n")
+    assertThat(formattedLogs).contains(failure.javaClass.name)
+    assertThat(formattedLogs).contains("java.io.IOException")
+    assertThat(formattedLogs).contains("java.lang.IllegalArgumentException")
+    assertThat(formattedLogs).contains("RefusalFixture.kt:27")
+    assertThat(formattedLogs).contains("CauseFixture.kt:41")
+    assertThat(formattedLogs).contains("SuppressedFixture.kt:63")
+    assertThat(formattedLogs).contains(REQUISITION_NAME)
+    assertThat(formattedLogs).contains("justification=UNFULFILLABLE")
+    assertThat(formattedLogs).contains("category=REQUISITION_REFUSAL")
+    assertThat(formattedLogs).contains("code=FULFILLMENT_FAILED")
+    // The real direct fulfiller proves logMeasurementValues is wired, independent of refusal
+    // sanitization.
+    assertThat(formattedLogs.contains("Direct MeasurementResult:")).isEqualTo(logMeasurementValues)
+    val spans = collectSpans()
+    val refusalSpan = spans.single { it.name == "requisition_fulfillment" }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.justification")
+        )
+      )
+      .isEqualTo("UNFULFILLABLE")
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.category")
+        )
+      )
+      .isEqualTo("REQUISITION_REFUSAL")
+    assertThat(
+        refusalSpan.attributes.get(
+          io.opentelemetry.api.common.AttributeKey.stringKey("xmm.refusal.code")
+        )
+      )
+      .isEqualTo("FULFILLMENT_FAILED")
+    val exceptionEvent = refusalSpan.events.single { it.name == "exception" }
+    val exceptionEvidence = exceptionEvent.attributes.asMap().toString()
+    assertThat(exceptionEvidence).contains(failure.javaClass.name)
+    assertThat(exceptionEvidence).contains("IOException")
+    assertThat(exceptionEvidence).contains("CauseFixture.kt:41")
+    assertThat(exceptionEvidence).contains("RefusalFixture.kt:27")
+    assertThat(exceptionEvidence).contains("java.lang.IllegalArgumentException")
+    assertThat(exceptionEvidence).contains("SuppressedFixture.kt:63")
+    val internalSpans =
+      spans.joinToString { span ->
+        span.toString() + span.events.joinToString { it.attributes.asMap().toString() }
+      }
+    assertThat(internalSpans).contains("IOException")
+    assertThat(internalSpans).contains("CauseFixture.kt")
+    assertThat(internalSpans).contains(REQUISITION_NAME)
+    assertThat(internalSpans).contains("FULFILLMENT_FAILED")
+    for (privateText in
+      listOf(
+        "SYNTHETIC_PRIVATE_VALUE",
+        "SYNTHETIC_PRIVATE_CAUSE",
+        "SYNTHETIC_PRIVATE_SUPPRESSED",
+      )) {
+      assertThat(formattedLogs).doesNotContain(privateText)
+      assertThat(internalSpans).doesNotContain(privateText)
+    }
+    verifyBlocking(fulfillmentClient) { fulfillDirectRequisition(any(), any<io.grpc.Metadata>()) }
+    verifyBlocking(requisitionMetadataServiceMock) { startProcessingRequisitionMetadata(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(0)) { fulfillRequisitionMetadata(any()) }
+    assertThat(failure.message).isEqualTo("SYNTHETIC_PRIVATE_VALUE")
   }
 
   @Test
@@ -2612,6 +3196,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2726,6 +3311,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -2838,6 +3424,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -2972,6 +3559,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -3104,6 +3692,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3307,6 +3896,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -3437,6 +4027,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     // Load grouped requisitions from storage
@@ -3585,6 +4176,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = trusTeeV2ImpressionCountMode,
         trusTeeV2MaxFrequencyPerUser = trusTeeV2MaxFrequencyPerUser,
+        logMeasurementValues = false,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3847,6 +4439,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       // Load grouped requisitions from storage
@@ -3960,6 +4553,7 @@ class ResultsFulfillerTest {
           kekUriToKeyNameMap = emptyMap(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val groupedReqs = groupedRequisitions {
@@ -4073,6 +4667,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
 
     val groupedReqs = groupedRequisitions {
@@ -4127,6 +4722,78 @@ class ResultsFulfillerTest {
 
   @Test
   fun `runWork mapping handles all blob representations without double counting`() = runBlocking {
+    assertMappedBlobResults(
+      selectors =
+        listOf(
+          eventGroupDetails {
+            entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = "campaign"
+                entityId = "entity/123"
+              }
+          }
+        ),
+      expectedImpressions = 4L,
+    )
+  }
+
+  @Test
+  fun `runWork mapping includes each mixed selector and excludes unselected campaigns`() =
+    runBlocking {
+      assertMappedBlobResults(
+        selectors =
+          listOf(
+            eventGroupDetails { eventGroupReferenceId = "ref/123" },
+            eventGroupDetails {
+              entityKey =
+                GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                  entityType = "campaign"
+                  entityId = "entity/456"
+                }
+            },
+            eventGroupDetails {
+              eventGroupReferenceId = "ref/789"
+              entityKey =
+                GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                  entityType = "campaign"
+                  entityId = "entity/789"
+                }
+            },
+          ),
+        expectedImpressions = 6L,
+      )
+    }
+
+  @Test
+  fun `runWork mapping does not double count equivalent mixed selectors`() = runBlocking {
+    assertMappedBlobResults(
+      selectors =
+        listOf(
+          eventGroupDetails { eventGroupReferenceId = "ref/123" },
+          eventGroupDetails {
+            entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = "campaign"
+                entityId = "entity/123"
+              }
+          },
+          eventGroupDetails {
+            eventGroupReferenceId = "ref/123"
+            entityKey =
+              GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
+                entityType = "campaign"
+                entityId = "entity/123"
+              }
+          },
+        ),
+      expectedImpressions = 4L,
+    )
+  }
+
+  private suspend fun assertMappedBlobResults(
+    selectors: List<GroupedRequisitions.EventGroupDetails>,
+    expectedImpressions: Long,
+  ) {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     val sourceIds = listOf("reference-only", "entity-only", "reference-and-lower", "multi-parent")
@@ -4164,6 +4831,8 @@ class ResultsFulfillerTest {
     kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
     val campaign123 = labeledImpressionEntityKey("campaign", "entity/123")
     val campaign456 = labeledImpressionEntityKey("campaign", "entity/456")
+    val campaign789 = labeledImpressionEntityKey("campaign", "entity/789")
+    val campaign999 = labeledImpressionEntityKey("campaign", "entity/999")
     writeMappedImpressionBlob(
       kmsClient = kmsClient,
       kekUri = kekUri,
@@ -4216,36 +4885,58 @@ class ResultsFulfillerTest {
         listOf(
           labeledImpression(vid = 4L, entityKeys = listOf(campaign123)),
           labeledImpression(vid = 5L, entityKeys = listOf(campaign456)),
+          labeledImpression(vid = 6L, entityKeys = listOf(campaign789)),
+          labeledImpression(vid = 7L, entityKeys = listOf(campaign999)),
         ),
       entityKeys =
         listOf(
           entityKeyGroup {
             entityType = "campaign"
-            entityIds += listOf("entity/123", "entity/456")
+            entityIds += listOf("entity/123", "entity/456", "entity/789", "entity/999")
           }
         ),
       eventGroupReferenceId = "ref/123",
     )
 
+    val eventGroupNames = selectors.indices.map { "$EVENT_GROUP_NAME-$it" }
+    val spec =
+      REQUISITION_SPEC.copy {
+        events =
+          events.copy {
+            eventGroups.clear()
+            eventGroups +=
+              eventGroupNames.map { name ->
+                REQUISITION_SPEC.events.eventGroupsList.single().copy { key = name }
+              }
+          }
+      }
+    val mixedRequisition =
+      DIRECT_IMPRESSION_REQUISITION.copy {
+        encryptedRequisitionSpec =
+          encryptRequisitionSpec(
+            signRequisitionSpec(spec, MC_SIGNING_KEY),
+            DATA_PROVIDER_PUBLIC_KEY,
+          )
+      }
     val groupedReqs = groupedRequisitions {
       modelLine = "some-model-line"
       groupId = "mapping-group"
-      eventGroupMap += eventGroupMapEntry {
-        eventGroup = EVENT_GROUP_NAME
-        details = eventGroupDetails {
-          collectionIntervals += interval {
-            startTime = TIME_RANGE.start.toProtoTime()
-            endTime = TIME_RANGE.endExclusive.toProtoTime()
+      eventGroupMap +=
+        selectors.mapIndexed { index, selector ->
+          eventGroupMapEntry {
+            eventGroup = eventGroupNames[index]
+            details =
+              selector.copy {
+                collectionIntervals += interval {
+                  startTime = TIME_RANGE.start.toProtoTime()
+                  endTime = TIME_RANGE.endExclusive.toProtoTime()
+                }
+              }
           }
-          entityKey =
-            GroupedRequisitionsKt.EventGroupDetailsKt.entityKey {
-              entityType = "campaign"
-              entityId = "entity/123"
-            }
         }
-      }
-      requisitions += requisitionEntry { requisition = Any.pack(DIRECT_IMPRESSION_REQUISITION) }
+      requisitions += requisitionEntry { requisition = Any.pack(mixedRequisition) }
     }
+
     val impressionsMetadataService =
       ImpressionDataSourceProvider(
         impressionMetadataStub = impressionMetadataStub,
@@ -4275,6 +4966,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = emptyMap(),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
     val resultsFulfiller =
       ResultsFulfiller(
@@ -4309,7 +5001,7 @@ class ResultsFulfillerTest {
         RequisitionsCoroutineImplBase::fulfillDirectRequisition,
       )
     val result: Measurement.Result = decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
-    assertThat(result).impressionValue().isEqualTo(4L)
+    assertThat(result).impressionValue().isEqualTo(expectedImpressions)
   }
 
   private fun labeledImpression(
@@ -4404,7 +5096,10 @@ class ResultsFulfillerTest {
     val requisitionsStorageClient =
       SelectedStorageClient(REQUISITIONS_FILE_URI, requisitionsTmpPath)
     val requisitionValidator =
-      RequisitionsValidator(TestRequisitionData.EDP_DATA.privateEncryptionKey)
+      RequisitionsValidator(
+        privateEncryptionKey = TestRequisitionData.EDP_DATA.privateEncryptionKey,
+        allowMixedEventGroupSelectors = false,
+      )
     val groupedRequisitions =
       SingleRequisitionGrouper(
           requisitionsClient = requisitionsStub,
@@ -4643,6 +5338,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = mapOf("uri" to "invalid/key/name"),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
     }
   }
@@ -4668,6 +5364,7 @@ class ResultsFulfillerTest {
         kekUriToKeyNameMap = mapOf("uri" to longKeyName),
         trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
         trusTeeV2MaxFrequencyPerUser = null,
+        logMeasurementValues = false,
       )
     }
   }
@@ -4695,6 +5392,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4731,6 +5429,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4767,6 +5466,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4808,6 +5508,7 @@ class ResultsFulfillerTest {
             ),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4846,6 +5547,7 @@ class ResultsFulfillerTest {
             setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4883,6 +5585,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)
@@ -4916,6 +5619,7 @@ class ResultsFulfillerTest {
           supportedMultiPartyNoiseMechanisms = emptySet(),
           trusTeeV2ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
           trusTeeV2MaxFrequencyPerUser = null,
+          logMeasurementValues = false,
         )
 
       val frequencyVector = StripedByteFrequencyVector(POPULATION_SPEC_SIZE)

@@ -22,11 +22,14 @@ import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
+import com.google.cloud.storage.StorageException
 import com.google.cloud.storage.StorageOptions
+import com.google.type.Date
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
+import java.io.IOException
 import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -35,10 +38,12 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.edpaggregator.DataWatcherConfigTypes
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -57,12 +62,12 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadataReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcCorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingControllerEventSink
-import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalUploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
@@ -74,7 +79,11 @@ class VidLabelingHealingControllerFunction(
 ) : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
-      runBlocking { runController() }
+      Tracing.withW3CTraceContext(request) {
+        runBlocking {
+          Tracing.traceSuspending("VidLabelingHealingControllerFunction") { runController() }
+        }
+      }
       response.setStatusCode(204)
     } finally {
       EdpaTelemetry.flush()
@@ -90,12 +99,6 @@ class VidLabelingHealingControllerFunction(
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
     private val rawApiTarget by lazy { EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET") }
     private val rawApiCertHost by lazy { System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST") }
-    private val healingInternalApiTarget by lazy {
-      EnvVars.checkNotNullOrEmpty("HEALING_INTERNAL_API_TARGET")
-    }
-    private val healingInternalApiCertHost by lazy {
-      System.getenv("HEALING_INTERNAL_API_CERT_HOST")
-    }
     private val controlPlaneTarget by lazy { EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET") }
     private val controlPlaneCertHost by lazy { System.getenv("CONTROL_PLANE_CERT_HOST") }
     private val retention by lazy {
@@ -120,6 +123,7 @@ class VidLabelingHealingControllerFunction(
         EdpAggregatorConfig.getConfigAsProtoMessage(
           EnvVars.checkNotNullOrEmpty("DATA_WATCHER_CONFIG_BLOB_KEY"),
           DataWatcherConfig.getDefaultInstance(),
+          DataWatcherConfigTypes.registry,
         )
       }
     }
@@ -143,28 +147,15 @@ class VidLabelingHealingControllerFunction(
           rawApiCertHost,
           grpcTelemetry,
         )
-      val internalChannel =
-        VidLabelingFunctionHelpers.createInstrumentedChannel(
-          firstConfig.rawImpressionMetadataStorageConnection,
-          healingInternalApiTarget,
-          healingInternalApiCertHost,
-          grpcTelemetry,
-        )
       val uploads = RawImpressionUploadServiceCoroutineStub(rawChannel)
       val files = RawImpressionUploadFileServiceCoroutineStub(rawChannel)
       val modelLines = RawImpressionUploadModelLineServiceCoroutineStub(rawChannel)
       val ranks = RankIndexBlobServiceCoroutineStub(rawChannel)
       val impressionMetadata = ImpressionMetadataServiceCoroutineStub(rawChannel)
       val candidates = RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawChannel)
+      val candidateCleaner = GrpcCorrectionCandidateCleaner(candidates, rpcThrottlers)
       val operations = UploadHealingOperationServiceCoroutineStub(rawChannel)
-      val operationStore =
-        GrpcHealingOperationStore(
-          operations,
-          InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-            internalChannel
-          ),
-          rpcThrottlers = rpcThrottlers,
-        )
+      val operationStore = GrpcHealingOperationStore(operations, rpcThrottlers)
       val labeledOutputStore = GcsLabeledOutputStore(storage)
       val workItemsClients =
         vidLabelingConfigs.associate { config ->
@@ -225,6 +216,7 @@ class VidLabelingHealingControllerFunction(
           )
         },
         candidates,
+        candidateCleaner,
         operationStore,
         uploads,
         files,
@@ -240,7 +232,11 @@ class VidLabelingHealingControllerFunction(
         evictionExecutorFactory = { evictors.getValue(it.name) },
         manifestReader = GcsCorrectionManifestReader(storage),
         doneBlobReplayerFactory = { config ->
-          DataWatcherDoneBlobReplayer(watchers.getValue(config.name))
+          DataWatcherDoneBlobReplayer(
+            watchers.getValue(config.name),
+            GcsDoneObjectMetadataReader(storage)::readVersion,
+            rpcThrottlers.metadataRead,
+          )
         },
         recoveryExecutorFactory = { recoverUploader },
         dataAvailabilitySyncWorkItemPublisher =
@@ -253,6 +249,9 @@ class VidLabelingHealingControllerFunction(
               workItemsClients
                 .getValue(dataProvider)
                 .getWorkItem(getWorkItemRequest { this.name = name })
+            },
+            retryWorkItem = { dataProvider, request ->
+              workItemsClients.getValue(dataProvider).retryWorkItem(request)
             },
           ),
         doneObjectMetadataReader = GcsDoneObjectMetadataReader(storage),
@@ -272,6 +271,22 @@ class VidLabelingHealingControllerFunction(
 
 internal class GcsDoneObjectMetadataReader(private val storage: Storage) :
   DoneObjectMetadataReader {
+  suspend fun readVersion(uri: String, generation: Long): DoneObjectMetadata? {
+    val parsed = GcsUri.parse(uri)
+    return withContext(Dispatchers.IO) {
+      val blob =
+        try {
+          storage.get(BlobId.of(parsed.bucket, parsed.key, generation))
+        } catch (e: StorageException) {
+          if (e.isRetryable) throw IOException("Unable to read approved done-object metadata", e)
+          throw e
+        }
+      blob?.let {
+        DoneObjectMetadata(it.generation, checkNotNull(it.createTimeOffsetDateTime).toInstant())
+      }
+    }
+  }
+
   override suspend fun read(uri: String): DoneObjectMetadata? {
     val parsed = GcsUri.parse(uri)
     return withContext(Dispatchers.IO) {
@@ -312,10 +327,24 @@ internal class GcsDoneBlobRecoveryWriter(private val storage: Storage) {
       val blobId = BlobId.of(done.bucket, done.key)
       val current = checkNotNull(storage.get(blobId)) { "$doneBlobUri does not exist" }
       val currentMetadata = current.metadata.orEmpty()
+      val legacyOperationName =
+        RawImpressionUploadKey.fromName(
+            currentMetadata[WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY].orEmpty()
+          )
+          ?.let { source ->
+            currentMetadata[WatchedBlobs.EVICTION_OPERATION_ID_KEY]
+              ?.takeIf { it.isNotEmpty() }
+              ?.let { UploadHealingOperationKey(source.parentKey, it).toName() }
+          }
       val matchingRecovery =
         current.generation > 0L &&
           current.generation != expectedGeneration &&
-          metadata.all { (key, value) -> currentMetadata[key] == value }
+          metadata.all { (key, value) ->
+            currentMetadata[key] == value ||
+              key == WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY &&
+                key !in currentMetadata &&
+                legacyOperationName == value
+          }
       check(current.generation == expectedGeneration || matchingRecovery) {
         "$doneBlobUri is at generation ${current.generation}, not $expectedGeneration"
       }
@@ -414,19 +443,34 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
     }
 }
 
-internal class DataWatcherDoneBlobReplayer(private val dataWatcher: DataWatcher) :
-  DoneBlobReplayer {
+internal class DataWatcherDoneBlobReplayer(
+  private val dataWatcher: DataWatcher,
+  private val readVersion: suspend (String, Long) -> DoneObjectMetadata?,
+  private val throttler: org.wfanet.measurement.common.throttler.Throttler,
+) : DoneBlobReplayer {
   override suspend fun replay(request: DoneBlobReplayer.Request) {
     val operationId =
       requireNotNull(UploadHealingOperationKey.fromName(request.uploadHealingOperation))
         .uploadHealingOperationId
+    val metadata =
+      checkNotNull(
+        throttler.onReady { readVersion(request.doneBlobUri, request.doneBlobGeneration) }
+      ) {
+        "The approved done-object generation is unavailable"
+      }
+    check(metadata.generation == request.doneBlobGeneration) {
+      "Approved done-object identity changed"
+    }
     dataWatcher.receivePath(
       request.doneBlobUri,
       mapOf(
         DataWatcher.GENERATION_METADATA_KEY to request.doneBlobGeneration.toString(),
+        DataWatcher.CREATE_TIME_METADATA_KEY to metadata.createTime.toString(),
+        DataWatcher.EVENT_TYPE_METADATA_KEY to DataWatcher.FINALIZED_EVENT_TYPE,
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to request.cmmsModelLines.joinToString(","),
         WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to request.sourceRawImpressionUpload,
         WatchedBlobs.EVICTION_OPERATION_ID_KEY to operationId,
+        WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to request.uploadHealingOperation,
       ),
     )
   }

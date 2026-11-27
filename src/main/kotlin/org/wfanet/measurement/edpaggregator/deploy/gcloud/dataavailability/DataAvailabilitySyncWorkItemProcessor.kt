@@ -17,47 +17,41 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 
 import com.google.protobuf.InvalidProtocolBufferException
-import io.grpc.Status
-import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
+import java.time.Instant
 import java.time.LocalDate
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.ResourceIds
-import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseContext
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
+import org.wfanet.measurement.edpaggregator.dataavailability.ObsoleteDataAvailabilityWorkItemException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ExternalDataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWorkItemAttemptRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.renewWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
+import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemInvocation
+import org.wfanet.measurement.securecomputation.deploy.gcloud.workitems.WorkItemRunner
 
 /** Validated parameters carried by a DataAvailabilitySync `WorkItem`. */
 internal data class DataAvailabilitySyncWorkItem(
@@ -66,6 +60,9 @@ internal data class DataAvailabilitySyncWorkItem(
   val appParams: DataAvailabilitySyncParams,
   val dataPathParams: WorkItem.WorkItemParams.DataPathParams,
 ) {
+  val isExternal: Boolean
+    get() = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+
   val workItemName: String
     get() = workItem.name
 
@@ -77,6 +74,9 @@ internal data class DataAvailabilitySyncWorkItem(
 
   val doneBlobGeneration: Long
     get() = dataPathParams.generation
+
+  val doneBlobCreateTime: Instant
+    get() = dataPathParams.createTime.toInstant()
 
   val eventDate: LocalDate
     get() =
@@ -104,31 +104,44 @@ internal data class DataAvailabilitySyncWorkItem(
           throw IllegalArgumentException("work_item_params cannot be unpacked", e)
         }
       require(workItemParams.hasAppParams()) { "app_params is required" }
-      require(workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
-        "app_params must contain DataAvailabilitySyncParams"
+      val isExternal = workItemParams.appParams.`is`(ExternalDataAvailabilitySyncParams::class.java)
+      require(isExternal || workItemParams.appParams.`is`(DataAvailabilitySyncParams::class.java)) {
+        "app_params must contain internal or external DataAvailabilitySyncParams"
       }
       val appParams =
         try {
-          workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          if (isExternal) {
+            DataAvailabilitySyncParams.newBuilder()
+              .setDataProvider(
+                workItemParams.appParams
+                  .unpack(ExternalDataAvailabilitySyncParams::class.java)
+                  .dataProvider
+              )
+              .build()
+          } else {
+            workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+          }
         } catch (e: InvalidProtocolBufferException) {
           throw IllegalArgumentException("app_params cannot be unpacked", e)
         }
       requireNotNull(DataProviderKey.fromName(appParams.dataProvider)) {
         "data_provider must be a DataProvider resource name"
       }
-      requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
-        "raw_impression_upload must be a RawImpressionUpload resource name"
+      if (!isExternal) {
+        requireNotNull(RawImpressionUploadKey.fromName(appParams.triggeringRawImpressionUpload)) {
+          "raw_impression_upload must be a RawImpressionUpload resource name"
+        }
+        requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
+          "model_line must be a ModelLine resource name"
+        }
+        requireNotNull(
+          RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
+        ) {
+          "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
+        }
+        require(appParams.hasEventDate()) { "event_date is required" }
+        LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
       }
-      requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
-        "model_line must be a ModelLine resource name"
-      }
-      requireNotNull(
-        RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
-      ) {
-        "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
-      }
-      require(appParams.hasEventDate()) { "event_date is required" }
-      LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
 
       require(workItemParams.hasDataPathParams()) { "data_path_params is required" }
       val dataPathParams = workItemParams.dataPathParams
@@ -136,12 +149,7 @@ internal data class DataAvailabilitySyncWorkItem(
       require(dataPathParams.hasGeneration() && dataPathParams.generation > 0L) {
         "data path generation must be positive"
       }
-      require(
-        dataPathParams.eventType ==
-          WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-      ) {
-        "event_type must be FINALIZED"
-      }
+      require(dataPathParams.hasCreateTime()) { "data path create_time is required" }
       return DataAvailabilitySyncWorkItem(workItem, workItemParams, appParams, dataPathParams)
     }
   }
@@ -167,47 +175,64 @@ internal class DataAvailabilitySyncWorkItemProcessor(
     delay(ATTEMPT_UPDATE_BACKOFF.durationForAttempt(attempt).toMillis())
   },
 ) {
+  private val runner =
+    WorkItemRunner(
+      workItemsStub,
+      workItemAttemptsStub,
+      attemptIdGenerator = { "data-availability-${uuidGenerator()}" },
+      activeAttemptDelay = activeAttemptRetryDelay,
+      renewalDelay = attemptLeaseRenewalDelay,
+      updateRetryDelay = attemptUpdateRetryDelay,
+      // Preserve compatibility with unleased attempts from older control planes.
+      requireAttemptLease = false,
+      terminalWorkItemStates =
+        setOf(
+          WorkItem.State.FAILED,
+          WorkItem.State.SUCCEEDED,
+          WorkItem.State.STATE_UNSPECIFIED,
+          WorkItem.State.UNRECOGNIZED,
+        ),
+    )
+
   suspend fun process(input: DataAvailabilitySyncWorkItem) {
-    val parentContext =
-      Tracing.withW3CTraceContext(input.workItemParams.traceContextMap) { Context.current() }
-    withContext(parentContext.asContextElement()) {
-      val attributes =
-        Attributes.builder()
-          .put(XmmTraceAttributes.WORK_ITEM_NAME, input.workItemName)
-          .put(XmmTraceAttributes.WORK_ITEM_GENERATION, input.workItemGeneration)
-          .put(
-            VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME,
-            input.appParams.triggeringRawImpressionUpload,
-          )
-          .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, input.appParams.modelLine)
-          .put(
-            VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH,
-            VidLabelingTraceAttributes.gcsObjectPathHash(input.doneBlobUri),
-          )
-          .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, input.doneBlobGeneration)
-          .put(XmmTraceAttributes.LIFECYCLE_STAGE, LIFECYCLE_STAGE)
-          .put(XmmTraceAttributes.OUTCOME, "started")
-          .build()
-      Tracing.traceSuspending("edpa.data_availability.sync.work_item", attributes) {
-        processInContext(input)
-      }
-    }
+    createInvocation(input, close = {}).run()
   }
 
-  private suspend fun processInContext(input: DataAvailabilitySyncWorkItem) {
-    val claimed = awaitWorkItemAttempt(input) ?: return
-    val attempt = claimed.attempt
-    Span.current().setAttribute(XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME, attempt.name)
-    logLifecycle(input, attempt, outcome = "started")
+  fun createInvocation(
+    input: DataAvailabilitySyncWorkItem,
+    close: suspend () -> Unit,
+  ): WorkItemInvocation {
+    val handler =
+      object : WorkItemRunner.Handler() {
+        override val workItem = input.workItem.copy { generation = input.workItemGeneration }
+        private var stage = DataAvailabilitySync.Stage.DISCOVERY
+        private var leaseName: String? = null
+        private var outcome: DataAvailabilitySync.Outcome? = null
 
-    var stage = DataAvailabilitySync.Stage.DISCOVERY
-    var leaseName: String? = null
-    try {
-      val outcome =
-        runWithAttemptLeaseRenewal(attempt) {
-          val synchronized =
-            leaseRunner.run(input.appParams.dataProvider, claimed.synchronizationAttemptId) { lease
-              ->
+        override fun onStarted(attempt: WorkItemRunner.Attempt) {
+          Span.current()
+            .setAttribute(XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME, attempt.resource.name)
+          logLifecycle(input, attempt.resource, outcome = "started")
+        }
+
+        override fun onWaiting() {
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "in_progress")
+        }
+
+        override fun onSkipped(reason: WorkItemRunner.SkipReason) {
+          val outcome =
+            if (reason == WorkItemRunner.SkipReason.STALE_GENERATION) "stale_delivery"
+            else "already_terminal"
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome)
+          logLifecycle(input, outcome = outcome)
+        }
+
+        override suspend fun execute(attempt: WorkItemRunner.Attempt): WorkItemRunner.Action {
+          val result =
+            leaseRunner.run(
+              input.appParams.dataProvider,
+              attempt.id.removePrefix("data-availability-"),
+            ) { lease ->
               leaseName = lease.name
               Span.current()
                 .setAttribute(
@@ -215,7 +240,7 @@ internal class DataAvailabilitySyncWorkItemProcessor(
                   lease.name,
                 )
               verifyDoneObject(input)
-              val result =
+              val synchronized =
                 synchronize(input, lease) { nextStage ->
                   stage = nextStage
                   Span.current()
@@ -224,192 +249,87 @@ internal class DataAvailabilitySyncWorkItemProcessor(
                       nextStage.name.lowercase(),
                     )
                 }
-              if (
-                result == DataAvailabilitySync.Outcome.PUBLISHED ||
-                  result == DataAvailabilitySync.Outcome.NO_WORK
-              ) {
+              if (synchronized.canCompleteTrigger) {
                 lease()
-                markAvailabilitySynchronized(input)
+                if (!input.isExternal) markAvailabilitySynchronized(input)
               }
-              result
+              synchronized
             }
-          if (
-            synchronized == DataAvailabilitySync.Outcome.PUBLISHED ||
-              synchronized == DataAvailabilitySync.Outcome.NO_WORK
-          ) {
-            completeWorkItemAttempt(attempt)
+          outcome = result
+          return if (result.canCompleteTrigger) WorkItemRunner.Action.Complete
+          else WorkItemRunner.Action.Fail(failureMessage(stage, blockedFailure(result)))
+        }
+
+        override fun failureAction(error: Exception): WorkItemRunner.Action? =
+          when (error) {
+            is ObsoleteDataAvailabilityWorkItemException -> WorkItemRunner.Action.Complete
+            is IllegalArgumentException -> WorkItemRunner.Action.Fail(errorMessage(error))
+            else -> null
           }
-          synchronized
-        }
 
-      if (
-        outcome == DataAvailabilitySync.Outcome.PUBLISHED ||
-          outcome == DataAvailabilitySync.Outcome.NO_WORK
-      ) {
-        val traceOutcome =
-          if (outcome == DataAvailabilitySync.Outcome.NO_WORK) "no_work" else "succeeded"
-        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, traceOutcome)
-        logLifecycle(input, attempt, outcome = traceOutcome, stage = stage, leaseName = leaseName)
-        return
-      }
+        override fun errorMessage(error: Exception): String = failureMessage(stage, error)
 
-      val failure = IllegalStateException("DataAvailabilitySync outcome was ${outcome.name}")
-      failTerminal(input, attempt, failureMessage(stage, failure))
-      Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
-      logLifecycle(
-        input,
-        attempt,
-        outcome = outcome.name.lowercase(),
-        error = failure,
-        stage = stage,
-        leaseName = leaseName,
-      )
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: IllegalArgumentException) {
-      failTerminal(input, attempt, failureMessage(stage, e))
-      Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "failed")
-      logLifecycle(input, attempt, "failed", e, stage, leaseName)
-    } catch (e: Exception) {
-      try {
-        failWorkItemAttempt(attempt, failureMessage(stage, e))
-      } catch (failureWritebackError: Exception) {
-        e.addSuppressed(failureWritebackError)
-      }
-      Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "retryable_failure")
-      logLifecycle(input, attempt, "retryable_failure", e, stage, leaseName)
-      throw e
-    }
-  }
-
-  private suspend fun awaitWorkItemAttempt(input: DataAvailabilitySyncWorkItem): ClaimedAttempt? {
-    while (true) {
-      val synchronizationAttemptId = uuidGenerator()
-      try {
-        val attempt =
-          workItemAttemptsStub.createWorkItemAttempt(
-            createWorkItemAttemptRequest {
-              parent = input.workItemName
-              workItemAttemptId = "data-availability-$synchronizationAttemptId"
-              expectedWorkItemGeneration = input.workItemGeneration
-              supportsAttemptLease = true
-            }
-          )
-        return ClaimedAttempt(attempt, synchronizationAttemptId)
-      } catch (e: StatusException) {
-        val reason = e.errorInfo?.reason
-        val workItemState = e.errorInfo?.metadataMap?.get(WORK_ITEM_STATE_METADATA_KEY)
-        if (
-          reason == INVALID_WORK_ITEM_STATE_REASON && workItemState == WorkItem.State.RUNNING.name
+        override fun onFinished(
+          attempt: WorkItemRunner.Attempt,
+          action: WorkItemRunner.Action,
+          error: Exception?,
         ) {
-          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "in_progress")
-          activeAttemptRetryDelay()
-          continue
-        }
-        if (
-          reason == WORK_ITEM_GENERATION_MISMATCH_REASON ||
-            reason == WORK_ITEM_NOT_FOUND_REASON ||
-            reason == INVALID_WORK_ITEM_STATE_REASON && workItemState in TERMINAL_WORK_ITEM_STATES
-        ) {
-          val outcome =
-            if (reason == WORK_ITEM_GENERATION_MISMATCH_REASON) {
-              "stale_delivery"
-            } else {
-              "already_terminal"
+          val traceOutcome =
+            when {
+              error is ObsoleteDataAvailabilityWorkItemException -> "superseded"
+              error != null -> "failed"
+              outcome == DataAvailabilitySync.Outcome.NO_WORK -> "no_work"
+              outcome == DataAvailabilitySync.Outcome.PUBLISHED -> "succeeded"
+              else -> checkNotNull(outcome).name.lowercase()
             }
-          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome)
-          logLifecycle(input, outcome = outcome)
-          return null
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, traceOutcome)
+          if (error is ObsoleteDataAvailabilityWorkItemException) {
+            logLifecycle(input, attempt.resource, outcome = traceOutcome)
+          } else {
+            val failure =
+              error ?: outcome?.takeUnless { it.canCompleteTrigger }?.let(::blockedFailure)
+            logLifecycle(input, attempt.resource, traceOutcome, failure, stage, leaseName)
+          }
         }
-        throw e
-      }
-    }
-  }
 
-  private suspend fun runWithAttemptLeaseRenewal(
-    attempt: WorkItemAttempt,
-    block: suspend () -> DataAvailabilitySync.Outcome,
-  ): DataAvailabilitySync.Outcome = coroutineScope {
-    if (!attempt.hasLeaseExpirationTime()) {
-      return@coroutineScope block()
-    }
-    val renewalJob = launch {
-      while (isActive) {
-        attemptLeaseRenewalDelay()
-        renewWorkItemAttempt(attempt)
-      }
-    }
-    try {
-      block()
-    } finally {
-      renewalJob.cancelAndJoin()
-    }
-  }
-
-  private suspend fun renewWorkItemAttempt(attempt: WorkItemAttempt) {
-    retryAttemptUpdate {
-      workItemAttemptsStub.renewWorkItemAttempt(renewWorkItemAttemptRequest { name = attempt.name })
-    }
-  }
-
-  private suspend fun completeWorkItemAttempt(attempt: WorkItemAttempt) {
-    try {
-      retryAttemptUpdate {
-        workItemAttemptsStub.completeWorkItemAttempt(
-          completeWorkItemAttemptRequest { name = attempt.name }
-        )
-      }
-    } catch (e: StatusException) {
-      if (
-        e.errorInfo?.reason == INVALID_WORK_ITEM_ATTEMPT_STATE_REASON &&
-          e.errorInfo?.metadataMap?.get(WORK_ITEM_ATTEMPT_STATE_METADATA_KEY) ==
-            WorkItemAttempt.State.SUCCEEDED.name
-      ) {
-        return
-      }
-      throw e
-    }
-  }
-
-  private suspend fun failTerminal(
-    input: DataAvailabilitySyncWorkItem,
-    attempt: WorkItemAttempt,
-    errorMessage: String,
-  ) {
-    failWorkItemAttempt(attempt, errorMessage)
-    retryAttemptUpdate {
-      workItemsStub.failWorkItem(
-        failWorkItemRequest {
-          name = input.workItemName
-          expectedWorkItemGeneration = input.workItemGeneration
+        override fun onRetryableFailure(attempt: WorkItemRunner.Attempt, error: Exception) {
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "retryable_failure")
+          logLifecycle(input, attempt.resource, "retryable_failure", error, stage, leaseName)
         }
-      )
-    }
-  }
-
-  private suspend fun failWorkItemAttempt(attempt: WorkItemAttempt, errorMessage: String) {
-    retryAttemptUpdate {
-      workItemAttemptsStub.failWorkItemAttempt(
-        failWorkItemAttemptRequest {
-          name = attempt.name
-          this.errorMessage = errorMessage
-        }
-      )
-    }
-  }
-
-  private suspend fun <T> retryAttemptUpdate(block: suspend () -> T): T {
-    var attempt = 1
-    while (true) {
-      try {
-        return block()
-      } catch (e: StatusException) {
-        if (e.status.code !in RETRYABLE_CODES || attempt >= MAX_UPDATE_ATTEMPTS) throw e
-        attemptUpdateRetryDelay(attempt)
-        attempt++
       }
-    }
+    return WorkItemInvocation(
+      runner,
+      handler,
+      executeInContext = { block ->
+        val parentContext =
+          Tracing.withW3CTraceContext(input.workItemParams.traceContextMap) { Context.current() }
+        withContext(parentContext.asContextElement()) {
+          val attributes =
+            Attributes.builder()
+              .put(XmmTraceAttributes.WORK_ITEM_NAME, input.workItemName)
+              .put(XmmTraceAttributes.WORK_ITEM_GENERATION, input.workItemGeneration)
+              .put(
+                VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME,
+                input.appParams.triggeringRawImpressionUpload,
+              )
+              .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, input.appParams.modelLine)
+              .put(
+                VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH,
+                VidLabelingTraceAttributes.gcsObjectPathHash(input.doneBlobUri),
+              )
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, input.doneBlobGeneration)
+              .put(XmmTraceAttributes.LIFECYCLE_STAGE, LIFECYCLE_STAGE)
+              .put(XmmTraceAttributes.OUTCOME, "started")
+              .build()
+          Tracing.traceSuspending("edpa.data_availability.sync.work_item", attributes) { block() }
+        }
+      },
+      close = close,
+    )
   }
+
+  private fun blockedFailure(outcome: DataAvailabilitySync.Outcome): Exception =
+    IllegalStateException("DataAvailabilitySync outcome was ${outcome.name}")
 
   private fun failureMessage(stage: DataAvailabilitySync.Stage, error: Throwable): String =
     "${stage.name}:${error::class.java.name.substringAfterLast('.').take(200)}"
@@ -445,35 +365,9 @@ internal class DataAvailabilitySyncWorkItemProcessor(
     )
   }
 
-  private data class ClaimedAttempt(
-    val attempt: WorkItemAttempt,
-    val synchronizationAttemptId: String,
-  )
-
   companion object {
     private const val LIFECYCLE_STAGE = "availability_work_item_process"
-    private const val MAX_UPDATE_ATTEMPTS = 3
-    private const val INVALID_WORK_ITEM_STATE_REASON = "INVALID_WORK_ITEM_STATE"
-    private const val INVALID_WORK_ITEM_ATTEMPT_STATE_REASON = "INVALID_WORK_ITEM_ATTEMPT_STATE"
-    private const val WORK_ITEM_GENERATION_MISMATCH_REASON = "WORK_ITEM_GENERATION_MISMATCH"
-    private const val WORK_ITEM_NOT_FOUND_REASON = "WORK_ITEM_NOT_FOUND"
-    private const val WORK_ITEM_STATE_METADATA_KEY = "workItemState"
-    private const val WORK_ITEM_ATTEMPT_STATE_METADATA_KEY = "workItemAttemptState"
     private val ATTEMPT_UPDATE_BACKOFF = ExponentialBackoff()
-    private val RETRYABLE_CODES =
-      setOf(
-        Status.Code.ABORTED,
-        Status.Code.DEADLINE_EXCEEDED,
-        Status.Code.RESOURCE_EXHAUSTED,
-        Status.Code.UNAVAILABLE,
-      )
-    private val TERMINAL_WORK_ITEM_STATES =
-      setOf(
-        WorkItem.State.FAILED.name,
-        WorkItem.State.SUCCEEDED.name,
-        WorkItem.State.STATE_UNSPECIFIED.name,
-        WorkItem.State.UNRECOGNIZED.name,
-      )
     private val logger = Logger.getLogger(DataAvailabilitySyncWorkItemProcessor::class.java.name)
   }
 }

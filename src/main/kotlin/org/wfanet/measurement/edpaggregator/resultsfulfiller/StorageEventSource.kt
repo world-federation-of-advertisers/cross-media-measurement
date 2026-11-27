@@ -26,7 +26,9 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Descriptors
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
+import com.google.type.Interval
 import java.io.IOException
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
@@ -36,6 +38,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -144,11 +147,20 @@ class StorageEventSource(
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
   private val batchSize: Int,
+  private val reportInterval: Interval? = null,
+  private val requireModelLineFinalization: Boolean = false,
   private val readConcurrency: Int = DEFAULT_READ_CONCURRENCY,
   private val readMaxAttempts: Int = DEFAULT_READ_MAX_ATTEMPTS,
   private val readRetryBackoff: ExponentialBackoff = ExponentialBackoff(),
-  private val eventReaderFactory: (BlobDetails) -> EventReader<Message> = { blobDetails ->
-    StorageEventReader(blobDetails, kmsClient, impressionsStorageConfig, descriptor, batchSize)
+  private val eventReaderFactory: (ImpressionDataSource) -> EventReader<Message> = { source ->
+    StorageEventReader(
+      source.blobDetails,
+      source.blobGeneration,
+      kmsClient,
+      impressionsStorageConfig,
+      descriptor,
+      batchSize,
+    )
   },
 ) : EventSource<Message> {
   init {
@@ -230,6 +242,8 @@ class StorageEventSource(
       impressionDataSourceProvider.listImpressionDataSources(
         modelLine,
         resolvedEventGroups.eventGroupsByKey.values,
+        reportInterval,
+        requireModelLineFinalization,
       )
     cachedImpressionDataSources = result
     return result
@@ -316,7 +330,7 @@ class StorageEventSource(
 
     return uniqueSources.map { source ->
       ResolvedEventReader(
-        reader = eventReaderFactory(source.blobDetails),
+        reader = eventReaderFactory(source),
         eventGroupIdentifier = eventGroupIdentifier(source.blobDetails),
         blobUri = source.blobDetails.blobUri,
       )
@@ -363,9 +377,9 @@ class StorageEventSource(
         if (emitted || attempt >= readMaxAttempts || !isRetryableReadFailure(e)) {
           throw e
         }
-        logger.warning {
+        logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
           "Transient failure opening ${resolvedReader.blobUri} on attempt $attempt of " +
-            "$readMaxAttempts (${e.message}); retrying"
+            "$readMaxAttempts; retrying"
         }
         delay(readRetryBackoff.durationForAttempt(attempt).toMillis())
       }

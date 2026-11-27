@@ -1713,7 +1713,7 @@ class TestReport(unittest.TestCase):
     # 2. Reach of the child set is less than or equal to reach of the parent set
     # for all period, e.g. reach[edp1][i] <= reach[edp1 U edp2][i].
     # 3. All reach values are non-negative.
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     expected = Report(
         metric_reports={
@@ -1822,7 +1822,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, _ = report.get_corrected_report()
+    corrected, _ = report.get_corrected_report(enable_validation=True)
     self.assertFalse(
         are_overlap_constraints_consistent(report, NOISE_CORRECTION_TOLERANCE))
     self.assertTrue(
@@ -1894,7 +1894,7 @@ class TestReport(unittest.TestCase):
     # 4. All reach values are non-negative.
     # 5. Overlap is monotonic as the measurement period grows. The overlap of
     # a set of EDPs in a later period cannot be smaller than in an earlier one.
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     expected = Report(
         metric_reports={
@@ -2044,7 +2044,7 @@ class TestReport(unittest.TestCase):
     # 4. Last time series reach is equal to whole campaign reach,
     # e.g. cumulative_reach[edp1][#num_periods - 1] = whole_campaign_reach[edp1].
     # 5. All reach values are non-negative.
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     expected = Report(
         metric_reports={
@@ -2185,7 +2185,7 @@ class TestReport(unittest.TestCase):
     # whole campaign reach: the last time series reach is equal to whole
     # campaign reach, e.g. cumulative_reach[edp1][#num_period - 1] =
     # whole_campaign_reach[edp1]. All reach values must be non-negative.
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     expected = Report(
         metric_reports={
@@ -2284,7 +2284,7 @@ class TestReport(unittest.TestCase):
     # monotonic increasing, e.g. reach[edp1][i] <= reach[edp1][i+1], except for
     # the one in the exception list, e.g. edp1. All reach values must be
     # non-negative.
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     expected = Report(
         metric_reports={
@@ -2360,7 +2360,7 @@ class TestReport(unittest.TestCase):
     # measurements are less than or equal to the AMI measurements, e.g.
     # mrc_reach[edp1][0] <= ami_reach[edp1][0]. All reach values must be
     # non-negative.
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     expected = Report(
         metric_reports={
@@ -2458,7 +2458,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
@@ -2555,7 +2555,7 @@ class TestReport(unittest.TestCase):
         population_size=55000000,
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
@@ -2662,7 +2662,7 @@ class TestReport(unittest.TestCase):
     self.assertEqual(violation.difference, 5)
     self.assertEqual(violation.tolerance, 1.0)
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_NOT_FOUND)
@@ -2756,7 +2756,7 @@ class TestReport(unittest.TestCase):
         population_size=55000000,
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
@@ -2845,7 +2845,7 @@ class TestReport(unittest.TestCase):
         population_size=55000000,
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_HIGHS)
@@ -2953,7 +2953,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     # The corrected report should be consistent:
     # 1. Within the same metric report:
@@ -3110,7 +3110,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     # The corrected report should be consistent:
     # a) Time series measurements form a non-decreasing sequences.
@@ -3213,7 +3213,7 @@ class TestReport(unittest.TestCase):
     with patch(
         "src.main.python.wfa.measurement.reporting.postprocessing.report.report.logging.warning"
     ) as mock_warning:
-      corrected, report_post_processor_result = report.get_corrected_report()
+      corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     warning_text = str(mock_warning.call_args_list)
     self.assertIn("measurement_04", warning_text)
@@ -3318,7 +3318,7 @@ class TestReport(unittest.TestCase):
     )
 
     with patch("src.main.python.wfa.measurement.reporting.postprocessing.report.report.Solver.solve", autospec=True, return_value=side_effect()):
-        corrected, report_post_processor_result = report.get_corrected_report()
+        corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
     self.assertEqual(report_post_processor_result.status.status_code,
                      StatusCode.SOLUTION_FOUND_WITH_OSQP)
     self._assertReportsAlmostEqual(expected, corrected,
@@ -3360,7 +3360,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     # The corrected report should be consistent:
     # a) Time series measurements form a non-decreasing sequences.
@@ -3512,7 +3512,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     # The corrected report should be consistent:
     # a) Time series measurements form a non-decreasing sequences.
@@ -3679,7 +3679,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     # The corrected report should be consistent:
     # a) The whole campaign reach is equal to the sum of the k reaches.
@@ -3777,7 +3777,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     # The corrected report should be consistent: c) The impression of mrc is
     # less than or equal to that of ami.
@@ -3873,7 +3873,7 @@ class TestReport(unittest.TestCase):
         cumulative_inconsistency_allowed_edp_combinations={},
     )
 
-    corrected, report_post_processor_result = report.get_corrected_report()
+    corrected, report_post_processor_result = report.get_corrected_report(enable_validation=True)
 
     # The corrected report should be consistent:
     # 1. Within the same metric report:

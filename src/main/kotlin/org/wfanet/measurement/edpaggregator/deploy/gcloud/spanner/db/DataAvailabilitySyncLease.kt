@@ -24,8 +24,6 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
 import java.time.Instant
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -149,50 +147,6 @@ suspend fun AsyncDatabaseClient.ReadContext.hasActiveDataAvailabilitySyncLease(
     .singleOrNullIfEmpty() != null
 }
 
-/** Returns whether a specific synchronization-attempt lease is active and unexpired. */
-suspend fun AsyncDatabaseClient.ReadContext.isDataAvailabilitySyncLeaseActive(
-  dataProviderResourceId: String,
-  synchronizationAttemptId: String,
-  now: Instant,
-): Boolean {
-  val lease =
-    findDataAvailabilitySyncLease(dataProviderResourceId, synchronizationAttemptId)
-      ?.dataAvailabilitySyncLease ?: return false
-  return lease.state == DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_ACTIVE &&
-    lease.expireTime.toInstant().isAfter(now)
-}
-
-/** Reads active synchronization leases whose expiration has elapsed. */
-fun AsyncDatabaseClient.ReadContext.readExpiredDataAvailabilitySyncLeases(
-  dataProviderResourceId: String,
-  now: Instant,
-): Flow<DataAvailabilitySyncLeaseResult> {
-  val sql =
-    """
-    SELECT ${COLUMNS.joinToString()}
-    FROM DataAvailabilitySyncLease@{FORCE_INDEX=DataAvailabilitySyncLeaseByState}
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND State = @activeState
-      AND ExpireTime <= @now
-    ORDER BY ExpireTime, SynchronizationAttemptId
-    """
-      .trimIndent()
-  return executeQuery(
-      statement(sql) {
-        bind("dataProviderResourceId").to(dataProviderResourceId)
-        bind("activeState")
-          .to(
-            Value.protoEnum(
-              DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_ACTIVE
-            )
-          )
-        bind("now").to(now.toGcloudTimestamp())
-      },
-      Options.tag("action=readExpiredDataAvailabilitySyncLeases"),
-    )
-    .map(::buildDataAvailabilitySyncLeaseResult)
-}
-
 /** Buffers creation of a data-availability synchronization lease. */
 fun AsyncDatabaseClient.TransactionContext.insertDataAvailabilitySyncLease(
   dataProviderResourceId: String,
@@ -239,20 +193,6 @@ fun AsyncDatabaseClient.TransactionContext.updateDataAvailabilitySyncLease(
         )
     }
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-  }
-}
-
-/** Marks every elapsed active synchronization lease as expired. */
-suspend fun AsyncDatabaseClient.TransactionContext.expireDataAvailabilitySyncLeases(
-  dataProviderResourceId: String,
-  now: Instant,
-) {
-  readExpiredDataAvailabilitySyncLeases(dataProviderResourceId, now).collect { result ->
-    updateDataAvailabilitySyncLease(
-      result,
-      DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_EXPIRED,
-      result.dataAvailabilitySyncLease.expireTime.toInstant(),
-    )
   }
 }
 

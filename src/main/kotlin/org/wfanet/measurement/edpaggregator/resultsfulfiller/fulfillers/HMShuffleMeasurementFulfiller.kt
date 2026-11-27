@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers
 
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -32,6 +33,7 @@ import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.RequisitionFulfillmentCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
+import org.wfanet.measurement.common.ExceptionDiagnostics
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.throttler.Throttler
@@ -105,9 +107,9 @@ class HMShuffleMeasurementFulfiller(
         if (!retryable || attempt >= retryMaxAttempts) {
           throw Exception("Error fulfilling requisition ${requisition.name}", e)
         }
-        logger.warning {
+        logger.log(Level.WARNING, ExceptionDiagnostics.forLogging(e)) {
           "Transient failure fulfilling requisition ${requisition.name} on attempt $attempt of " +
-            "$retryMaxAttempts (${e.message}); retrying"
+            "$retryMaxAttempts; retrying"
         }
         delay(retryBackoff.durationForAttempt(attempt).toMillis())
       }

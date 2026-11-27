@@ -30,12 +30,13 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
-import java.security.MessageDigest
 import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.edpaggregator.VidLabelingDispatchWorkItems
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
@@ -43,11 +44,18 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatchWorkItemParamsKt.recoveryParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatchWorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.copy
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
@@ -62,15 +70,20 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
-  private val workItemIdGenerator: (String) -> String = ::deterministicWorkItemId,
-  private val idTokenProvider: IdTokenProvider =
-    GoogleCredentials.getApplicationDefault() as? IdTokenProvider
-      ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
+  private val workItemIdGenerator: (String) -> String = DataWatcherWorkItemIds::workItemId,
+  private val idTokenProvider: IdTokenProvider? = null,
   private val meter: Meter = Instrumentation.meter,
   private val controlPlaneThrottler: Throttler? = null,
 ) {
   private val metrics =
     DataWatcherMetrics(meter = meter, sinkTypeKey = ATTR_SINK_TYPE_KEY, queueKey = ATTR_QUEUE_KEY)
+  private val httpIdTokenProvider by lazy {
+    idTokenProvider
+      ?: (GoogleCredentials.getApplicationDefault() as? IdTokenProvider
+        ?: throw IllegalArgumentException(
+          "Application Default Credentials do not provide ID token"
+        ))
+  }
 
   /**
    * Receives a path for evaluation against configured watched paths.
@@ -79,7 +92,7 @@ class DataWatcher(
    * @param objectMetadata custom metadata from the GCS object, use empty map if none
    */
   suspend fun receivePath(path: String, objectMetadata: Map<String, String>) {
-    logger.log(Level.INFO, "Received data path for evaluation: path=$path")
+    logger.log(Level.INFO, "Received data path for evaluation: pathHash=${pathHash(path)}")
     for (config in dataWatcherConfigs) {
       processPathForConfig(config, path, objectMetadata)
     }
@@ -94,12 +107,23 @@ class DataWatcher(
     if (!regex.matches(path)) {
       logger.log(
         Level.FINE,
-        "Configuration ${config.identifier} did not match path: path=$path, regex=${config.sourcePathRegex}",
+        "Configuration ${config.identifier} did not match pathHash=${pathHash(path)}",
       )
       return
     }
 
-    logger.log(Level.INFO, "Configuration matched path: config=${config.identifier}, path=$path")
+    if (
+      config.eventTypesCount > 0 &&
+        objectMetadata[EVENT_TYPE_METADATA_KEY] !in config.eventTypesList
+    ) {
+      logger.log(Level.FINE, "Configuration ${config.identifier} did not match event type")
+      return
+    }
+
+    logger.log(
+      Level.INFO,
+      "Configuration matched path: config=${config.identifier}, pathHash=${pathHash(path)}",
+    )
     val processingStartTime = TimeSource.Monotonic.markNow()
 
     try {
@@ -124,6 +148,8 @@ class DataWatcher(
         shouldLog = false,
       )
       throw e
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
       val isRetryable =
@@ -134,8 +160,11 @@ class DataWatcher(
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
-          WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
-      if (isRetryable || isRecoveryOperation) {
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata ||
+          WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY in objectMetadata
+      val isCleanupDispatch =
+        config.hasControlPlaneQueueSink() && config.controlPlaneQueueSink.allowMissingSourceIdentity
+      if (isRetryable || isRecoveryOperation || isVidDispatchQueue(config) || isCleanupDispatch) {
         // Retryable failures and recovery operations must be at-least-once. Surfacing the failure
         // keeps the Eventarc delivery unacknowledged so it is retried and, after exhaustion,
         // retained in the configured DLQ.
@@ -143,6 +172,12 @@ class DataWatcher(
       }
     }
   }
+
+  private fun isVidDispatchQueue(config: WatchedPath): Boolean =
+    config.hasControlPlaneQueueSink() &&
+      (config.controlPlaneQueueSink.queue == VidLabelingDispatchWorkItems.QUEUE ||
+        config.controlPlaneQueueSink.appParams.`is`(VidLabelingDispatcherParams::class.java) ||
+        config.controlPlaneQueueSink.appParams.`is`(VidLabelingDispatchWorkItemParams::class.java))
 
   private suspend fun sendToControlPlane(
     config: WatchedPath,
@@ -152,32 +187,124 @@ class DataWatcher(
     val queueConfig = config.controlPlaneQueueSink
     val objectGeneration =
       objectMetadata[GENERATION_METADATA_KEY]?.toLongOrNull()?.takeIf { it > 0L }
-        ?: throw IllegalArgumentException("Missing or invalid source object generation")
-    val objectCreateTime =
-      objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
-        ?: throw IllegalArgumentException("Missing source object creation time")
-    val storageEventType =
-      when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
-        FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
-        DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
-        else -> throw IllegalArgumentException("Missing or invalid storage event type")
+    require(GENERATION_METADATA_KEY !in objectMetadata || objectGeneration != null) {
+      "Missing or invalid source object generation"
+    }
+    val objectCreateTime = objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
+    val sourceEventId =
+      if (objectGeneration == null) {
+        require(
+          queueConfig.allowMissingSourceIdentity &&
+            queueConfig.serializationKey.isEmpty() &&
+            objectMetadata[EVENT_TYPE_METADATA_KEY] in
+              setOf(DELETED_EVENT_TYPE, ARCHIVED_EVENT_TYPE)
+        ) {
+          "Missing or invalid source object generation"
+        }
+        requireNotNull(objectMetadata[EVENT_ID_METADATA_KEY]?.takeIf { it.isNotBlank() }) {
+          "Missing source event ID"
+        }
+      } else ""
+    require(objectCreateTime != null || queueConfig.allowMissingSourceIdentity) {
+      "Missing source object creation time"
+    }
+    val sourceIdentity = dataPathParams {
+      dataPath = path
+      if (objectGeneration != null && objectCreateTime != null) {
+        generation = objectGeneration
+        createTime = objectCreateTime.toProtoTime()
       }
-    val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
+    }
+    val dispatchParams =
+      if (isVidDispatchQueue(config)) {
+        require(objectMetadata[EVENT_TYPE_METADATA_KEY] == FINALIZED_EVENT_TYPE) {
+          "VID dispatch requires a finalized storage event"
+        }
+        require(queueConfig.queue == VidLabelingDispatchWorkItems.QUEUE) {
+          "Invalid VID dispatch queue"
+        }
+        require(queueConfig.appParams.`is`(VidLabelingDispatcherParams::class.java)) {
+          "Dispatch configuration must use VidLabelingDispatcherParams"
+        }
+        val configured = queueConfig.appParams.unpack(VidLabelingDispatcherParams::class.java)
+        val legacyOperationId = objectMetadata[WatchedBlobs.EVICTION_OPERATION_ID_KEY]
+        val recoveryMetadata =
+          if (
+            WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY !in objectMetadata &&
+              legacyOperationId != null
+          ) {
+            // Normalize metadata emitted by the legacy HTTP recovery producer at intake.
+            val sourceUpload =
+              requireNotNull(
+                RawImpressionUploadKey.fromName(
+                  objectMetadata[WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY].orEmpty()
+                )
+              ) {
+                "Recovery source must identify a RawImpressionUpload"
+              }
+            objectMetadata +
+              (WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY to
+                UploadHealingOperationKey(sourceUpload.parentKey, legacyOperationId).toName())
+          } else objectMetadata
+        val fields =
+          listOf(WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY, WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY)
+        require(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY !in recoveryMetadata ||
+            fields.all { it in recoveryMetadata }
+        ) {
+          "A recovery override requires source upload and operation references"
+        }
+        require(fields.all { it in recoveryMetadata } || fields.none { it in recoveryMetadata }) {
+          "Recovery metadata must contain the complete authorization tuple"
+        }
+        require(
+          fields.none { it in recoveryMetadata } ||
+            fields.all { recoveryMetadata.getValue(it).isNotBlank() }
+        ) {
+          "Recovery metadata values must not be empty"
+        }
+        val params =
+          VidLabelingDispatchWorkItems.normalize(
+            vidLabelingDispatchWorkItemParams {
+              dataProvider = configured.dataProvider
+              if (fields.all { it in recoveryMetadata }) {
+                recovery = recoveryParams {
+                  source = sourceIdentity
+                  sourceUpload = recoveryMetadata.getValue(WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY)
+                  uploadHealingOperation =
+                    recoveryMetadata.getValue(WatchedBlobs.UPLOAD_HEALING_OPERATION_KEY)
+                }
+              }
+            }
+          )
+        require(
+          legacyOperationId == null ||
+            params.hasRecovery() &&
+              legacyOperationId == params.recovery.uploadHealingOperation.substringAfterLast('/')
+        ) {
+          "Recovery operation name does not match the legacy operation ID"
+        }
+        params
+      } else null
+    val idempotencyKey =
+      if (dispatchParams == null) {
+        val identity = objectGeneration?.toString() ?: "event:$sourceEventId"
+        "${config.identifier}\u0000$path\u0000$identity"
+      } else
+        DataWatcherWorkItemIds.idempotencyKey(config.identifier, sourceIdentity, dispatchParams)
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
-          appParams = queueConfig.appParams
-          this.dataPathParams = dataPathParams {
-            this.dataPath = path
-            generation = objectGeneration
-            createTime = objectCreateTime.toProtoTime()
-            eventType = storageEventType
+          appParams = dispatchParams?.pack() ?: queueConfig.appParams
+          if (dispatchParams == null || !dispatchParams.hasRecovery()) {
+            this.dataPathParams = sourceIdentity
           }
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
     val requestedWorkItem = workItem {
       queue = queueConfig.queue
+      serializationKey = queueConfig.serializationKey
       this.workItemParams = workItemParams
     }
     try {
@@ -217,13 +344,7 @@ class DataWatcher(
   ) {
     val existingWorkItemParams = validateExistingWorkItem(workItemId, requestedWorkItem)
     try {
-      ensureWorkItem(
-        workItemId,
-        workItem {
-          queue = requestedWorkItem.queue
-          workItemParams = existingWorkItemParams
-        },
-      )
+      ensureWorkItem(workItemId, requestedWorkItem.copy { workItemParams = existingWorkItemParams })
     } catch (e: Exception) {
       if (e.grpcStatusCode() != Status.Code.FAILED_PRECONDITION) {
         throw e
@@ -259,10 +380,29 @@ class DataWatcher(
     val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     val requestedParams =
       requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    val partialSourceIdentity =
+      requestedWorkItem.queue != VidLabelingDispatchWorkItems.QUEUE &&
+        requestedWorkItem.serializationKey.isEmpty() &&
+        (!existingParams.dataPathParams.hasGeneration() ||
+          !existingParams.dataPathParams.hasCreateTime() ||
+          !requestedParams.dataPathParams.hasGeneration() ||
+          !requestedParams.dataPathParams.hasCreateTime())
     check(
       existing.queue == requestedWorkItem.queue &&
+        existing.serializationKey == requestedWorkItem.serializationKey &&
         existingParams.appParams == requestedParams.appParams &&
-        existingParams.dataPathParams == requestedParams.dataPathParams
+        (existingParams.dataPathParams.copy {
+          if (partialSourceIdentity) {
+            clearGeneration()
+            clearCreateTime()
+          }
+        } ==
+          requestedParams.dataPathParams.copy {
+            if (partialSourceIdentity) {
+              clearGeneration()
+              clearCreateTime()
+            }
+          })
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }
@@ -275,7 +415,7 @@ class DataWatcher(
     objectMetadata: Map<String, String>,
   ) {
     val idToken: IdToken =
-      idTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
+      httpIdTokenProvider.idTokenWithAudience(config.httpEndpointSink.endpointUri, emptyList())
     val jwt = idToken.tokenValue
 
     val httpEndpointConfig = config.httpEndpointSink
@@ -346,14 +486,15 @@ class DataWatcher(
         EVENT_PROCESSING_COMPLETED,
         Attributes.builder()
           .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
-          .put(ATTR_DATA_PATH_KEY, path)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash(path))
           .put(ATTR_STATUS_KEY, STATUS_SUCCESS)
           .put(ATTR_DURATION_SECONDS_KEY, durationSeconds)
           .build(),
       )
     logger.log(
       Level.INFO,
-      "Successfully processed configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds",
+      "Successfully processed configuration: config=${config.identifier}, " +
+        "pathHash=${pathHash(path)}, durationSeconds=$durationSeconds",
     )
   }
 
@@ -364,23 +505,21 @@ class DataWatcher(
     throwable: Throwable,
     shouldLog: Boolean,
   ) {
-    Span.current()
-      .addEvent(
-        EVENT_PROCESSING_FAILED,
-        Attributes.builder()
-          .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
-          .put(ATTR_DATA_PATH_KEY, path)
-          .put(ATTR_STATUS_KEY, STATUS_FAILURE)
-          .put(ATTR_DURATION_SECONDS_KEY, durationSeconds)
-          .put(ATTR_ERROR_TYPE_KEY, errorTypeOf(throwable))
-          .put(ATTR_ERROR_MESSAGE_KEY, throwable.message ?: "")
-          .build(),
-      )
+    val attributes =
+      Attributes.builder()
+        .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
+        .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash(path))
+        .put(ATTR_STATUS_KEY, STATUS_FAILURE)
+        .put(ATTR_DURATION_SECONDS_KEY, durationSeconds)
+        .put(ATTR_ERROR_TYPE_KEY, errorTypeOf(throwable))
+    errorCodeOf(throwable)?.let { attributes.put(ATTR_ERROR_CODE_KEY, it) }
+    Span.current().addEvent(EVENT_PROCESSING_FAILED, attributes.build())
     if (shouldLog) {
       logger.log(
         Level.SEVERE,
-        "Failed to process configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds, error=${throwable.message}",
-        throwable,
+        "Failed to process configuration: config=${config.identifier}, " +
+          "pathHash=${pathHash(path)}, durationSeconds=$durationSeconds, " +
+          "errorType=${errorTypeOf(throwable)}, errorCode=${errorCodeOf(throwable) ?: "unknown"}",
       )
     }
   }
@@ -397,7 +536,7 @@ class DataWatcher(
         EVENT_QUEUE_WRITE,
         Attributes.builder()
           .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
-          .put(ATTR_DATA_PATH_KEY, path)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash(path))
           .put(ATTR_QUEUE_KEY, queueName)
           .put(ATTR_WORK_ITEM_ID_KEY, workItemId)
           .put(ATTR_STATUS_KEY, STATUS_SUCCESS)
@@ -405,7 +544,8 @@ class DataWatcher(
       )
     logger.log(
       Level.INFO,
-      "Submitted work item to control plane queue: config=${config.identifier}, path=$path, queue=$queueName, workItemId=$workItemId",
+      "Submitted work item to control plane queue: config=${config.identifier}, " +
+        "pathHash=${pathHash(path)}, queue=$queueName, workItemId=$workItemId",
     )
   }
 
@@ -415,20 +555,29 @@ class DataWatcher(
         EVENT_HTTP_ENDPOINT_DISPATCH,
         Attributes.builder()
           .put(ATTR_SINK_TYPE_KEY, config.sinkConfigCase.name)
-          .put(ATTR_DATA_PATH_KEY, path)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash(path))
           .put(ATTR_STATUS_KEY, STATUS_SUCCESS)
           .put(ATTR_HTTP_STATUS_KEY, statusCode.toLong())
           .build(),
       )
     logger.log(
       Level.INFO,
-      "Dispatched notification to HTTP endpoint: config=${config.identifier}, path=$path, statusCode=$statusCode",
+      "Dispatched notification to HTTP endpoint: config=${config.identifier}, " +
+        "pathHash=${pathHash(path)}, statusCode=$statusCode",
     )
   }
 
   private fun errorTypeOf(throwable: Throwable): String {
     return throwable::class.simpleName ?: throwable.javaClass.simpleName ?: throwable.javaClass.name
   }
+
+  private fun errorCodeOf(throwable: Throwable): String? =
+    when (throwable) {
+      is DataWatcherHttpException -> throwable.statusCode.toString()
+      else -> throwable.grpcStatusCode()?.name
+    }
+
+  private fun pathHash(path: String): String = VidLabelingTraceAttributes.gcsObjectPathHash(path)
 
   companion object {
     private val logger: Logger = Logger.getLogger(DataWatcher::class.java.name)
@@ -457,7 +606,9 @@ class DataWatcher(
     const val GENERATION_METADATA_KEY: String = "__datawatcher_object_generation__"
     const val CREATE_TIME_METADATA_KEY: String = "__datawatcher_object_create_time__"
     const val EVENT_TYPE_METADATA_KEY: String = "__datawatcher_storage_event_type__"
+    const val EVENT_ID_METADATA_KEY: String = "__datawatcher_event_id__"
     const val FINALIZED_EVENT_TYPE: String = "google.cloud.storage.object.v1.finalized"
+    const val ARCHIVED_EVENT_TYPE: String = "google.cloud.storage.object.v1.archived"
     const val DELETED_EVENT_TYPE: String = "google.cloud.storage.object.v1.deleted"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
@@ -465,28 +616,15 @@ class DataWatcher(
     private val ATTR_SINK_TYPE_KEY = AttributeKey.stringKey("edpa.data_watcher.sink_type")
     private val ATTR_WORK_ITEM_ID_KEY = AttributeKey.stringKey("edpa.data_watcher.work_item_id")
     private val ATTR_QUEUE_KEY = AttributeKey.stringKey("edpa.data_watcher.queue")
-    private val ATTR_DATA_PATH_KEY = AttributeKey.stringKey("edpa.data_watcher.data_path")
     private val ATTR_STATUS_KEY = AttributeKey.stringKey("edpa.data_watcher.status")
     private val ATTR_ERROR_TYPE_KEY = AttributeKey.stringKey("edpa.data_watcher.error_type")
-    private val ATTR_ERROR_MESSAGE_KEY = AttributeKey.stringKey("edpa.data_watcher.error_message")
+    private val ATTR_ERROR_CODE_KEY = AttributeKey.stringKey("edpa.data_watcher.error_code")
     private val ATTR_DURATION_SECONDS_KEY =
       AttributeKey.doubleKey("edpa.data_watcher.processing_duration_seconds")
-    private val ATTR_SOURCE_PATH_REGEX_KEY =
-      AttributeKey.stringKey("edpa.data_watcher.source_path_regex")
     private val ATTR_HTTP_STATUS_KEY = AttributeKey.longKey("http.status.code")
 
     private const val STATUS_SUCCESS = "success"
     private const val STATUS_FAILURE = "failure"
-
-    private fun deterministicWorkItemId(idempotencyKey: String): String {
-      val digest =
-        MessageDigest.getInstance("SHA-256").digest(idempotencyKey.toByteArray(Charsets.UTF_8))
-      val hex =
-        digest.joinToString(separator = "") { byte ->
-          (byte.toInt() and 0xff).toString(16).padStart(2, '0')
-        }
-      return "dw-${hex.take(60)}"
-    }
 
     private const val EVENT_PROCESSING_COMPLETED = "edpa.data_watcher.processing_completed"
     private const val EVENT_PROCESSING_FAILED = "edpa.data_watcher.processing_failed"

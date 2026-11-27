@@ -132,6 +132,7 @@ proto_library(
         ":transport_layer_security_params_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
     ],
 )
 
@@ -298,6 +299,7 @@ proto_library(
     deps = [
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )
@@ -344,6 +346,7 @@ proto_library(
     srcs = ["vid_labeling_dispatcher_params.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
@@ -412,8 +415,12 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":raw_impression_upload_correction_candidate_proto",
+        ":raw_impression_upload_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:timestamp_proto",
     ],
 )
 
@@ -445,6 +452,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":raw_impression_upload_correction_candidate_proto",
+        ":raw_impression_upload_model_line_proto",
         ":upload_healing_operation_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
@@ -690,4 +698,19 @@ proto_library(
 kt_jvm_grpc_proto_library(
     name = "vid_labeling_job_service_kt_jvm_grpc_proto",
     deps = [":vid_labeling_job_service_proto"],
+)
+
+proto_library(
+    name = "data_availability_cleanup_params_proto",
+    srcs = ["data_availability_cleanup_params.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_cleanup_params_kt_jvm_proto",
+    deps = [":data_availability_cleanup_params_proto"],
 )

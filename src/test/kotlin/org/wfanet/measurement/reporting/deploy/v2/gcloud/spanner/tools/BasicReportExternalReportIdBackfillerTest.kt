@@ -86,7 +86,7 @@ class BasicReportExternalReportIdBackfillerTest {
       )
     createReportingSet(
       CMMS_MEASUREMENT_CONSUMER_ID,
-      PostgresReportingSetsService(ID_GENERATOR, postgresClient),
+      PostgresReportingSetsService(ID_GENERATOR, postgresClient, validateCreateReportingSet = true),
       EXTERNAL_REPORTING_SET_ID,
       CMMS_DATA_PROVIDER_ID,
       CMMS_EVENT_GROUP_ID,

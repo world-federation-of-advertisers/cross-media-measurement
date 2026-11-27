@@ -91,3 +91,29 @@ kt_jvm_library(
         "@wfa_common_jvm//imports/java/com/google/protobuf",
     ],
 )
+
+kt_jvm_library(
+    name = "reporting_set_validator",
+    srcs = ["ReportingSetValidator.kt"],
+    deps = [
+        ":errors",
+        ":internal_exception",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_set_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
+    name = "basic_report_insert_validator",
+    srcs = ["BasicReportInsertValidator.kt"],
+    deps = [
+        ":errors",
+        ":reporting_set_validator",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_result_details_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_set_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:reporting_unit_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:result_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:result_group_spec_kt_jvm_proto",
+    ],
+)

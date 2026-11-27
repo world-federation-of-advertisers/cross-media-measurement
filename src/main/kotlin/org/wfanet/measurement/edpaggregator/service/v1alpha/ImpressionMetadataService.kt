@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.DataAvailabilitySyncLeaseKey
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
+import org.wfanet.measurement.edpaggregator.service.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyActiveException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
@@ -53,8 +54,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.GetImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataView
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
@@ -62,6 +65,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.deleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
@@ -76,6 +80,7 @@ import org.wfanet.measurement.internal.edpaggregator.EntityKey as InternalEntity
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadata as InternalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub as InternalImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as InternalImpressionMetadataState
+import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataView as InternalImpressionMetadataView
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageToken as InternalListImpressionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest as InternalListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequestKt.filter as internalListImpressionMetadataRequestFilter
@@ -92,6 +97,7 @@ import org.wfanet.measurement.internal.edpaggregator.entityKey as internalEntity
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest as internalGetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.markImpressionMetadataDeletedRequest as internalMarkImpressionMetadataDeletedRequest
 import org.wfanet.measurement.internal.edpaggregator.undeleteImpressionMetadataRequest as internalUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.updateImpressionMetadataRequest as internalUpdateImpressionMetadataRequest
 
@@ -571,8 +577,28 @@ class ImpressionMetadataService(
     }
   }
 
+  override suspend fun markImpressionMetadataDeleted(
+    request: MarkImpressionMetadataDeletedRequest
+  ): ImpressionMetadata {
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return deleteImpressionMetadata(
+      deleteImpressionMetadataRequest { name = request.name },
+      expectedEtag = request.etag,
+    )
+  }
+
   override suspend fun deleteImpressionMetadata(
     request: DeleteImpressionMetadataRequest
+  ): ImpressionMetadata {
+    return deleteImpressionMetadata(request, expectedEtag = "")
+  }
+
+  private suspend fun deleteImpressionMetadata(
+    request: DeleteImpressionMetadataRequest,
+    expectedEtag: String,
   ): ImpressionMetadata {
     if (request.name.isEmpty()) {
       throw RequiredFieldNotSetException("name")
@@ -583,19 +609,39 @@ class ImpressionMetadataService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     return try {
-      internalImpressionMetadataStub
-        .deleteImpressionMetadata(
-          internalDeleteImpressionMetadataRequest {
-            dataProviderResourceId = key.dataProviderId
-            impressionMetadataResourceId = key.impressionMetadataId
-          }
-        )
-        .toImpressionMetadata()
+      val internalResponse =
+        if (expectedEtag.isNotEmpty()) {
+          // A separate RPC prevents older internal servers from ignoring the etag.
+          internalImpressionMetadataStub.markImpressionMetadataDeleted(
+            internalMarkImpressionMetadataDeletedRequest {
+              dataProviderResourceId = key.dataProviderId
+              impressionMetadataResourceId = key.impressionMetadataId
+              etag = expectedEtag
+            }
+          )
+        } else {
+          internalImpressionMetadataStub.deleteImpressionMetadata(
+            internalDeleteImpressionMetadataRequest {
+              dataProviderResourceId = key.dataProviderId
+              impressionMetadataResourceId = key.impressionMetadataId
+            }
+          )
+        }
+      internalResponse.toImpressionMetadata()
     } catch (e: StatusException) {
+      if (expectedEtag.isNotEmpty() && e.status.code == Status.Code.UNIMPLEMENTED) {
+        throw Status.UNAVAILABLE.withDescription(
+            "Upgrade the EDPA internal metadata API server before retrying cleanup."
+          )
+          .withCause(e)
+          .asRuntimeException()
+      }
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
           ImpressionMetadataNotFoundException(request.name, e)
             .asStatusRuntimeException(e.status.code)
+        InternalErrors.Reason.ETAG_MISMATCH ->
+          EtagMismatchException.fromInternal(e).asStatusRuntimeException(Status.Code.ABORTED)
         InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
@@ -614,7 +660,6 @@ class ImpressionMetadataService(
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
         InternalErrors.Reason.INVALID_FIELD_VALUE,
-        InternalErrors.Reason.ETAG_MISMATCH,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
         InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
@@ -887,6 +932,17 @@ class ImpressionMetadataService(
   override suspend fun listImpressionMetadata(
     request: ListImpressionMetadataRequest
   ): ListImpressionMetadataResponse {
+    val internalView =
+      when (request.view) {
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_UNSPECIFIED,
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL ->
+          InternalImpressionMetadataView.IMPRESSION_METADATA_VIEW_FULL
+        ImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC ->
+          InternalImpressionMetadataView.IMPRESSION_METADATA_VIEW_BASIC
+        ImpressionMetadataView.UNRECOGNIZED ->
+          throw InvalidFieldValueException("view")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
     if (request.parent.isEmpty()) {
       throw RequiredFieldNotSetException("parent")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -994,6 +1050,7 @@ class ImpressionMetadataService(
           internalListImpressionMetadataRequest {
             dataProviderResourceId = dataProviderKey.dataProviderId
             this.pageSize = pageSize
+            view = internalView
             if (internalPageToken != null) {
               pageToken = internalPageToken
             }
@@ -1163,6 +1220,17 @@ class ImpressionMetadataService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
     }
 
+    if (request.impressionMetadata.metadataBlobGeneration < 0L) {
+      throw InvalidFieldValueException(
+        "${fieldPathPrefix}impression_metadata.metadata_blob_generation"
+      )
+    }
+    if (request.impressionMetadata.impressionsBlobGeneration < 0L) {
+      throw InvalidFieldValueException(
+        "${fieldPathPrefix}impression_metadata.impressions_blob_generation"
+      )
+    }
+
     validateSourceUpload(
       request.impressionMetadata.rawImpressionUpload,
       request.impressionMetadata.outputDoneBlobGeneration,
@@ -1213,6 +1281,17 @@ class ImpressionMetadataService(
     val impressionMetadataKey =
       ImpressionMetadataKey.fromName(request.impressionMetadata.name)
         ?: throw InvalidFieldValueException("${fieldPathPrefix}impression_metadata.name")
+
+    if (request.impressionMetadata.metadataBlobGeneration < 0L) {
+      throw InvalidFieldValueException(
+        "${fieldPathPrefix}impression_metadata.metadata_blob_generation"
+      )
+    }
+    if (request.impressionMetadata.impressionsBlobGeneration < 0L) {
+      throw InvalidFieldValueException(
+        "${fieldPathPrefix}impression_metadata.impressions_blob_generation"
+      )
+    }
 
     validateSourceUpload(
       request.impressionMetadata.rawImpressionUpload,
@@ -1305,13 +1384,7 @@ class ImpressionMetadataService(
 
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
-    /**
-     * Maximum page size for `ListImpressionMetadata`.
-     *
-     * Large enough that a report's impression metadata is fetched in a handful of paginated calls;
-     * rows are small (a blob URI plus a few fields), so a page of this size stays well under the
-     * gRPC message-size limit.
-     */
+    /** Maximum number of impression metadata entries returned in a page. */
     private const val MAX_PAGE_SIZE = 1000
   }
 }
@@ -1331,6 +1404,7 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
     state = source.state.toState()
     createTime = source.createTime
     updateTime = source.updateTime
+    etag = source.etag
     entityKeys += source.entityKeysList.map { it.toPublic() }
     if (source.rawImpressionUploadResourceId.isNotEmpty()) {
       rawImpressionUpload =
@@ -1338,6 +1412,8 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
           .toName()
     }
     outputDoneBlobGeneration = source.outputDoneBlobGeneration
+    metadataBlobGeneration = source.metadataBlobGeneration
+    impressionsBlobGeneration = source.impressionsBlobGeneration
   }
 }
 
@@ -1366,6 +1442,8 @@ fun ImpressionMetadata.toInternal(
           .rawImpressionUploadId
     }
     outputDoneBlobGeneration = source.outputDoneBlobGeneration
+    metadataBlobGeneration = source.metadataBlobGeneration
+    impressionsBlobGeneration = source.impressionsBlobGeneration
   }
 }
 
