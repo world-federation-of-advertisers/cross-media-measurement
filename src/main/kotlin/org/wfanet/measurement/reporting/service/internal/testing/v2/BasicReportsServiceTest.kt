@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequ
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportKt
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.CreateBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
@@ -4252,27 +4253,19 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
   @Test
   fun `createBasicReport does not store ReportComputations again when replayed`(): Unit =
     runBlocking {
-      measurementConsumersService.createMeasurementConsumer(
-        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
-      )
-      reportingSetsService.createReportingSet(
-        createReportingSetRequest {
-          reportingSet = REPORTING_SET
-          externalReportingSetId = REPORTING_SET.externalReportingSetId
-        }
-      )
-      val request = createBasicReportRequest {
-        basicReport = BASIC_REPORT.copy { clearResultDetails() }
-        reportComputations += newReportComputation(AMI_IQF.externalImpressionQualificationFilterId)
-        requestId = "replayed-request"
-      }
+      val createdBasicReport = createMultimeasurementBasicReport(requestId = "replayed-request")
+      val storedComputation: ReportComputation = listReportComputations(createdBasicReport).single()
 
-      val createdBasicReport = service.createBasicReport(request)
-      val replayedBasicReport = service.createBasicReport(request)
+      val replayedBasicReport =
+        service.createBasicReport(
+          multimeasurementBasicReportRequest(AMI_IQF.externalImpressionQualificationFilterId).copy {
+            requestId = "replayed-request"
+          }
+        )
 
       assertThat(replayedBasicReport.externalBasicReportId)
         .isEqualTo(createdBasicReport.externalBasicReportId)
-      assertThat(listReportComputations(createdBasicReport)).hasSize(1)
+      assertThat(listReportComputations(createdBasicReport)).containsExactly(storedComputation)
     }
 
   @Test
@@ -4310,6 +4303,112 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_FIELD_VALUE.name)
   }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when ReportComputations miss an effective filter`():
+    Unit = runBlocking {
+    val request =
+      multimeasurementBasicReportRequest(
+          AMI_IQF.externalImpressionQualificationFilterId,
+          MRC_IQF.externalImpressionQualificationFilterId,
+        )
+        .copy {
+          reportComputations.clear()
+          reportComputations +=
+            newReportComputation(AMI_IQF.externalImpressionQualificationFilterId)
+        }
+
+    createCampaignGroup()
+    assertCreateInvalid(request)
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when a ReportComputation sets server fields`():
+    Unit = runBlocking {
+    val request =
+      multimeasurementBasicReportRequest(AMI_IQF.externalImpressionQualificationFilterId).copy {
+        reportComputations[0] = reportComputations[0].copy { cmmsMeasurementId = "measurement-1" }
+      }
+
+    createCampaignGroup()
+    assertCreateInvalid(request)
+  }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when a ReportComputation is incomplete`(): Unit =
+    runBlocking {
+      val valid: ReportComputation =
+        newReportComputation(AMI_IQF.externalImpressionQualificationFilterId)
+      val incompleteComputations: List<ReportComputation> =
+        listOf(
+          valid.copy { clearMultimeasurement() },
+          valid.copy { mappings.clear() },
+          valid.copy { mappings[0] = mappings[0].copy { clearQueryId() } },
+          valid.copy { mappings[0] = mappings[0].copy { clearSlot() } },
+        )
+
+      createCampaignGroup()
+      for (incomplete in incompleteComputations) {
+        assertCreateInvalid(
+          multimeasurementBasicReportRequest(AMI_IQF.externalImpressionQualificationFilterId).copy {
+            reportComputations[0] = incomplete
+          }
+        )
+      }
+    }
+
+  @Test
+  fun `listReportComputations throws NOT_FOUND when BasicReport not found`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listReportComputations(
+          listReportComputationsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalBasicReportId = "missing"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `listReportComputations throws INVALID_ARGUMENT when external_basic_report_id missing`():
+    Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listReportComputations(
+          listReportComputationsRequest { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `setReportComputationMeasurementId throws NOT_FOUND for a legacy BasicReport`(): Unit =
+    runBlocking {
+      createCampaignGroup()
+      val legacyBasicReport =
+        service.createBasicReport(
+          createBasicReportRequest { basicReport = BASIC_REPORT.copy { clearResultDetails() } }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.setReportComputationMeasurementId(
+            setReportComputationMeasurementIdRequest {
+              cmmsMeasurementConsumerId = legacyBasicReport.cmmsMeasurementConsumerId
+              externalBasicReportId = legacyBasicReport.externalBasicReportId
+              externalImpressionQualificationFilterId =
+                AMI_IQF.externalImpressionQualificationFilterId
+              cmmsMeasurementId = "measurement-1"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    }
 
   @Test
   fun `setReportComputationMeasurementId sets cmms_measurement_id`(): Unit = runBlocking {
@@ -4545,8 +4644,19 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
    */
   private suspend fun createMultimeasurementBasicReport(
     vararg externalImpressionQualificationFilterIds: String =
-      arrayOf(AMI_IQF.externalImpressionQualificationFilterId)
+      arrayOf(AMI_IQF.externalImpressionQualificationFilterId),
+    requestId: String = "",
   ): BasicReport {
+    createCampaignGroup()
+    return service.createBasicReport(
+      multimeasurementBasicReportRequest(*externalImpressionQualificationFilterIds).copy {
+        this.requestId = requestId
+      }
+    )
+  }
+
+  /** Creates the MeasurementConsumer and the campaign group ReportingSet of [BASIC_REPORT]. */
+  private suspend fun createCampaignGroup() {
     measurementConsumersService.createMeasurementConsumer(
       measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
     )
@@ -4556,14 +4666,38 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         externalReportingSetId = REPORTING_SET.externalReportingSetId
       }
     )
-    return service.createBasicReport(
-      createBasicReportRequest {
-        basicReport = BASIC_REPORT.copy { clearResultDetails() }
-        for (externalId in externalImpressionQualificationFilterIds) {
-          reportComputations += newReportComputation(externalId)
-        }
+  }
+
+  /** Asserts that creating [request] fails with INVALID_ARGUMENT. */
+  private suspend fun assertCreateInvalid(request: CreateBasicReportRequest) {
+    val exception = assertFailsWith<StatusRuntimeException> { service.createBasicReport(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_FIELD_VALUE.name)
+  }
+
+  /**
+   * Returns a request for a multimeasurement BasicReport whose effective impression qualification
+   * filters are those with [externalImpressionQualificationFilterIds], one ReportComputation each.
+   */
+  private fun multimeasurementBasicReportRequest(
+    vararg externalImpressionQualificationFilterIds: String
+  ): CreateBasicReportRequest = createBasicReportRequest {
+    basicReport =
+      BASIC_REPORT.copy {
+        clearResultDetails()
+        details =
+          details.copy {
+            for (externalId in externalImpressionQualificationFilterIds.toSet()) {
+              effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
+                externalImpressionQualificationFilterId = externalId
+              }
+            }
+          }
       }
-    )
+    for (externalId in externalImpressionQualificationFilterIds) {
+      reportComputations += newReportComputation(externalId)
+    }
   }
 
   private suspend fun listReportComputations(basicReport: BasicReport): List<ReportComputation> =
