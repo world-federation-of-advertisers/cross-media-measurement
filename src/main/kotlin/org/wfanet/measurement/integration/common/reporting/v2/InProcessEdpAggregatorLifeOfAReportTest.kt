@@ -103,6 +103,7 @@ import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.keyPair
 import org.wfanet.measurement.config.reporting.EncryptionKeyPairConfigKt.principalKeyPairs
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfig
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.config.reporting.MetricSpecConfigKt
 import org.wfanet.measurement.config.reporting.encryptionKeyPairConfig
@@ -141,11 +142,14 @@ import org.wfanet.measurement.internal.kingdom.ProtocolConfigKt
 import org.wfanet.measurement.internal.kingdom.TrusTeeProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.hmssProtocolConfigConfig
 import org.wfanet.measurement.internal.kingdom.trusTeeProtocolConfigConfig
+import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest as internalGetBasicReportRequest
 import org.wfanet.measurement.kingdom.deploy.common.service.DataServices
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.reporting.deploy.v2.common.service.Services
+import org.wfanet.measurement.reporting.job.BasicReportsMeasurementsJob
+import org.wfanet.measurement.reporting.job.BasicReportsMultimeasurementResultsJob
 import org.wfanet.measurement.reporting.job.BasicReportsReportsJob
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
@@ -211,8 +215,11 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
   private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> =
     emptyMap(),
   private val mixedIdentifierHistoryEnabled: Boolean = false,
+  /**
+   * Whether the MeasurementConsumer's [BasicReport]s are computed by TrusTEE v2 multimeasurements.
+   */
+  private val multimeasurementEnabled: Boolean = false,
 ) {
-
   /** EDPs that start without campaigns, impression objects, metadata, or availability intervals. */
   protected open val edpsWithDeferredUploads: Set<String>
     get() = emptySet()
@@ -261,6 +268,14 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       hmssEnabled = hmssEnabled,
       trusTeeEnabled = trusTeeEnabled,
       trusTeeKmsClient = sharedKmsClient,
+      // A TrusTEE v2 Duchy sizes vectors by this PopulationSpec, so it must be the one the EDP
+      // Aggregator writes impressions against.
+      modelLinePopulationSpec =
+        if (multimeasurementEnabled) {
+          populationSpec
+        } else {
+          InProcessCmmsComponents.DEFAULT_MODEL_LINE_POPULATION_SPEC
+        },
     )
 
   @JvmField
@@ -498,6 +513,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                trusTeeV2Supported = trusTeeEnabled && multimeasurementEnabled
                 noiseMechanismDeterministicTruncatedLaplaceSupported =
                   deterministicTruncatedLaplaceSupported
               },
@@ -505,6 +521,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                trusTeeV2Supported = trusTeeEnabled && multimeasurementEnabled
                 noiseMechanismDeterministicTruncatedLaplaceSupported =
                   deterministicTruncatedLaplaceSupported
               },
@@ -512,6 +529,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                trusTeeV2Supported = trusTeeEnabled && multimeasurementEnabled
                 noiseMechanismDeterministicTruncatedLaplaceSupported =
                   deterministicTruncatedLaplaceSupported
               },
@@ -519,6 +537,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               DataProviderKt.capabilities {
                 honestMajorityShareShuffleSupported = hmssEnabled
                 trusTeeSupported = trusTeeEnabled
+                trusTeeV2Supported = trusTeeEnabled && multimeasurementEnabled
                 noiseMechanismDeterministicTruncatedLaplaceSupported =
                   deterministicTruncatedLaplaceSupported
               },
@@ -583,6 +602,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           signingCertificateName = measurementConsumer.certificate
           signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
           offlinePrincipal = "principals/mc-user"
+          multimeasurementEnabled =
+            this@InProcessEdpAggregatorLifeOfAReportTest.multimeasurementEnabled
         }
         return InProcessReportingServer(
           reportingDataServicesProviderRule.value,
@@ -1007,6 +1028,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     campaignGroupId: String?,
     basicReportId: String,
     includeIqfFilter: Boolean = true,
+    stackedIncrementalReach: Boolean = true,
   ): CreateBasicReportRequest {
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val measurementConsumerKey = MeasurementConsumerKey.fromName(measurementConsumerData.name)!!
@@ -1090,7 +1112,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     impressions = true
                     grps = true
                   }
-                stackedIncrementalReach = true
+                this.stackedIncrementalReach = stackedIncrementalReach
               }
             component =
               ResultGroupMetricSpecKt.componentMetricSetSpec {
@@ -1371,9 +1393,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       ReportKey(internalBasicReport.cmmsMeasurementConsumerId, internalBasicReport.externalReportId)
         .toName()
     pollForCompletedReport(reportName)
-    val measurementConsumerName = inProcessCmmsComponents.getMeasurementConsumerData().name
     BasicReportsReportsJob(
-        measurementConsumerConfigs { configs[measurementConsumerName] = measurementConsumerConfig },
+        measurementConsumerConfigs(),
         reportingServer.internalBasicReportsClient,
         reportingReportsClient,
         reportingServer.internalMetricCalculationSpecsClient,
@@ -1384,6 +1405,56 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       )
       .execute()
   }
+
+  /** Creates the CMMS multimeasurements of the [BasicReport]s on the multimeasurement path. */
+  protected suspend fun executeBasicReportsMeasurementsJob() {
+    BasicReportsMeasurementsJob(
+        measurementConsumerConfigs(),
+        reportingServer.internalBasicReportsClient,
+        publicMeasurementConsumersClient,
+        publicMeasurementsClient,
+        MAX_CREATED_BASIC_REPORT_AGE,
+      )
+      .execute()
+  }
+
+  /**
+   * Writes the results of the multimeasurement [BasicReport] [basicReportName] once its CMMS
+   * multimeasurements have completed, returning its internal state.
+   */
+  protected suspend fun executeBasicReportsMultimeasurementResultsJob(
+    basicReportName: String
+  ): InternalBasicReport.State {
+    val basicReportKey = BasicReportKey.fromName(basicReportName)!!
+    val job =
+      BasicReportsMultimeasurementResultsJob(
+        measurementConsumerConfigs(),
+        reportingServer.internalBasicReportsClient,
+        reportingServer.internalReportResultsClient,
+        publicMeasurementsClient,
+      )
+    while (true) {
+      job.execute()
+      val state =
+        reportingServer.internalBasicReportsClient
+          .getBasicReport(
+            internalGetBasicReportRequest {
+              cmmsMeasurementConsumerId = basicReportKey.cmmsMeasurementConsumerId
+              externalBasicReportId = basicReportKey.basicReportId
+            }
+          )
+          .state
+      if (state != InternalBasicReport.State.MEASUREMENTS_CREATED) {
+        return state
+      }
+      delay(1000)
+    }
+  }
+
+  private fun measurementConsumerConfigs(): MeasurementConsumerConfigs =
+    measurementConsumerConfigs {
+      configs[inProcessCmmsComponents.getMeasurementConsumerData().name] = measurementConsumerConfig
+    }
 
   protected fun executeReportProcessorJob(enableValidation: Boolean, enableCorrection: Boolean) {
     val processBuilder =
