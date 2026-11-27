@@ -99,7 +99,7 @@ fun AsyncDatabaseClient.TransactionContext.insertReportComputation(
     set("CmmsCreateMeasurementRequestId").to(reportComputation.cmmsCreateMeasurementRequestId)
     set("Multimeasurement").to(reportComputation.multimeasurement.toGcloudByteArray())
     set("ResultGroupQueryMappings")
-      .toBytesArray(reportComputation.mappingsList.map { it.toByteString().toGcloudByteArray() })
+      .toProtoMessageArray(reportComputation.mappingsList, ResultGroupQueryMapping.getDescriptor())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -140,9 +140,10 @@ private fun buildReportComputation(
     }
     multimeasurement = row.getBytesAsByteString("Multimeasurement")
     mappings +=
-      row.getBytesList("ResultGroupQueryMappings").map {
-        ResultGroupQueryMapping.parseFrom(it.toByteArray())
-      }
+      row.getProtoMessageList(
+        "ResultGroupQueryMappings",
+        ResultGroupQueryMapping.getDefaultInstance(),
+      )
   }
 }
 
