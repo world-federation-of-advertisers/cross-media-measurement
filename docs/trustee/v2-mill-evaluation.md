@@ -188,7 +188,9 @@ every cell. If that count is below the threshold, the Mill removes the
 allocating any histogram for them. A count the `DataProvider` noised
 is compared to the threshold directly. An exact count is pruned only when it
 falls short of the threshold by more than the noise truncation bound, so that
-the prune fires only where the noised test would fail anyway.
+the prune fires only where the noised test would fail anyway. The first Mill
+release does not prune yet; the slice test reaches the same verdicts, so the
+prune only saves work.
 
 ## Noise
 
@@ -197,8 +199,11 @@ computation returns the same figures. The noise is seeded from the measurement's
 resource name, the query's `id`, the cell's grouping values, and the cell's
 fingerprint as released: the first pass's fingerprint when no slice failed, or
 the corrective pass's otherwise, which reads failed `DataProviders`' vectors as
-zero. A failed `DataProvider` therefore never influences the noise, and two
-unrelated measurements whose cells hold the same data do not share noise. This
+zero. Each slice test is seeded likewise, but from its own fingerprint, over
+the positions and counts of that `DataProvider`'s vectors alone. A failed
+`DataProvider` therefore never influences the noise, on the released cell or on
+another `DataProvider`'s slice test, and two unrelated measurements whose cells
+hold the same data do not share noise. This
 step also computes each cell's variance.
 
 Cell impressions come only from the vectors, so every cell of a query is noised
