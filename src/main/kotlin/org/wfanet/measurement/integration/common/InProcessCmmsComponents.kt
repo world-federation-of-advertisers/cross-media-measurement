@@ -93,8 +93,6 @@ class InProcessCmmsComponents(
   private val syntheticEventGroupSpecs: List<SyntheticEventGroupSpec> =
     SyntheticGenerationSpecs.SYNTHETIC_DATA_SPECS_SMALL,
   private val duchyNames: List<String> = ALL_DUCHY_NAMES,
-  private val trusTeeV2FallbackEventDescriptor: TrusTeeV2.EventDescriptor? =
-    TEST_EVENT_TRUS_TEE_V2_DESCRIPTOR,
   private val modelLinePopulationSpec: PopulationSpec = DEFAULT_MODEL_LINE_POPULATION_SPEC,
 ) : TestRule {
   private val kingdomDataServices: DataServices
@@ -127,7 +125,7 @@ class InProcessCmmsComponents(
         trustedCertificates = TRUSTED_CERTIFICATES,
         trusTeeKmsClient = trusTeeKmsClient,
         verboseGrpcLogging = false,
-        trusTeeV2FallbackEventDescriptor = trusTeeV2FallbackEventDescriptor,
+        trusTeeV2FallbackEventDescriptor = TEST_EVENT_TRUS_TEE_V2_DESCRIPTOR,
       )
     }
   }

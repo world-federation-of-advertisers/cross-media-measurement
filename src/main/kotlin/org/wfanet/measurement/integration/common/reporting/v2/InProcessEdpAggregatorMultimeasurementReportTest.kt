@@ -18,6 +18,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -76,13 +77,13 @@ abstract class InProcessEdpAggregatorMultimeasurementReportTest(
 
     executeBasicReportsMeasurementsJob()
 
-    assertWithMessage("TrusTEE v2 measurements")
-      .that(
-        listMeasurements().filter { measurement ->
-          measurement.protocolConfig.protocolsList.any { it.hasTrusTeeV2() }
-        }
-      )
-      .isNotEmpty()
+    val measurements = listMeasurements()
+    assertWithMessage("Measurements of the BasicReport").that(measurements).isNotEmpty()
+    for (measurement in measurements) {
+      assertWithMessage("Protocols of ${measurement.name}")
+        .that(measurement.protocolConfig.protocolsList.map { it.protocolCase })
+        .containsExactly(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE_V2)
+    }
     assertThat(executeBasicReportsMultimeasurementResultsJob(createdBasicReport.name))
       .isEqualTo(InternalBasicReport.State.UNPROCESSED_RESULTS_READY)
 

@@ -32,7 +32,8 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata.REPO
 
 /**
  * Implementation of [InProcessEdpAggregatorMultimeasurementReportTest] for GCloud backends with
- * Spanner database, with a TrusTEE protocol config that adds no noise and applies no thresholds.
+ * Spanner database. Results are exact: `InProcessDuchy` runs the TrusTEE v2 Mill with
+ * `NoiseMechanism.NONE` and no result thresholds.
  */
 class GCloudEdpAggregatorMultimeasurementReportTest :
   InProcessEdpAggregatorMultimeasurementReportTest(
