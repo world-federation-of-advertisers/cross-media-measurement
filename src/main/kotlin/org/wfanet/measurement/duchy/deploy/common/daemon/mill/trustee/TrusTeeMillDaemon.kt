@@ -15,6 +15,7 @@
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos
 import io.grpc.Channel
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.runBlocking
@@ -31,14 +32,20 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.withDuchyId
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.MillWorkLoop
 import org.wfanet.measurement.duchy.mill.trustee.TrusTeeMill
+import org.wfanet.measurement.duchy.mill.trustee.TrusTeeRequisitionDecryptor
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImpl
+import org.wfanet.measurement.duchy.mill.trustee.v2.CellPrivacyParams
+import org.wfanet.measurement.duchy.mill.trustee.v2.TrusTeeV2Mill
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2Kt
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
@@ -132,9 +139,72 @@ abstract class TrusTeeMillDaemon : Runnable {
         attestationTokenPath = flags.attestationTokenFile.toPath(),
       )
 
+    val trusTeeV2Flags: TrusTeeV2MillFlags? = flags.trusTeeV2
+    val trusTeeV2Mill: TrusTeeV2Mill? =
+      if (trusTeeV2Flags == null) {
+        null
+      } else {
+        TrusTeeV2Mill(
+          millId = millId,
+          duchyId = flags.duchy.duchyName,
+          signingKey = csSigningKey,
+          consentSignalCert = csCertificate,
+          dataClients = dataClients,
+          systemComputationParticipantsClient = systemComputationParticipantsClient,
+          systemComputationsClient = systemComputationsClient,
+          systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+          computationStatsClient = computationStatsClient,
+          workLockDuration = flags.workLockDuration,
+          requisitionDecryptor =
+            TrusTeeRequisitionDecryptor(
+              gcloudKmsClientFactory,
+              gcloudToAwsKmsClientFactory,
+              confidentialSpaceToAwsKmsClientFactory,
+              flags.attestationTokenFile.toPath(),
+            ),
+          privacyParams = trusTeeV2Flags.toCellPrivacyParams(),
+          fallbackEventDescriptor = trusTeeV2Flags.fallbackEventDescriptor?.toEventDescriptor(),
+          hashRankOrderCacheSize = trusTeeV2Flags.hashRankOrderCacheSize,
+        )
+      }
+
     runBlocking {
       withContext(CoroutineName("Mill $millId")) {
-        MillWorkLoop.run(flags.pollingInterval) { mill.claimAndProcessWork() }
+        MillWorkLoop.run(flags.pollingInterval) {
+          val claimedTrusTee: Boolean = mill.claimAndProcessWork()
+          val claimedTrusTeeV2: Boolean = trusTeeV2Mill?.claimAndProcessWork() ?: false
+          claimedTrusTee || claimedTrusTeeV2
+        }
+      }
+    }
+  }
+
+  companion object {
+    private fun TrusTeeV2MillFlags.toCellPrivacyParams(): CellPrivacyParams {
+      val thresholds: TrusTeeV2MillFlags.ResultMinimumThresholdsFlags? = resultMinimumThresholds
+      return CellPrivacyParams(
+        noiseMechanism,
+        if (thresholds == null) {
+          null
+        } else {
+          ResultMinimumThresholds(
+            minUsers = thresholds.minUsers,
+            minImpressions = thresholds.minImpressions,
+            reachMaxFrequencyPerUser = thresholds.reachMaxFrequencyPerUser,
+          )
+        },
+      )
+    }
+
+    private fun TrusTeeV2MillFlags.EventDescriptorFlags.toEventDescriptor():
+      TrusTeeV2.EventDescriptor {
+      val source = this
+      return TrusTeeV2Kt.eventDescriptor {
+        descriptorSet =
+          source.descriptorSetFile.inputStream().use {
+            DescriptorProtos.FileDescriptorSet.parseFrom(it)
+          }
+        eventMessageType = source.eventMessageType
       }
     }
   }

@@ -23,6 +23,7 @@ import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggrega
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2.Stage as RoLlv2Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
 import org.wfanet.measurement.system.v1alpha.ComputationStage as SystemComputationStage
 import org.wfanet.measurement.system.v1alpha.HonestMajorityShareShuffleStage
 import org.wfanet.measurement.system.v1alpha.LiquidLegionsV2Stage
@@ -38,6 +39,7 @@ val ComputationStage.name: String
         reachOnlyLiquidLegionsSketchAggregationV2.name
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.name
       ComputationStage.StageCase.TRUS_TEE -> trusTee.name
+      ComputationStage.StageCase.TRUS_TEE_V2 -> trusTeeV2.name
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 
@@ -51,6 +53,7 @@ val ComputationStage.number: Int
         reachOnlyLiquidLegionsSketchAggregationV2.number
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> honestMajorityShareShuffle.number
       ComputationStage.StageCase.TRUS_TEE -> trusTee.number
+      ComputationStage.StageCase.TRUS_TEE_V2 -> trusTeeV2.number
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
 
@@ -69,6 +72,10 @@ fun HonestMajorityShareShuffle.Stage.toProtocolStage(): ComputationStage = compu
 
 fun TrusTee.Stage.toProtocolStage(): ComputationStage = computationStage {
   trusTee = this@toProtocolStage
+}
+
+fun TrusTeeV2.Stage.toProtocolStage(): ComputationStage = computationStage {
+  trusTeeV2 = this@toProtocolStage
 }
 
 fun SystemComputationStage.toComputationStage(): ComputationStage {

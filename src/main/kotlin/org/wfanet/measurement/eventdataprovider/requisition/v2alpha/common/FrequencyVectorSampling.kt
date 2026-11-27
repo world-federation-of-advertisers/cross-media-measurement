@@ -18,6 +18,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.computation.SampledIndexRanges
 
 /** Sampling indexes and frequency caps for a measurement. */
 class FrequencyVectorSampling(
@@ -108,20 +109,16 @@ class FrequencyVectorSampling(
     require(populationSizeLong > 0 && populationSizeLong < Int.MAX_VALUE) {
       "population size must be > 0 and < Int.MAX_VALUE"
     }
-    val populationSize = populationSizeLong.toInt()
 
-    // If we have a wrapping interval globalEndIndex will be larger than the populationSize
-    val globalStartIndex = (populationSize * vidSamplingInterval.start).toInt()
-    val globalEndIndex =
-      (populationSize * (vidSamplingInterval.start + vidSamplingInterval.width)).toInt() - 1
-    primaryRange = globalStartIndex..minOf(globalEndIndex, populationSize - 1)
+    val ranges =
+      SampledIndexRanges.of(
+        populationSizeLong.toInt(),
+        vidSamplingInterval.start,
+        vidSamplingInterval.width,
+      )
+    primaryRange = ranges.primaryRange
     primaryRangeCount = primaryRange.count()
-    wrappedRange =
-      if (globalEndIndex >= populationSize) {
-        0..(globalEndIndex - populationSize)
-      } else {
-        IntRange.EMPTY
-      }
+    wrappedRange = ranges.wrappedRange
   }
 
   val size: Int

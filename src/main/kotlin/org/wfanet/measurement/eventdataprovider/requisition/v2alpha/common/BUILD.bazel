@@ -5,6 +5,7 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = [
     "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__subpackages__",
+    "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee/v2:__pkg__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:__subpackages__",
 ])
@@ -24,12 +25,12 @@ kt_jvm_library(
     deps = [
         "//imports/it/unimi/dsi/fastutil",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
+        "//src/main/kotlin/org/wfanet/measurement/common:vid_hashing",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
+        "//src/main/kotlin/org/wfanet/measurement/computation:sampled_index_ranges",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:api_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/eventdataprovider/shareshuffle:vid_index_map_entry_kt_jvm_proto",
-        "@wfa_common_jvm//imports/java/com/google/common:guava",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
 

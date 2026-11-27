@@ -50,6 +50,8 @@ fun ComputationToken.toSystemStage(duchyId: String): ComputationStage {
       }
       InternalComputationStage.StageCase.TRUS_TEE ->
         error("TrusTEE protocol does not have system stage.")
+      InternalComputationStage.StageCase.TRUS_TEE_V2 ->
+        error("TrusTEE v2 protocol does not have system stage.")
       InternalComputationStage.StageCase.STAGE_NOT_SET -> error("Invalid stage case.")
     }
     etag = ETags.computeETag(source.version)

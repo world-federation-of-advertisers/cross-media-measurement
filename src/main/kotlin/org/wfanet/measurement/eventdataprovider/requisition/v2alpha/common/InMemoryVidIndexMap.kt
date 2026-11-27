@@ -19,6 +19,7 @@ import kotlin.collections.withIndex
 import kotlinx.coroutines.flow.Flow
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.common.VidHashing
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntryKt.value
 import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
@@ -105,7 +106,7 @@ private constructor(
   companion object {
     @JvmStatic
     fun build(populationSpec: PopulationSpec): InMemoryVidIndexMap {
-      return buildInternal(populationSpec, VidIndexMap::hashVidToLongWithFarmHash)
+      return buildInternal(populationSpec, VidHashing::hash)
     }
 
     /**
@@ -207,7 +208,7 @@ private constructor(
       hashFunction: (Long, ByteString) -> Long,
     ): List<VidAndHash> {
       return VidIndexMap.collectVids(populationSpec).map { vid ->
-        VidAndHash(vid, hashFunction(vid.toLong(), VidIndexMap.HASH_SALT))
+        VidAndHash(vid, hashFunction(vid.toLong(), VidHashing.SALT))
       }
     }
   }
