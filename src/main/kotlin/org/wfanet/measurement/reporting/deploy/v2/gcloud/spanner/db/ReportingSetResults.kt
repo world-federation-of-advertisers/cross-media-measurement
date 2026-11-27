@@ -36,36 +36,7 @@ import org.wfanet.measurement.reporting.service.internal.GroupingDimensions
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
 object ReportingSetResults {
-  /** Internal ID of the custom impression qualification filter, whose external ID is empty. */
   const val CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID = -1L
-
-  /**
-   * Returns the internal ID of the impression qualification filter with [externalId], or `null` if
-   * there is none.
-   */
-  fun getImpressionQualificationFilterId(
-    mapping: ImpressionQualificationFilterMapping,
-    externalId: String,
-  ): Long? =
-    if (externalId.isEmpty()) {
-      CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID
-    } else {
-      mapping.getImpressionQualificationByExternalId(externalId)?.impressionQualificationFilterId
-    }
-
-  /** Returns the external ID of the impression qualification filter with internal [id]. */
-  fun getExternalImpressionQualificationFilterId(
-    mapping: ImpressionQualificationFilterMapping,
-    id: Long,
-  ): String =
-    if (id == CUSTOM_IMPRESSION_QUALIFICATION_FILTER_ID) {
-      ""
-    } else {
-      checkNotNull(mapping.getImpressionQualificationFilterById(id)) {
-          "ImpressionQualificationFilter with internal ID $id not found"
-        }
-        .externalImpressionQualificationFilterId
-    }
 }
 
 data class ReportingSetResultResult(
@@ -289,11 +260,16 @@ private fun AsyncDatabaseClient.ReadContext.readReportingSetResults(
                 ) {
                   custom = true
                 } else {
+                  val impressionQualificationFilter =
+                    checkNotNull(
+                      impressionQualificationFilterMapping.getImpressionQualificationFilterById(
+                        impressionQualificationFilterId
+                      )
+                    ) {
+                      "ImpressionQualificationFilter with internal ID $impressionQualificationFilterId not found"
+                    }
                   externalImpressionQualificationFilterId =
-                    ReportingSetResults.getExternalImpressionQualificationFilterId(
-                      impressionQualificationFilterMapping,
-                      impressionQualificationFilterId,
-                    )
+                    impressionQualificationFilter.externalImpressionQualificationFilterId
                 }
                 metricFrequencySpec =
                   row.getProtoMessage(
