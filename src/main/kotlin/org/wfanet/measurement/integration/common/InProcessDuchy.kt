@@ -389,13 +389,7 @@ class InProcessDuchy(
             systemComputationLogEntriesClient = systemComputationLogEntriesClient,
             computationStatsClient = computationStatsClient,
             workLockDuration = Duration.ofMinutes(5),
-            requisitionDecryptor =
-              TrusTeeRequisitionDecryptor(
-                gcloudKmsClientFactory = gcloudKmsClientFactory,
-                gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
-                confidentialSpaceToAwsKmsClientFactory = confidentialSpaceToAwsKmsClientFactory,
-                attestationTokenPath = Paths.get("/dev/null"),
-              ),
+            requisitionDecryptor = trusTeeRequisitionDecryptor,
             // Exact results, so that tests can assert them.
             privacyParams = CellPrivacyParams(NoiseMechanism.NONE, resultMinimumThresholds = null),
             fallbackEventDescriptor = trusTeeV2FallbackEventDescriptor,
