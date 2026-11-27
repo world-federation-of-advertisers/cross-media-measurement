@@ -101,8 +101,14 @@ class MultimeasurementCompilerTest {
         )
       )
 
-    assertThat(compiled.map { it.reportComputation.externalImpressionQualificationFilterId })
-      .containsExactly("ami", "mrc", "")
+    assertThat(
+        compiled.map { computation ->
+          computation.reportComputation.mappingsList
+            .map { it.externalImpressionQualificationFilterId }
+            .toSet()
+        }
+      )
+      .containsExactly(setOf("ami"), setOf("mrc"), setOf(""))
       .inOrder()
     assertThat(compiled.map { it.multimeasurement.requisitionSpecs().first().filterExpression() })
       .containsExactly(
@@ -693,6 +699,7 @@ class MultimeasurementCompilerTest {
       windowStart = window.start
       windowEnd = window.end
       this.cumulative = cumulative
+      externalImpressionQualificationFilterId = AMI_IQF.externalImpressionQualificationFilterId
       fill()
     }
 

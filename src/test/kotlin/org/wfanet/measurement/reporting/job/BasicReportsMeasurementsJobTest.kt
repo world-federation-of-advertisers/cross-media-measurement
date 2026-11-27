@@ -100,8 +100,8 @@ class BasicReportsMeasurementsJobTest {
     onBlocking { listReportComputations(any()) }
       .thenReturn(
         listReportComputationsResponse {
-          reportComputations += AMI_REPORT_COMPUTATION
-          reportComputations += MRC_REPORT_COMPUTATION
+          reportComputations += REPORT_COMPUTATION_1
+          reportComputations += REPORT_COMPUTATION_2
         }
       )
     onBlocking { setReportComputationMeasurementId(any()) }
@@ -165,10 +165,8 @@ class BasicReportsMeasurementsJobTest {
       job.execute()
 
       val requests: List<CreateMeasurementRequest> = captureCreateMeasurementRequests(2)
-      assertThat(requests[0])
-        .isEqualTo(buildExpectedCreateMeasurementRequest(AMI_REPORT_COMPUTATION))
-      assertThat(requests[1])
-        .isEqualTo(buildExpectedCreateMeasurementRequest(MRC_REPORT_COMPUTATION))
+      assertThat(requests[0]).isEqualTo(buildExpectedCreateMeasurementRequest(REPORT_COMPUTATION_1))
+      assertThat(requests[1]).isEqualTo(buildExpectedCreateMeasurementRequest(REPORT_COMPUTATION_2))
     }
 
   @Test
@@ -182,13 +180,13 @@ class BasicReportsMeasurementsJobTest {
         setReportComputationMeasurementIdRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
           externalBasicReportId = BASIC_REPORT_ID
-          externalImpressionQualificationFilterId = "ami"
+          externalReportComputationId = 1L
           cmmsMeasurementId = "measurement-1"
         },
         setReportComputationMeasurementIdRequest {
           cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
           externalBasicReportId = BASIC_REPORT_ID
-          externalImpressionQualificationFilterId = "mrc"
+          externalReportComputationId = 2L
           cmmsMeasurementId = "measurement-2"
         },
       )
@@ -207,15 +205,15 @@ class BasicReportsMeasurementsJobTest {
     whenever(basicReportsMock.listReportComputations(any()))
       .thenReturn(
         listReportComputationsResponse {
-          reportComputations += AMI_REPORT_COMPUTATION.copy { cmmsMeasurementId = "existing" }
-          reportComputations += MRC_REPORT_COMPUTATION
+          reportComputations += REPORT_COMPUTATION_1.copy { cmmsMeasurementId = "existing" }
+          reportComputations += REPORT_COMPUTATION_2
         }
       )
 
     job.execute()
 
     val request: CreateMeasurementRequest = captureCreateMeasurementRequests(1).single()
-    assertThat(request.requestId).isEqualTo(MRC_REPORT_COMPUTATION.cmmsCreateMeasurementRequestId)
+    assertThat(request.requestId).isEqualTo(REPORT_COMPUTATION_2.cmmsCreateMeasurementRequestId)
   }
 
   @Test
@@ -229,15 +227,14 @@ class BasicReportsMeasurementsJobTest {
       whenever(basicReportsMock.listReportComputations(any()))
         .thenReturn(
           listReportComputationsResponse {
-            reportComputations += AMI_REPORT_COMPUTATION
-            reportComputations += MRC_REPORT_COMPUTATION
+            reportComputations += REPORT_COMPUTATION_1
+            reportComputations += REPORT_COMPUTATION_2
           }
         )
         .thenReturn(
           listReportComputationsResponse {
-            reportComputations +=
-              AMI_REPORT_COMPUTATION.copy { cmmsMeasurementId = "measurement-1" }
-            reportComputations += MRC_REPORT_COMPUTATION
+            reportComputations += REPORT_COMPUTATION_1.copy { cmmsMeasurementId = "measurement-1" }
+            reportComputations += REPORT_COMPUTATION_2
           }
         )
 
@@ -267,9 +264,7 @@ class BasicReportsMeasurementsJobTest {
     verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::createMeasurement)
       .comparingExpectedFieldsOnly()
       .isEqualTo(
-        createMeasurementRequest {
-          requestId = MRC_REPORT_COMPUTATION.cmmsCreateMeasurementRequestId
-        }
+        createMeasurementRequest { requestId = REPORT_COMPUTATION_2.cmmsCreateMeasurementRequestId }
       )
     val cancelRequests: List<CancelMeasurementRequest> =
       verifyAndCapture(measurementsMock, MeasurementsCoroutineImplBase::cancelMeasurement, times(2))
@@ -342,18 +337,18 @@ class BasicReportsMeasurementsJobTest {
       }
     }
     val recorded: ReportComputation =
-      AMI_REPORT_COMPUTATION.copy { cmmsMeasurementId = "measurement-0" }
+      REPORT_COMPUTATION_1.copy { cmmsMeasurementId = "measurement-0" }
     whenever(basicReportsMock.listReportComputations(any()))
       .thenReturn(
         listReportComputationsResponse {
           reportComputations += recorded
-          reportComputations += MRC_REPORT_COMPUTATION
+          reportComputations += REPORT_COMPUTATION_2
         }
       )
       .thenReturn(
         listReportComputationsResponse {
           reportComputations += recorded
-          reportComputations += MRC_REPORT_COMPUTATION.copy { cmmsMeasurementId = "measurement-1" }
+          reportComputations += REPORT_COMPUTATION_2.copy { cmmsMeasurementId = "measurement-1" }
         }
       )
   }
@@ -445,12 +440,12 @@ class BasicReportsMeasurementsJobTest {
           }
       }
 
-    private fun buildReportComputation(externalIqfId: String): ReportComputation =
+    private fun buildReportComputation(externalReportComputationId: Long): ReportComputation =
       reportComputation {
         cmmsMeasurementConsumerId = MEASUREMENT_CONSUMER_ID
         externalBasicReportId = BASIC_REPORT_ID
-        externalImpressionQualificationFilterId = externalIqfId
-        cmmsCreateMeasurementRequestId = "request-$externalIqfId"
+        this.externalReportComputationId = externalReportComputationId
+        cmmsCreateMeasurementRequestId = "request-$externalReportComputationId"
         multimeasurement = MULTIMEASUREMENT.toByteString()
         mappings += resultGroupQueryMapping {
           queryId = "query"
@@ -458,8 +453,8 @@ class BasicReportsMeasurementsJobTest {
         }
       }
 
-    private val AMI_REPORT_COMPUTATION: ReportComputation = buildReportComputation("ami")
-    private val MRC_REPORT_COMPUTATION: ReportComputation = buildReportComputation("mrc")
+    private val REPORT_COMPUTATION_1: ReportComputation = buildReportComputation(1L)
+    private val REPORT_COMPUTATION_2: ReportComputation = buildReportComputation(2L)
 
     private fun buildExpectedCreateMeasurementRequest(
       reportComputation: ReportComputation
