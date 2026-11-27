@@ -101,12 +101,12 @@ import org.wfanet.measurement.internal.reporting.v2.eventTemplateField
 import org.wfanet.measurement.internal.reporting.v2.failBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportResultRequest
+import org.wfanet.measurement.internal.reporting.v2.listReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportComputation
 import org.wfanet.measurement.internal.reporting.v2.reportResult
-import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
@@ -1774,12 +1774,6 @@ abstract class ReportResultsServiceTest {
           externalBasicReportId = "basic-report-1"
           externalCampaignGroupId = campaignGroup.externalCampaignGroupId
           details = basicReportDetails {
-            if (multimeasurement) {
-              effectiveImpressionQualificationFilters += reportingImpressionQualificationFilter {
-                externalImpressionQualificationFilterId =
-                  AMI_IQF.externalImpressionQualificationFilterId
-              }
-            }
             reportingInterval = reportingInterval {
               reportStart = dateTime {
                 year = 2025
@@ -1800,11 +1794,11 @@ abstract class ReportResultsServiceTest {
         }
         if (multimeasurement) {
           reportComputations += reportComputation {
-            externalImpressionQualificationFilterId =
-              AMI_IQF.externalImpressionQualificationFilterId
             this.multimeasurement = "multimeasurement-1".toByteStringUtf8()
             mappings += resultGroupQueryMapping {
               queryId = "query-1"
+              externalImpressionQualificationFilterId =
+                AMI_IQF.externalImpressionQualificationFilterId
               reportingUnit =
                 ResultGroupQueryMappingKt.reportingSet { externalReportingSetId = "union" }
             }
@@ -1820,7 +1814,17 @@ abstract class ReportResultsServiceTest {
       setReportComputationMeasurementIdRequest {
         cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
         externalBasicReportId = basicReport.externalBasicReportId
-        externalImpressionQualificationFilterId = AMI_IQF.externalImpressionQualificationFilterId
+        externalReportComputationId =
+          basicReportsStub
+            .listReportComputations(
+              listReportComputationsRequest {
+                cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+                externalBasicReportId = basicReport.externalBasicReportId
+              }
+            )
+            .reportComputationsList
+            .single()
+            .externalReportComputationId
         cmmsMeasurementId = "measurement-1"
       }
     )

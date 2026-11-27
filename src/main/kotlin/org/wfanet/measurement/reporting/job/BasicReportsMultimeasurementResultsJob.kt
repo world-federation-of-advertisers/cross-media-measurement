@@ -185,8 +185,7 @@ class BasicReportsMultimeasurementResultsJob(
     apiKey: String,
   ): Measurement {
     check(reportComputation.cmmsMeasurementId.isNotEmpty()) {
-      "ReportComputation for impression qualification filter " +
-        "${reportComputation.externalImpressionQualificationFilterId} has no Measurement"
+      "ReportComputation ${reportComputation.externalReportComputationId} has no Measurement"
     }
     val name =
       MeasurementKey(cmmsMeasurementConsumerId, reportComputation.cmmsMeasurementId).toName()
@@ -215,8 +214,6 @@ class BasicReportsMultimeasurementResultsJob(
     val populationSizeByDimension = mutableMapOf<ReportingSetResult.Dimension, Long>()
 
     for ((reportComputation, measurement) in computedMeasurements) {
-      val externalImpressionQualificationFilterId: String =
-        reportComputation.externalImpressionQualificationFilterId
       val queryResultsById: Map<String, Measurement.Result.MultimeasurementResult.QueryResult> =
         measurement.resultsList
           .flatMap { it.result.multimeasurementResult.queryResultsList }
@@ -252,9 +249,9 @@ class BasicReportsMultimeasurementResultsJob(
             ReportingSetResultKt.dimension {
               this.externalReportingSetId = externalReportingSetId
               vennDiagramRegionType = ReportingSetResult.Dimension.VennDiagramRegionType.UNION
-              if (externalImpressionQualificationFilterId.isNotEmpty()) {
-                this.externalImpressionQualificationFilterId =
-                  externalImpressionQualificationFilterId
+              if (mapping.externalImpressionQualificationFilterId.isNotEmpty()) {
+                externalImpressionQualificationFilterId =
+                  mapping.externalImpressionQualificationFilterId
               } else {
                 custom = true
               }

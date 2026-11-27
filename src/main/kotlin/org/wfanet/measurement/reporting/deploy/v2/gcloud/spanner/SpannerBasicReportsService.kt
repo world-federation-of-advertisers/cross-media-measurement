@@ -68,12 +68,12 @@ import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.BasicReportProcessedResultsTransformation.buildResultGroups
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.MeasurementConsumerResult
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportingSetResults
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.ReportComputationResult
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.basicReportExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByRequestId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getMeasurementConsumerByCmmsMeasurementConsumerId
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getReportComputation
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getReportComputationByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertBasicReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasurementConsumer
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertReportComputation
@@ -315,14 +315,11 @@ class SpannerBasicReportsService(
   }
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
-    val impressionQualificationFilterIds: List<Long> =
-      try {
-        validateReportComputations(request.basicReport, request.reportComputationsList)
-      } catch (e: InvalidFieldValueException) {
-        throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      } catch (e: ImpressionQualificationFilterNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      }
+    try {
+      validateReportComputations(request.reportComputationsList)
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val transactionRunner = spannerClient.readWriteTransaction()
 
     val (existingBasicReport: BasicReport?, reportingSetResults: List<ReportingSetResult>) =
@@ -380,13 +377,22 @@ class SpannerBasicReportsService(
               state = request.initialState,
               requestId = request.requestId.ifEmpty { null },
             )
-            for ((reportComputation, impressionQualificationFilterId) in
-              request.reportComputationsList.zip(impressionQualificationFilterIds)) {
+            // The BasicReport is new, so the only ReportComputations it has are inserted here.
+            val reportComputationIds = mutableSetOf<Long>()
+            val externalReportComputationIds = mutableSetOf<Long>()
+            for (reportComputation in request.reportComputationsList) {
+              val reportComputationId: Long =
+                idGenerator.generateNewId { id -> id in reportComputationIds }
+              reportComputationIds += reportComputationId
+              val externalReportComputationId: Long =
+                idGenerator.generateNewId { id -> id in externalReportComputationIds }
+              externalReportComputationIds += externalReportComputationId
               txn.insertReportComputation(
                 measurementConsumerResult.measurementConsumerId,
                 basicReportId,
-                impressionQualificationFilterId,
+                reportComputationId,
                 reportComputation.copy {
+                  this.externalReportComputationId = externalReportComputationId
                   cmmsCreateMeasurementRequestId = UUID.randomUUID().toString()
                 },
               )
@@ -559,9 +565,7 @@ class SpannerBasicReportsService(
               cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
               externalBasicReportId = request.externalBasicReportId,
             )
-          txn
-            .readReportComputations(basicReportResult, impressionQualificationFilterMapping)
-            .toList()
+          txn.readReportComputations(basicReportResult).map { it.reportComputation }.toList()
         }
       } catch (e: BasicReportNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -575,6 +579,9 @@ class SpannerBasicReportsService(
   ): ReportComputation {
     try {
       validateBasicReportKey(request.cmmsMeasurementConsumerId, request.externalBasicReportId)
+      if (request.externalReportComputationId == 0L) {
+        throw RequiredFieldNotSetException("external_report_computation_id")
+      }
       if (request.cmmsMeasurementId.isEmpty()) {
         throw RequiredFieldNotSetException("cmms_measurement_id")
       }
@@ -589,21 +596,17 @@ class SpannerBasicReportsService(
             cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
             externalBasicReportId = request.externalBasicReportId,
           )
-        fun notFound() =
-          ReportComputationNotFoundException(
-            request.cmmsMeasurementConsumerId,
-            request.externalBasicReportId,
-            request.externalImpressionQualificationFilterId,
-          )
-        val impressionQualificationFilterId: Long =
-          getImpressionQualificationFilterId(request.externalImpressionQualificationFilterId)
-            ?: throw notFound()
-        val reportComputation: ReportComputation =
-          txn.getReportComputation(
+        val reportComputationResult: ReportComputationResult =
+          txn.getReportComputationByExternalId(
             basicReportResult,
-            impressionQualificationFilterMapping,
-            impressionQualificationFilterId,
-          ) ?: throw notFound()
+            request.externalReportComputationId,
+          )
+            ?: throw ReportComputationNotFoundException(
+              request.cmmsMeasurementConsumerId,
+              request.externalBasicReportId,
+              request.externalReportComputationId,
+            )
+        val reportComputation: ReportComputation = reportComputationResult.reportComputation
 
         if (reportComputation.cmmsMeasurementId == request.cmmsMeasurementId) {
           reportComputation
@@ -613,14 +616,14 @@ class SpannerBasicReportsService(
             throw ReportComputationStateInvalidException(
               request.cmmsMeasurementConsumerId,
               request.externalBasicReportId,
-              request.externalImpressionQualificationFilterId,
+              request.externalReportComputationId,
               "cmms_measurement_id is already set to a different value",
             )
           }
           txn.setReportComputationMeasurementId(
             basicReportResult.measurementConsumerId,
             basicReportResult.basicReportId,
-            impressionQualificationFilterId,
+            reportComputationResult.reportComputationId,
             request.cmmsMeasurementId,
           )
           reportComputation.copy { cmmsMeasurementId = request.cmmsMeasurementId }
@@ -655,13 +658,13 @@ class SpannerBasicReportsService(
             .also { result ->
               checkBasicReportState(result, BasicReport.State.CREATED_MULTIMEASUREMENT)
               val reportComputations: List<ReportComputation> =
-                txn.readReportComputations(result, impressionQualificationFilterMapping).toList()
+                txn.readReportComputations(result).map { it.reportComputation }.toList()
               for (reportComputation in reportComputations) {
                 if (reportComputation.cmmsMeasurementId.isEmpty()) {
                   throw ReportComputationStateInvalidException(
                     request.cmmsMeasurementConsumerId,
                     request.externalBasicReportId,
-                    reportComputation.externalImpressionQualificationFilterId,
+                    reportComputation.externalReportComputationId,
                     "cmms_measurement_id is not set",
                   )
                 }
@@ -706,34 +709,18 @@ class SpannerBasicReportsService(
   }
 
   /**
-   * Validates the [ReportComputation]s of a `CreateBasicReportRequest` for [basicReport], returning
-   * the internal ID of the impression qualification filter of each.
+   * Validates the [ReportComputation]s of a `CreateBasicReportRequest`.
    *
    * @throws InvalidFieldValueException
-   * @throws ImpressionQualificationFilterNotFoundException
    */
-  private fun validateReportComputations(
-    basicReport: BasicReport,
-    reportComputations: List<ReportComputation>,
-  ): List<Long> {
-    if (reportComputations.isEmpty()) {
-      return emptyList()
-    }
-    // One per effective impression qualification filter, so that every ResultGroup is computed.
-    val expectedExternalIds: Set<String> =
-      basicReport.details.effectiveImpressionQualificationFiltersList
-        .map { it.externalImpressionQualificationFilterId }
-        .toSet()
-    val externalIds: Set<String> =
-      reportComputations.map { it.externalImpressionQualificationFilterId }.toSet()
-    if (externalIds != expectedExternalIds) {
-      throw InvalidFieldValueException("report_computations") {
-        "$it must have one per effective impression qualification filter of the BasicReport"
-      }
-    }
-    val impressionQualificationFilterIds = mutableListOf<Long>()
+  private fun validateReportComputations(reportComputations: List<ReportComputation>) {
     for ((index, reportComputation) in reportComputations.withIndex()) {
       val fieldPath = "report_computations[$index]"
+      if (reportComputation.externalReportComputationId != 0L) {
+        throw InvalidFieldValueException("$fieldPath.external_report_computation_id") {
+          "$it must not be set"
+        }
+      }
       if (reportComputation.cmmsCreateMeasurementRequestId.isNotEmpty()) {
         throw InvalidFieldValueException("$fieldPath.cmms_create_measurement_request_id") {
           "$it must not be set"
@@ -742,16 +729,6 @@ class SpannerBasicReportsService(
       if (reportComputation.cmmsMeasurementId.isNotEmpty()) {
         throw InvalidFieldValueException("$fieldPath.cmms_measurement_id") { "$it must not be set" }
       }
-      val externalId: String = reportComputation.externalImpressionQualificationFilterId
-      val impressionQualificationFilterId: Long =
-        getImpressionQualificationFilterId(externalId)
-          ?: throw ImpressionQualificationFilterNotFoundException(externalId)
-      if (impressionQualificationFilterId in impressionQualificationFilterIds) {
-        throw InvalidFieldValueException("$fieldPath.external_impression_qualification_filter_id") {
-          "$it is duplicated"
-        }
-      }
-      impressionQualificationFilterIds += impressionQualificationFilterId
       if (reportComputation.multimeasurement.isEmpty) {
         throw InvalidFieldValueException("$fieldPath.multimeasurement") { "$it is not set" }
       }
@@ -768,14 +745,7 @@ class SpannerBasicReportsService(
         }
       }
     }
-    return impressionQualificationFilterIds
   }
-
-  private fun getImpressionQualificationFilterId(externalId: String): Long? =
-    ReportingSetResults.getImpressionQualificationFilterId(
-      impressionQualificationFilterMapping,
-      externalId,
-    )
 
   /** @throws BasicReportStateInvalidException if the BasicReport is not in [expectedState]. */
   private fun checkBasicReportState(
