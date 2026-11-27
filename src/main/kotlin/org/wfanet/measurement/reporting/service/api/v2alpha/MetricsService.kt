@@ -236,6 +236,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricResult
 import org.wfanet.measurement.reporting.v2alpha.univariateStatistics
 
 private const val MAX_BATCH_SIZE = 1000
+private const val METRIC_SYNC_LOG_BATCH_SIZE = 50
 private const val MIN_PAGE_SIZE = 1
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -280,6 +281,7 @@ class MetricsService(
   cacheLoaderContext: @NonBlockingExecutor CoroutineContext = Dispatchers.Default,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
   kingdomMeasurementBatchConcurrency: Int,
+  private val logMeasurementValues: Boolean,
 ) : MetricsCoroutineImplBase(coroutineContext) {
   private data class DataProviderInfo(
     val dataProviderName: String,
@@ -2490,6 +2492,22 @@ class MetricsService(
     }
   }
 
+  private data class MetricSyncScope(
+    val basicReport: String,
+    val report: String,
+    val state: Metric.State,
+  )
+
+  private fun Metric.State.toSyncOutcome(): String =
+    when (this) {
+      Metric.State.SUCCEEDED -> "succeeded"
+      Metric.State.FAILED,
+      Metric.State.INVALID -> "failed"
+      Metric.State.RUNNING -> "in_progress"
+      Metric.State.STATE_UNSPECIFIED,
+      Metric.State.UNRECOGNIZED -> "unknown"
+    }
+
   /** Converts [InternalMetric]s to public [Metric]s after syncing [Measurement]s. */
   private suspend fun syncAndConvertInternalMetricsToPublicMetrics(
     metricsByState: Map<InternalMetric.State, List<InternalMetric>>,
@@ -2612,15 +2630,7 @@ class MetricsService(
           }
         }
         for (metric in publicMetrics) {
-          val outcome =
-            when (metric.state) {
-              Metric.State.SUCCEEDED -> "succeeded"
-              Metric.State.FAILED,
-              Metric.State.INVALID -> "failed"
-              Metric.State.RUNNING -> "in_progress"
-              Metric.State.STATE_UNSPECIFIED,
-              Metric.State.UNRECOGNIZED -> "unknown"
-            }
+          val outcome = metric.state.toSyncOutcome()
           ReportTracing.traceSuspending(
             spanName = "reporting.metric.result_synchronized",
             attributes =
@@ -2639,16 +2649,40 @@ class MetricsService(
                 }
                 .build(),
           ) {}
-          ReportTraceLogging.log(
-            logger,
-            "reporting.metric.result_synchronized",
-            ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
-            ReportTraceAttributes.BASIC_REPORT_NAME_STRING to metric.basicReport,
-            ReportTraceAttributes.REPORT_NAME_STRING to metric.containingReport,
-            ReportTraceAttributes.METRIC_NAME_STRING to metric.name,
-            ReportTraceAttributes.METRIC_STATE_STRING to metric.state.name,
-            ReportTraceAttributes.OUTCOME_STRING to outcome,
-          )
+          if (logger.isLoggable(Level.FINE)) {
+            ReportTraceLogging.log(
+              logger,
+              Level.FINE,
+              null,
+              "reporting.metric.result_synchronized",
+              ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+              ReportTraceAttributes.BASIC_REPORT_NAME_STRING to metric.basicReport,
+              ReportTraceAttributes.REPORT_NAME_STRING to metric.containingReport,
+              ReportTraceAttributes.METRIC_NAME_STRING to metric.name,
+              ReportTraceAttributes.METRIC_STATE_STRING to metric.state.name,
+              ReportTraceAttributes.OUTCOME_STRING to outcome,
+            )
+          }
+        }
+        if (logger.isLoggable(Level.INFO)) {
+          val metricsByScope =
+            publicMetrics.groupBy { MetricSyncScope(it.basicReport, it.containingReport, it.state) }
+          for ((scope, metrics) in metricsByScope) {
+            // Retain exact identities for log-only traces while bounding each summary's size.
+            for (batch in metrics.chunked(METRIC_SYNC_LOG_BATCH_SIZE)) {
+              ReportTraceLogging.log(
+                logger,
+                "reporting.metrics.results_synchronized",
+                ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+                ReportTraceAttributes.BASIC_REPORT_NAME_STRING to scope.basicReport,
+                ReportTraceAttributes.REPORT_NAME_STRING to scope.report,
+                ReportTraceAttributes.METRIC_STATE_STRING to scope.state.name,
+                ReportTraceAttributes.METRIC_COUNT_STRING to batch.size.toString(),
+                ReportTraceAttributes.OUTCOME_STRING to scope.state.toSyncOutcome(),
+                *batch.map { ReportTraceAttributes.METRIC_NAME_STRING to it.name }.toTypedArray(),
+              )
+            }
+          }
         }
         Span.current()
           .setAttribute(
@@ -2803,7 +2837,14 @@ class MetricsService(
           try {
             result = buildMetricResult(source, variances)
           } catch (e: Exception) {
-            logger.log(Level.SEVERE, "buildMetricResult exception:", e)
+            if (logMeasurementValues) {
+              logger.log(Level.SEVERE, "buildMetricResult exception:", e)
+            } else {
+              logger.log(
+                Level.SEVERE,
+                "buildMetricResult failed for $name: ${e.javaClass.simpleName}",
+              )
+            }
             state = Metric.State.FAILED
             when (e) {
               is MeasurementVarianceNotComputableException -> {

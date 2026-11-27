@@ -191,6 +191,14 @@ class EdpSimulatorFlags {
     private set
 
   @CommandLine.Option(
+    names = ["--log-measurement-values"],
+    defaultValue = "false",
+    description = ["Include measurement values in diagnostic logs. Disabled by default."],
+  )
+  var logMeasurementValues: Boolean = false
+    private set
+
+  @CommandLine.Option(
     names = ["--log-sketch-details"],
     description =
       [

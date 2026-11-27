@@ -1,6 +1,23 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "ReplayStorageCleanupEventTest",
+    srcs = ["ReplayStorageCleanupEventTest.kt"],
+    jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],
+    test_class = "org.wfanet.measurement.edpaggregator.tools.ReplayStorageCleanupEventTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:replay_storage_cleanup_event",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/datawatcher:data_watcher_function",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/cloudevents/core",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/testing",
+    ],
+)
+
+kt_jvm_test(
     name = "VerifyEventGroupsMainTest",
     srcs = ["VerifyEventGroupsMainTest.kt"],
     jvm_flags = ["-Dcom.google.testing.junit.runner.shouldInstallTestSecurityManager=false"],

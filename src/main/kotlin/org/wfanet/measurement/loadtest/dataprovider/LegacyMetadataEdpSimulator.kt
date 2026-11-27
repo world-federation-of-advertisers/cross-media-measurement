@@ -97,6 +97,7 @@ class LegacyMetadataEdpSimulator(
   random: Random = Random,
   blockingCoroutineContext: @BlockingExecutor CoroutineContext = Dispatchers.IO,
   kingdomRpcThrottler: Throttler,
+  logMeasurementValues: Boolean,
 ) :
   AbstractEdpSimulator(
     edpData,
@@ -123,6 +124,7 @@ class LegacyMetadataEdpSimulator(
     blockingCoroutineContext,
     null,
     trusTeeSupported = trusTeeSupported,
+    logMeasurementValues = logMeasurementValues,
   ) {
   interface EventGroupOptions : AbstractEdpSimulator.EventGroupOptions {
     val legacyMetadata: Message

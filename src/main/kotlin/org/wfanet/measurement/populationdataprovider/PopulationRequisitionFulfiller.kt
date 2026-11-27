@@ -92,6 +92,7 @@ class PopulationRequisitionFulfiller(
   private val modelLinesStub: ModelLinesGrpcKt.ModelLinesCoroutineStub,
   private val modelLineEventTemplateVersions: Map<String, Int>,
   private val kingdomRpcThrottler: Throttler,
+  logMeasurementValues: Boolean,
 ) :
   RequisitionFulfiller(
     pdpData,
@@ -99,6 +100,7 @@ class PopulationRequisitionFulfiller(
     requisitionsStub,
     kingdomRpcThrottler,
     trustedCertificates,
+    logMeasurementValues = logMeasurementValues,
   ) {
 
   init {
@@ -147,8 +149,10 @@ class PopulationRequisitionFulfiller(
             )
           }
 
-        logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
-        logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
+        if (logMeasurementValues) {
+          logger.log(Level.INFO, "MeasurementSpec:\n$measurementSpec")
+          logger.log(Level.INFO, "RequisitionSpec:\n$requisitionSpec")
+        }
 
         val resolvedPopulation = getValidPopulationSpec(measurementSpec)
         fulfillPopulationMeasurement(

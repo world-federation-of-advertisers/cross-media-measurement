@@ -29,6 +29,7 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.nio.file.Paths
+import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -40,6 +41,7 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
@@ -108,9 +110,12 @@ class DataWatcherFunction(
         data.metadataMap +
           mapOf(
             DataWatcher.GENERATION_METADATA_KEY to data.generation.toString(),
-            DataWatcher.CREATE_TIME_METADATA_KEY to data.timeCreated.toInstant().toString(),
             DataWatcher.EVENT_TYPE_METADATA_KEY to event.type,
-          )
+            DataWatcher.EVENT_ID_METADATA_KEY to event.id,
+          ) +
+          (if (data.hasTimeCreated()) {
+            mapOf(DataWatcher.CREATE_TIME_METADATA_KEY to data.timeCreated.toInstant().toString())
+          } else emptyMap())
 
       Tracing.withW3CTraceContext(event) {
         val forwardedMetadata =
@@ -244,6 +249,12 @@ class DataWatcherFunction(
       DataWatcher(
         workItemsStub = workItemsStub,
         dataWatcherConfigs = dataWatcherConfig.watchedPathsList,
+        controlPlaneThrottler =
+          System.getenv("CONTROL_PLANE_THROTTLER_MILLIS")?.let {
+            val millis = it.toLong()
+            require(millis >= 0L) { "CONTROL_PLANE_THROTTLER_MILLIS must not be negative" }
+            MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(millis))
+          },
       )
     }
   }
