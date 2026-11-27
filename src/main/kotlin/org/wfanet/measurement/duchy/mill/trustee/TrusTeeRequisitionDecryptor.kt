@@ -151,6 +151,8 @@ class TrusTeeRequisitionDecryptor(
 
   private fun decrypt(dek: KeysetHandle, data: ByteString): ByteArray {
     try {
+      // TODO(world-federation-of-advertisers/cross-media-measurement#3347): decrypt data by chunks
+      //  while reading from the storage to improve the performance.
       // The frequency vector is encrypted with no associated data.
       val streamingAead = dek.getPrimitive(StreamingAead::class.java)
       return streamingAead.newDecryptingStream(data.newInput(), byteArrayOf()).use {
