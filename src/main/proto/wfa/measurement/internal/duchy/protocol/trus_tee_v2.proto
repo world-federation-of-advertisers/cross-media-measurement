@@ -62,9 +62,9 @@ message TrusTeeV2 {
     wfa.measurement.internal.duchy.PopulationSpec population_spec = 3;
 
     // Copied likewise. Schema for reading a named field out of a
-    // [PopulationSpec.SubPopulation.attributes][] entry, which is a packed
-    // event template message, so that the Duchy needs no event template
-    // configuration of its own.
+    // [PopulationSpec.SubPopulation.attributes][] entry, which is a serialized
+    // `google.protobuf.Any` packing an event template message, so that the
+    // Duchy needs no event template configuration of its own.
     EventDescriptor event_descriptor = 4;
 
     // Copied from the `MeasurementSpec`'s `vid_sampling_interval`. Every base

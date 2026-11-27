@@ -2696,6 +2696,37 @@ class HeraldTest {
   }
 
   @Test
+  fun `syncStatuses fails TrusTEE v2 computation whose vector indexes repeat`() = runTest {
+    val systemApiRequisition1 =
+      MULTI_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED).copy {
+        vectorIndex = 0
+      }
+    val systemApiRequisition2 =
+      MULTI_REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED).copy {
+        vectorIndex = 0
+      }
+    val computation =
+      buildComputationAtKingdom(
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisition1, systemApiRequisition2),
+          serializedMeasurementSpec = SERIALIZED_MULTI_MEASUREMENT_SPEC,
+          mpcProtocolConfig = TRUS_TEE_V2_MPC_PROTOCOL_CONFIG,
+          systemComputationParticipant = SINGLE_COMPUTATION_PARTICIPANT,
+        )
+        .copy { multimeasurement = SYSTEM_MULTIMEASUREMENT }
+    mockStreamActiveComputationsToReturn(computation)
+
+    aggregatorHerald.syncStatuses()
+
+    val failRequest: FailComputationParticipantRequest = captureFirst {
+      runBlocking { verify(systemComputationParticipants).failComputationParticipant(capture()) }
+    }
+    assertThat(failRequest.failure.errorMessage).contains("vector indexes")
+    assertThat(fakeComputationDatabase).doesNotContainKey(computation.key.computationId.toLong())
+  }
+
+  @Test
   fun `syncStatuses creates new TrusTEE v2 computation`() = runTest {
     val systemApiRequisition1 =
       MULTI_REQUISITION_1.toSystemRequisition("2", Requisition.State.UNFULFILLED).copy {
