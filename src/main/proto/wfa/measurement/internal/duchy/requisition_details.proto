@@ -123,9 +123,10 @@ message RequisitionDetails {
         // [TrusTee.data_format][] is `FREQUENCY_VECTOR`.
         bytes fulfillment_details = 2;
 
-        // [fulfillment_details][] encrypted with the same Data Encryption Key
-        // as the frequency vector, when [TrusTee.data_format][] is
-        // `ENCRYPTED_FREQUENCY_VECTOR`.
+        // Serialized public API `EncryptedMessage` whose plaintext is a
+        // `FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails`,
+        // encrypted with the same Data Encryption Key as the frequency vector,
+        // when [TrusTee.data_format][] is `ENCRYPTED_FREQUENCY_VECTOR`.
         bytes encrypted_fulfillment_details = 3;
       }
 

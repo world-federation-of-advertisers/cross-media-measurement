@@ -54,6 +54,7 @@ import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProto
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.honestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTee
+import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionProtocolKt.trusTeeV2
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.getComputationTokenRequest
@@ -113,7 +114,11 @@ class RequisitionFulfillmentService(
                 .put(ReportTraceAttributes.OUTCOME, "started")
                 .build(),
           ) {
-            grpcRequire(header.nonce != 0L) { "nonce unspecified" }
+            // A multimeasurement fulfillment has no nonce; that is checked against the computation
+            // below.
+            if (!header.hasTrusTeeV2()) {
+              grpcRequire(header.nonce != 0L) { "nonce unspecified" }
+            }
 
             val authenticatedPrincipal = principalFromCurrentContext
             if (key.parentKey != authenticatedPrincipal.resourceKey) {
@@ -121,8 +126,37 @@ class RequisitionFulfillmentService(
             }
 
             val token = getComputationToken(externalRequisitionKey)
+            // Validated against the computation before anything is written, so that a mismatched
+            // fulfillment leaves no blob behind.
+            val isTrusTeeV2: Boolean =
+              token.computationStage.stageCase == ComputationStage.StageCase.TRUS_TEE_V2
+            grpcRequire(header.hasTrusTeeV2() == isTrusTeeV2) {
+              "trus_tee_v2 must be specified exactly for a TrusTEE v2 computation"
+            }
             val requisitionMetadata =
-              verifyRequisitionFulfillment(token, externalRequisitionKey, header.nonce)
+              if (isTrusTeeV2) {
+                // The plaintext RequisitionSpec of a multimeasurement has no nonce. Its fingerprint
+                // already matched in the computation lookup.
+                grpcRequire(header.nonce == 0L) { "nonce specified for a TrusTEE v2 fulfillment" }
+                token.requisitionsList.find { it.externalKey == externalRequisitionKey }
+                  ?: failGrpc(Status.NOT_FOUND) { "Requisition not found" }
+              } else {
+                verifyRequisitionFulfillment(token, externalRequisitionKey, header.nonce)
+              }
+            // Built before anything is written, so that an invalid header leaves no blob behind.
+            val trusTeeProtocolDetails: RequisitionDetails.RequisitionProtocol? =
+              when (token.computationStage.stageCase) {
+                ComputationStage.StageCase.TRUS_TEE ->
+                  RequisitionDetailsKt.requisitionProtocol { trusTee = header.trusTee.toInternal() }
+                ComputationStage.StageCase.TRUS_TEE_V2 ->
+                  RequisitionDetailsKt.requisitionProtocol {
+                    trusTeeV2 = header.trusTeeV2.toInternal(key.dataProviderId)
+                  }
+                ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+                ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+                ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+                ComputationStage.StageCase.STAGE_NOT_SET -> null
+              }
 
             // Only try writing to the blob store if it is not already marked fulfilled.
             // TODO(world-federation-of-advertisers/cross-media-measurement#85): Handle
@@ -162,39 +196,14 @@ class RequisitionFulfillmentService(
                     dataProviderCertificate = hmss.dataProviderCertificate,
                   )
                 }
-                // TODO(world-federation-of-advertisers/cross-media-measurement#4532):
-                //   Implement TrusTEE v2.
-                ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
-                ComputationStage.StageCase.TRUS_TEE -> {
-                  val trusTee = header.trusTee
-                  when (trusTee.dataFormat) {
-                    Header.TrusTee.DataFormat.FREQUENCY_VECTOR -> {
-                      recordPlainTrusTeeRequisitionLocally(
-                        token = token,
-                        key = externalRequisitionKey,
-                        blobPath = blob.blobKey,
-                        populationSpecFingerprint = trusTee.populationSpecFingerprint,
-                      )
-                    }
-                    Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
-                      when (trusTee.envelopeEncryption.encryptedDek.format) {
-                        EncryptionKey.Format.TINK_ENCRYPTED_KEYSET -> {}
-                        EncryptionKey.Format.FORMAT_UNSPECIFIED,
-                        EncryptionKey.Format.UNRECOGNIZED ->
-                          failGrpc { "Invalid EncryptedDek format" }
-                      }
-                      recordEncryptedTrusTeeRequisitionLocally(
-                        token = token,
-                        key = externalRequisitionKey,
-                        blobPath = blob.blobKey,
-                        envelopeEncryption = trusTee.envelopeEncryption,
-                        populationSpecFingerprint = trusTee.populationSpecFingerprint,
-                      )
-                    }
-                    Header.TrusTee.DataFormat.DATA_FORMAT_UNSPECIFIED,
-                    Header.TrusTee.DataFormat.UNRECOGNIZED ->
-                      failGrpc { "Unsupported data format." }
-                  }
+                ComputationStage.StageCase.TRUS_TEE,
+                ComputationStage.StageCase.TRUS_TEE_V2 -> {
+                  recordTrusTeeRequisitionLocally(
+                    token = token,
+                    key = externalRequisitionKey,
+                    blobPath = blob.blobKey,
+                    protocolDetails = checkNotNull(trusTeeProtocolDetails),
+                  )
                 }
                 ComputationStage.StageCase.STAGE_NOT_SET -> failGrpc { "ComputationStage not set" }
               }
@@ -331,12 +340,12 @@ class RequisitionFulfillmentService(
     )
   }
 
-  /** Sends rpc to the duchy's internal ComputationsService to record plain TrusTee requisition */
-  private suspend fun recordPlainTrusTeeRequisitionLocally(
+  /** Sends rpc to the duchy's internal ComputationsService to record a TrusTee requisition. */
+  private suspend fun recordTrusTeeRequisitionLocally(
     token: ComputationToken,
     key: ExternalRequisitionKey,
     blobPath: String,
-    populationSpecFingerprint: Long,
+    protocolDetails: RequisitionDetails.RequisitionProtocol,
   ) {
     computationsClient.recordRequisitionFulfillment(
       recordRequisitionFulfillmentRequest {
@@ -344,74 +353,89 @@ class RequisitionFulfillmentService(
         this.key = key
         this.blobPath = blobPath
         publicApiVersion = Version.V2_ALPHA.string
-        protocolDetails =
-          RequisitionDetailsKt.requisitionProtocol {
-            trusTee = trusTee {
-              this.dataFormat =
-                RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.FREQUENCY_VECTOR
-              this.populationSpecFingerprint = populationSpecFingerprint
-            }
-          }
+        this.protocolDetails = protocolDetails
       }
     )
   }
 
-  /**
-   * Sends rpc to the duchy's internal ComputationsService to record encrypted TrusTee requisition.
-   */
-  private suspend fun recordEncryptedTrusTeeRequisitionLocally(
-    token: ComputationToken,
-    key: ExternalRequisitionKey,
-    blobPath: String,
-    envelopeEncryption: Header.TrusTee.EnvelopeEncryption,
-    populationSpecFingerprint: Long,
-  ) {
-    computationsClient.recordRequisitionFulfillment(
-      recordRequisitionFulfillmentRequest {
-        this.token = token
-        this.key = key
-        this.blobPath = blobPath
-        publicApiVersion = Version.V2_ALPHA.string
-        protocolDetails =
-          RequisitionDetailsKt.requisitionProtocol {
-            trusTee = trusTee {
-              this.dataFormat =
-                RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
-              this.encryptedDekCiphertext = envelopeEncryption.encryptedDek.data
-              this.kmsKekUri = envelopeEncryption.kmsKekUri
-              this.workloadIdentityProvider = envelopeEncryption.workloadIdentityProvider
-              this.impersonatedServiceAccount = envelopeEncryption.impersonatedServiceAccount
-              this.populationSpecFingerprint = populationSpecFingerprint
-              if (envelopeEncryption.hasAwsKmsParams()) {
-                val apiAwsKmsParams = envelopeEncryption.awsKmsParams
-                // Which audience is set determines how the mill authenticates to
-                // AWS STS.
-                val (awsAudience, awsCredentialSource) =
-                  when (apiAwsKmsParams.tokenAudienceCase) {
-                    TokenAudienceCase.WORKLOAD_IDENTITY_ID_TOKEN_AUDIENCE ->
-                      apiAwsKmsParams.workloadIdentityIdTokenAudience to
-                        InternalCredentialSource.GCP_WORKLOAD_IDENTITY
-                    TokenAudienceCase.CONFIDENTIAL_SPACE_ATTESTATION_TOKEN_AUDIENCE ->
-                      apiAwsKmsParams.confidentialSpaceAttestationTokenAudience to
-                        InternalCredentialSource.CONFIDENTIAL_SPACE
-                    TokenAudienceCase.TOKENAUDIENCE_NOT_SET ->
-                      failGrpc {
-                        "trus_tee.envelope_encryption.aws_kms_params.token_audience not set"
-                      }
-                  }
-                this.awsKmsParams =
-                  RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams {
-                    roleArn = apiAwsKmsParams.roleArn
-                    roleSession = apiAwsKmsParams.roleSession
-                    region = apiAwsKmsParams.region
-                    audience = awsAudience
-                    credentialSource = awsCredentialSource
-                  }
-              }
-            }
+  private fun Header.TrusTee.toInternal(): RequisitionDetails.RequisitionProtocol.TrusTee {
+    val source = this
+    return trusTee {
+      populationSpecFingerprint = source.populationSpecFingerprint
+      when (source.dataFormat) {
+        Header.TrusTee.DataFormat.FREQUENCY_VECTOR -> {
+          dataFormat = RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.FREQUENCY_VECTOR
+        }
+        Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
+          val envelopeEncryption = source.envelopeEncryption
+          when (envelopeEncryption.encryptedDek.format) {
+            EncryptionKey.Format.TINK_ENCRYPTED_KEYSET -> {}
+            EncryptionKey.Format.FORMAT_UNSPECIFIED,
+            EncryptionKey.Format.UNRECOGNIZED -> failGrpc { "Invalid EncryptedDek format" }
           }
+          dataFormat =
+            RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+          encryptedDekCiphertext = envelopeEncryption.encryptedDek.data
+          kmsKekUri = envelopeEncryption.kmsKekUri
+          workloadIdentityProvider = envelopeEncryption.workloadIdentityProvider
+          impersonatedServiceAccount = envelopeEncryption.impersonatedServiceAccount
+          if (envelopeEncryption.hasAwsKmsParams()) {
+            val apiAwsKmsParams = envelopeEncryption.awsKmsParams
+            // Which audience is set determines how the mill authenticates to
+            // AWS STS.
+            val (awsAudience, awsCredentialSource) =
+              when (apiAwsKmsParams.tokenAudienceCase) {
+                TokenAudienceCase.WORKLOAD_IDENTITY_ID_TOKEN_AUDIENCE ->
+                  apiAwsKmsParams.workloadIdentityIdTokenAudience to
+                    InternalCredentialSource.GCP_WORKLOAD_IDENTITY
+                TokenAudienceCase.CONFIDENTIAL_SPACE_ATTESTATION_TOKEN_AUDIENCE ->
+                  apiAwsKmsParams.confidentialSpaceAttestationTokenAudience to
+                    InternalCredentialSource.CONFIDENTIAL_SPACE
+                TokenAudienceCase.TOKENAUDIENCE_NOT_SET ->
+                  failGrpc { "trus_tee.envelope_encryption.aws_kms_params.token_audience not set" }
+              }
+            awsKmsParams =
+              RequisitionDetailsKt.RequisitionProtocolKt.TrusTeeKt.awsKmsParams {
+                roleArn = apiAwsKmsParams.roleArn
+                roleSession = apiAwsKmsParams.roleSession
+                region = apiAwsKmsParams.region
+                audience = awsAudience
+                credentialSource = awsCredentialSource
+              }
+          }
+        }
+        Header.TrusTee.DataFormat.DATA_FORMAT_UNSPECIFIED,
+        Header.TrusTee.DataFormat.UNRECOGNIZED -> failGrpc { "Unsupported data format." }
       }
-    )
+    }
+  }
+
+  private fun Header.TrusTeeV2.toInternal(
+    dataProviderResourceId: String
+  ): RequisitionDetails.RequisitionProtocol.TrusTeeV2 {
+    val source = this
+    return trusTeeV2 {
+      trusTee = source.trusTee.toInternal()
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
+      when (source.detailsCase) {
+        Header.TrusTeeV2.DetailsCase.FULFILLMENT_DETAILS -> {
+          grpcRequire(source.trusTee.dataFormat == Header.TrusTee.DataFormat.FREQUENCY_VECTOR) {
+            "fulfillment_details requires the FREQUENCY_VECTOR data format"
+          }
+          fulfillmentDetails = source.fulfillmentDetails.toByteString()
+        }
+        Header.TrusTeeV2.DetailsCase.ENCRYPTED_FULFILLMENT_DETAILS -> {
+          grpcRequire(
+            source.trusTee.dataFormat == Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+          ) {
+            "encrypted_fulfillment_details requires the ENCRYPTED_FREQUENCY_VECTOR data format"
+          }
+          encryptedFulfillmentDetails = source.encryptedFulfillmentDetails.toByteString()
+        }
+        Header.TrusTeeV2.DetailsCase.DETAILS_NOT_SET -> {}
+      }
+      this.dataProviderResourceId = dataProviderResourceId
+    }
   }
 
   /** send rpc to the kingdom's system RequisitionsService to fulfill a requisition. */
