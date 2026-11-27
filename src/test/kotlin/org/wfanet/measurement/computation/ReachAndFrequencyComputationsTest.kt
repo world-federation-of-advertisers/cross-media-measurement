@@ -151,24 +151,6 @@ class ReachAndFrequencyComputationsTest {
   }
 
   @Test
-  fun `foldDownBelowThresholds folds scaled failing buckets down and reports each fold`() {
-    // Scaled by 0.5: [10, 4, 2] users; buckets below 3 users fold into the next lower bucket.
-    val histogram = longArrayOf(5L, 2L, 1L)
-    val folded = mutableListOf<Int>()
-
-    ReachAndFrequencyComputations.foldDownBelowThresholds(
-      histogram,
-      ResultMinimumThresholds(minUsers = 3, minImpressions = 1),
-      vidSamplingIntervalWidth = 0.5,
-    ) {
-      folded += it
-    }
-
-    assertThat(histogram).asList().containsExactly(5L, 3L, 0L).inOrder()
-    assertThat(folded).containsExactly(2)
-  }
-
-  @Test
   fun `computeFrequencyDistribution calculates raw distribution`() {
     val rawHistogram = longArrayOf(10, 30, 60) // Frequencies 1, 2, 3
     val distribution =

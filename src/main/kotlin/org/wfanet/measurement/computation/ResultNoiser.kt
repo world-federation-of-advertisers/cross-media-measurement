@@ -36,14 +36,6 @@ interface ResultNoiser {
    */
   fun noiseImpressionsFromFrequencyHistogram(frequencyHistogram: LongArray): Long
 
-  /**
-   * Returns [impressions] with the noise of the impression count applied.
-   *
-   * The draw is the one [noiseImpressionsFromFrequencyHistogram] adds, calibrated to the same
-   * per-user cap, for a caller that holds the impression total itself rather than a histogram.
-   */
-  fun noiseImpressions(impressions: Long): Long
-
   /** Returns the count for the frequency bucket at [index] (frequency `index + 1`) with noise. */
   fun noiseFrequencyBucket(index: Int, count: Long): Long
 }
@@ -54,8 +46,6 @@ object NoNoise : ResultNoiser {
 
   override fun noiseImpressionsFromFrequencyHistogram(frequencyHistogram: LongArray): Long =
     frequencyHistogram.weightedSum(cap = null)
-
-  override fun noiseImpressions(impressions: Long): Long = impressions
 
   override fun noiseFrequencyBucket(index: Int, count: Long): Long = count
 }
@@ -84,11 +74,8 @@ class GaussianResultNoiser(
     )
 
   override fun noiseImpressionsFromFrequencyHistogram(frequencyHistogram: LongArray): Long =
-    noiseImpressions(frequencyHistogram.weightedSum(cap = maxFrequencyPerUser))
-
-  override fun noiseImpressions(impressions: Long): Long =
     noise.addNoise(
-      impressions,
+      frequencyHistogram.weightedSum(cap = maxFrequencyPerUser),
       L0_SENSITIVITY,
       maxFrequencyPerUser.toLong(),
       reachDpParams.epsilon,
@@ -149,10 +136,8 @@ private constructor(private val fingerprint: ByteArray, private val maxFrequency
     // One draw calibrated to the capped count's sensitivity, mirroring the Gaussian mechanism.
     // Deriving this from the bucket draws instead would weight each by its frequency, giving the
     // threshold a noise magnitude that is not calibrated to any sensitivity.
-    noiseImpressions(frequencyHistogram.weightedSum(cap = maxFrequencyPerUser))
-
-  override fun noiseImpressions(impressions: Long): Long =
-    impressions + impressionSampler.sampleRounded(fingerprint, label(IMPRESSION_LABEL))
+    frequencyHistogram.weightedSum(cap = maxFrequencyPerUser) +
+      impressionSampler.sampleRounded(fingerprint, label(IMPRESSION_LABEL))
 
   override fun noiseFrequencyBucket(index: Int, count: Long): Long =
     (count + frequencySampler.sampleRounded(fingerprint, label(index + 1))).coerceAtLeast(0L)
@@ -165,23 +150,6 @@ private constructor(private val fingerprint: ByteArray, private val maxFrequency
     private const val IMPRESSION_LABEL = -1
     private const val UNIT_SENSITIVITY = 1.0
     private const val FINGERPRINT_BUFFER_SIZE_BYTES = 64 * 1024
-
-    /**
-     * Returns a noiser whose draws are seeded directly by [seed], for a caller that derives its own
-     * seed rather than fingerprinting a combined frequency vector.
-     *
-     * @param seed the noise seed, e.g. a SHA-256 digest of the inputs the noise must depend on
-     */
-    fun fromSeed(
-      seed: ByteArray,
-      maxFrequencyPerUser: Int,
-    ): DeterministicTruncatedLaplaceResultNoiser {
-      require(seed.isNotEmpty()) { "seed must not be empty" }
-      return DeterministicTruncatedLaplaceResultNoiser(
-        fingerprint = seed.copyOf(),
-        maxFrequencyPerUser = maxFrequencyPerUser,
-      )
-    }
 
     /**
      * The noise seed: SHA-256 over the combined frequency vector and [contributionCount], which is
