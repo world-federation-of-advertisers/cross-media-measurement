@@ -1276,6 +1276,32 @@ class MeasurementsServiceTest {
   }
 
   @Test
+  fun `createMeasurement throws INVALID_ARGUMENT when multimeasurement repeats a DataProvider`() {
+    stubTrusTeeV2CapableDataProviders()
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      measurement =
+        MULTIMEASUREMENT.copy {
+          multimeasurement =
+            multimeasurement.copy {
+              dataProviderVectors[1] =
+                dataProviderVectors[1].copy { dataProvider = dataProviderVectors[0].dataProvider }
+            }
+        }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createMeasurement(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception).hasMessageThat().contains("data_provider is duplicated")
+  }
+
+  @Test
   fun `createMeasurement throws FAILED_PRECONDITION when a DataProvider lacks TrusTEE v2`() {
     val request = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
