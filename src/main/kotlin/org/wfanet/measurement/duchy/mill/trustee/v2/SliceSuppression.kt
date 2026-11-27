@@ -42,8 +42,9 @@ class SliceSuppression(
       cell.summandDataProviders
         .filter { dataProvider ->
           val sliceReach: Long = cell.sliceReach[dataProvider] ?: 0L
-          noise.sliceNoiser(cell, dataProvider).noiseReach(sliceReach) / vidSamplingIntervalWidth <
-            thresholds.minUsers
+          !thresholds.meetsMinUsers(
+            noise.sliceNoiser(cell, dataProvider).noiseReach(sliceReach) / vidSamplingIntervalWidth
+          )
         }
         .toSet()
     return when {

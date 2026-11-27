@@ -57,12 +57,14 @@ object ReachAndFrequencyComputations {
     val impressionCount = noiser.noiseImpressionsFromFrequencyHistogram(sampled.frequencyHistogram)
     val scaledImpressionCount = (impressionCount / vidSamplingIntervalWidth).toLong()
     return if (
-      scaledImpressionCount < resultMinimumThresholds.minImpressions ||
-        minScaledNoisedReach < resultMinimumThresholds.minUsers
+      resultMinimumThresholds.meets(
+        scaledReach = minScaledNoisedReach.toDouble(),
+        scaledImpressions = scaledImpressionCount.toDouble(),
+      )
     ) {
-      0
-    } else {
       minScaledNoisedReach
+    } else {
+      0
     }
   }
 
@@ -162,8 +164,10 @@ object ReachAndFrequencyComputations {
       val frequency = index + 1L
       val count = histogram[index]
       if (
-        count / vidSamplingIntervalWidth < resultMinimumThresholds.minUsers ||
-          frequency * count / vidSamplingIntervalWidth < resultMinimumThresholds.minImpressions
+        !resultMinimumThresholds.meets(
+          scaledReach = count / vidSamplingIntervalWidth,
+          scaledImpressions = frequency * count / vidSamplingIntervalWidth,
+        )
       ) {
         histogram[index] = 0
         if (index > 0) {

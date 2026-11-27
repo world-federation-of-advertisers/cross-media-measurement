@@ -14,20 +14,13 @@
 
 package org.wfanet.measurement.duchy.mill.trustee
 
-import com.google.protobuf.ByteString
 import java.nio.ByteBuffer
-import java.nio.file.Path
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
-import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCredentials
-import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
-import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
-import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
-import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeParams
@@ -45,8 +38,6 @@ import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.Stage
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
-import org.wfanet.measurement.system.v1alpha.ComputationParticipant
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 
@@ -62,10 +53,7 @@ class TrusTeeMill(
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
-  gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
-  gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
-  confidentialSpaceToAwsKmsClientFactory: KmsClientFactory<ConfidentialSpaceToAwsWifCredentials>,
-  attestationTokenPath: Path,
+  private val requisitionDecryptor: TrusTeeRequisitionDecryptor,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -87,14 +75,6 @@ class TrusTeeMill(
     clock = clock,
   ) {
 
-  private val requisitionDecryptor =
-    TrusTeeRequisitionDecryptor(
-      gcloudKmsClientFactory,
-      gcloudToAwsKmsClientFactory,
-      confidentialSpaceToAwsKmsClientFactory,
-      attestationTokenPath,
-    )
-
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
   override suspend fun processComputationImpl(token: ComputationToken) {
@@ -114,12 +94,7 @@ class TrusTeeMill(
     mapOf(Stage.INITIALIZED to ::initializationPhase, Stage.COMPUTING to ::computingPhase)
 
   private suspend fun initializationPhase(token: ComputationToken): ComputationToken {
-    val requisitionParams =
-      ComputationParticipantKt.requisitionParams {
-        duchyCertificate = consentSignalCert.name
-        trusTee = ComputationParticipant.RequisitionParams.TrusTee.getDefaultInstance()
-      }
-    sendRequisitionParamsToKingdom(token, requisitionParams)
+    sendTrusTeeRequisitionParamsToKingdom(token)
 
     return dataClients.transitionComputationToStage(
       token,
@@ -139,7 +114,7 @@ class TrusTeeMill(
       processor.addFrequencyVector(
         requisitionDecryptor.readFrequencyVector(
           requisition.details.protocol.trusTee,
-          getRequisitionData(requisition),
+          readRequisitionData(requisition),
         )
       )
     }
@@ -209,11 +184,6 @@ class TrusTeeMill(
           "Unsupported or unspecified TrusTEE computation type in ComputationDetails: $type"
         )
     }
-  }
-
-  private suspend fun getRequisitionData(requisition: RequisitionMetadata): ByteString {
-    return dataClients.readSingleRequisitionBlob(requisition)
-      ?: throw PermanentErrorException("Requisition data not found for ${requisition.externalKey}")
   }
 
   private fun toIntArray(bytes: ByteArray): IntArray {

@@ -69,6 +69,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:multi_party_computation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:query_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
