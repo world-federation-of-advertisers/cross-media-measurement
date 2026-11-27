@@ -1042,7 +1042,7 @@ abstract class RequisitionsServiceTest<T : RequisitionsCoroutineService> {
     }
 
   @Test
-  fun `fulfillRequisition throws INVALID_ARGUMENT when signature not specified`() = runBlocking {
+  fun `fulfillRequisition throws INVALID_ARGUMENT when nonce not specified`() = runBlocking {
     val measurement =
       population.createLlv2Measurement(
         dataServices.measurementsService,

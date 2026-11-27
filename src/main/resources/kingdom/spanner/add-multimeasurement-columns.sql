@@ -31,7 +31,9 @@ CREATE UNIQUE INDEX RequisitionsByDataProviderIdAndVectorIndex
 -- Serialized wfa.measurement.internal.kingdom.Measurement.ResultInfo of a succeeded multimeasurement,
 -- whose Result is neither signed nor encrypted, or NULL for any other Measurement. It has no
 -- aggregator certificate, so it is not in DuchyMeasurementResults, and is kept out of
--- MeasurementDetails, which every Measurement update rewrites.
+-- MeasurementDetails, which every Measurement update rewrites. BYTES rather than a PROTO column,
+-- because Measurement.ResultInfo belongs to the internal API and is not in the Details proto
+-- bundle.
 ALTER TABLE Measurements ADD COLUMN PlaintextResult BYTES(MAX);
 
 DROP INDEX RequisitionsByDataProviderId;
