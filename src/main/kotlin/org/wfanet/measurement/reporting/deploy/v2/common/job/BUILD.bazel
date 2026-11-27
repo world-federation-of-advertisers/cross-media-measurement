@@ -97,3 +97,40 @@ java_image(
     main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.BasicReportsReportsJobExecutorKt",
     visibility = ["//src:docker_image_deployment"],
 )
+
+kt_jvm_library(
+    name = "basic_reports_multimeasurement_job_executor",
+    srcs = ["BasicReportsMultimeasurementJobExecutor.kt"],
+    runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:kingdom_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:reporting_api_server_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:v2alpha_flags",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_measurements_job",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_multimeasurement_results_job",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:measurement_consumer_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_reports_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/reporting/v2:report_results_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+java_binary(
+    name = "BasicReportsMultimeasurementJobExecutor",
+    main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.BasicReportsMultimeasurementJobExecutorKt",
+    runtime_deps = [":basic_reports_multimeasurement_job_executor"],
+)
+
+java_image(
+    name = "basic_reports_multimeasurement_job_executor_image",
+    binary = ":BasicReportsMultimeasurementJobExecutor",
+    main_class = "org.wfanet.measurement.reporting.deploy.v2.common.job.BasicReportsMultimeasurementJobExecutorKt",
+    visibility = ["//src:docker_image_deployment"],
+)
