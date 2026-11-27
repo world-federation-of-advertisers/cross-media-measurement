@@ -114,6 +114,12 @@ class RequisitionFulfillmentService(
                 .put(ReportTraceAttributes.OUTCOME, "started")
                 .build(),
           ) {
+            // A multimeasurement fulfillment has no nonce; that is checked against the computation
+            // below.
+            if (!header.hasTrusTeeV2()) {
+              grpcRequire(header.nonce != 0L) { "nonce unspecified" }
+            }
+
             val authenticatedPrincipal = principalFromCurrentContext
             if (key.parentKey != authenticatedPrincipal.resourceKey) {
               throw Permission.FULFILL.deniedStatus(header.name).asRuntimeException()
@@ -135,8 +141,21 @@ class RequisitionFulfillmentService(
                 token.requisitionsList.find { it.externalKey == externalRequisitionKey }
                   ?: failGrpc(Status.NOT_FOUND) { "Requisition not found" }
               } else {
-                grpcRequire(header.nonce != 0L) { "nonce unspecified" }
                 verifyRequisitionFulfillment(token, externalRequisitionKey, header.nonce)
+              }
+            // Built before anything is written, so that an invalid header leaves no blob behind.
+            val trusTeeProtocolDetails: RequisitionDetails.RequisitionProtocol? =
+              when (token.computationStage.stageCase) {
+                ComputationStage.StageCase.TRUS_TEE ->
+                  RequisitionDetailsKt.requisitionProtocol { trusTee = header.trusTee.toInternal() }
+                ComputationStage.StageCase.TRUS_TEE_V2 ->
+                  RequisitionDetailsKt.requisitionProtocol {
+                    trusTeeV2 = header.trusTeeV2.toInternal(key.dataProviderId)
+                  }
+                ComputationStage.StageCase.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+                ComputationStage.StageCase.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2,
+                ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE,
+                ComputationStage.StageCase.STAGE_NOT_SET -> null
               }
 
             // Only try writing to the blob store if it is not already marked fulfilled.
@@ -177,26 +196,13 @@ class RequisitionFulfillmentService(
                     dataProviderCertificate = hmss.dataProviderCertificate,
                   )
                 }
-                ComputationStage.StageCase.TRUS_TEE -> {
-                  recordTrusTeeRequisitionLocally(
-                    token = token,
-                    key = externalRequisitionKey,
-                    blobPath = blob.blobKey,
-                    protocolDetails =
-                      RequisitionDetailsKt.requisitionProtocol {
-                        trusTee = header.trusTee.toInternal()
-                      },
-                  )
-                }
+                ComputationStage.StageCase.TRUS_TEE,
                 ComputationStage.StageCase.TRUS_TEE_V2 -> {
                   recordTrusTeeRequisitionLocally(
                     token = token,
                     key = externalRequisitionKey,
                     blobPath = blob.blobKey,
-                    protocolDetails =
-                      RequisitionDetailsKt.requisitionProtocol {
-                        trusTeeV2 = header.trusTeeV2.toInternal(key.dataProviderId)
-                      },
+                    protocolDetails = checkNotNull(trusTeeProtocolDetails),
                   )
                 }
                 ComputationStage.StageCase.STAGE_NOT_SET -> failGrpc { "ComputationStage not set" }
@@ -410,6 +416,24 @@ class RequisitionFulfillmentService(
     val source = this
     return trusTeeV2 {
       trusTee = source.trusTee.toInternal()
+      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
+      when (source.detailsCase) {
+        Header.TrusTeeV2.DetailsCase.FULFILLMENT_DETAILS -> {
+          grpcRequire(source.trusTee.dataFormat == Header.TrusTee.DataFormat.FREQUENCY_VECTOR) {
+            "fulfillment_details requires the FREQUENCY_VECTOR data format"
+          }
+          fulfillmentDetails = source.fulfillmentDetails.toByteString()
+        }
+        Header.TrusTeeV2.DetailsCase.ENCRYPTED_FULFILLMENT_DETAILS -> {
+          grpcRequire(
+            source.trusTee.dataFormat == Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+          ) {
+            "encrypted_fulfillment_details requires the ENCRYPTED_FREQUENCY_VECTOR data format"
+          }
+          encryptedFulfillmentDetails = source.encryptedFulfillmentDetails.toByteString()
+        }
+        Header.TrusTeeV2.DetailsCase.DETAILS_NOT_SET -> {}
+      }
       this.dataProviderResourceId = dataProviderResourceId
     }
   }
