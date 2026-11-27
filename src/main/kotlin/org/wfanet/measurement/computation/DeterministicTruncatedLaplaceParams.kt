@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.computation
 
+import kotlin.math.exp
+
 /**
  * The system's privacy parameters for deterministic truncated-Laplace noise.
  *
@@ -49,5 +51,28 @@ object DeterministicTruncatedLaplaceParams {
     require(sensitivity > 0.0) { "sensitivity must be positive, got $sensitivity" }
     return (sensitivity / epsilon) *
       StrictMath.log(1.0 + (StrictMath.exp(epsilon) - 1.0) / (2.0 * delta))
+  }
+
+  /**
+   * Variance of a Laplace(0, b) distribution confined to `[-bound, bound]`, where `b` is [scale].
+   *
+   * The truncated density is the Laplace density renormalized by `Z = 1 - exp(-bound / b)`, so
+   *
+   * ```
+   * Var = [2b^2 - exp(-bound/b) * (bound^2 + 2*bound*b + 2b^2)] / Z
+   * ```
+   *
+   * The mean is zero by symmetry. As `bound` grows this tends to `2b^2`, the untruncated Laplace
+   * variance, and truncation only ever reduces it. It describes the continuous draw, ignoring the
+   * rounding of draws to integers.
+   */
+  fun variance(scale: Double, bound: Double): Double {
+    require(scale > 0.0) { "Laplace scale must be positive, got $scale" }
+    require(bound > 0.0) { "Truncation bound must be positive, got $bound" }
+    val tailMass: Double = exp(-bound / scale)
+    val untruncated: Double = 2.0 * scale * scale
+    val truncatedTail: Double =
+      tailMass * (bound * bound + 2.0 * bound * scale + 2.0 * scale * scale)
+    return (untruncated - truncatedTail) / (1.0 - tailMass)
   }
 }
