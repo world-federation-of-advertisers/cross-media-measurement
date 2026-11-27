@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.common
+package org.wfanet.measurement.computation
 
 import com.google.common.hash.Hashing
 import com.google.protobuf.ByteString
 import java.nio.ByteOrder
+import org.wfanet.measurement.common.toByteString
 
 /**
  * The salted VID hash whose rank orders a population's VIDs into frequency vector indexes.

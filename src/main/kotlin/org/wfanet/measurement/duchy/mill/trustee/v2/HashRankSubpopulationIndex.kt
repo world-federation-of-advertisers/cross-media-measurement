@@ -19,8 +19,8 @@ package org.wfanet.measurement.duchy.mill.trustee.v2
 import it.unimi.dsi.fastutil.Arrays as FastUtilArrays
 import it.unimi.dsi.fastutil.Swapper
 import it.unimi.dsi.fastutil.ints.IntComparator
-import org.wfanet.measurement.common.VidHashing
 import org.wfanet.measurement.computation.SampledIndexRanges
+import org.wfanet.measurement.computation.VidHashing
 import org.wfanet.measurement.internal.duchy.PopulationSpec
 
 /**
