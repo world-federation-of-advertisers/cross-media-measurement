@@ -36,8 +36,10 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_maxCreatedBasicReportAge:           string | *"15m"
-	_kingdomMeasurementBatchConcurrency: string | *"8"
+	_maxCreatedBasicReportAge: string | *"15m"
+	// Spans several runs of the multimeasurement job, which runs on the report result processor schedule.
+	_maxCreatedMultimeasurementBasicReportAge: string | *"1h"
+	_kingdomMeasurementBatchConcurrency:       string | *"8"
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
@@ -84,6 +86,7 @@ package k8s
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
 		"basic-reports-reports":               string | *"reporting/v2/basic-reports-reports"
+		"basic-reports-multimeasurement":      string | *"reporting/v2/basic-reports-multimeasurement"
 		"report-result-post-processor":        string | *"reporting/v2/report-result-post-processor"
 		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
 		"reporting-mcp-server":                string | *"reporting/mcp/server"
@@ -430,6 +433,24 @@ package k8s
 							"--max-created-basic-report-age=\(Reporting._maxCreatedBasicReportAge)",
 							"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
 						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
+					}
+					// Creates the CMMS Measurements of multimeasurement BasicReports and writes the results of
+					// those whose Measurements have completed, for the post-processor to process.
+					_initContainers: "basic-reports-multimeasurement": Container={
+						image: _images[Container.name]
+						args:  [
+							"--log-measurement-values=\(Reporting._logMeasurementValues)",
+							_debugVerboseGrpcClientLoggingFlag,
+							_debugVerboseGrpcServerLoggingFlag,
+							_reportingCertCollectionFileFlag,
+							_measurementConsumerConfigFileFlag,
+							_signingPrivateKeyStoreDirFlag,
+							_metricSpecConfigFileFlag,
+							"--port=8443",
+							"--health-port=8080",
+							"--pdp-name=\(_populationDataProviderName)",
+							"--max-created-multimeasurement-basic-report-age=\(Reporting._maxCreatedMultimeasurementBasicReportAge)",
+						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 					}
 				}
 			}
