@@ -33,6 +33,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutO
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineInternalKey
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelLineReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRolloutReader
 
 class CreateModelRollout(private val modelRollout: ModelRollout) :
   SpannerWriter<ModelRollout, ModelRollout>() {
