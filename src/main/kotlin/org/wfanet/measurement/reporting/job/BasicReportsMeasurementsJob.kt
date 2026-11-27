@@ -319,8 +319,7 @@ class BasicReportsMeasurementsJob(
         setReportComputationMeasurementIdRequest {
           cmmsMeasurementConsumerId = reportComputation.cmmsMeasurementConsumerId
           externalBasicReportId = reportComputation.externalBasicReportId
-          externalImpressionQualificationFilterId =
-            reportComputation.externalImpressionQualificationFilterId
+          externalReportComputationId = reportComputation.externalReportComputationId
           this.cmmsMeasurementId = cmmsMeasurementId
         }
       )

@@ -172,6 +172,7 @@ class BasicReportsMultimeasurementResultsJobTest {
           windowStart = REPORT_START_DATE
           windowEnd = REPORT_END_DATE
           cumulative = true
+          externalImpressionQualificationFilterId = EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID
           reportingUnit =
             ResultGroupQueryMappingKt.reportingSet {
               externalReportingSetId = UNION_REPORTING_SET.externalReportingSetId
@@ -321,6 +322,7 @@ class BasicReportsMultimeasurementResultsJobTest {
             windowStart = REPORT_START_DATE
             windowEnd = REPORT_END_DATE
             cumulative = true
+            externalImpressionQualificationFilterId = EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID
             reportingUnit =
               ResultGroupQueryMappingKt.reportingSet {
                 externalReportingSetId = UNION_REPORTING_SET.externalReportingSetId
@@ -376,6 +378,7 @@ class BasicReportsMultimeasurementResultsJobTest {
           windowStart = REPORT_START_DATE
           windowEnd = REPORT_END_DATE
           cumulative = false
+          externalImpressionQualificationFilterId = EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID
           component =
             ResultGroupQueryMappingKt.reportingSet {
               externalReportingSetId = COMPONENT_1.externalReportingSetId
@@ -440,6 +443,7 @@ class BasicReportsMultimeasurementResultsJobTest {
           windowStart = REPORT_START_DATE
           windowEnd = REPORT_END_DATE
           cumulative = false
+          externalImpressionQualificationFilterId = EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID
           component =
             ResultGroupQueryMappingKt.reportingSet {
               externalReportingSetId = COMPONENT_1.externalReportingSetId
@@ -667,12 +671,13 @@ class BasicReportsMultimeasurementResultsJobTest {
     private val REPORT_COMPUTATION = reportComputation {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
-      externalImpressionQualificationFilterId = EXTERNAL_IMPRESSION_QUALIFICATION_FILTER_ID
+      externalReportComputationId = 1L
       cmmsMeasurementId = "measurement-1"
     }
     private val REPORT_COMPUTATION_2 = reportComputation {
       cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
       externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
+      externalReportComputationId = 2L
       cmmsMeasurementId = "measurement-2"
     }
 

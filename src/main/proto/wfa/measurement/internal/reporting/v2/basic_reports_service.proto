@@ -44,7 +44,6 @@ service BasicReports {
   // Error reasons:
   // * `REPORTING_SET_NOT_FOUND`
   // * `BASIC_REPORT_ALREADY_EXISTS`
-  // * `IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND`
   // * `INVALID_FIELD_VALUE`
   rpc CreateBasicReport(CreateBasicReportRequest) returns (BasicReport);
 
@@ -130,11 +129,11 @@ message CreateBasicReportRequest {
   BasicReport basic_report = 1;
   string request_id = 2;
   // The `ReportComputation`s of a `BasicReport` on the multimeasurement path,
-  // one per impression qualification filter, or empty for the legacy path.
+  // or empty for the legacy path.
   //
   // `cmms_measurement_consumer_id`, `external_basic_report_id`,
-  // `cmms_create_measurement_request_id` and `cmms_measurement_id` are not
-  // set.
+  // `external_report_computation_id`, `cmms_create_measurement_request_id` and
+  // `cmms_measurement_id` are not set.
   repeated ReportComputation report_computations = 3;
 }
 
@@ -215,9 +214,8 @@ message ListReportComputationsResponse {
 message SetReportComputationMeasurementIdRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
-  // External ID of the impression qualification filter, or empty for the
-  // custom filter.
-  string external_impression_qualification_filter_id = 3;
+  // External ID of the `ReportComputation`. Required.
+  int64 external_report_computation_id = 3;
   // ID of the `Measurement` from the CMMS public API. Required.
   string cmms_measurement_id = 4;
 }
