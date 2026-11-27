@@ -36,10 +36,14 @@ package k8s
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
 
-	_maxCreatedBasicReportAge: string | *"15m"
-	// Spans several runs of the multimeasurement job, which runs on the report result processor schedule.
-	_maxCreatedMultimeasurementBasicReportAge: string | *"1h"
-	_kingdomMeasurementBatchConcurrency:       string | *"8"
+	_maxCreatedBasicReportAge:           string | *"15m"
+	_kingdomMeasurementBatchConcurrency: string | *"8"
+
+	// Whether every BasicReport is computed by TrusTEE v2 multimeasurements.
+	_multimeasurementBasicReportsEnabled: bool | *false
+	// Resource names of the MeasurementConsumers whose BasicReports are computed by TrusTEE v2
+	// multimeasurements when they are not enabled for every BasicReport.
+	_multimeasurementBasicReportsMeasurementConsumers: [...string] | *[]
 
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
@@ -233,7 +237,10 @@ package k8s
 						"--default-report-start-hour=6",
 						"--enable-reporting-set-reporting-unit-components=\(_reportingSetReportingUnitComponentsEnabled)",
 						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
+						"--multimeasurement-basic-reports-enabled=\(Reporting._multimeasurementBasicReportsEnabled)",
+			] + [ for measurementConsumer in Reporting._multimeasurementBasicReportsMeasurementConsumers {
+				"--multimeasurement-basic-reports-measurement-consumer=\(measurementConsumer)"
+			}] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
 				_mounts: {
@@ -392,6 +399,28 @@ package k8s
 				schedule: _reportSchedulingCronSchedule
 			}
 		}
+		// Creates the CMMS Measurements of multimeasurement BasicReports and writes the results of those
+		// whose Measurements have completed, for the post-processor to process. A CronJob of its own, so
+		// that the BasicReports that create a Report never depend on it. It uses the job's default
+		// --max-created-multimeasurement-basic-report-age.
+		"basic-reports-multimeasurement": {
+			_container: args: [
+						_debugVerboseGrpcClientLoggingFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						_reportingCertCollectionFileFlag,
+						_measurementConsumerConfigFileFlag,
+						"--port=8443",
+						"--health-port=8080",
+						"--pdp-name=\(_populationDataProviderName)",
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
+			spec: {
+				jobTemplate: spec: template: spec: _mounts: "mc-config": {
+					volume: secret: secretName: Reporting._mcConfigSecretName
+					volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
+				}
+				schedule: _reportResultProcessorCronSchedule
+			}
+		}
 		"report-result-post-processor": {
 			_container: {
 				args: [
@@ -433,24 +462,6 @@ package k8s
 							"--max-created-basic-report-age=\(Reporting._maxCreatedBasicReportAge)",
 							"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
 						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
-					}
-					// Creates the CMMS Measurements of multimeasurement BasicReports and writes the results of
-					// those whose Measurements have completed, for the post-processor to process.
-					_initContainers: "basic-reports-multimeasurement": Container={
-						image: _images[Container.name]
-						args:  [
-							"--log-measurement-values=\(Reporting._logMeasurementValues)",
-							_debugVerboseGrpcClientLoggingFlag,
-							_debugVerboseGrpcServerLoggingFlag,
-							_reportingCertCollectionFileFlag,
-							_measurementConsumerConfigFileFlag,
-							_signingPrivateKeyStoreDirFlag,
-							_metricSpecConfigFileFlag,
-							"--port=8443",
-							"--health-port=8080",
-							"--pdp-name=\(_populationDataProviderName)",
-							"--max-created-multimeasurement-basic-report-age=\(Reporting._maxCreatedMultimeasurementBasicReportAge)",
-						] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
 					}
 				}
 			}

@@ -237,13 +237,17 @@ reporting: #Reporting & {
 				resources: #CronJobResourceRequirements
 			}
 		}
+		"basic-reports-multimeasurement": {
+			_container: {
+				resources: #CronJobResourceRequirements
+			}
+		}
 		"report-result-post-processor": {
 			_container: {
 				resources: #CronJobResourceRequirements
 			}
-			spec: jobTemplate: spec: template: spec: _initContainers: {
-				"basic-reports-reports": resources:          #CronJobResourceRequirements
-				"basic-reports-multimeasurement": resources: #CronJobResourceRequirements
+			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
+				resources: #CronJobResourceRequirements
 			}
 		}
 	}
