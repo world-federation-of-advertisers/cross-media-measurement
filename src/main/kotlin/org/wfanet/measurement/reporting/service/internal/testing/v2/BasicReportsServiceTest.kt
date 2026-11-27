@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.service.internal.testing.v2
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.protobuf.timestamp
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
@@ -53,6 +54,7 @@ import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.ReportComputation
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportingSet
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
@@ -69,6 +71,7 @@ import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.basicMetricSet
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupMetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMappingKt
 import org.wfanet.measurement.internal.reporting.v2.addProcessedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
@@ -90,8 +93,10 @@ import org.wfanet.measurement.internal.reporting.v2.insertBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsResponse
+import org.wfanet.measurement.internal.reporting.v2.listReportComputationsRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
+import org.wfanet.measurement.internal.reporting.v2.reportComputation
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingImpressionQualificationFilter
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
@@ -101,8 +106,11 @@ import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.reportingUnit
 import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
+import org.wfanet.measurement.internal.reporting.v2.resultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
+import org.wfanet.measurement.internal.reporting.v2.setMeasurementsCreatedRequest
+import org.wfanet.measurement.internal.reporting.v2.setReportComputationMeasurementIdRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
@@ -1079,7 +1087,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       )
       .isEqualTo(basicReport)
     assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
-    assertThat(response.state).isEqualTo(BasicReport.State.CREATED_LEGACY)
+    assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
     assertThat(response.hasCreateTime())
   }
 
@@ -1119,7 +1127,7 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
       )
       .isEqualTo(basicReport)
     assertThat(response.campaignGroupDisplayName).isEqualTo(REPORTING_SET.displayName)
-    assertThat(response.state).isEqualTo(BasicReport.State.CREATED_LEGACY)
+    assertThat(response.state).isEqualTo(BasicReport.State.CREATED)
     assertThat(response.hasCreateTime())
 
     val response2 = service.createBasicReport(request)
@@ -4210,6 +4218,364 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
         )
     }
 
+  @Test
+  fun `createBasicReport creates BasicReport in CREATED_MULTIMEASUREMENT with ReportComputations`():
+    Unit = runBlocking {
+    val createdBasicReport =
+      createMultimeasurementBasicReport(
+        MRC_IQF.externalImpressionQualificationFilterId,
+        AMI_IQF.externalImpressionQualificationFilterId,
+      )
+
+    assertThat(createdBasicReport.state).isEqualTo(BasicReport.State.CREATED_MULTIMEASUREMENT)
+    val retrievedBasicReport =
+      service.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+        }
+      )
+    assertThat(retrievedBasicReport.state).isEqualTo(BasicReport.State.CREATED_MULTIMEASUREMENT)
+    val reportComputations: List<ReportComputation> = listReportComputations(createdBasicReport)
+    assertThat(reportComputations)
+      .ignoringFields(ReportComputation.CMMS_CREATE_MEASUREMENT_REQUEST_ID_FIELD_NUMBER)
+      .containsExactly(
+        newReportComputation(AMI_IQF.externalImpressionQualificationFilterId)
+          .withParent(createdBasicReport),
+        newReportComputation(MRC_IQF.externalImpressionQualificationFilterId)
+          .withParent(createdBasicReport),
+      )
+    assertThat(reportComputations.map { it.cmmsCreateMeasurementRequestId }.toSet()).hasSize(2)
+    assertThat(reportComputations.all { it.cmmsCreateMeasurementRequestId.isNotEmpty() }).isTrue()
+  }
+
+  @Test
+  fun `createBasicReport does not store ReportComputations again when replayed`(): Unit =
+    runBlocking {
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+      )
+      reportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet = REPORTING_SET
+          externalReportingSetId = REPORTING_SET.externalReportingSetId
+        }
+      )
+      val request = createBasicReportRequest {
+        basicReport = BASIC_REPORT.copy { clearResultDetails() }
+        reportComputations += newReportComputation(AMI_IQF.externalImpressionQualificationFilterId)
+        requestId = "replayed-request"
+      }
+
+      val createdBasicReport = service.createBasicReport(request)
+      val replayedBasicReport = service.createBasicReport(request)
+
+      assertThat(replayedBasicReport.externalBasicReportId)
+        .isEqualTo(createdBasicReport.externalBasicReportId)
+      assertThat(listReportComputations(createdBasicReport)).hasSize(1)
+    }
+
+  @Test
+  fun `createBasicReport stores a ReportComputation for the custom filter`(): Unit = runBlocking {
+    val createdBasicReport = createMultimeasurementBasicReport("")
+
+    assertThat(
+        listReportComputations(createdBasicReport).single().externalImpressionQualificationFilterId
+      )
+      .isEmpty()
+  }
+
+  @Test
+  fun `createBasicReport throws NOT_FOUND when a ReportComputation filter is not found`(): Unit =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> { createMultimeasurementBasicReport("unknown") }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+      assertThat(exception.errorInfo?.reason)
+        .isEqualTo(Errors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND.name)
+    }
+
+  @Test
+  fun `createBasicReport throws INVALID_ARGUMENT when a ReportComputation filter is duplicated`():
+    Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        createMultimeasurementBasicReport(
+          AMI_IQF.externalImpressionQualificationFilterId,
+          AMI_IQF.externalImpressionQualificationFilterId,
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_FIELD_VALUE.name)
+  }
+
+  @Test
+  fun `setReportComputationMeasurementId sets cmms_measurement_id`(): Unit = runBlocking {
+    val basicReport =
+      createMultimeasurementBasicReport(AMI_IQF.externalImpressionQualificationFilterId)
+    val created: ReportComputation = listReportComputations(basicReport).single()
+
+    val response =
+      service.setReportComputationMeasurementId(
+        setReportComputationMeasurementIdRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+          externalImpressionQualificationFilterId = AMI_IQF.externalImpressionQualificationFilterId
+          cmmsMeasurementId = "measurement-1"
+        }
+      )
+
+    assertThat(response).isEqualTo(created.copy { cmmsMeasurementId = "measurement-1" })
+    assertThat(listReportComputations(basicReport)).containsExactly(response)
+  }
+
+  @Test
+  fun `setReportComputationMeasurementId returns ReportComputation when value already set`(): Unit =
+    runBlocking {
+      val basicReport =
+        createMultimeasurementBasicReport(AMI_IQF.externalImpressionQualificationFilterId)
+      val request = setReportComputationMeasurementIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        externalImpressionQualificationFilterId = AMI_IQF.externalImpressionQualificationFilterId
+        cmmsMeasurementId = "measurement-1"
+      }
+      val firstResponse = service.setReportComputationMeasurementId(request)
+
+      val retryResponse = service.setReportComputationMeasurementId(request)
+
+      assertThat(retryResponse).isEqualTo(firstResponse)
+    }
+
+  @Test
+  fun `setReportComputationMeasurementId throws FAILED_PRECONDITION when set to other value`():
+    Unit = runBlocking {
+    val basicReport =
+      createMultimeasurementBasicReport(AMI_IQF.externalImpressionQualificationFilterId)
+    val request = setReportComputationMeasurementIdRequest {
+      cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+      externalBasicReportId = basicReport.externalBasicReportId
+      externalImpressionQualificationFilterId = AMI_IQF.externalImpressionQualificationFilterId
+      cmmsMeasurementId = "measurement-1"
+    }
+    service.setReportComputationMeasurementId(request)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.setReportComputationMeasurementId(
+          request.copy { cmmsMeasurementId = "measurement-2" }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.REPORT_COMPUTATION_STATE_INVALID.name)
+  }
+
+  @Test
+  fun `setReportComputationMeasurementId throws NOT_FOUND when ReportComputation not found`():
+    Unit = runBlocking {
+    val basicReport =
+      createMultimeasurementBasicReport(AMI_IQF.externalImpressionQualificationFilterId)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.setReportComputationMeasurementId(
+          setReportComputationMeasurementIdRequest {
+            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = basicReport.externalBasicReportId
+            externalImpressionQualificationFilterId =
+              MRC_IQF.externalImpressionQualificationFilterId
+            cmmsMeasurementId = "measurement-1"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.REPORT_COMPUTATION_NOT_FOUND.name)
+  }
+
+  @Test
+  fun `setReportComputationMeasurementId throws INVALID_ARGUMENT when measurement ID missing`():
+    Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.setReportComputationMeasurementId(
+          setReportComputationMeasurementIdRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalBasicReportId = BASIC_REPORT.externalBasicReportId
+            externalImpressionQualificationFilterId =
+              AMI_IQF.externalImpressionQualificationFilterId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "cmms_measurement_id"
+        }
+      )
+  }
+
+  @Test
+  fun `setMeasurementsCreated transitions BasicReport to MEASUREMENTS_CREATED`(): Unit =
+    runBlocking {
+      val externalFilterIds =
+        listOf(
+          AMI_IQF.externalImpressionQualificationFilterId,
+          MRC_IQF.externalImpressionQualificationFilterId,
+        )
+      val basicReport = createMultimeasurementBasicReport(*externalFilterIds.toTypedArray())
+      for (externalFilterId in externalFilterIds) {
+        service.setReportComputationMeasurementId(
+          setReportComputationMeasurementIdRequest {
+            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = basicReport.externalBasicReportId
+            externalImpressionQualificationFilterId = externalFilterId
+            cmmsMeasurementId = "measurement-$externalFilterId"
+          }
+        )
+      }
+
+      val response =
+        service.setMeasurementsCreated(
+          setMeasurementsCreatedRequest {
+            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+            externalBasicReportId = basicReport.externalBasicReportId
+          }
+        )
+
+      assertThat(response.state).isEqualTo(BasicReport.State.MEASUREMENTS_CREATED)
+      assertThat(
+          service.getBasicReport(
+            getBasicReportRequest {
+              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+              externalBasicReportId = basicReport.externalBasicReportId
+            }
+          )
+        )
+        .isEqualTo(response)
+    }
+
+  @Test
+  fun `setMeasurementsCreated throws FAILED_PRECONDITION when a measurement ID is not set`(): Unit =
+    runBlocking {
+      val basicReport =
+        createMultimeasurementBasicReport(AMI_IQF.externalImpressionQualificationFilterId)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.setMeasurementsCreated(
+            setMeasurementsCreatedRequest {
+              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+              externalBasicReportId = basicReport.externalBasicReportId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REPORT_COMPUTATION_STATE_INVALID.name
+            metadata[Errors.Metadata.CMMS_MEASUREMENT_CONSUMER_ID.key] =
+              basicReport.cmmsMeasurementConsumerId
+            metadata[Errors.Metadata.EXTERNAL_BASIC_REPORT_ID.key] =
+              basicReport.externalBasicReportId
+            metadata[Errors.Metadata.IMPRESSION_QUALIFICATION_FILTER_ID.key] =
+              AMI_IQF.externalImpressionQualificationFilterId
+          }
+        )
+    }
+
+  @Test
+  fun `setMeasurementsCreated throws FAILED_PRECONDITION when BasicReport is FAILED`(): Unit =
+    runBlocking {
+      val basicReport =
+        createMultimeasurementBasicReport(AMI_IQF.externalImpressionQualificationFilterId)
+      service.failBasicReport(
+        failBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+        }
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.setMeasurementsCreated(
+            setMeasurementsCreatedRequest {
+              cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+              externalBasicReportId = basicReport.externalBasicReportId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo?.reason)
+        .isEqualTo(Errors.Reason.BASIC_REPORT_STATE_INVALID.name)
+    }
+
+  @Test
+  fun `failBasicReport updates state to FAILED when BasicReport in CREATED_MULTIMEASUREMENT`():
+    Unit = runBlocking {
+    val basicReport = createMultimeasurementBasicReport()
+
+    val response =
+      service.failBasicReport(
+        failBasicReportRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+        }
+      )
+
+    assertThat(response.state).isEqualTo(BasicReport.State.FAILED)
+  }
+
+  /**
+   * Creates a multimeasurement [BasicReport], with a [ReportComputation] for each of
+   * [externalImpressionQualificationFilterIds], along with its dependencies.
+   */
+  private suspend fun createMultimeasurementBasicReport(
+    vararg externalImpressionQualificationFilterIds: String =
+      arrayOf(AMI_IQF.externalImpressionQualificationFilterId)
+  ): BasicReport {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+    return service.createBasicReport(
+      createBasicReportRequest {
+        basicReport = BASIC_REPORT.copy { clearResultDetails() }
+        for (externalId in externalImpressionQualificationFilterIds) {
+          reportComputations += newReportComputation(externalId)
+        }
+      }
+    )
+  }
+
+  private suspend fun listReportComputations(basicReport: BasicReport): List<ReportComputation> =
+    service
+      .listReportComputations(
+        listReportComputationsRequest {
+          cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = basicReport.externalBasicReportId
+        }
+      )
+      .reportComputationsList
+
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"
     private val REPORTING_SET_TAGS = mapOf("tag1" to "tag_value1", "tag2" to "tag_value2")
@@ -4325,5 +4691,49 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
               }
           }
       }
+
+    private fun newReportComputation(
+      externalImpressionQualificationFilterId: String
+    ): ReportComputation = reportComputation {
+      this.externalImpressionQualificationFilterId = externalImpressionQualificationFilterId
+      multimeasurement =
+        "multimeasurement-$externalImpressionQualificationFilterId".toByteStringUtf8()
+      mappings += resultGroupQueryMapping {
+        queryId = "reporting-unit"
+        windowStart = date {
+          year = 2025
+          month = 1
+          day = 6
+        }
+        windowEnd = date {
+          year = 2025
+          month = 1
+          day = 12
+        }
+        cumulative = true
+        reportingUnit = ResultGroupQueryMappingKt.reportingSet { externalReportingSetId = "union" }
+      }
+      mappings += resultGroupQueryMapping {
+        queryId = "component"
+        resultGroupSpecIndex = 1
+        windowStart = date {
+          year = 2025
+          month = 1
+          day = 6
+        }
+        windowEnd = date {
+          year = 2025
+          month = 1
+          day = 12
+        }
+        component =
+          ResultGroupQueryMappingKt.reportingSet { externalReportingSetId = "component-1" }
+      }
+    }
+
+    private fun ReportComputation.withParent(basicReport: BasicReport): ReportComputation = copy {
+      cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+      externalBasicReportId = basicReport.externalBasicReportId
+    }
   }
 }

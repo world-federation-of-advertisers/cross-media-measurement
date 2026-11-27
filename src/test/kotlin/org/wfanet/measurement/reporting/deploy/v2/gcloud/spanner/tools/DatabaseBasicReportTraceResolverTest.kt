@@ -110,7 +110,7 @@ class DatabaseBasicReportTraceResolverTest {
               cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
               externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
             },
-          state = BasicReport.State.CREATED_LEGACY,
+          state = BasicReport.State.CREATED,
           requestId = null,
         )
       }
@@ -120,7 +120,7 @@ class DatabaseBasicReportTraceResolverTest {
           .resolve(BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID))
 
       assertThat(context.reportName).isEqualTo("(not created)")
-      assertThat(context.basicReportState).isEqualTo(BasicReport.State.CREATED_LEGACY.name)
+      assertThat(context.basicReportState).isEqualTo(BasicReport.State.CREATED.name)
       assertThat(context.reportResolvedByRequestId).isFalse()
       assertThat(context.metricNames).isEmpty()
       assertThat(context.measurementNames).isEmpty()
@@ -241,7 +241,7 @@ class DatabaseBasicReportTraceResolverTest {
               externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
               createReportRequestId = CREATE_REPORT_REQUEST_ID
             },
-          state = BasicReport.State.CREATED_LEGACY,
+          state = BasicReport.State.CREATED,
           requestId = null,
         )
       }

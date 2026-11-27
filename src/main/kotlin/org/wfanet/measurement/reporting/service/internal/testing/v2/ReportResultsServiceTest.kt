@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.kotlin.toByteStringUtf8
 import com.google.rpc.errorInfo
 import com.google.type.DayOfWeek
 import com.google.type.copy
@@ -80,6 +81,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultKt.reporti
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetResultView
 import org.wfanet.measurement.internal.reporting.v2.ReportingSetsGrpc
 import org.wfanet.measurement.internal.reporting.v2.ResultGroupKt.MetricSetKt.basicMetricSet
+import org.wfanet.measurement.internal.reporting.v2.ResultGroupQueryMappingKt
 import org.wfanet.measurement.internal.reporting.v2.addProcessedResultValuesRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReport
 import org.wfanet.measurement.internal.reporting.v2.basicReportDetails
@@ -102,11 +104,15 @@ import org.wfanet.measurement.internal.reporting.v2.getReportResultRequest
 import org.wfanet.measurement.internal.reporting.v2.listReportingSetResultsRequest
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
+import org.wfanet.measurement.internal.reporting.v2.reportComputation
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.resultGroupQueryMapping
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
+import org.wfanet.measurement.internal.reporting.v2.setMeasurementsCreatedRequest
+import org.wfanet.measurement.internal.reporting.v2.setReportComputationMeasurementIdRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
@@ -1146,6 +1152,30 @@ abstract class ReportResultsServiceTest {
   }
 
   @Test
+  fun `batchCreateReportingSetResults updates multimeasurement BasicReport state`() {
+    val basicReport: BasicReport = ensureMeasurementConsumer(multimeasurement = true)
+    setMeasurementsCreated(basicReport)
+    val reportResult: ReportResult =
+      reportResultsStub.createReportResult(CREATE_REPORT_RESULT_REQUEST)
+    val request =
+      BATCH_CREATE_REPORTING_SET_RESULTS_REQUEST.withExternalReportResultId(
+          reportResult.externalReportResultId
+        )
+        .copy { externalBasicReportId = basicReport.externalBasicReportId }
+
+    reportResultsStub.batchCreateReportingSetResults(request)
+
+    val updatedBasicReport: BasicReport =
+      basicReportsStub.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId
+          externalBasicReportId = request.externalBasicReportId
+        }
+      )
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.UNPROCESSED_RESULTS_READY)
+  }
+
+  @Test
   fun `batchCreateReportingSetResults throws when event filters are not normalized`() {
     ensureMeasurementConsumer()
     val reportResult: ReportResult =
@@ -1672,7 +1702,10 @@ abstract class ReportResultsServiceTest {
   /**
    * Ensures that a MeasurementConsumer exists in the DB accessible by the ReportResults service.
    */
-  private fun ensureMeasurementConsumer(): BasicReport {
+  private fun ensureMeasurementConsumer(): BasicReport =
+    ensureMeasurementConsumer(multimeasurement = false)
+
+  private fun ensureMeasurementConsumer(multimeasurement: Boolean): BasicReport {
     val reportingSetsStub = ReportingSetsGrpc.newBlockingV2Stub(grpcChannel)
     val measurementConsumersStub = MeasurementConsumersGrpc.newBlockingV2Stub(grpcChannel)
 
@@ -1758,6 +1791,36 @@ abstract class ReportResultsServiceTest {
             }
           }
         }
+        if (multimeasurement) {
+          reportComputations += reportComputation {
+            externalImpressionQualificationFilterId =
+              AMI_IQF.externalImpressionQualificationFilterId
+            this.multimeasurement = "multimeasurement-1".toByteStringUtf8()
+            mappings += resultGroupQueryMapping {
+              queryId = "query-1"
+              reportingUnit =
+                ResultGroupQueryMappingKt.reportingSet { externalReportingSetId = "union" }
+            }
+          }
+        }
+      }
+    )
+  }
+
+  /** Moves a multimeasurement [basicReport] to [BasicReport.State.MEASUREMENTS_CREATED]. */
+  private fun setMeasurementsCreated(basicReport: BasicReport) {
+    basicReportsStub.setReportComputationMeasurementId(
+      setReportComputationMeasurementIdRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
+        externalImpressionQualificationFilterId = AMI_IQF.externalImpressionQualificationFilterId
+        cmmsMeasurementId = "measurement-1"
+      }
+    )
+    basicReportsStub.setMeasurementsCreated(
+      setMeasurementsCreatedRequest {
+        cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+        externalBasicReportId = basicReport.externalBasicReportId
       }
     )
   }

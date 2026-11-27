@@ -253,7 +253,7 @@ class SpannerReportResultsService(
   }
 
   private fun requireAssemblyPending(owner: BasicReportResult) {
-    if (owner.basicReport.state != BasicReport.State.REPORT_CREATED) {
+    if (owner.basicReport.state !in RESULTS_PENDING_STATES) {
       throw BasicReportStateInvalidException(
           owner.basicReport.cmmsMeasurementConsumerId,
           owner.basicReport.externalBasicReportId,
@@ -693,7 +693,7 @@ class SpannerReportResultsService(
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
     val basicReport = basicReportResult.basicReport
-    if (basicReport.state != BasicReport.State.REPORT_CREATED) {
+    if (basicReport.state !in RESULTS_PENDING_STATES) {
       throw BasicReportStateInvalidException(
         basicReport.cmmsMeasurementConsumerId,
         basicReport.externalBasicReportId,
@@ -940,5 +940,9 @@ class SpannerReportResultsService(
   companion object {
     private val ASSEMBLY_LEASE_DURATION: Duration = Duration.ofMinutes(10)
     private const val ASSEMBLY_CLEANUP_BATCH_SIZE = 100
+
+    /** States of a [BasicReport] awaiting its results. */
+    private val RESULTS_PENDING_STATES =
+      setOf(BasicReport.State.REPORT_CREATED, BasicReport.State.MEASUREMENTS_CREATED)
   }
 }
