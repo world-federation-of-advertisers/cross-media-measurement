@@ -174,6 +174,16 @@ private object V2AlphaPublicApiServer {
         )
       }
 
+    val multimeasurementBasicReportsMeasurementConsumers: Set<String> =
+      v2AlphaPublicServerFlags.multimeasurementBasicReportsMeasurementConsumers
+        .onEach {
+          requireNotNull(MeasurementConsumerKey.fromName(it)) {
+            "--multimeasurement-basic-reports-measurement-consumer $it is not a MeasurementConsumer " +
+              "resource name"
+          }
+        }
+        .toSet()
+
     val internalMeasurementConsumersBlockingStub =
       InternalMeasurementConsumersGrpc.newBlockingStub(channel)
 
@@ -426,7 +436,7 @@ private object V2AlphaPublicApiServer {
             reportingApiServerFlags.enableReportingSetReportingUnitComponents,
             v2AlphaPublicServerFlags.emitCelNullGuardsForNestedMembers,
             v2AlphaPublicServerFlags.multimeasurementBasicReportsEnabled,
-            v2AlphaPublicServerFlags.multimeasurementBasicReportsMeasurementConsumers.toSet(),
+            multimeasurementBasicReportsMeasurementConsumers,
             serviceDispatcher,
           )
           .withInterceptor(principalAuthInterceptor),

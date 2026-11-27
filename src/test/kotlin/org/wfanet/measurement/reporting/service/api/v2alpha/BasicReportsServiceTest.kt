@@ -3639,21 +3639,6 @@ class BasicReportsServiceTest {
     }
 
   @Test
-  fun `createBasicReport takes multimeasurement path when enabled for all`(): Unit = runBlocking {
-    val service = buildMultimeasurementService(multimeasurementBasicReportsEnabled = true)
-    val request = createMultimeasurementBasicReportRequest()
-
-    val response = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
-
-    assertThat(response.state).isEqualTo(BasicReport.State.RUNNING)
-    verify(reportsServiceMock, never()).createReport(any())
-    val internalBasicReport = getInternalBasicReport(request.basicReportId)
-    assertThat(internalBasicReport.state)
-      .isEqualTo(InternalBasicReport.State.CREATED_MULTIMEASUREMENT)
-    assertThat(internalBasicReport.externalReportId).isEmpty()
-  }
-
-  @Test
   fun `createBasicReport stores ReportComputations on the multimeasurement path`(): Unit =
     runBlocking {
       val service = buildMultimeasurementService(multimeasurementBasicReportsEnabled = true)
@@ -3664,8 +3649,10 @@ class BasicReportsServiceTest {
 
       assertThat(response.state).isEqualTo(BasicReport.State.RUNNING)
       verify(reportsServiceMock, never()).createReport(any())
-      assertThat(getInternalBasicReport(request.basicReportId).state)
+      val internalBasicReport = getInternalBasicReport(request.basicReportId)
+      assertThat(internalBasicReport.state)
         .isEqualTo(InternalBasicReport.State.CREATED_MULTIMEASUREMENT)
+      assertThat(internalBasicReport.externalReportId).isEmpty()
       val reportComputations =
         internalBasicReportsService
           .listReportComputations(
@@ -3694,6 +3681,93 @@ class BasicReportsServiceTest {
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
       assertNoBasicReportCreated(request)
+    }
+
+  @Test
+  fun `createBasicReport compiles a multi-component spec with only component metrics`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+      val componentNames =
+        listOf(
+          createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1"),
+          createPrimitiveReportingSet(measurementConsumerKey, "reportingset2", "dp2", "eg2"),
+        )
+      val request =
+        reportingSetComponentBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
+          .copy {
+            basicReport =
+              basicReport.copy {
+                resultGroupSpecs[0] =
+                  resultGroupSpecs[0].copy {
+                    resultGroupMetricSpec = resultGroupMetricSpec {
+                      component =
+                        ResultGroupMetricSpecKt.componentMetricSetSpec {
+                          cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+                        }
+                    }
+                  }
+              }
+          }
+      val service = buildMultimeasurementService(multimeasurementBasicReportsEnabled = true)
+
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+
+      val mappings =
+        internalBasicReportsService
+          .listReportComputations(
+            listReportComputationsRequest {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalBasicReportId = request.basicReportId
+            }
+          )
+          .reportComputationsList
+          .flatMap { it.mappingsList }
+      assertThat(mappings).isNotEmpty()
+      assertThat(mappings.all { it.hasComponent() }).isTrue()
+    }
+
+  @Test
+  fun `createBasicReport creates no ReportingSet when multimeasurement rejects it`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+      val componentNames =
+        listOf(
+          createPrimitiveReportingSet(measurementConsumerKey, "reportingset1", "dp1", "eg1"),
+          createPrimitiveReportingSet(measurementConsumerKey, "reportingset2", "dp2", "eg2"),
+        )
+      // Component unique reach has no multimeasurement form yet.
+      val request =
+        reportingSetComponentBasicReportRequest(measurementConsumerKey, "a1234", componentNames)
+      val service = buildMultimeasurementService(multimeasurementBasicReportsEnabled = true)
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      val reportingSets =
+        internalReportingSetsService
+          .streamReportingSets(
+            streamReportingSetsRequest {
+              filter =
+                StreamReportingSetsRequestKt.filter {
+                  cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+                }
+            }
+          )
+          .toList()
+      assertThat(reportingSets.none { it.hasComposite() }).isTrue()
     }
 
   /** Returns a [CreateBasicReportRequest] with only metrics that multimeasurements compute. */

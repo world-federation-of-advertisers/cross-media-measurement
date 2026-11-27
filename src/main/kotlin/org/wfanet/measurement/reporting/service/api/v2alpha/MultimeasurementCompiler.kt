@@ -20,9 +20,6 @@ import com.google.protobuf.Timestamp
 import com.google.type.DateTime
 import com.google.type.interval
 import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
-import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.temporal.TemporalAdjusters
 import org.wfanet.measurement.api.v2alpha.EventGroupKey as CmmsEventGroupKey
@@ -89,15 +86,10 @@ class MultimeasurementCompiler(
   /**
    * Compiles [basicReport].
    *
-   * @param basicReport [BasicReport] with `effective_report_start` and effective impression
-   *   qualification filters set
-   * @param components map of `ReportingUnit` component resource name, as in the public
-   *   `ReportingUnit.components`, to the resolved component
+   * Equivalent to [plan] followed by [Plan.compile] with [reportingUnitReportingSetIds] by index.
+   *
    * @param reportingUnitReportingSetIds the external ID of the `ReportingSet` each
    *   `ResultGroupSpec`'s reporting unit as a whole is written under, by `ResultGroupSpec` index
-   * @return one [ReportComputation] per effective impression qualification filter, in order,
-   *   without request or `Measurement` IDs, whose multimeasurement's `RequisitionSpec`s have no
-   *   `measurement_public_key`
    * @throws IllegalArgumentException if [basicReport] uses a feature with no multimeasurement form,
    *   or references a component missing from [components]
    */
@@ -106,6 +98,25 @@ class MultimeasurementCompiler(
     components: Map<String, ReportingUnitComponent>,
     reportingUnitReportingSetIds: List<String>,
   ): List<ReportComputation> {
+    require(reportingUnitReportingSetIds.size == basicReport.details.resultGroupSpecsCount) {
+      "Expected a reporting unit ReportingSet per ResultGroupSpec"
+    }
+    return plan(basicReport, components)
+      .compile(reportingUnitReportingSetIds.withIndex().associate { it.index to it.value })
+  }
+
+  /**
+   * Checks that [basicReport] has a multimeasurement form and plans its multimeasurements, without
+   * the `ReportingSet`s its reporting units are written under.
+   *
+   * @param basicReport [BasicReport] with `effective_report_start` and effective impression
+   *   qualification filters set
+   * @param components map of `ReportingUnit` component resource name, as in the public
+   *   `ReportingUnit.components`, to the resolved component
+   * @throws IllegalArgumentException if [basicReport] uses a feature with no multimeasurement form,
+   *   or references a component missing from [components]
+   */
+  fun plan(basicReport: BasicReport, components: Map<String, ReportingUnitComponent>): Plan {
     val details = basicReport.details
     require(details.effectiveImpressionQualificationFiltersCount > 0) {
       "BasicReport has no effective impression qualification filters"
@@ -119,38 +130,80 @@ class MultimeasurementCompiler(
       reportingInterval.reportEnd.let { LocalDate.of(it.year, it.month, it.day) }
     require(clock.reportStart < reportEnd) { "Reporting interval is empty" }
 
-    require(reportingUnitReportingSetIds.size == details.resultGroupSpecsCount) {
-      "Expected a reporting unit ReportingSet per ResultGroupSpec"
-    }
     val specPlans: List<SpecPlan> =
-      details.resultGroupSpecsList.mapIndexed { index, internalSpec ->
-        planSpec(
-          internalSpec.toResultGroupSpec(),
-          clock.reportStart,
-          reportEnd,
-          components,
-          reportingUnitReportingSetIds[index],
-        )
+      details.resultGroupSpecsList.map { internalSpec ->
+        planSpec(internalSpec.toResultGroupSpec(), clock.reportStart, reportEnd, components)
       }
     val boundaries: List<LocalDate> =
       (specPlans.flatMap { it.windowEnds } + clock.reportStart).toSortedSet().toList()
     val periods: List<Period> = boundaries.zipWithNext { start, end -> Period(start, end) }
+    return Plan(basicReport, clock, specPlans, periods)
+  }
 
-    return details.effectiveImpressionQualificationFiltersList.map { iqf ->
-      val iqfFilter: String =
-        buildCelExpression(
-          iqf.filterSpecsList.map { it.toImpressionQualificationFilterSpec() },
-          eventTemplateFieldsByPath,
-          emitCelNullGuardsForNestedMembers,
-        )
-      val builder = ComputationBuilder(clock, periods)
-      for ((specIndex, specPlan) in specPlans.withIndex()) {
-        builder.addSpec(specIndex, specPlan, iqf.externalImpressionQualificationFilterId, iqfFilter)
+  /** The multimeasurements of a [BasicReport], planned but not yet compiled. */
+  inner class Plan
+  internal constructor(
+    private val basicReport: BasicReport,
+    private val clock: ReportClock,
+    private val specPlans: List<SpecPlan>,
+    private val periods: List<Period>,
+  ) {
+    /** Indexes of the `ResultGroupSpec`s that write their reporting unit as a whole. */
+    val reportingUnitSpecIndexes: Set<Int> =
+      specPlans.indices.filterTo(mutableSetOf()) {
+        specPlans[it].spec.resultGroupMetricSpec.hasReportingUnit()
       }
-      reportComputation {
-        mappings += builder.mappings
-        multimeasurement = builder.buildMultimeasurement().toByteString()
+
+    /**
+     * Compiles the planned multimeasurements.
+     *
+     * @param reportingUnitReportingSetIds the external ID of the `ReportingSet` each
+     *   `ResultGroupSpec` in [reportingUnitSpecIndexes] writes its reporting unit under, by
+     *   `ResultGroupSpec` index
+     * @return one [ReportComputation] per effective impression qualification filter, in order,
+     *   without request or `Measurement` IDs, whose multimeasurement's `RequisitionSpec`s have no
+     *   `measurement_public_key`
+     */
+    fun compile(reportingUnitReportingSetIds: Map<Int, String>): List<ReportComputation> {
+      require(reportingUnitReportingSetIds.keys.containsAll(reportingUnitSpecIndexes)) {
+        "Missing a reporting unit ReportingSet for a ResultGroupSpec"
       }
+      val effectiveFilters = basicReport.details.effectiveImpressionQualificationFiltersList
+      val reportComputations: List<ReportComputation> =
+        effectiveFilters.map { iqf ->
+          val iqfFilter: String =
+            buildCelExpression(
+              iqf.filterSpecsList.map { it.toImpressionQualificationFilterSpec() },
+              eventTemplateFieldsByPath,
+              emitCelNullGuardsForNestedMembers,
+            )
+          val builder = ComputationBuilder(clock, periods)
+          for ((specIndex, specPlan) in specPlans.withIndex()) {
+            builder.addSpec(
+              specIndex,
+              specPlan.copy(reportingUnitReportingSetId = reportingUnitReportingSetIds[specIndex]),
+              iqf.externalImpressionQualificationFilterId,
+              iqfFilter,
+            )
+          }
+          reportComputation {
+            mappings += builder.mappings
+            multimeasurement = builder.buildMultimeasurement().toByteString()
+          }
+        }
+      // Storage does not interpret impression qualification filters, so every effective one must
+      // have results from here.
+      val mappedFilterIds: Set<String> =
+        reportComputations
+          .flatMap { it.mappingsList }
+          .mapTo(mutableSetOf()) { it.externalImpressionQualificationFilterId }
+      check(
+        mappedFilterIds ==
+          effectiveFilters.mapTo(mutableSetOf()) { it.externalImpressionQualificationFilterId }
+      ) {
+        "Compiled mappings do not cover exactly the effective impression qualification filters"
+      }
+      return reportComputations
     }
   }
 
@@ -159,7 +212,6 @@ class MultimeasurementCompiler(
     reportStart: LocalDate,
     reportEnd: LocalDate,
     components: Map<String, ReportingUnitComponent>,
-    reportingUnitReportingSetId: String,
   ): SpecPlan {
     require(spec.reportingUnit.componentsCount > 0) { "ResultGroupSpec has no components" }
     // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Compile these once
@@ -201,7 +253,7 @@ class MultimeasurementCompiler(
     return SpecPlan(
       spec = spec,
       components = resolvedComponents,
-      reportingUnitReportingSetId = reportingUnitReportingSetId,
+      reportingUnitReportingSetId = null,
       reportStart = reportStart,
       windowEnds = windowEnds,
       attributes = attributes,
@@ -228,14 +280,15 @@ class MultimeasurementCompiler(
   }
 
   /** Inclusive start and exclusive end of a period, each at the report's start time of day. */
-  private data class Period(val start: LocalDate, val end: LocalDate)
+  internal data class Period(val start: LocalDate, val end: LocalDate)
 
-  private data class Window(val start: LocalDate, val end: LocalDate, val cumulative: Boolean)
+  internal data class Window(val start: LocalDate, val end: LocalDate, val cumulative: Boolean)
 
-  private data class SpecPlan(
+  internal data class SpecPlan(
     val spec: ResultGroupSpec,
     val components: List<ReportingUnitComponent>,
-    val reportingUnitReportingSetId: String,
+    /** Set only once the reporting unit's `ReportingSet` is resolved. */
+    val reportingUnitReportingSetId: String?,
     val reportStart: LocalDate,
     /** Ends of the windows, ascending, the last being the report end. */
     val windowEnds: List<LocalDate>,
@@ -409,7 +462,10 @@ class MultimeasurementCompiler(
           is Slot.ReportingUnit ->
             reportingUnit =
               ResultGroupQueryMappingKt.reportingSet {
-                externalReportingSetId = plan.reportingUnitReportingSetId
+                externalReportingSetId =
+                  checkNotNull(plan.reportingUnitReportingSetId) {
+                    "ResultGroupSpec $specIndex has no reporting unit ReportingSet"
+                  }
               }
           is Slot.Component ->
             component =
@@ -515,28 +571,21 @@ class MultimeasurementCompiler(
   }
 
   /** Converts dates to instants at the time of day and offset of the report start. */
-  private class ReportClock(effectiveReportStart: DateTime) {
+  internal class ReportClock(effectiveReportStart: DateTime) {
+    /** The report start, whose time of day and offset every window boundary shares. */
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf case fields cannot be null.
-    private val zoneId: ZoneId =
+    private val start: ZonedDateTime =
       when (effectiveReportStart.timeOffsetCase) {
         DateTime.TimeOffsetCase.UTC_OFFSET ->
-          ZoneOffset.ofTotalSeconds(effectiveReportStart.utcOffset.seconds.toInt())
-        DateTime.TimeOffsetCase.TIME_ZONE -> ZoneId.of(effectiveReportStart.timeZone.id)
+          effectiveReportStart.toOffsetDateTime().toZonedDateTime()
+        DateTime.TimeOffsetCase.TIME_ZONE -> effectiveReportStart.toZonedDateTime()
         DateTime.TimeOffsetCase.TIMEOFFSET_NOT_SET ->
           throw IllegalArgumentException("effective_report_start has no time offset")
       }
-    private val timeOfDay: LocalTime =
-      LocalTime.of(
-        effectiveReportStart.hours,
-        effectiveReportStart.minutes,
-        effectiveReportStart.seconds,
-        effectiveReportStart.nanos,
-      )
-    val reportStart: LocalDate =
-      LocalDate.of(effectiveReportStart.year, effectiveReportStart.month, effectiveReportStart.day)
 
-    fun toTimestamp(date: LocalDate): Timestamp =
-      ZonedDateTime.of(date, timeOfDay, zoneId).toInstant().toProtoTime()
+    val reportStart: LocalDate = start.toLocalDate()
+
+    fun toTimestamp(date: LocalDate): Timestamp = start.with(date).toInstant().toProtoTime()
   }
 
   companion object {

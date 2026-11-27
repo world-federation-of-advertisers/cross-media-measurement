@@ -121,6 +121,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
@@ -540,20 +541,6 @@ class BasicReportsService(
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
-    // Both paths need the composite ReportingSets, under which results are written and read.
-    val nameByReportingSetComposite: Map<ReportingSet.Composite, String> =
-      try {
-        getOrCreateCompositeReportingSets(
-          reportingSetsMetricCalculationSpecDetailsMap.keys,
-          reportingSetMaps.nameByReportingSetComposite,
-          parentKey,
-        )
-      } catch (e: ReportingSetNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-      } catch (e: InternalReportingSetsException) {
-        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
-      }
-
     val internalBasicReport: InternalBasicReport =
       request.basicReport.toInternal(
         cmmsMeasurementConsumerId = parentKey.measurementConsumerId,
@@ -569,22 +556,46 @@ class BasicReportsService(
         effectiveModelLine = effectiveModelLine.name,
         effectiveReportStart = effectiveReportStart,
       )
-    // A multimeasurement BasicReport is compiled here, so that one that cannot be is never created.
-    val reportComputations: List<ReportComputation> =
+    val components: Map<String, ReportingSet> =
+      reportingSetMaps.primitiveReportingSetsByComponentKey.mapKeys { it.key.toName() }
+    // A multimeasurement BasicReport is planned before anything is created, so that one with no
+    // multimeasurement form leaves nothing behind.
+    val multimeasurementPlan: MultimeasurementCompiler.Plan? =
       if (isMultimeasurement(parentKey)) {
         try {
-          compileMultimeasurements(
-            internalBasicReport,
-            request.basicReport,
-            campaignGroupResolution.campaignGroup.name,
-            reportingSetMaps.primitiveReportingSetsByComponentKey.mapKeys { it.key.toName() },
-            nameByReportingSetComposite,
-          )
+          multimeasurementCompiler.plan(internalBasicReport, components.toCompilerComponents())
         } catch (e: IllegalArgumentException) {
           throw Status.INVALID_ARGUMENT.withDescription(e.message).withCause(e).asRuntimeException()
         }
       } else {
+        null
+      }
+
+    // Both paths need the composite ReportingSets, under which results are written and read.
+    val nameByReportingSetComposite: Map<ReportingSet.Composite, String> =
+      try {
+        getOrCreateCompositeReportingSets(
+          reportingSetsMetricCalculationSpecDetailsMap.keys,
+          reportingSetMaps.nameByReportingSetComposite,
+          parentKey,
+        )
+      } catch (e: ReportingSetNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: InternalReportingSetsException) {
+        throw Status.INTERNAL.withDescription(e.message).withCause(e).asRuntimeException()
+      }
+
+    val reportComputations: List<ReportComputation> =
+      if (multimeasurementPlan == null) {
         emptyList()
+      } else {
+        compileMultimeasurements(
+          multimeasurementPlan,
+          request.basicReport,
+          campaignGroupResolution.campaignGroup.name,
+          components,
+          nameByReportingSetComposite,
+        )
       }
 
     val createdInternalBasicReport =
@@ -1493,32 +1504,26 @@ class BasicReportsService(
   }
 
   /**
-   * Compiles the multimeasurements of [basicReport], the internal form of [publicBasicReport].
+   * Compiles [plan], the multimeasurements of [publicBasicReport].
    *
    * @param primitiveReportingSetsByComponentName the primitive [ReportingSet] of each
    *   `ReportingUnit` component, by component resource name
    * @param nameByReportingSetComposite the resource name of each composite [ReportingSet],
-   *   including the union of each `ReportingUnit` with more than one component
-   * @throws IllegalArgumentException if [basicReport] has no multimeasurement form
+   *   including the union of each `ReportingUnit` with more than one component whose reporting unit
+   *   as a whole is written
    */
   private fun compileMultimeasurements(
-    basicReport: InternalBasicReport,
+    plan: MultimeasurementCompiler.Plan,
     publicBasicReport: BasicReport,
     campaignGroupName: String,
     primitiveReportingSetsByComponentName: Map<String, ReportingSet>,
     nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
   ): List<ReportComputation> {
-    val components: Map<String, MultimeasurementCompiler.ReportingUnitComponent> =
-      primitiveReportingSetsByComponentName.mapValues { (_, reportingSet) ->
-        MultimeasurementCompiler.ReportingUnitComponent(
-          externalReportingSetId =
-            checkNotNull(ReportingSetKey.fromName(reportingSet.name)).reportingSetId,
-          cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList,
-        )
-      }
-    // Written under the same ReportingSet that `GetBasicReport` reads a ReportingUnit from.
-    val reportingUnitReportingSetIds: List<String> =
-      publicBasicReport.resultGroupSpecsList.map { spec ->
+    // Written under the same ReportingSet that `GetBasicReport` reads a ReportingUnit from. Only a
+    // spec that writes its reporting unit as a whole has one.
+    val reportingUnitReportingSetIds: Map<Int, String> =
+      plan.reportingUnitSpecIndexes.associateWith { specIndex ->
+        val spec: ResultGroupSpec = publicBasicReport.resultGroupSpecsList[specIndex]
         val primitiveNames: List<String> =
           spec.reportingUnit.componentsList.map {
             primitiveReportingSetsByComponentName.getValue(it).name
@@ -1533,7 +1538,16 @@ class BasicReportsService(
           }
         checkNotNull(ReportingSetKey.fromName(name)).reportingSetId
       }
-    return multimeasurementCompiler.compile(basicReport, components, reportingUnitReportingSetIds)
+    return plan.compile(reportingUnitReportingSetIds)
+  }
+
+  private fun Map<String, ReportingSet>.toCompilerComponents():
+    Map<String, MultimeasurementCompiler.ReportingUnitComponent> = mapValues { (_, reportingSet) ->
+    MultimeasurementCompiler.ReportingUnitComponent(
+      externalReportingSetId =
+        checkNotNull(ReportingSetKey.fromName(reportingSet.name)).reportingSetId,
+      cmmsEventGroups = reportingSet.primitive.cmmsEventGroupsList,
+    )
   }
 
   /**
