@@ -38,12 +38,18 @@ import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
+import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.copy
+import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.requisition
+import org.wfanet.measurement.api.v2alpha.requisitionSpec
+import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
+import org.wfanet.measurement.consent.client.duchy.computeRequisitionFingerprint as computeDuchyRequisitionFingerprint
 
 @RunWith(JUnit4::class)
 class FulfillRequisitionRequestBuilderTest {
@@ -283,6 +289,49 @@ class FulfillRequisitionRequestBuilderTest {
     val payload = bodyRequest.bodyChunk.data
     val payloadIntegers = bytesToIntegers(payload.toByteArray())
     assertThat(payloadIntegers).isEqualTo(inputFrequencyVector.dataList)
+  }
+
+  @Test
+  fun `buildUnencrypted sets the TrusTeeV2 fingerprint the Duchy computes`() {
+    val requests =
+      FulfillRequisitionRequestBuilder.buildUnencrypted(
+          MULTIMEASUREMENT_REQUISITION,
+          NONCE,
+          FREQUENCY_VECTOR,
+        )
+        .toList()
+
+    val header = requests.first { it.hasHeader() }.header
+    assertThat(header.requisitionFingerprint)
+      .isEqualTo(
+        computeDuchyRequisitionFingerprint(
+          MULTIMEASUREMENT_REQUISITION.unsignedMeasurementSpec.toByteString(),
+          Hashing.hashSha256(MULTIMEASUREMENT_REQUISITION.requisitionSpec.toByteString()),
+        )
+      )
+  }
+
+  @Test
+  fun `buildUnencrypted sets different TrusTeeV2 fingerprints for different RequisitionSpecs`() {
+    val otherRequisition =
+      MULTIMEASUREMENT_REQUISITION.copy {
+        requisitionSpec = requisitionSpec {
+          events =
+            RequisitionSpecKt.events {
+              eventGroups += RequisitionSpecKt.eventGroupEntry { key = OTHER_EVENT_GROUP }
+            }
+        }
+      }
+
+    val fingerprints =
+      listOf(MULTIMEASUREMENT_REQUISITION, otherRequisition).map { requisition ->
+        FulfillRequisitionRequestBuilder.buildUnencrypted(requisition, NONCE, FREQUENCY_VECTOR)
+          .first { it.hasHeader() }
+          .header
+          .requisitionFingerprint
+      }
+
+    assertThat(fingerprints[0]).isNotEqualTo(fingerprints[1])
   }
 
   @Test
@@ -566,6 +615,21 @@ class FulfillRequisitionRequestBuilderTest {
         protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
       }
     }
+    private const val EVENT_GROUP = "dataProviders/AAAAAAAAAHs/eventGroups/AAAAAAAAAHs"
+    private const val OTHER_EVENT_GROUP = "dataProviders/AAAAAAAAAHs/eventGroups/AAAAAAAAAMg"
+    private val MULTIMEASUREMENT_REQUISITION =
+      V2_REQUISITION.copy {
+        unsignedMeasurementSpec = measurementSpec {
+          multi = MeasurementSpecKt.multiMeasurementSpec {}
+          vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 1.0f }
+        }
+        requisitionSpec = requisitionSpec {
+          events =
+            RequisitionSpecKt.events {
+              eventGroups += RequisitionSpecKt.eventGroupEntry { key = EVENT_GROUP }
+            }
+        }
+      }
     private val FULFILLMENT_DETAILS =
       FulfillRequisitionRequestKt.HeaderKt.TrusTeeV2Kt.fulfillmentDetails {
         impression = MeasurementKt.ResultKt.impression { value = 1234L }
