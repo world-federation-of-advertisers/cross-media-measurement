@@ -24,7 +24,7 @@ kt_jvm_library(
     deps = [
         "//imports/it/unimi/dsi/fastutil",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:population_spec_validator",
-        "//src/main/kotlin/org/wfanet/measurement/common:vid_hashing",
+        "//src/main/kotlin/org/wfanet/measurement/computation:vid_hashing",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/computation:sampled_index_ranges",
         "//src/main/proto/wfa/frequency_count:frequency_vector_kt_jvm_proto",
