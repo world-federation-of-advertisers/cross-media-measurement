@@ -96,3 +96,39 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
+
+kt_jvm_test(
+    name = "SampledIndexRangesTest",
+    srcs = ["SampledIndexRangesTest.kt"],
+    test_class = "org.wfanet.measurement.computation.SampledIndexRangesTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:sampled_index_ranges",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "DeterministicTruncatedLaplaceParamsTest",
+    srcs = ["DeterministicTruncatedLaplaceParamsTest.kt"],
+    test_class = "org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParamsTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "VidHashingTest",
+    srcs = ["VidHashingTest.kt"],
+    test_class = "org.wfanet.measurement.computation.VidHashingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:vid_hashing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)

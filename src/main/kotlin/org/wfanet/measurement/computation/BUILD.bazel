@@ -127,3 +127,18 @@ kt_jvm_library(
         ":result_noiser",
     ],
 )
+
+kt_jvm_library(
+    name = "sampled_index_ranges",
+    srcs = ["SampledIndexRanges.kt"],
+)
+
+kt_jvm_library(
+    name = "vid_hashing",
+    srcs = ["VidHashing.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

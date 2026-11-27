@@ -14,16 +14,9 @@
 
 package org.wfanet.measurement.duchy.mill.trustee
 
-import com.google.crypto.tink.BinaryKeysetReader
-import com.google.crypto.tink.KeysetHandle
-import com.google.crypto.tink.KmsClient
-import com.google.crypto.tink.StreamingAead
-import com.google.crypto.tink.aead.AeadConfig
-import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import java.nio.ByteBuffer
 import java.nio.file.Path
-import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
@@ -32,7 +25,6 @@ import org.wfanet.measurement.common.crypto.tink.ConfidentialSpaceToAwsWifCreden
 import org.wfanet.measurement.common.crypto.tink.GCloudToAwsWifCredentials
 import org.wfanet.measurement.common.crypto.tink.GCloudWifCredentials
 import org.wfanet.measurement.common.crypto.tink.KmsClientFactory
-import org.wfanet.measurement.common.crypto.tink.WifCredentials
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients.PermanentErrorException
@@ -48,8 +40,6 @@ import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
-import org.wfanet.measurement.internal.duchy.RequisitionDetails
-import org.wfanet.measurement.internal.duchy.RequisitionDetails.RequisitionProtocol.TrusTee.DataFormat
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee.ComputationDetails as TrusTeeDetails
@@ -72,11 +62,10 @@ class TrusTeeMill(
   computationStatsClient: ComputationStatsGrpcKt.ComputationStatsCoroutineStub,
   workLockDuration: Duration,
   private val trusTeeProcessorFactory: TrusTeeProcessor.Factory,
-  private val gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
-  private val gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
-  private val confidentialSpaceToAwsKmsClientFactory:
-    KmsClientFactory<ConfidentialSpaceToAwsWifCredentials>,
-  private val attestationTokenPath: Path,
+  gcloudKmsClientFactory: KmsClientFactory<GCloudWifCredentials>,
+  gcloudToAwsKmsClientFactory: KmsClientFactory<GCloudToAwsWifCredentials>,
+  confidentialSpaceToAwsKmsClientFactory: KmsClientFactory<ConfidentialSpaceToAwsWifCredentials>,
+  attestationTokenPath: Path,
   requestChunkSizeBytes: Int = 1024 * 32,
   maximumAttempts: Int = 10,
   clock: Clock = Clock.systemUTC(),
@@ -98,16 +87,13 @@ class TrusTeeMill(
     clock = clock,
   ) {
 
-  /**
-   * Cache of [KmsClient] instances by [WifCredentials].
-   *
-   * Reusing refreshable credentials avoids exhausting Confidential Space attestation quotas.
-   */
-  private val kmsClientCache =
-    object : LinkedHashMap<WifCredentials, KmsClient>(16, 0.75f, true) {
-      override fun removeEldestEntry(eldest: MutableMap.MutableEntry<WifCredentials, KmsClient>) =
-        size > MAX_CACHED_KMS_CLIENTS
-    }
+  private val requisitionDecryptor =
+    TrusTeeRequisitionDecryptor(
+      gcloudKmsClientFactory,
+      gcloudToAwsKmsClientFactory,
+      confidentialSpaceToAwsKmsClientFactory,
+      attestationTokenPath,
+    )
 
   override val endingStage = Stage.COMPLETE.toProtocolStage()
 
@@ -148,28 +134,14 @@ class TrusTeeMill(
     val processor: TrusTeeProcessor = trusTeeProcessorFactory.create(trusTeeParams)
 
     for (requisition: RequisitionMetadata in token.requisitionsList) {
-      val details: RequisitionDetails = requisition.details
-
-      val dataFormat = details.protocol.trusTee.dataFormat
-      when (dataFormat) {
-        DataFormat.ENCRYPTED_FREQUENCY_VECTOR -> {
-          val kmsClient = getKmsClient(details.protocol.trusTee)
-          val dek = getDekKeysetHandle(kmsClient, details.protocol.trusTee)
-          // TODO(world-federation-of-advertisers/cross-media-measurement#2800): Use
-          //  StreamingAeadStorage instead to read and decrypt requisition data.
-          val rawRequisitionData = getRequisitionData(requisition)
-          val decryptedRequisitionData = decryptRequisitionData(dek, rawRequisitionData)
-          processor.addFrequencyVector(decryptedRequisitionData)
-        }
-        DataFormat.FREQUENCY_VECTOR -> {
-          processor.addFrequencyVector(getRequisitionData(requisition).toByteArray())
-        }
-        DataFormat.DATA_FORMAT_UNSPECIFIED,
-        DataFormat.UNRECOGNIZED ->
-          throw IllegalArgumentException(
-            "Unsupported or unspecified DataFormat TrusTeeDetails: $dataFormat"
-          )
-      }
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2800): Use
+      //  StreamingAeadStorage instead to read and decrypt requisition data.
+      processor.addFrequencyVector(
+        requisitionDecryptor.readFrequencyVector(
+          requisition.details.protocol.trusTee,
+          getRequisitionData(requisition),
+        )
+      )
     }
 
     val computationResult = processor.computeResult()
@@ -239,103 +211,9 @@ class TrusTeeMill(
     }
   }
 
-  private fun getKmsClient(protocol: RequisitionDetails.RequisitionProtocol.TrusTee): KmsClient {
-    try {
-      return if (protocol.hasAwsKmsParams()) {
-        val awsConfig = protocol.awsKmsParams
-        if (
-          awsConfig.credentialSource ==
-            RequisitionDetails.RequisitionProtocol.TrusTee.AwsKmsParams.CredentialSource
-              .CONFIDENTIAL_SPACE
-        ) {
-          // Direct Confidential Space -> AWS: present the attestation token to AWS STS, with no
-          // intermediary GCP Workload Identity pool or service account.
-          val credentials =
-            ConfidentialSpaceToAwsWifCredentials(
-              roleArn = awsConfig.roleArn,
-              roleSessionName = awsConfig.roleSession,
-              region = awsConfig.region,
-              audience = awsConfig.audience,
-            )
-          getCachedKmsClient(confidentialSpaceToAwsKmsClientFactory, credentials)
-        } else {
-          // Two-hop: GCP WIF + service-account impersonation mints the OIDC token for AWS STS.
-          val credentials =
-            GCloudToAwsWifCredentials(
-              gcloudAudience = protocol.workloadIdentityProvider,
-              subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-              tokenUrl = GOOGLE_STS_TOKEN_URL,
-              credentialSourceFilePath = attestationTokenPath.toString(),
-              serviceAccountImpersonationUrl =
-                IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
-              roleArn = awsConfig.roleArn,
-              roleSessionName = awsConfig.roleSession,
-              region = awsConfig.region,
-              awsAudience = awsConfig.audience,
-            )
-          getCachedKmsClient(gcloudToAwsKmsClientFactory, credentials)
-        }
-      } else {
-        val credentials =
-          GCloudWifCredentials(
-            audience = protocol.workloadIdentityProvider,
-            subjectTokenType = OAUTH_TOKEN_TYPE_ID_TOKEN,
-            tokenUrl = GOOGLE_STS_TOKEN_URL,
-            credentialSourceFilePath = attestationTokenPath.toString(),
-            serviceAccountImpersonationUrl =
-              IAM_IMPERSONATION_URL_FORMAT.format(protocol.impersonatedServiceAccount),
-          )
-        getCachedKmsClient(gcloudKmsClientFactory, credentials)
-      }
-    } catch (e: GeneralSecurityException) {
-      throw PermanentErrorException("Failed to create KMS client", e)
-    }
-  }
-
-  private fun <T : WifCredentials> getCachedKmsClient(
-    factory: KmsClientFactory<T>,
-    credentials: T,
-  ): KmsClient =
-    synchronized(kmsClientCache) {
-      kmsClientCache.getOrPut(credentials) { factory.getKmsClient(credentials) }
-    }
-
-  private fun getDekKeysetHandle(
-    kmsClient: KmsClient,
-    protocol: RequisitionDetails.RequisitionProtocol.TrusTee,
-  ): KeysetHandle {
-    try {
-      val kekAead = kmsClient.getAead(protocol.kmsKekUri)
-
-      return KeysetHandle.read(
-        BinaryKeysetReader.withBytes(protocol.encryptedDekCiphertext.toByteArray()),
-        kekAead,
-      )
-    } catch (e: GeneralSecurityException) {
-      throw PermanentErrorException("Failed to get DEK keyset due to a cryptographic error", e)
-    }
-  }
-
   private suspend fun getRequisitionData(requisition: RequisitionMetadata): ByteString {
     return dataClients.readSingleRequisitionBlob(requisition)
       ?: throw PermanentErrorException("Requisition data not found for ${requisition.externalKey}")
-  }
-
-  private fun decryptRequisitionData(dek: KeysetHandle, data: ByteString): ByteArray {
-    try {
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3347): decrypt data by chunks
-      //  while reading from the storage to improve the performance.
-      val streamingAead = dek.getPrimitive(StreamingAead::class.java)
-      val decryptingStream = streamingAead.newDecryptingStream(data.newInput(), byteArrayOf())
-      return decryptingStream.readAllBytes()
-    } catch (e: GeneralSecurityException) {
-      throw PermanentErrorException(
-        "Failed to decrypt requisition data due to a cryptographic error",
-        e,
-      )
-    } catch (e: IllegalArgumentException) {
-      throw PermanentErrorException("Decrypted requisition data has an invalid format", e)
-    }
   }
 
   private fun toIntArray(bytes: ByteArray): IntArray {
@@ -349,18 +227,6 @@ class TrusTeeMill(
   }
 
   companion object {
-    init {
-      AeadConfig.register()
-      StreamingAeadConfig.register()
-    }
-
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    private const val MAX_CACHED_KMS_CLIENTS = 128
-
-    private const val OAUTH_TOKEN_TYPE_ID_TOKEN = "urn:ietf:params:oauth:token-type:id_token"
-    private const val GOOGLE_STS_TOKEN_URL = "https://sts.googleapis.com/v1/token"
-    private const val IAM_IMPERSONATION_URL_FORMAT =
-      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s:generateAccessToken"
   }
 }

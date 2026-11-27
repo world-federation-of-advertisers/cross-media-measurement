@@ -18,6 +18,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.PopulationSpecValidator.validateVidRangesList
 import org.wfanet.measurement.computation.ResultMinimumThresholds
+import org.wfanet.measurement.computation.SampledIndexRanges
 
 /** Sampling indexes and frequency caps for a measurement. */
 class FrequencyVectorSampling(
@@ -86,6 +87,7 @@ class FrequencyVectorSampling(
    * this is the range of indexes that correspond to the sub-interval [start, 1.0)
    */
   val primaryRange: IntRange
+    get() = ranges.primaryRange
 
   val primaryRangeCount: Int
 
@@ -93,39 +95,29 @@ class FrequencyVectorSampling(
    * For a wrapping VidSamplingInterval this is the part of the range than spans [0, width-start)
    */
   val wrappedRange: IntRange
+    get() = ranges.wrappedRange
+
+  private val ranges: SampledIndexRanges
 
   init {
     val vidSamplingInterval = measurementSpec.vidSamplingInterval
-    require(vidSamplingInterval.width > 0 && vidSamplingInterval.width <= 1.0) {
-      "MeasurementSpec.VidSamplingInterval.width must be > 0 and <= 1"
-    }
-    require(vidSamplingInterval.start in 0.0..1.0) {
-      "MeasurementSpec.VidSamplingInterval.start must be >= 0 and <= 1"
-    }
-
     validateVidRangesList(populationSpec).getOrThrow()
     val populationSizeLong = populationSpec.size
     require(populationSizeLong > 0 && populationSizeLong < Int.MAX_VALUE) {
       "population size must be > 0 and < Int.MAX_VALUE"
     }
-    val populationSize = populationSizeLong.toInt()
 
-    // If we have a wrapping interval globalEndIndex will be larger than the populationSize
-    val globalStartIndex = (populationSize * vidSamplingInterval.start).toInt()
-    val globalEndIndex =
-      (populationSize * (vidSamplingInterval.start + vidSamplingInterval.width)).toInt() - 1
-    primaryRange = globalStartIndex..minOf(globalEndIndex, populationSize - 1)
-    primaryRangeCount = primaryRange.count()
-    wrappedRange =
-      if (globalEndIndex >= populationSize) {
-        0..(globalEndIndex - populationSize)
-      } else {
-        IntRange.EMPTY
-      }
+    ranges =
+      SampledIndexRanges.of(
+        populationSizeLong.toInt(),
+        vidSamplingInterval.start,
+        vidSamplingInterval.width,
+      )
+    primaryRangeCount = ranges.primaryRange.count()
   }
 
   val size: Int
-    get() = primaryRangeCount + wrappedRange.count()
+    get() = ranges.size
 
   /** Returns the sampled, capped frequency at [sampledIndex], treating missing input as zero. */
   fun frequencyAt(frequencyData: ByteArray, sampledIndex: Int): Int {
