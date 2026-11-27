@@ -10,6 +10,10 @@ kt_jvm_library(
         "TrusTeeMillDaemon.kt",
         "TrusTeeMillDaemonFlags.kt",
     ],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/trustee:__pkg__",
+    ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/identity",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",

@@ -144,6 +144,18 @@ class CellNoiseTest {
   }
 
   @Test
+  fun `CellPrivacyParams throws for an impression cap outside 1 to 127`() {
+    for (cap in listOf(0, Byte.MAX_VALUE + 1)) {
+      assertFailsWith<IllegalArgumentException> {
+        CellPrivacyParams(
+          NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+          ResultMinimumThresholds(minUsers = 1, minImpressions = 1, reachMaxFrequencyPerUser = cap),
+        )
+      }
+    }
+  }
+
+  @Test
   fun `CellPrivacyParams throws for a non-positive threshold`() {
     assertFailsWith<IllegalArgumentException> {
       CellPrivacyParams(

@@ -11,6 +11,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation",
         "//src/main/kotlin/org/wfanet/measurement/duchy/db/computation/testing",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:trus_tee_mill",
+        "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee:trus_tee_requisition_decryptor",
         "//src/main/kotlin/org/wfanet/measurement/duchy/mill/trustee/processor:trus_tee_processor",
         "//src/main/kotlin/org/wfanet/measurement/duchy/service/internal/computations",
         "//src/main/kotlin/org/wfanet/measurement/duchy/storage:requisition_store",

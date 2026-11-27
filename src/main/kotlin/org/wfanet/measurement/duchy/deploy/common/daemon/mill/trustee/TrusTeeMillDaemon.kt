@@ -17,6 +17,7 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee
 import com.google.protobuf.ByteString
 import com.google.protobuf.DescriptorProtos
 import io.grpc.Channel
+import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -120,6 +121,14 @@ abstract class TrusTeeMillDaemon : Runnable {
     // included in mill logs to help debugging.
     val millId = flags.millId
 
+    // One decryptor, and so one KMS client cache, serves both Mills.
+    val requisitionDecryptor =
+      TrusTeeRequisitionDecryptor(
+        gcloudKmsClientFactory,
+        gcloudToAwsKmsClientFactory,
+        confidentialSpaceToAwsKmsClientFactory,
+        flags.attestationTokenFile.toPath(),
+      )
     val mill =
       TrusTeeMill(
         millId = millId,
@@ -133,15 +142,18 @@ abstract class TrusTeeMillDaemon : Runnable {
         computationStatsClient = computationStatsClient,
         workLockDuration = flags.workLockDuration,
         trusTeeProcessorFactory = TrusTeeProcessorImpl.Factory,
-        gcloudKmsClientFactory = gcloudKmsClientFactory,
-        gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
-        confidentialSpaceToAwsKmsClientFactory = confidentialSpaceToAwsKmsClientFactory,
-        attestationTokenPath = flags.attestationTokenFile.toPath(),
+        requisitionDecryptor = requisitionDecryptor,
       )
 
     val trusTeeV2Flags: TrusTeeV2MillFlags? = flags.trusTeeV2
     val trusTeeV2Mill: TrusTeeV2Mill? =
       if (trusTeeV2Flags == null) {
+        // The Herald still creates TrusTEE v2 computations, which wait until a Mill runs with
+        // these flags.
+        logger.warning {
+          "TrusTEE v2 Mill disabled: no --trus-tee-v2-noise-mechanism flag, so TrusTEE v2 " +
+            "computations will not be processed"
+        }
         null
       } else {
         TrusTeeV2Mill(
@@ -155,13 +167,7 @@ abstract class TrusTeeMillDaemon : Runnable {
           systemComputationLogEntriesClient = systemComputationLogEntriesClient,
           computationStatsClient = computationStatsClient,
           workLockDuration = flags.workLockDuration,
-          requisitionDecryptor =
-            TrusTeeRequisitionDecryptor(
-              gcloudKmsClientFactory,
-              gcloudToAwsKmsClientFactory,
-              confidentialSpaceToAwsKmsClientFactory,
-              flags.attestationTokenFile.toPath(),
-            ),
+          requisitionDecryptor = requisitionDecryptor,
           privacyParams = trusTeeV2Flags.toCellPrivacyParams(),
           fallbackEventDescriptor = trusTeeV2Flags.fallbackEventDescriptor?.toEventDescriptor(),
           hashRankOrderCacheSize = trusTeeV2Flags.hashRankOrderCacheSize,
@@ -180,6 +186,8 @@ abstract class TrusTeeMillDaemon : Runnable {
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(TrusTeeMillDaemon::class.java.name)
+
     private fun TrusTeeV2MillFlags.toCellPrivacyParams(): CellPrivacyParams {
       val thresholds: TrusTeeV2MillFlags.ResultMinimumThresholdsFlags? = resultMinimumThresholds
       return CellPrivacyParams(
