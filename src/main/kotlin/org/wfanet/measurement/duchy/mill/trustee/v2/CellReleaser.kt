@@ -57,8 +57,10 @@ class CellReleaser(
     val thresholds: ResultMinimumThresholds? = resultMinimumThresholds
     if (thresholds != null) {
       if (
-        reach / vidSamplingIntervalWidth < thresholds.minUsers ||
-          impressions / vidSamplingIntervalWidth < thresholds.minImpressions
+        !thresholds.meets(
+          scaledReach = reach / vidSamplingIntervalWidth,
+          scaledImpressions = impressions / vidSamplingIntervalWidth,
+        )
       ) {
         return suppressed(cell)
       }

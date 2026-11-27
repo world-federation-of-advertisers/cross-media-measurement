@@ -54,6 +54,13 @@ object DeterministicTruncatedLaplaceParams {
   }
 
   /**
+   * Returns the variance of the noise this mechanism adds to a value of L1 [sensitivity], at the
+   * scale and truncation bound it derives for that sensitivity.
+   */
+  fun variance(sensitivity: Double): Double =
+    variance(scale = sensitivity / EPSILON, bound = truncationBound(sensitivity))
+
+  /**
    * Variance of a Laplace(0, b) distribution confined to `[-bound, bound]`, where `b` is [scale].
    *
    * The truncated density is the Laplace density renormalized by `Z = 1 - exp(-bound / b)`, so

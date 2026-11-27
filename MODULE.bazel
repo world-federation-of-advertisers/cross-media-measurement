@@ -42,7 +42,6 @@ bazel_dep(
     version = "0.162.0",
     repo_name = "wfa_common_jvm",
 )
-
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
@@ -53,6 +52,15 @@ bazel_dep(
     version = "0.108.0",
     repo_name = "wfa_measurement_proto",
 )
+
+# DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api#321)
+archive_override(
+    module_name = "cross-media-measurement-api",
+    integrity = "sha256-P+emcGSb8IAREJxrvSbnDjwX8GXpRtWPtYKcla1FjTg=",
+    strip_prefix = "cross-media-measurement-api-2615b6262d1f3ce23b412152d9f90ff598cda8d8",
+    urls = ["https://github.com/world-federation-of-advertisers/cross-media-measurement-api/archive/2615b6262d1f3ce23b412152d9f90ff598cda8d8.tar.gz"],
+)
+
 bazel_dep(
     name = "consent-signaling-client",
     version = "0.23.0",

@@ -28,9 +28,11 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
 /**
  * The deterministic noise of the cells of one multimeasurement.
  *
- * Each draw is seeded from [measurementName], the cell's query id and grouping values, and the
- * cell's fingerprint, so that rerunning a computation returns the same figures and two measurements
- * whose cells hold the same data do not share noise.
+ * Each draw is seeded from [measurementName], the cell's query id and grouping values, and a
+ * fingerprint of the data it noises, so that rerunning a computation returns the same figures and
+ * two measurements whose cells hold the same data do not share noise. A cell's released figures are
+ * seeded by the cell's fingerprint, and each `DataProvider` slice test by that slice's fingerprint
+ * alone, so that no `DataProvider`'s vectors change the noise on another's slice test.
  *
  * @param measurementName resource name of the `Measurement` the computation belongs to
  */
@@ -44,12 +46,15 @@ class CellNoise(private val params: CellPrivacyParams, private val measurementNa
 
   /** Returns the noiser for the released figures of [cell], seeded from its fingerprint. */
   fun cellNoiser(cell: QueryEvaluator.Cell): ResultNoiser = noiser {
-    seed(CELL_DOMAIN, cell, dataProvider = null)
+    seed(CELL_DOMAIN, cell, cell.fingerprint, dataProvider = null)
   }
 
-  /** Returns the noiser for the slice test of [dataProvider]'s slice of [cell]. */
+  /**
+   * Returns the noiser for the slice test of [dataProvider]'s slice of [cell], seeded from that
+   * slice's fingerprint.
+   */
   fun sliceNoiser(cell: QueryEvaluator.Cell, dataProvider: String): ResultNoiser = noiser {
-    seed(SLICE_DOMAIN, cell, dataProvider)
+    seed(SLICE_DOMAIN, cell, cell.sliceFingerprints.getValue(dataProvider), dataProvider)
   }
 
   /** The mechanism every cell is noised with, as the public API reports it. */
@@ -81,20 +86,18 @@ class CellNoise(private val params: CellPrivacyParams, private val measurementNa
 
   /** Returns the variance of a draw of L1 [sensitivity]. */
   private fun variance(sensitivity: Double): Double =
-    if (noised) {
-      DeterministicTruncatedLaplaceParams.variance(
-        scale = sensitivity / DeterministicTruncatedLaplaceParams.EPSILON,
-        bound = DeterministicTruncatedLaplaceParams.truncationBound(sensitivity),
-      )
-    } else {
-      0.0
-    }
+    if (noised) DeterministicTruncatedLaplaceParams.variance(sensitivity) else 0.0
 
   /**
    * Returns SHA-256 over the length-prefixed seed inputs of [cell]: [domain], [measurementName],
-   * the query id, each grouping value, the fingerprint and, for a slice, [dataProvider].
+   * the query id, each grouping value, [fingerprint] and, for a slice, [dataProvider].
    */
-  private fun seed(domain: String, cell: QueryEvaluator.Cell, dataProvider: String?): ByteArray {
+  private fun seed(
+    domain: String,
+    cell: QueryEvaluator.Cell,
+    fingerprint: ByteArray,
+    dataProvider: String?,
+  ): ByteArray {
     val digest = MessageDigest.getInstance(SEED_ALGORITHM)
     digest.updatePart(domain.toByteArray(Charsets.UTF_8))
     digest.updatePart(measurementName.toByteArray(Charsets.UTF_8))
@@ -108,7 +111,7 @@ class CellNoise(private val params: CellPrivacyParams, private val measurementNa
         digest.updatePart(value.toByteArray(Charsets.UTF_8))
       }
     }
-    digest.updatePart(cell.fingerprint)
+    digest.updatePart(fingerprint)
     if (dataProvider != null) {
       digest.updatePart(dataProvider.toByteArray(Charsets.UTF_8))
     }

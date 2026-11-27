@@ -113,6 +113,8 @@ class SliceSuppressionTest {
         sliceReach = sliceReach,
         summandDataProviders = setOf(DATA_PROVIDER_A, DATA_PROVIDER_B),
         fingerprint = byteArrayOf(0),
+        sliceFingerprints =
+          mapOf(DATA_PROVIDER_A to byteArrayOf(0), DATA_PROVIDER_B to byteArrayOf(0)),
       )
   }
 }
