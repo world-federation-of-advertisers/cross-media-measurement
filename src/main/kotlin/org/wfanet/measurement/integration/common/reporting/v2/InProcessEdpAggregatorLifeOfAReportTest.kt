@@ -602,8 +602,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           signingCertificateName = measurementConsumer.certificate
           signingPrivateKeyPath = MC_SIGNING_PRIVATE_KEY_PATH
           offlinePrincipal = "principals/mc-user"
-          multimeasurementEnabled =
-            this@InProcessEdpAggregatorLifeOfAReportTest.multimeasurementEnabled
         }
         return InProcessReportingServer(
           reportingDataServicesProviderRule.value,
@@ -619,6 +617,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           metricSpecConfigOverride = metricSpecConfigOverride,
           populationDataProviderName =
             inProcessCmmsComponents.getPopulationData().populationDataProviderName,
+          multimeasurementBasicReportsEnabled =
+            this@InProcessEdpAggregatorLifeOfAReportTest.multimeasurementEnabled,
         )
       }
 
