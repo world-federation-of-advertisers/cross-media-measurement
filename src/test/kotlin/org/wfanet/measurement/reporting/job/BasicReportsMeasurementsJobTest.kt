@@ -284,6 +284,53 @@ class BasicReportsMeasurementsJobTest {
   }
 
   @Test
+  fun `execute replays only the first pending Measurement of a timed-out BasicReport`(): Unit =
+    runBlocking {
+      stubTimedOutBasicReportWithoutMeasurements()
+
+      job.execute()
+
+      verifyProtoArgument(measurementsMock, MeasurementsCoroutineImplBase::createMeasurement)
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          createMeasurementRequest {
+            requestId = REPORT_COMPUTATION_1.cmmsCreateMeasurementRequestId
+          }
+        )
+      verify(basicReportsMock).failBasicReport(any())
+      verify(basicReportsMock, never()).setMeasurementsCreated(any())
+    }
+
+  @Test
+  fun `execute fails a timed-out BasicReport when the CMMS is UNAVAILABLE`(): Unit = runBlocking {
+    stubTimedOutBasicReportWithoutMeasurements()
+    whenever(measurementsMock.createMeasurement(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    job.execute()
+
+    verify(measurementsMock, times(1)).createMeasurement(any())
+    verify(basicReportsMock).failBasicReport(any())
+  }
+
+  /** Stubs a BasicReport past [MAX_CREATED_BASIC_REPORT_AGE] with no Measurement recorded. */
+  private suspend fun stubTimedOutBasicReportWithoutMeasurements() {
+    whenever(basicReportsMock.listBasicReports(any())).thenAnswer { invocation ->
+      val request: ListBasicReportsRequest = invocation.getArgument(0)
+      if (request.filter.state == BasicReport.State.CREATED_MULTIMEASUREMENT) {
+        listBasicReportsResponse {
+          basicReports +=
+            BASIC_REPORT.copy {
+              createTime = CREATE_TIME.minus(MAX_CREATED_BASIC_REPORT_AGE).toProtoTime()
+            }
+        }
+      } else {
+        ListBasicReportsResponse.getDefaultInstance()
+      }
+    }
+  }
+
+  @Test
   fun `execute fails BasicReport when its Measurement is already cancelled`(): Unit = runBlocking {
     stubTimedOutBasicReport()
     whenever(measurementsMock.cancelMeasurement(any()))
