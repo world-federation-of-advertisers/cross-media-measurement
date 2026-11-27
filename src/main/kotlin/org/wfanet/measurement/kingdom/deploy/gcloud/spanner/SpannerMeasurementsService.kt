@@ -95,8 +95,6 @@ class SpannerMeasurementsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ModelReleaseNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-    } catch (e: RequiredFieldNotSetException) {
-      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
@@ -155,6 +153,7 @@ class SpannerMeasurementsService(
         "requisition_spec unspecified for vector ${vector.index}"
       }
     }
+    grpcRequire(measurement.details.hasModelLine()) { "model_line unspecified" }
   }
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -330,8 +329,6 @@ class SpannerMeasurementsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: ModelReleaseNotFoundException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
-    } catch (e: RequiredFieldNotSetException) {
-      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }

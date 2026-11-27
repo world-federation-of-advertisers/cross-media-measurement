@@ -129,7 +129,7 @@ databaseChangeLog:
     file: add-model-line-event-template-version.sql
     relativeToChangeLogFile: true
 - include:
-    file: add-requisition-vector-index.sql
+    file: add-multimeasurement-columns.sql
     relativeToChangeLogFile: true
 - include:
     file: update-proto-bundle-for-multimeasurements.sql
