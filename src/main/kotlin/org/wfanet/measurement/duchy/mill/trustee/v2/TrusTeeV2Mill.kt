@@ -38,8 +38,6 @@ import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2.Stage
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt
-import org.wfanet.measurement.system.v1alpha.ComputationParticipant
-import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
 
@@ -118,13 +116,7 @@ class TrusTeeV2Mill(
   }
 
   private suspend fun initializationPhase(token: ComputationToken): ComputationToken {
-    // A TrusTEE v2 computation sends the same empty parameters as TrusTEE.
-    val requisitionParams =
-      ComputationParticipantKt.requisitionParams {
-        duchyCertificate = consentSignalCert.name
-        trusTee = ComputationParticipant.RequisitionParams.TrusTee.getDefaultInstance()
-      }
-    sendRequisitionParamsToKingdom(token, requisitionParams)
+    sendTrusTeeRequisitionParamsToKingdom(token)
 
     return dataClients.transitionComputationToStage(
       token,
@@ -158,8 +150,9 @@ class TrusTeeV2Mill(
     }
 
     // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Remove the slices of a
-    //  DataProvider whose reported impression count is below min_users before the first pass, as
-    //  docs/trustee/v2-mill-evaluation.md describes. The slice test removes them regardless.
+    //  DataProvider whose reported impression count, from the fulfillment details the Duchy
+    //  records, is below min_users before the first pass. The slice test removes them regardless,
+    //  so this only saves work.
     val multimeasurementResult: MultimeasurementResult =
       MultimeasurementEvaluator(
           queries = details.queriesList,
@@ -209,9 +202,7 @@ class TrusTeeV2Mill(
     require(protocol.dataProviderResourceId.isNotEmpty()) {
       "Requisition $requisitionId has no DataProvider"
     }
-    val data: ByteString =
-      dataClients.readSingleRequisitionBlob(requisition)
-        ?: throw PermanentErrorException("Requisition data not found for $requisitionId")
+    val data: ByteString = readRequisitionData(requisition)
     return BaseVector(
       index = details.vectorIndex,
       dataProvider = protocol.dataProviderResourceId,

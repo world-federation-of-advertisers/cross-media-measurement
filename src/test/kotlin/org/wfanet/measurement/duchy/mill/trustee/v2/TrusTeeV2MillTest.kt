@@ -72,10 +72,13 @@ import org.wfanet.measurement.internal.duchy.RequisitionDetailsKt.RequisitionPro
 import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.config.RoleInComputation
+import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.externalRequisitionKey
 import org.wfanet.measurement.internal.duchy.populationSpec
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2.Stage
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2Kt
+import org.wfanet.measurement.internal.duchy.protocol.copy
 import org.wfanet.measurement.internal.duchy.query
 import org.wfanet.measurement.internal.duchy.requisitionDetails
 import org.wfanet.measurement.internal.duchy.requisitionMetadata
@@ -139,7 +142,9 @@ class TrusTeeV2MillTest {
 
   @get:Rule val ruleChain = chainRulesSequentially(tempDirectory, grpcTestServerRule)
 
-  private fun createMill(): TrusTeeV2Mill {
+  private fun createMill(
+    fallbackEventDescriptor: TrusTeeV2.EventDescriptor? = null
+  ): TrusTeeV2Mill {
     val channel = grpcTestServerRule.channel
     return TrusTeeV2Mill(
       millId = MILL_ID,
@@ -161,7 +166,7 @@ class TrusTeeV2MillTest {
           attestationTokenPath = Path("attestation/token/path"),
         ),
       privacyParams = CellPrivacyParams(NoiseMechanism.NONE, resultMinimumThresholds = null),
-      fallbackEventDescriptor = null,
+      fallbackEventDescriptor = fallbackEventDescriptor,
     )
   }
 
@@ -171,6 +176,7 @@ class TrusTeeV2MillTest {
     vectors: List<ByteArray>,
     requisitions: List<RequisitionMetadata> =
       vectors.indices.map { requisition(it, vectorIndex = it) },
+    computationDetails: ComputationDetails = COMPUTATION_DETAILS,
   ) {
     for ((requisition, vector) in requisitions.zip(vectors)) {
       requisitionStore.write(
@@ -181,7 +187,7 @@ class TrusTeeV2MillTest {
     fakeComputationDb.addComputation(
       LOCAL_ID,
       stage.toProtocolStage(),
-      computationDetails = COMPUTATION_DETAILS,
+      computationDetails = computationDetails,
       requisitions = requisitions,
     )
   }
@@ -276,6 +282,33 @@ class TrusTeeV2MillTest {
     assertFailed()
   }
 
+  @Test
+  fun `computing resolves attributes with the fallback event descriptor`(): Unit = runBlocking {
+    addComputation(
+      Stage.COMPUTING,
+      VECTORS,
+      computationDetails = COMPUTATION_DETAILS_WITHOUT_EVENT_DESCRIPTOR,
+    )
+
+    createMill(fallbackEventDescriptor = EVENT_DESCRIPTOR).claimAndProcessWork()
+
+    assertThat(fakeComputationDb[LOCAL_ID]!!.computationDetails.endingState)
+      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+  }
+
+  @Test
+  fun `computing fails without an event descriptor or a fallback`(): Unit = runBlocking {
+    addComputation(
+      Stage.COMPUTING,
+      VECTORS,
+      computationDetails = COMPUTATION_DETAILS_WITHOUT_EVENT_DESCRIPTOR,
+    )
+
+    createMill(fallbackEventDescriptor = null).claimAndProcessWork()
+
+    assertFailed()
+  }
+
   private suspend fun assertFailed() {
     val token = fakeComputationDb[LOCAL_ID]!!
     assertThat(token.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
@@ -337,6 +370,12 @@ class TrusTeeV2MillTest {
         }
     }
 
+    private val EVENT_DESCRIPTOR: TrusTeeV2.EventDescriptor =
+      TrusTeeV2Kt.eventDescriptor {
+        descriptorSet = ProtoReflection.buildFileDescriptorSet(TestEvent.getDescriptor())
+        eventMessageType = TestEvent.getDescriptor().fullName
+      }
+
     private val COMPUTATION_DETAILS = computationDetails {
       kingdomComputation =
         ComputationDetailsKt.kingdomComputationDetails {
@@ -353,11 +392,7 @@ class TrusTeeV2MillTest {
             maxFrequency = 2
           }
           populationSpec = POPULATION_SPEC
-          eventDescriptor =
-            TrusTeeV2Kt.eventDescriptor {
-              descriptorSet = ProtoReflection.buildFileDescriptorSet(TestEvent.getDescriptor())
-              eventMessageType = TestEvent.getDescriptor().fullName
-            }
+          eventDescriptor = EVENT_DESCRIPTOR
           vidSamplingInterval =
             TrusTeeV2Kt.vidSamplingInterval {
               start = 0f
@@ -365,6 +400,9 @@ class TrusTeeV2MillTest {
             }
         }
     }
+
+    private val COMPUTATION_DETAILS_WITHOUT_EVENT_DESCRIPTOR: ComputationDetails =
+      COMPUTATION_DETAILS.copy { trusTeeV2 = trusTeeV2.copy { clearEventDescriptor() } }
 
     /** Returns a plaintext requisition of [DATA_PROVIDERS] entry [index], at [vectorIndex]. */
     private fun requisition(index: Int, vectorIndex: Int?): RequisitionMetadata {

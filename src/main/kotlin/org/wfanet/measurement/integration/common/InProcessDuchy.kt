@@ -353,6 +353,13 @@ class InProcessDuchy(
             override fun getKmsClient(config: ConfidentialSpaceToAwsWifCredentials): KmsClient =
               trusTeeKmsClient
           }
+        val trusTeeRequisitionDecryptor =
+          TrusTeeRequisitionDecryptor(
+            gcloudKmsClientFactory,
+            gcloudToAwsKmsClientFactory,
+            confidentialSpaceToAwsKmsClientFactory,
+            Paths.get("/dev/null"),
+          )
         val trusTeeMill =
           TrusTeeMill(
             millId = "$externalDuchyId trusTeeMill",
@@ -367,10 +374,7 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             workLockDuration = Duration.ofMinutes(5),
             trusTeeProcessorFactory = TrusTeeProcessorImpl,
-            gcloudKmsClientFactory = gcloudKmsClientFactory,
-            gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
-            confidentialSpaceToAwsKmsClientFactory = confidentialSpaceToAwsKmsClientFactory,
-            attestationTokenPath = Paths.get("/dev/null"),
+            requisitionDecryptor = trusTeeRequisitionDecryptor,
           )
         val trusTeeV2Mill =
           TrusTeeV2Mill(

@@ -123,9 +123,35 @@ class CellNoiseTest {
   }
 
   @Test
+  fun `sliceNoiser draws depend on the slice fingerprint and not the cell fingerprint`() {
+    val noise = CellNoise(TRUNCATED_LAPLACE, MEASUREMENT)
+
+    assertThat(draws(noise.sliceNoiser(testCell(fingerprint = byteArrayOf(1)), DATA_PROVIDER_A)))
+      .isEqualTo(draws(noise.sliceNoiser(testCell(fingerprint = byteArrayOf(2)), DATA_PROVIDER_A)))
+    assertThat(
+        draws(noise.sliceNoiser(testCell(sliceFingerprintA = byteArrayOf(1)), DATA_PROVIDER_A))
+      )
+      .isNotEqualTo(
+        draws(noise.sliceNoiser(testCell(sliceFingerprintA = byteArrayOf(2)), DATA_PROVIDER_A))
+      )
+  }
+
+  @Test
   fun `CellPrivacyParams throws for an unsupported noise mechanism`() {
     assertFailsWith<IllegalArgumentException> {
       CellPrivacyParams(NoiseMechanism.CONTINUOUS_GAUSSIAN, resultMinimumThresholds = null)
+    }
+  }
+
+  @Test
+  fun `CellPrivacyParams throws for an impression cap outside 1 to 127`() {
+    for (cap in listOf(0, Byte.MAX_VALUE + 1)) {
+      assertFailsWith<IllegalArgumentException> {
+        CellPrivacyParams(
+          NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+          ResultMinimumThresholds(minUsers = 1, minImpressions = 1, reachMaxFrequencyPerUser = cap),
+        )
+      }
     }
   }
 
@@ -181,6 +207,7 @@ class CellNoiseTest {
       queryId: String = "query",
       attributeValues: List<String?> = listOf("A"),
       fingerprint: ByteArray = byteArrayOf(0),
+      sliceFingerprintA: ByteArray = byteArrayOf(0),
     ) =
       QueryEvaluator.Cell(
         queryId = queryId,
@@ -192,6 +219,8 @@ class CellNoiseTest {
         sliceReach = mapOf(),
         summandDataProviders = setOf(DATA_PROVIDER_A, DATA_PROVIDER_B),
         fingerprint = fingerprint,
+        sliceFingerprints =
+          mapOf(DATA_PROVIDER_A to sliceFingerprintA, DATA_PROVIDER_B to byteArrayOf(0)),
       )
   }
 }

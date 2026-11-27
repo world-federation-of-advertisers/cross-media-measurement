@@ -235,10 +235,13 @@ class TrusTeeMillTest {
       computationStatsClient = computationStatsStub,
       workLockDuration = Duration.ofMinutes(5),
       trusTeeProcessorFactory = mockProcessorFactory,
-      gcloudKmsClientFactory = mockGcloudKmsClientFactory,
-      gcloudToAwsKmsClientFactory = mockGcloudToAwsKmsClientFactory,
-      confidentialSpaceToAwsKmsClientFactory = mockConfidentialSpaceToAwsKmsClientFactory,
-      attestationTokenPath = ATTESTATION_TOKEN_PATH,
+      requisitionDecryptor =
+        TrusTeeRequisitionDecryptor(
+          mockGcloudKmsClientFactory,
+          mockGcloudToAwsKmsClientFactory,
+          mockConfidentialSpaceToAwsKmsClientFactory,
+          ATTESTATION_TOKEN_PATH,
+        ),
     )
   }
 

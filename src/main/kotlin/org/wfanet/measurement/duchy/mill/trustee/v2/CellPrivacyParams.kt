@@ -48,6 +48,10 @@ class CellPrivacyParams(
       require(resultMinimumThresholds.minImpressions > 0) {
         "minImpressions must be greater than 0, got ${resultMinimumThresholds.minImpressions}"
       }
+      require(resultMinimumThresholds.reachMaxFrequencyPerUser in 1..Byte.MAX_VALUE) {
+        "reachMaxFrequencyPerUser must be in 1..${Byte.MAX_VALUE}, got " +
+          "${resultMinimumThresholds.reachMaxFrequencyPerUser}"
+      }
     }
   }
 

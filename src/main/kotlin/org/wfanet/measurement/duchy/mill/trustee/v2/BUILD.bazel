@@ -60,7 +60,6 @@ kt_jvm_library(
     visibility = [
         test_target(":__pkg__"),
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     deps = [
         ":query_evaluator",
@@ -69,6 +68,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:multi_party_computation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:query_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:noise_mechanism_kt_jvm_proto",
@@ -82,7 +82,6 @@ kt_jvm_library(
     visibility = [
         test_target(":__pkg__"),
         "//src/main/kotlin/org/wfanet/measurement/duchy/deploy:__subpackages__",
-        "//src/main/kotlin/org/wfanet/measurement/integration:__subpackages__",
     ],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [

@@ -202,6 +202,7 @@ class CellReleaserTest {
         sliceReach = mapOf(),
         summandDataProviders = setOf(),
         fingerprint = byteArrayOf(0),
+        sliceFingerprints = mapOf(),
       )
 
     private fun suppressedCell(binCount: Int) =

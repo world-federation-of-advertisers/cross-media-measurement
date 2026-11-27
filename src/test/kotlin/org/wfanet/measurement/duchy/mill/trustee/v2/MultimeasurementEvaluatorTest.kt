@@ -27,12 +27,16 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.Multimeasuremen
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.MultimeasurementResultKt.QueryResultKt
 import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.multimeasurementResult
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.api.v2alpha.TrusTeeV2Methodology
 import org.wfanet.measurement.api.v2alpha.populationAttributeValue
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.internal.duchy.NoiseMechanism
 import org.wfanet.measurement.internal.duchy.Query
+import org.wfanet.measurement.internal.duchy.VidFilterKt
+import org.wfanet.measurement.internal.duchy.copy
 import org.wfanet.measurement.internal.duchy.query
 import org.wfanet.measurement.internal.duchy.vectorSet
+import org.wfanet.measurement.internal.duchy.vidFilter
 
 @RunWith(JUnit4::class)
 class MultimeasurementEvaluatorTest {
@@ -58,6 +62,7 @@ class MultimeasurementEvaluatorTest {
               reachNoiseMechanism = ProtocolConfig.NoiseMechanism.NONE
               frequencyNoiseMechanism = ProtocolConfig.NoiseMechanism.NONE
               impressionNoiseMechanism = ProtocolConfig.NoiseMechanism.NONE
+              trusTeeV2 = TrusTeeV2Methodology.getDefaultInstance()
             }
         }
       )
@@ -125,6 +130,82 @@ class MultimeasurementEvaluatorTest {
     assertFailsWith<IllegalArgumentException> { evaluator.evaluate(VECTORS.take(2)) }
   }
 
+  @Test
+  fun `evaluate releases a cell independent of the vectors of a DataProvider whose slice failed`() {
+    // DATA_PROVIDER_A reaches every position, far above min_users; DATA_PROVIDER_B reaches two,
+    // far below it, so only B's slice fails under any noise draw.
+    val params =
+      CellPrivacyParams(
+        NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
+        ResultMinimumThresholds(minUsers = 100, minImpressions = 1),
+      )
+    val vectorA = ByteArray(LARGE_VECTOR_SIZE) { 1 }
+    val vectorB = ByteArray(LARGE_VECTOR_SIZE).also { it[0] = 1 }
+    val otherVectorB = ByteArray(LARGE_VECTOR_SIZE).also { it[3] = 2 }
+
+    val result = evaluateTwoDataProviders(params, vectorA, vectorB)
+    val resultWithOtherB = evaluateTwoDataProviders(params, vectorA, otherVectorB)
+
+    assertThat(result.queryResultsList.single().cellsList.single().suppressed).isFalse()
+    assertThat(resultWithOtherB.toByteString()).isEqualTo(result.toByteString())
+  }
+
+  @Test
+  fun `corrective pass suppresses an intersection whose DataProvider failed`() {
+    // Reach of A AND B: with B read as zero, no VID is in the intersection.
+    val intersection = query {
+      id = QUERY_ID
+      summands = vectorSet { baseVectors += listOf(0, 1, 2) }
+      vidFilter = vidFilter {
+        reachClauses +=
+          VidFilterKt.reachClause {
+            reachedSets += vectorSet { baseVectors += listOf(0, 1) }
+            reachedSets += vectorSet { baseVectors += 2 }
+          }
+      }
+      maxFrequency = 3
+    }
+    val correctivePass =
+      QueryEvaluator.corrective(
+        listOf(intersection),
+        DATA_PROVIDERS,
+        SingleSubpopulationIndex,
+        mapOf(QueryEvaluator.CellKey(QUERY_ID, emptyList()) to setOf(DATA_PROVIDER_B)),
+      )
+    for (chunk in chunksOf(VECTORS)) {
+      correctivePass.add(chunk)
+    }
+    val cell: QueryEvaluator.Cell = correctivePass.cells().single()
+    val thresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 1)
+    val releaser =
+      CellReleaser(
+        thresholds,
+        CellNoise(CellPrivacyParams(NoiseMechanism.NONE, thresholds), MEASUREMENT),
+        FULL_SAMPLING_WIDTH,
+      )
+
+    assertThat(cell.reach).isEqualTo(0L)
+    assertThat(releaser.release(cell).suppressed).isTrue()
+  }
+
+  @Test
+  fun `evaluate throws for a query with no summands`() {
+    val query = testQuery(groupingPaths = listOf()).copy { clearSummands() }
+
+    assertFailsWith<IllegalArgumentException> { evaluate(query, NO_NOISE) }
+  }
+
+  /** Every position falls in the one subpopulation, which has no attributes. */
+  private object SingleSubpopulationIndex : SubpopulationIndex {
+    override val subpopulationCount: Int = 1
+
+    override fun subpopulationOf(position: Int): Int = 0
+
+    override fun attributeValue(subpopulation: Int, path: String): String? = null
+
+    override fun populationSize(subpopulation: Int): Long = LARGE_VECTOR_SIZE.toLong()
+  }
+
   /** Even positions fall in subpopulation 0 ([YOUNG]), odd ones in subpopulation 1 ([OLD]). */
   private object ParitySubpopulationIndex : SubpopulationIndex {
     override val subpopulationCount: Int = 2
@@ -177,6 +258,39 @@ class MultimeasurementEvaluatorTest {
           MEASUREMENT,
         )
         .evaluate(VECTORS)
+
+    private const val LARGE_VECTOR_SIZE = 1000
+
+    /** Evaluates one cell over vector 0 of [DATA_PROVIDER_A] and vector 1 of [DATA_PROVIDER_B]. */
+    private fun evaluateTwoDataProviders(
+      params: CellPrivacyParams,
+      vectorA: ByteArray,
+      vectorB: ByteArray,
+    ): MultimeasurementResult =
+      MultimeasurementEvaluator(
+          listOf(
+            query {
+              id = QUERY_ID
+              summands = vectorSet { baseVectors += listOf(0, 1) }
+              maxFrequency = 3
+            }
+          ),
+          listOf(DATA_PROVIDER_A, DATA_PROVIDER_B),
+          SingleSubpopulationIndex,
+          FULL_SAMPLING_WIDTH,
+          params,
+          MEASUREMENT,
+        )
+        .evaluate(listOf(vectorA, vectorB))
+
+    /** Returns [vectors] as a single chunk starting at position 0. */
+    private fun chunksOf(vectors: List<ByteArray>): List<QueryEvaluator.VectorChunk> =
+      listOf(
+        QueryEvaluator.VectorChunk(
+          0,
+          vectors.map { vector -> IntArray(vector.size) { vector[it].toInt() and 0xFF } },
+        )
+      )
 
     private fun evaluateSingleCell(
       params: CellPrivacyParams
