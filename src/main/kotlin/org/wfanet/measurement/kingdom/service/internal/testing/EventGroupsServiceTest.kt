@@ -69,6 +69,7 @@ import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.filter
 import org.wfanet.measurement.internal.kingdom.StreamEventGroupsRequestKt.orderBy
 import org.wfanet.measurement.internal.kingdom.batchCreateEventGroupsRequest
+import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupsResponse
@@ -2575,6 +2576,89 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
         .toList()
     assertThat(responseNoMatch).isEmpty()
+  }
+
+  @Test
+  fun `streamEventGroups preserves activity gaps and isolates activity deletions`() = runBlocking {
+    val measurementConsumer =
+      population.createMeasurementConsumer(measurementConsumersService, accountsService)
+    val dataProvider = population.createDataProvider(dataProvidersService)
+    val eventGroups =
+      listOf(PROVIDED_EVENT_GROUP_ID, PROVIDED_EVENT_GROUP_ID_2).map { providedId ->
+        eventGroupsService.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = eventGroup {
+              externalDataProviderId = dataProvider.externalDataProviderId
+              externalMeasurementConsumerId = measurementConsumer.externalMeasurementConsumerId
+              providedEventGroupId = providedId
+            }
+          }
+        )
+      }
+    val january1 = date {
+      year = 2023
+      month = 1
+      day = 1
+    }
+    val january3 = january1.copy { day = 3 }
+    val activeDates = listOf(january1, january3)
+    for (group in eventGroups) {
+      eventGroupActivitiesService.batchUpdateEventGroupActivities(
+        batchUpdateEventGroupActivitiesRequest {
+          externalDataProviderId = dataProvider.externalDataProviderId
+          externalEventGroupId = group.externalEventGroupId
+          for (activeDate in activeDates) {
+            requests += updateEventGroupActivityRequest {
+              eventGroupActivity = eventGroupActivity { date = activeDate }
+              allowMissing = true
+            }
+          }
+        }
+      )
+    }
+
+    val january1Request = streamEventGroupsRequest {
+      view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+      filter = filter {
+        externalDataProviderIdIn += dataProvider.externalDataProviderId
+        activityContains = dateInterval {
+          startDate = january1
+          endDate = january1
+        }
+      }
+    }
+    val groupsActiveOnJanuary1 = eventGroupsService.streamEventGroups(january1Request).toList()
+    assertThat(groupsActiveOnJanuary1.map { it.externalEventGroupId })
+      .containsExactlyElementsIn(eventGroups.map { it.externalEventGroupId })
+    val expectedIntervals =
+      activeDates.map { activeDate ->
+        dateInterval {
+          startDate = activeDate
+          endDate = activeDate
+        }
+      }
+    for (group in groupsActiveOnJanuary1) {
+      assertThat(group.aggregatedActivitiesList.map { it.interval })
+        .containsExactlyElementsIn(expectedIntervals)
+    }
+
+    val spanningGapRequest =
+      january1Request.copy {
+        filter = filter.copy { activityContains = activityContains.copy { endDate = january3 } }
+      }
+    assertThat(eventGroupsService.streamEventGroups(spanningGapRequest).toList()).isEmpty()
+
+    eventGroupActivitiesService.batchDeleteEventGroupActivities(
+      batchDeleteEventGroupActivitiesRequest {
+        externalDataProviderId = dataProvider.externalDataProviderId
+        externalEventGroupId = eventGroups.first().externalEventGroupId
+        externalEventGroupActivityIds += january1
+      }
+    )
+
+    val remainingGroup = eventGroupsService.streamEventGroups(january1Request).single()
+    assertThat(remainingGroup.externalEventGroupId)
+      .isEqualTo(eventGroups.last().externalEventGroupId)
   }
 
   @Test
