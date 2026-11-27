@@ -24,6 +24,7 @@ import org.wfanet.measurement.duchy.utils.key
 import org.wfanet.measurement.duchy.utils.toDuchyDifferentialPrivacyParams
 import org.wfanet.measurement.duchy.utils.toKingdomComputationDetails
 import org.wfanet.measurement.duchy.utils.toRequisitionEntries
+import org.wfanet.measurement.internal.duchy.ComputationStage
 import org.wfanet.measurement.internal.duchy.ComputationToken
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
@@ -108,31 +109,60 @@ object TrusTeeStarter {
 
     val stage = token.computationStage.trusTee
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
-    when (stage) {
-      // Expect WAIT_TO_START for the first non-aggregator duchy.
-      Stage.WAIT_TO_START -> {
+    val action: StartAction =
+      when (stage) {
+        Stage.WAIT_TO_START -> StartAction.START
+        Stage.INITIALIZED -> StartAction.NOT_READY
+        Stage.COMPUTING,
+        Stage.COMPLETE -> StartAction.ALREADY_STARTED
+        Stage.STAGE_UNSPECIFIED,
+        Stage.UNRECOGNIZED -> error("[id=${token.globalComputationId}]: Unrecognized stage $stage")
+      }
+    applyStartAction(
+      token,
+      computationStorageClient,
+      action,
+      computingStage = Stage.COMPUTING.toProtocolStage(),
+    )
+  }
+
+  /** What a start request does to a TrusTEE computation, by its stage. */
+  internal enum class StartAction {
+    /** The computation is waiting to start, so it starts. */
+    START,
+    /** The computation is not yet waiting to start, so the request is skipped. */
+    NOT_READY,
+    /** The computation has already started, so the request is skipped. */
+    ALREADY_STARTED,
+  }
+
+  /**
+   * Advances [token] to [computingStage] if [action] is [StartAction.START], and otherwise logs why
+   * the start request is skipped.
+   */
+  internal suspend fun applyStartAction(
+    token: ComputationToken,
+    computationStorageClient: ComputationsGrpcKt.ComputationsCoroutineStub,
+    action: StartAction,
+    computingStage: ComputationStage,
+  ) {
+    val stage: ComputationStage = token.computationStage
+    when (action) {
+      StartAction.START -> {
         computationStorageClient.advanceComputationStage(
           computationToken = token,
-          stage = Stage.COMPUTING.toProtocolStage(),
+          stage = computingStage,
         )
         logger.log(Level.INFO) { "[id=${token.globalComputationId}] Computation starts." }
       }
-      // Stage that should not be reached.
-      Stage.INITIALIZED ->
+      StartAction.NOT_READY ->
         logger.log(Level.WARNING) {
           "[id=${token.globalComputationId}]: Computation is not ready to start. stage=$stage."
         }
-      // Log and skip for future Stages.
-      Stage.COMPUTING,
-      Stage.COMPLETE -> {
+      StartAction.ALREADY_STARTED ->
         logger.log(Level.WARNING) {
           "[id=${token.globalComputationId}]: Computation has started. Skip start request. stage=$stage."
         }
-      }
-      Stage.STAGE_UNSPECIFIED,
-      Stage.UNRECOGNIZED -> {
-        error("[id=${token.globalComputationId}]: Unrecognized stage $stage")
-      }
     }
   }
 
