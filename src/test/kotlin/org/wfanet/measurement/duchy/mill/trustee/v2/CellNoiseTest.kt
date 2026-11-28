@@ -169,6 +169,16 @@ class CellNoiseTest {
     assertThat(NO_NOISE.impressionCap).isNull()
   }
 
+  @Test
+  fun `compiled-in TrusTEE v2 params noise every cell with truncated Laplace`() {
+    val noise = CellNoise(TrusTeeV2PrivacyParams.CELL_PRIVACY_PARAMS, MEASUREMENT)
+
+    assertThat(noise.publicNoiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+    assertThat(TrusTeeV2PrivacyParams.CELL_PRIVACY_PARAMS.impressionCap)
+      .isEqualTo(TrusTeeV2PrivacyParams.REACH_MAX_FREQUENCY_PER_USER)
+  }
+
   companion object {
     private const val MEASUREMENT = "measurementConsumers/mc/measurements/m"
     private const val DATA_PROVIDER_A = "a"
