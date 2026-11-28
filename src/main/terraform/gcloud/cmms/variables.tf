@@ -356,7 +356,7 @@ variable "duchy_aggregator_cert_id" {
 }
 
 variable "trustee_v2_mill_flags" {
-  description = "Flags of the TrusTEE v2 Mill, such as its noise mechanism and result thresholds. The TrusTEE Mill runs the TrusTEE v2 Mill only when these are set."
+  description = "Flags of the TrusTEE v2 Mill, such as --trus-tee-v2-enabled and its fallback event descriptor. Its privacy params are compiled into the image."
   type        = list(string)
   default     = []
 }
