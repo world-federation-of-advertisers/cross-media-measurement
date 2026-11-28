@@ -479,6 +479,7 @@ package k8s
 				"reporting-v2alpha-public-api-server-app",
 				"report-scheduling-app",
 				"report-result-post-processor-app",
+				"basic-reports-multimeasurement-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres and Spanner.
@@ -532,6 +533,13 @@ package k8s
 			}
 		}
 		"report-result-post-processor": {
+			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
+			_egresses: {
+				// Needs to call out to Kingdom.
+				any: {}
+			}
+		}
+		"basic-reports-multimeasurement": {
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_egresses: {
 				// Needs to call out to Kingdom.
