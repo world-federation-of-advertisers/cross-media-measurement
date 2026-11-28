@@ -83,6 +83,7 @@ import ("strings")
 		"--direct-noise-mechanism=NONE",
 		"--direct-noise-mechanism=CONTINUOUS_LAPLACE",
 		"--direct-noise-mechanism=CONTINUOUS_GAUSSIAN",
+		"--direct-noise-mechanism=DETERMINISTIC_TRUNCATED_LAPLACE",
 	]
 
 	_kingdomCompletedMeasurementsTimeToLiveFlag:            "--time-to-live=\(_completedMeasurementsTimeToLive)"
@@ -199,6 +200,14 @@ import ("strings")
 				_dependencies: ["gcp-kingdom-data-server"]
 			}
 		}
+	}
+
+	deploymentPodDisruptionBudgets: [Name=string]: #PodDisruptionBudget & {
+		metadata: {
+			_component: "kingdom"
+			name:       Name
+		}
+		spec: selector: deployments[Name].spec.selector
 	}
 
 	cronJobs: [Name=_]: #CronJob & {

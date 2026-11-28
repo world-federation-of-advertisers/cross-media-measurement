@@ -61,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.Population
@@ -91,6 +92,7 @@ import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.MC_DISPLAY_NAME
+import org.wfanet.measurement.integration.common.PopulationSetup
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.integration.common.createEntityContent
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
@@ -351,6 +353,7 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
         MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
+        ModelLinesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         buildEventQuery(resourceInfo.dataProviders.values.map { it.name }),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
@@ -405,7 +408,12 @@ class EmptyClusterCorrectnessTest : AbstractCorrectnessTest(measurementSystem) {
     }
 
     private fun buildKingdomPublicApiChannel(target: String, clientCerts: SigningCerts): Channel {
-      return buildMutualTlsChannel(target, clientCerts).also { channels.add(it) }
+      return buildMutualTlsChannel(
+          target,
+          clientCerts,
+          defaultServiceConfig = PopulationSetup.SERVICE_CONFIG,
+        )
+        .also { channels.add(it) }
     }
 
     private suspend fun createReportingUserSimulator(

@@ -123,8 +123,24 @@ class DeadLetterQueueListenerTest {
 
     verify(fixture.workItemsStub, timeout(5_000))
       .processWorkItemDeadLetter(requestCaptor.capture(), any())
-    assertEquals(WORK_ITEM_NAME, requestCaptor.firstValue.workItemResourceId)
+    assertEquals("test-work-item", requestCaptor.firstValue.workItemResourceId)
     assertEquals(7L, requestCaptor.firstValue.expectedWorkItemGeneration)
+    verify(fixture.message, timeout(5_000)).ack()
+    fixture.close()
+  }
+
+  @Test
+  fun `legacy bare identifier is sent unchanged with generation one`(): Unit = runBlocking {
+    val item = workItem { name = "test-work-item" }
+    val requestCaptor = argumentCaptor<ProcessWorkItemDeadLetterRequest>()
+    val fixture = fixture(item, terminalWorkItemsStub())
+
+    fixture.channel.send(fixture.message)
+
+    verify(fixture.workItemsStub, timeout(5_000))
+      .processWorkItemDeadLetter(requestCaptor.capture(), any())
+    assertEquals("test-work-item", requestCaptor.firstValue.workItemResourceId)
+    assertEquals(1L, requestCaptor.firstValue.expectedWorkItemGeneration)
     verify(fixture.message, timeout(5_000)).ack()
     fixture.close()
   }

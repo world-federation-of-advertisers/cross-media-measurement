@@ -23,7 +23,8 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.api.v2alpha.DataProviderImpressionQueryResponse
-import org.wfanet.measurement.api.v2alpha.ImpressionQueryKt.entityKey
+import org.wfanet.measurement.api.v2alpha.EventGroupKt.entityKey
+import org.wfanet.measurement.api.v2alpha.ImpressionQueryKt.entity
 import org.wfanet.measurement.api.v2alpha.dataProviderImpressionQueryRequest
 import org.wfanet.measurement.api.v2alpha.impressionQuery
 import org.wfanet.measurement.common.toDuration
@@ -40,11 +41,13 @@ import org.wfanet.measurement.config.edpaggregator.DataProviderValidationConfigs
  *
  * @param configs per-DataProvider validation configurations.
  * @param client HTTP client for calling cloud functions.
+ * @param logMeasurementValues Whether to include measurement values in diagnostic logs.
  * @param metrics OpenTelemetry metrics.
  */
 class EdpValidationPostProcessor(
   private val configs: DataProviderValidationConfigs,
   private val client: ValidationCloudFunctionClient,
+  private val logMeasurementValues: Boolean,
   private val metrics: EdpValidationMetrics = EdpValidationMetrics(),
 ) {
 
@@ -154,9 +157,11 @@ class EdpValidationPostProcessor(
         requestId = stableRequestId(dataProviderName, row)
         this.dataProvider = dataProviderName
         query = impressionQuery {
-          entityKeys += entityKey {
-            entityType = row.entityType
-            entityId = row.entityId
+          entities += entity {
+            entityKey = entityKey {
+              entityType = row.entityType
+              entityId = row.entityId
+            }
           }
           timeInterval =
             com.google.type.interval {
@@ -213,7 +218,11 @@ class EdpValidationPostProcessor(
       when {
         response.hasSkipped() -> {
           logger.info(
-            "Validation skipped for $dataProviderName: ${response.skipped.reason} - ${response.skipped.detail}"
+            if (logMeasurementValues) {
+              "Validation skipped for $dataProviderName: ${response.skipped.reason} - ${response.skipped.detail}"
+            } else {
+              "Validation skipped for $dataProviderName: ${response.skipped.reason}"
+            }
           )
           metrics.skippedQueriesCounter.add(
             1,
@@ -237,8 +246,12 @@ class EdpValidationPostProcessor(
           if (publisherCount < minimumImpressionCount) {
             // Publisher count is below the configured floor; skip validation without comparing.
             logger.info(
-              "Validation SKIPPED for $dataProviderName entity ${row.entityId}: publisher count " +
-                "$publisherCount below minimum $minimumImpressionCount"
+              if (logMeasurementValues) {
+                "Validation SKIPPED for $dataProviderName entity ${row.entityId}: publisher count " +
+                  "$publisherCount below minimum $minimumImpressionCount"
+              } else {
+                "Validation SKIPPED for $dataProviderName entity ${row.entityId}: below minimum count"
+              }
             )
             metrics.skippedQueriesCounter.add(
               1,
@@ -302,19 +315,27 @@ class EdpValidationPostProcessor(
                   ToleranceEvaluator.Verdict.FAIL -> {
                     logger.log(
                       Level.SEVERE,
-                      "Validation FAILED for $dataProviderName entity ${row.entityId}: " +
-                        "reported=${evaluation.reportedCount}, publisher=$publisherCount, " +
-                        "expected=${evaluation.expectedCount}, deviation=${evaluation.deviationFraction}, " +
-                        "tolerance=${evaluation.effectiveTolerance}",
+                      if (logMeasurementValues) {
+                        "Validation FAILED for $dataProviderName entity ${row.entityId}: " +
+                          "reported=${evaluation.reportedCount}, publisher=$publisherCount, " +
+                          "expected=${evaluation.expectedCount}, deviation=${evaluation.deviationFraction}, " +
+                          "tolerance=${evaluation.effectiveTolerance}"
+                      } else {
+                        "Validation FAILED for $dataProviderName entity ${row.entityId}"
+                      },
                     )
                     anyFailed = true
                   }
                   ToleranceEvaluator.Verdict.WARNING ->
                     logger.log(
                       Level.WARNING,
-                      "Validation WARNING for $dataProviderName entity ${row.entityId}: " +
-                        "reported=${evaluation.reportedCount}, publisher=$publisherCount, " +
-                        "expected=${evaluation.expectedCount}, deviation=${evaluation.deviationFraction}",
+                      if (logMeasurementValues) {
+                        "Validation WARNING for $dataProviderName entity ${row.entityId}: " +
+                          "reported=${evaluation.reportedCount}, publisher=$publisherCount, " +
+                          "expected=${evaluation.expectedCount}, deviation=${evaluation.deviationFraction}"
+                      } else {
+                        "Validation WARNING for $dataProviderName entity ${row.entityId}"
+                      },
                     )
                   ToleranceEvaluator.Verdict.PASS ->
                     logger.fine("Validation PASSED for $dataProviderName entity ${row.entityId}")

@@ -48,6 +48,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRelease
 import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRollout
@@ -71,6 +72,7 @@ import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
+import org.wfanet.measurement.integration.common.PopulationSetup
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -246,10 +248,13 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
         MeasurementsGrpcKt.MeasurementsCoroutineStub(publicApiChannel),
         MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub(publicApiChannel),
         CertificatesGrpcKt.CertificatesCoroutineStub(publicApiChannel),
+        ModelLinesCoroutineStub(publicApiChannel),
         MEASUREMENT_CONSUMER_SIGNING_CERTS.trustedCertificates,
         buildEventQuery(TEST_CONFIG.eventDataProvidersList),
         ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN,
         kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
+        initialResultPollingDelay = Duration.ofSeconds(1),
+        maximumResultPollingDelay = Duration.ofSeconds(5),
       )
     }
 
@@ -335,6 +340,7 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           TEST_CONFIG.kingdomPublicApiTarget,
           clientCerts,
           TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+          defaultServiceConfig = PopulationSetup.SERVICE_CONFIG,
         )
         .also { channels.add(it) }
     }

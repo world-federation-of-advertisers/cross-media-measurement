@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.common
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
@@ -88,13 +89,13 @@ abstract class InProcessDirectMeasurementIntegrationTest(
   @Test
   fun `create an impression measurement and check the result is equal to the expected result`() =
     runBlocking {
-      mcSimulator.testImpression("1234")
+      mcSimulator.testImpression("1234", resultPollingTimeout = Duration.ofMinutes(1))
     }
 
   @Test
   fun `create a duration measurement and check the result is equal to the expected result`() =
     runBlocking {
-      mcSimulator.testDuration("1234")
+      mcSimulator.testDuration("1234", resultPollingTimeout = Duration.ofMinutes(1))
     }
 
   @Test
@@ -111,6 +112,7 @@ abstract class InProcessDirectMeasurementIntegrationTest(
         createModelLineRequest {
           parent = modelSuite.name
           modelLine = modelLine {
+            eventTemplateVersion = 1
             activeStartTime = MODEL_LINE_ACTIVE_START_TIME
             type = ModelLine.Type.PROD
           }
@@ -147,6 +149,7 @@ abstract class InProcessDirectMeasurementIntegrationTest(
       modelLine.name,
       DEFAULT_POPULATION_FILTER_EXPRESSION,
       TestEvent.getDescriptor(),
+      configuredEventTemplateVersion = null,
     )
   }
 

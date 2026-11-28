@@ -24,6 +24,8 @@ _reportingMcConfigSecretName:                         string @tag("mc_config_sec
 objectSets: [ for objectSet in reporting {objectSet}]
 
 reporting: #Reporting & {
+	_logMeasurementValues:                       true
+	_logNoiseCorrectionValues:                   true
 	_populationDataProviderName:                 _pdpName
 	_basicReportsEnabled:                        _reportingBasicReportsEnabled
 	_reportingSetReportingUnitComponentsEnabled: _reportingReportingSetReportingUnitComponentsEnabled

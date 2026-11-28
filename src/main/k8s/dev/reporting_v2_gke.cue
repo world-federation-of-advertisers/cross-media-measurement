@@ -57,6 +57,16 @@ _accessPublicApiAddressName:                          "access-public"
 	}
 }
 
+#CronJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "512Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 // External exposure for the MCP server (Option B): a GKE Ingress terminates
 // HTTPS with a Google-managed certificate and forwards HTTP to the in-cluster
 // plain-HTTP MCP service, so the server itself stays unchanged.
@@ -100,6 +110,7 @@ objectSets: [
 	reporting.services,
 	reporting.cronJobs,
 	reporting.networkPolicies,
+	reporting.deploymentPodDisruptionBudgets,
 	if _mcpHost != "" && _oauthIssuer != "" {[_reportingMcpManagedCertificate, _reportingMcpIngress]},
 ]
 
@@ -123,6 +134,18 @@ reporting: #Reporting & {
 	}
 
 	_verboseGrpcServerLogging: true
+	if _measurementValueLoggingEnabled {
+		_logMeasurementValues: true
+	}
+	if !_measurementValueLoggingEnabled {
+		_logMeasurementValues: false
+	}
+	if _noiseCorrectionValueLoggingEnabled {
+		_logNoiseCorrectionValues: true
+	}
+	if !_noiseCorrectionValueLoggingEnabled {
+		_logNoiseCorrectionValues: false
+	}
 
 	serviceAccounts: {
 		"\(#InternalServerServiceAccount)": #WorkloadIdentityServiceAccount & {
@@ -134,6 +157,11 @@ reporting: #Reporting & {
 	}
 
 	configMaps: "java": #JavaConfigMap
+
+	deploymentPodDisruptionBudgets: {
+		"access-internal-api-server": spec: minAvailable: 1
+		"access-public-api-server": spec: minAvailable:   1
+	}
 
 	deployments: {
 		"postgres-internal-reporting-server": {
@@ -176,8 +204,45 @@ reporting: #Reporting & {
 			}
 		}
 		"access-internal-api-server": {
-			spec: template: spec: #ServiceAccountPodSpec & {
-				serviceAccountName: #InternalAccessServerServiceAccount
+			spec: {
+				replicas: 2
+				template: spec: #ServiceAccountPodSpec & {
+					serviceAccountName: #InternalAccessServerServiceAccount
+					// Require separate nodes for authorization availability during node drains.
+					topologySpreadConstraints: [{
+						maxSkew:           1
+						minDomains:        2
+						topologyKey:       "kubernetes.io/hostname"
+						whenUnsatisfiable: "DoNotSchedule"
+						labelSelector:     reporting.deployments["access-internal-api-server"].spec.selector
+					}]
+				}
+			}
+		}
+		"access-public-api-server": spec: {
+			replicas: 2
+			// Prefer separate nodes without blocking scheduling when capacity is limited.
+			template: spec: topologySpreadConstraints: [{
+				maxSkew:           1
+				topologyKey:       "kubernetes.io/hostname"
+				whenUnsatisfiable: "ScheduleAnyway"
+				labelSelector:     reporting.deployments["access-public-api-server"].spec.selector
+			}]
+		}
+	}
+
+	cronJobs: {
+		"report-scheduling": {
+			_container: {
+				resources: #CronJobResourceRequirements
+			}
+		}
+		"report-result-post-processor": {
+			_container: {
+				resources: #CronJobResourceRequirements
+			}
+			spec: jobTemplate: spec: template: spec: _initContainers: "basic-reports-reports": {
+				resources: #CronJobResourceRequirements
 			}
 		}
 	}

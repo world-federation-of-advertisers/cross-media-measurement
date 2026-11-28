@@ -15,11 +15,17 @@
 package k8s
 
 #Reporting: Reporting={
+	_logMeasurementValues:     bool | *false
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
+	// Allows aggregate report-result values to be written to application logs.
+	// Enable only where log access and retention policy permit it.
+	_logNoiseCorrectionValues:      bool | *false
+	_reportResultValidationEnabled: bool | *true
+	_reportResultCorrectionEnabled: bool | *true
 	// These values are conservative upper bounds across all policies that could have produced a
 	// pending result, not necessarily the thresholds currently used by any one EDP. An empty EDP
 	// list and zero threshold settings disable potential Direct threshold correction.
@@ -201,6 +207,7 @@ package k8s
 
 		"reporting-v2alpha-public-api-server": #ServerDeployment & {
 			_container: args: [
+						"--log-measurement-values=\(Reporting._logMeasurementValues)",
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
 						_reportingCertCollectionFileFlag,
@@ -335,6 +342,14 @@ package k8s
 		}
 	}
 
+	deploymentPodDisruptionBudgets: [Name=string]: #PodDisruptionBudget & {
+		metadata: {
+			_component: "reporting"
+			name:       Name
+		}
+		spec: selector: deployments[Name].spec.selector
+	}
+
 	cronJobs: [Name=_]: #CronJob & {
 		_name:       Name
 		_secretName: Reporting._secretName
@@ -349,6 +364,7 @@ package k8s
 	cronJobs: {
 		"report-scheduling": {
 			_container: args: [
+						"--log-measurement-values=\(Reporting._logMeasurementValues)",
 						_debugVerboseGrpcClientLoggingFlag,
 						_debugVerboseGrpcServerLoggingFlag,
 						_reportingCertCollectionFileFlag,
@@ -377,6 +393,9 @@ package k8s
 			_container: {
 				args: [
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+					"--log-noise-correction-values=\(_logNoiseCorrectionValues)",
+					"--enable-validation=\(_reportResultValidationEnabled)",
+					"--enable-correction=\(_reportResultCorrectionEnabled)",
 					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
 					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
 				] + [ for edp in _potentialDirectThresholdingEdps {
@@ -396,6 +415,7 @@ package k8s
 					_initContainers: "basic-reports-reports": Container={
 						image: _images[Container.name]
 						args:  [
+							"--log-measurement-values=\(Reporting._logMeasurementValues)",
 							_debugVerboseGrpcClientLoggingFlag,
 							_debugVerboseGrpcServerLoggingFlag,
 							_reportingCertCollectionFileFlag,

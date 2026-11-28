@@ -11,6 +11,7 @@ _DEFAULT_VISIBILITY = [
     "//src/test/kotlin/org/wfanet/measurement/duchy/mill/trustee:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:__subpackages__",
     "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:__pkg__",
+    "//src/test/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/common:__pkg__",
 ]
 
 package(default_visibility = _DEFAULT_VISIBILITY)

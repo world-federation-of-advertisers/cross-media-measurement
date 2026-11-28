@@ -24,14 +24,13 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
-import kotlinx.coroutines.flow.take
-import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -75,6 +74,7 @@ class DataAvailabilityMonitor(
   private val storageClient: StorageClient,
   private val edpImpressionPath: String,
   private val activeModelLines: Set<ModelLineKey>,
+  private val monitoringWindows: Map<String, MonitoringWindow> = emptyMap(),
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub?,
   private val dataProviderName: String?,
   private val clock: () -> Instant = { Instant.now() },
@@ -84,6 +84,26 @@ class DataAvailabilityMonitor(
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
     require(activeModelLines.isNotEmpty()) { "activeModelLines must not be empty" }
     require(dataProviderName?.isNotBlank() != false) { "dataProviderName must not be blank" }
+    val activeModelLineNames = activeModelLines.mapTo(mutableSetOf(), ModelLineKey::toName)
+    require(monitoringWindows.keys.all { it in activeModelLineNames }) {
+      "Every monitored cutover model line must be present in activeModelLines"
+    }
+  }
+
+  /** Inclusive storage-date boundaries over which a model line is required. */
+  data class MonitoringWindow(
+    val startDate: LocalDate? = null,
+    val endDateInclusive: LocalDate? = null,
+  ) {
+    init {
+      require(startDate == null || endDateInclusive == null || startDate <= endDateInclusive) {
+        "startDate must be on or before endDateInclusive"
+      }
+    }
+
+    fun contains(date: LocalDate): Boolean =
+      (startDate == null || date >= startDate) &&
+        (endDateInclusive == null || date <= endDateInclusive)
   }
 
   /**
@@ -198,9 +218,11 @@ class DataAvailabilityMonitor(
 
     val statuses =
       activeModelLines.map { modelLineKey ->
+        val window = monitoringWindows[modelLineKey.toName()]
         val dateInfo =
           getDateInfoForModelLine(modelLineKey, spuriousDeletionInterval, unprocessedDoneThreshold)
-        buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays)
+            .within(window)
+        buildFullStatus(modelLineKey, dateInfo, today, maxStaleDays, window)
       }
     statuses.forEach { recordMetrics(it) }
     return MonitorResult(statuses = statuses)
@@ -218,8 +240,11 @@ class DataAvailabilityMonitor(
   suspend fun checkGaps(unprocessedDoneThreshold: Duration): MonitorResult {
     val statuses =
       activeModelLines.map { modelLineKey ->
-        val dateInfo = getDateInfoForModelLine(modelLineKey, null, unprocessedDoneThreshold)
-        buildGapStatus(modelLineKey, dateInfo)
+        val window = monitoringWindows[modelLineKey.toName()]
+        val dateInfo =
+          getDateInfoForModelLine(modelLineKey, null, unprocessedDoneThreshold).within(window)
+        val today = clock().atZone(ZoneOffset.UTC).toLocalDate()
+        buildGapStatus(modelLineKey, dateInfo, window, today)
       }
     statuses.forEach { recordMetrics(it) }
     return MonitorResult(statuses = statuses)
@@ -230,17 +255,20 @@ class DataAvailabilityMonitor(
     dateInfo: DateInfo,
     today: LocalDate,
     maxStaleDays: Int,
+    monitoringWindow: MonitoringWindow?,
   ): ModelLineStatus {
     val modelLineName = modelLineKey.toName()
     val uploadedDates = dateInfo.datesWithDoneBlob
     if (uploadedDates.isEmpty()) {
+      val gapDates =
+        monitoringWindow?.let { findRequiredGapDates(dateInfo, monitoringWindow, today) }
       logger.warning("No uploaded dates found for model line: $modelLineName. Check configuration.")
       return ModelLineStatus(
         modelLineKey = modelLineKey,
         isStale = null,
         latestDate = today,
         earliestDate = null,
-        gapDates = null,
+        gapDates = gapDates,
         staleDays = null,
         zeroImpressionDates = null,
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
@@ -256,10 +284,12 @@ class DataAvailabilityMonitor(
 
     val sortedDates = uploadedDates.sorted()
     val latestDate = sortedDates.last()
-    val staleDays = (today.toEpochDay() - latestDate.toEpochDay()).toInt()
+    val stalenessReferenceDate =
+      monitoringWindow?.endDateInclusive?.let { minOf(today, it) } ?: today
+    val staleDays =
+      (stalenessReferenceDate.toEpochDay() - latestDate.toEpochDay()).toInt().coerceAtLeast(0)
     val isStale = staleDays > maxStaleDays
-    val gapDates =
-      DataAvailabilityBlobs.findGaps(dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob)
+    val gapDates = findRequiredGapDates(dateInfo, monitoringWindow, today)
 
     logger.log(
       Level.INFO,
@@ -295,17 +325,24 @@ class DataAvailabilityMonitor(
     )
   }
 
-  private fun buildGapStatus(modelLineKey: ModelLineKey, dateInfo: DateInfo): ModelLineStatus {
+  private fun buildGapStatus(
+    modelLineKey: ModelLineKey,
+    dateInfo: DateInfo,
+    monitoringWindow: MonitoringWindow?,
+    today: LocalDate,
+  ): ModelLineStatus {
     val modelLineName = modelLineKey.toName()
     val uploadedDates = dateInfo.datesWithDoneBlob
     if (uploadedDates.isEmpty()) {
+      val gapDates =
+        monitoringWindow?.let { findRequiredGapDates(dateInfo, monitoringWindow, today) }
       logger.warning("No uploaded dates found for model line: $modelLineName. Check configuration.")
       return ModelLineStatus(
         modelLineKey = modelLineKey,
         isStale = null,
         latestDate = LocalDate.MIN,
         earliestDate = null,
-        gapDates = null,
+        gapDates = gapDates,
         staleDays = null,
         zeroImpressionDates = null,
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
@@ -320,8 +357,7 @@ class DataAvailabilityMonitor(
     }
 
     val sortedDates = uploadedDates.sorted()
-    val gapDates =
-      DataAvailabilityBlobs.findGaps(dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob)
+    val gapDates = findRequiredGapDates(dateInfo, monitoringWindow, today)
 
     logger.log(
       Level.INFO,
@@ -407,7 +443,39 @@ class DataAvailabilityMonitor(
     val spuriousDeletionCount: Int?,
     val spuriousDeletionCountsByDate: Map<LocalDate, Int>?,
     val legitimateDeletionCount: Int?,
-  )
+  ) {
+    fun within(window: MonitoringWindow?): DateInfo {
+      if (window == null) return this
+      return copy(
+        datesWithDoneBlob = datesWithDoneBlob.filterTo(mutableSetOf(), window::contains),
+        zeroImpressionDates = zeroImpressionDates.filter(window::contains),
+        datesWithoutDoneBlob = datesWithoutDoneBlob.filter(window::contains),
+        lateArrivingDates = lateArrivingDates.filter(window::contains),
+        unprocessedDoneDates = unprocessedDoneDates.filter(window::contains),
+        unpublishedAvailabilityDates = unpublishedAvailabilityDates.filter(window::contains),
+        healthyDates = healthyDates.filter(window::contains),
+        spuriousDeletionCountsByDate = spuriousDeletionCountsByDate?.filterKeys(window::contains),
+      )
+    }
+  }
+
+  private fun findRequiredGapDates(
+    dateInfo: DateInfo,
+    monitoringWindow: MonitoringWindow?,
+    today: LocalDate,
+  ): List<LocalDate> {
+    val presentDates = dateInfo.datesWithDoneBlob + dateInfo.datesWithoutDoneBlob
+    if (monitoringWindow == null) return DataAvailabilityBlobs.findGaps(presentDates)
+
+    val expectedEnd =
+      minOf(monitoringWindow.endDateInclusive ?: today.minusDays(1), today.minusDays(1))
+    val expectedStart = monitoringWindow.startDate ?: presentDates.minOrNull() ?: return emptyList()
+    if (expectedStart > expectedEnd) return emptyList()
+    return generateSequence(expectedStart) { it.plusDays(1) }
+      .takeWhile { it <= expectedEnd }
+      .filter { it !in presentDates }
+      .toList()
+  }
 
   @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun getDateInfoForModelLine(
@@ -520,14 +588,14 @@ class DataAvailabilityMonitor(
     val healthyDatesList = mutableListOf<LocalDate>()
 
     val now = clock()
-    for ((date, doneBlob) in enumerated.datesWithDoneBlob) {
+    for ((date, doneBlobs) in enumerated.datesWithDoneBlob) {
       val dateString = date.toString()
 
       // Check if there is at least one non-done file with content
       val hasData =
-        storageClient.listBlobs("${prefix}$dateString/").take(2).toList().any {
-          !it.blobKey.endsWith("/done") && it.size > 0
-        }
+        storageClient.listBlobs("${prefix}$dateString/").firstOrNull {
+          !DataAvailabilityBlobs.isDoneBlob(it.blobKey) && it.size > 0
+        } != null
       if (!hasData) {
         zeroImpressionDatesList.add(date)
       }
@@ -540,26 +608,29 @@ class DataAvailabilityMonitor(
       //     rewritten data (the EDP overwrote a metadata blob after Sync ran; fresh GCS
       //     uploads replace prior user-set custom metadata).
       // Full Kingdom publication is tracked separately by matching per-attempt IDs on `done`.
-      val doneSynced = DataAvailabilityBlobs.isSynced(doneBlob)
+      val allDoneSynced = doneBlobs.all(DataAvailabilityBlobs::isSynced)
       val hasLateArrivals =
-        if (doneSynced) {
+        if (allDoneSynced) {
           storageClient.listBlobs("${prefix}$dateString/").firstOrNull { isUnsynced(it) } != null
         } else false
       if (hasLateArrivals) {
         lateArrivingDatesList.add(date)
       }
 
-      // Done blob exists but lacks the marker. If it has been there long enough that Sync
-      // should reasonably have processed it, flag the date as having an unprocessed done.
-      val doneAge = Duration.between(doneBlob.createTime, now)
-      val isUnprocessedDone = !doneSynced && doneAge >= unprocessedDoneThreshold
-      val hasSyncAttempt = doneBlob.metadata.containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
-      val publicationAttemptAge = Duration.between(doneBlob.updateTime, now)
+      // A done blob exists but lacks the marker. If it has been there long enough that Sync should
+      // reasonably have processed it, flag the date as having an unprocessed done.
+      val isUnprocessedDone =
+        doneBlobs.any {
+          !DataAvailabilityBlobs.isSynced(it) &&
+            Duration.between(it.createTime, now) >= unprocessedDoneThreshold
+        }
       val isUnpublishedAvailability =
-        doneSynced &&
-          hasSyncAttempt &&
-          !DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob) &&
-          publicationAttemptAge >= unprocessedDoneThreshold
+        doneBlobs.any {
+          DataAvailabilityBlobs.isSynced(it) &&
+            it.metadata.containsKey(DataAvailabilityBlobs.SYNC_ID_KEY) &&
+            !DataAvailabilityBlobs.isDataAvailabilityPublished(it) &&
+            Duration.between(it.updateTime, now) >= unprocessedDoneThreshold
+        }
       if (isUnprocessedDone) {
         unprocessedDoneDatesList.add(date)
       }

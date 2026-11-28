@@ -108,6 +108,7 @@ abstract class WorkItemAttemptsServiceTest {
           workItemAttemptResourceId = "work_item_attempt_resource_id"
           state = WorkItemAttempt.State.ACTIVE
           attemptNumber = 1
+          workItemGeneration = workItem.generation
         }
       )
     assertThat(workItemAttempt.createTime.toInstant()).isGreaterThan(Instant.now().minusSeconds(10))

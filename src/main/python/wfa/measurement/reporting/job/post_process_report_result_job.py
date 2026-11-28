@@ -22,6 +22,7 @@ import grpc
 from grpc_status import rpc_status
 
 from google.rpc import error_details_pb2
+from noiseninja import noise_correction_value_logging
 from wfa.measurement.internal.reporting.v2 import basic_report_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2_grpc
@@ -122,7 +123,7 @@ def _extract_error_info(
         logging.warning(
             "Failed to parse google.rpc.Status from grpc-status-details-bin"
             " trailer",
-            exc_info=True,
+            exc_info=noise_correction_value_logging.is_enabled(),
         )
         return None
     if status is None:
@@ -193,17 +194,25 @@ class PostProcessReportResultJob:
     def __init__(
         self,
         internal_reporting_channel: grpc.Channel,
+        log_noise_correction_values: bool,
         ami_mrc_exempted_edps: Iterable[str] | None = None,
         potential_direct_result_minimum_thresholds: (
             PotentialDirectResultMinimumThresholds | None
         ) = None,
         potential_direct_thresholding_edps: Iterable[str] | None = None,
+        *,
+        enable_validation: bool,
+        enable_correction: bool,
     ):
         """Initializes the job with the necessary gRPC stubs.
 
         Args:
             internal_reporting_channel: A gRPC channel to the internal reporting
                 server.
+            log_noise_correction_values: Whether to log post-noise,
+                pre-correction report-result values and corrected values.
+            enable_validation: Whether to run report quality and large-correction checks.
+            enable_correction: Whether to correct measurements before assembling results.
             ami_mrc_exempted_edps: The list of EDPs resource name for which the
                 AMI >= MRC consistency checks are disabled.
             potential_direct_result_minimum_thresholds: Conservative upper
@@ -231,6 +240,8 @@ class PostProcessReportResultJob:
             post_process_report_result.PostProcessReportResult(
                 self._report_results_stub,
                 self._reporting_sets_stub,
+                enable_validation=enable_validation,
+                enable_correction=enable_correction,
                 potential_direct_result_minimum_thresholds=(
                     potential_direct_result_minimum_thresholds
                 ),
@@ -239,12 +250,23 @@ class PostProcessReportResultJob:
                 ),
             )
         )
+        self._log_noise_correction_values = log_noise_correction_values
+        self._processing_flags = (
+            "xmm.noise_correction.validation_enabled="
+            f"{str(enable_validation).lower()} "
+            "xmm.noise_correction.correction_enabled="
+            f"{str(enable_correction).lower()}"
+        )
         self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
 
     def _process_basic_report(
         self, basic_report: basic_report_pb2.BasicReport
     ) -> bool:
-        with _report_trace_logging_context(basic_report):
+        with _report_trace_logging_context(
+            basic_report
+        ), noise_correction_value_logging.measurement_value_logging(
+            self._log_noise_correction_values
+        ):
             return self._process_basic_report_with_trace(basic_report)
 
     def _process_basic_report_with_trace(
@@ -267,7 +289,8 @@ class PostProcessReportResultJob:
         try:
             logging.info(
                 "xmm.lifecycle.stage=noise_correction xmm.outcome=started "
-                "Processing ReportResult %s",
+                "%s Processing ReportResult %s",
+                self._processing_flags,
                 basic_report.external_report_result_id,
             )
             add_processed_result_values_request = self._post_processor.process(
@@ -275,6 +298,13 @@ class PostProcessReportResultJob:
                 basic_report.external_report_result_id,
                 self._ami_mrc_exempted_edps,
             )
+        except post_process_report_result.NoiseCorrectionFailure as error:
+            for summary_result in error.summary_results:
+                post_process_report_result.log_noise_correction_diagnostic(
+                    summary_result
+                )
+            self._fail_basic_report(basic_report)
+            return False
         except Exception as error:
             # The post-processor itself (solver, data parsing) failed. This
             # BasicReport cannot be processed; mark it FAILED so downstream
@@ -286,7 +316,7 @@ class PostProcessReportResultJob:
                 _error_fields(error),
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
+                exc_info=self._log_noise_correction_values,
             )
             self._fail_basic_report(basic_report)
             return False
@@ -294,12 +324,15 @@ class PostProcessReportResultJob:
         if not add_processed_result_values_request:
             logging.info(
                 "xmm.lifecycle.stage=noise_correction "
-                "xmm.outcome=succeeded xmm.operation.result=no_update_required"
+                "xmm.outcome=succeeded xmm.operation.result=no_update_required "
+                "%s",
+                self._processing_flags,
             )
             return succeeded
 
         logging.info(
-            "xmm.lifecycle.stage=noise_correction xmm.outcome=succeeded"
+            "xmm.lifecycle.stage=noise_correction xmm.outcome=succeeded %s",
+            self._processing_flags,
         )
 
         logging.info(
@@ -347,7 +380,7 @@ class PostProcessReportResultJob:
                     _error_fields(e),
                     basic_report.external_basic_report_id,
                     basic_report.cmms_measurement_consumer_id,
-                    exc_info=True,
+                    exc_info=self._log_noise_correction_values,
                 )
                 self._fail_basic_report(basic_report)
                 return False
@@ -361,7 +394,7 @@ class PostProcessReportResultJob:
                     e.code().name,
                     basic_report.external_basic_report_id,
                     basic_report.cmms_measurement_consumer_id,
-                    exc_info=True,
+                    exc_info=self._log_noise_correction_values,
                 )
                 self._fail_basic_report(basic_report)
                 return False
@@ -377,7 +410,7 @@ class PostProcessReportResultJob:
                 e.code().name,
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
+                exc_info=self._log_noise_correction_values,
             )
             return False
         except Exception as error:
@@ -389,7 +422,7 @@ class PostProcessReportResultJob:
                 _error_fields(error),
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
+                exc_info=self._log_noise_correction_values,
             )
             self._fail_basic_report(basic_report)
             return False
@@ -437,7 +470,7 @@ class PostProcessReportResultJob:
                 _error_fields(error),
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
-                exc_info=True,
+                exc_info=self._log_noise_correction_values,
             )
             return False
 

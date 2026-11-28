@@ -14,6 +14,7 @@ kt_jvm_library(
     name = "simulator",
     srcs = ["ReportingUserSimulator.kt"],
     deps = [
+        ":basic_report_http_client",
         "//imports/java/okhttp3",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
@@ -30,5 +31,17 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/reporting/v2alpha:result_group_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
+
+kt_jvm_library(
+    name = "basic_report_http_client",
+    srcs = ["BasicReportHttpClient.kt"],
+    deps = [
+        "//imports/java/okhttp3",
+        "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

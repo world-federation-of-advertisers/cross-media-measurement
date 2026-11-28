@@ -26,7 +26,14 @@ import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlin.coroutines.CoroutineContext
+import kotlin.system.exitProcess
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -34,6 +41,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
@@ -71,6 +79,28 @@ private fun canonicalWorkItemName(name: String): String {
  * @param attemptUpdateRetryDelay suspends before retrying a transient attempt-state update.
  * @param activeAttemptRetryDelay suspends before retrying ownership of a delivery whose WorkItem
  *   already has an active attempt.
+ * @param attemptLeaseRenewalContext [CoroutineContext] the lease-renewal loop runs in. It must not
+ *   share a thread with [runWork]: subclasses commonly run [runWork] inside a dispatcher-less
+ *   `runBlocking`, where CPU-bound or non-suspending work would otherwise starve renewal until the
+ *   lease expires. It must not contain a [Job], which would detach renewal from the work's
+ *   structured cancellation.
+ * @param maxAttemptRuntime optional upper bound on a WorkItemAttempt's runtime, measured from when
+ *   the attempt is created. `null` (the default unless [MAX_ATTEMPT_RUNTIME_ENV] is set) disables
+ *   the bound. When exceeded, a watchdog that runs independently of [runWork]'s thread stops lease
+ *   renewal, cancels [runWork], reports the attempt as failed, and nacks the message so the
+ *   WorkItem can be retried. If [runWork] has not stopped within [attemptStopGracePeriod] of the
+ *   limit being exceeded — e.g. non-cooperative work that ignores cancellation — the process is
+ *   terminated with exit code [ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE] so the runtime environment
+ *   restarts it, whether or not failure reporting has finished.
+ * @param attemptStopGracePeriod how long [runWork] may take to stop after [maxAttemptRuntime] is
+ *   exceeded before the process is terminated. It starts when the limit is exceeded, so failure
+ *   reporting and its retries cannot extend it. Like [maxAttemptRuntime], it must be between 1 ms
+ *   and [Long.MAX_VALUE] ms.
+ * @param attemptRuntimeWatchdogContext [CoroutineContext] the runtime watchdog runs in. Like
+ *   [attemptLeaseRenewalContext], it must not share a thread with [runWork] or contain a [Job].
+ * @param attemptRuntimeTimer suspends for the given duration; used for [maxAttemptRuntime] and
+ *   [attemptStopGracePeriod].
+ * @param terminateProcess terminates the process with the given exit code.
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -87,11 +117,32 @@ abstract class BaseTeeApplication(
   },
   private val attemptLeaseRenewalInterval: Duration = DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL,
   private val workItemConsumptionEnabled: Boolean = workItemConsumptionEnabledFromEnvironment(),
+  private val attemptLeaseRenewalContext: CoroutineContext = DEFAULT_ATTEMPT_LEASE_RENEWAL_CONTEXT,
+  private val maxAttemptRuntime: Duration? = maxAttemptRuntimeFromEnvironment(),
+  private val attemptStopGracePeriod: Duration = DEFAULT_ATTEMPT_STOP_GRACE_PERIOD,
+  private val attemptRuntimeWatchdogContext: CoroutineContext =
+    DEFAULT_ATTEMPT_RUNTIME_WATCHDOG_CONTEXT,
+  private val attemptRuntimeTimer: suspend (Duration) -> Unit = { delay(it.toMillis()) },
+  private val terminateProcess: (exitCode: Int) -> Unit = { exitProcess(it) },
 ) : AutoCloseable {
 
   init {
     require(attemptLeaseRenewalInterval > Duration.ZERO) {
       "attemptLeaseRenewalInterval must be positive"
+    }
+    require(attemptLeaseRenewalContext[Job] == null) {
+      "attemptLeaseRenewalContext must not contain a Job"
+    }
+    require(
+      maxAttemptRuntime == null || maxAttemptRuntime in MIN_TIMER_DURATION..MAX_TIMER_DURATION
+    ) {
+      "maxAttemptRuntime must be between 1 ms and ${Long.MAX_VALUE} ms"
+    }
+    require(attemptStopGracePeriod in MIN_TIMER_DURATION..MAX_TIMER_DURATION) {
+      "attemptStopGracePeriod must be between 1 ms and ${Long.MAX_VALUE} ms"
+    }
+    require(attemptRuntimeWatchdogContext[Job] == null) {
+      "attemptRuntimeWatchdogContext must not contain a Job"
     }
   }
 
@@ -180,9 +231,36 @@ abstract class BaseTeeApplication(
       awaitWorkItemAttempt(queueMessage, workItemName, workItemGeneration) ?: return
     Span.current().setAttribute(XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttempt.name)
 
+    coroutineScope {
+      val guard = AttemptGuard()
+      val watchdog: Job? =
+        startAttemptRuntimeWatchdog(this, queueMessage, workItemName, workItemAttempt, guard)
+      try {
+        processAttempt(queueMessage, workItemName, workItemAttempt, guard)
+      } finally {
+        // Once the watchdog owns the attempt, let it finish reporting and its stop check instead of
+        // cancelling it mid-report.
+        if (guard.isAbandoned) watchdog?.join() else watchdog?.cancelAndJoin()
+      }
+    }
+  }
+
+  /**
+   * Runs the work for [workItemAttempt] and reports its outcome, unless the runtime watchdog has
+   * abandoned the attempt, in which case the watchdog owns the outcome.
+   */
+  private suspend fun processAttempt(
+    queueMessage: QueueSubscriber.QueueMessage<WorkItem>,
+    workItemName: String,
+    workItemAttempt: WorkItemAttempt,
+    guard: AttemptGuard,
+  ) {
+    val body: WorkItem = queueMessage.body
     try {
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
-      runWorkWithLeaseRenewal(workItemAttempt, queueMessage.body.workItemParams)
+      if (!runWorkGuarded(workItemAttempt, body.workItemParams, guard) || !guard.finish()) {
+        return
+      }
       logger.info("Completed runWork for WorkItemAttempt: ${workItemAttempt.name}")
       val completionError =
         try {
@@ -225,6 +303,7 @@ abstract class BaseTeeApplication(
       Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
+      if (!guard.finish()) return
       recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message ${queueMessage.ackId}" }
       try {
@@ -249,6 +328,7 @@ abstract class BaseTeeApplication(
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
+      if (!guard.finish()) return
       recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
       try {
@@ -393,18 +473,124 @@ abstract class BaseTeeApplication(
     }
   }
 
+  /**
+   * Runs [runWorkWithLeaseRenewal] as a child job that the runtime watchdog can cancel.
+   *
+   * @return `true` if the work completed normally, or `false` if the watchdog abandoned the attempt
+   *   (it then owns reporting the outcome). Exceptions thrown by the work propagate.
+   */
+  private suspend fun runWorkGuarded(
+    workItemAttempt: WorkItemAttempt,
+    message: Any,
+    guard: AttemptGuard,
+  ): Boolean = coroutineScope {
+    // Attach before starting, so the watchdog can see any work that has started. Work cancelled
+    // by attachWork (the attempt was already abandoned) never starts.
+    val work =
+      async(start = CoroutineStart.LAZY) { runWorkWithLeaseRenewal(workItemAttempt, message) }
+    guard.attachWork(work)
+    work.start()
+    try {
+      work.await()
+      true
+    } catch (e: CancellationException) {
+      if (guard.isAbandoned) false else throw e
+    }
+  }
+
+  /**
+   * Starts the watchdog enforcing [maxAttemptRuntime] for [workItemAttempt], or returns `null` when
+   * the bound is disabled.
+   *
+   * The watchdog runs in [attemptRuntimeWatchdogContext], independently of [runWork]'s thread. On
+   * expiry it claims the attempt (so the normal path neither completes nor reports it), cancels the
+   * work and therefore its lease renewal, reports the attempt as failed, and nacks [queueMessage].
+   * Independently of that reporting, it terminates the process if the work fails to stop within
+   * [attemptStopGracePeriod] of expiry.
+   */
+  private fun startAttemptRuntimeWatchdog(
+    scope: CoroutineScope,
+    queueMessage: QueueSubscriber.QueueMessage<WorkItem>,
+    workItemName: String,
+    workItemAttempt: WorkItemAttempt,
+    guard: AttemptGuard,
+  ): Job? {
+    val limit: Duration = maxAttemptRuntime ?: return null
+    return scope.launch(attemptRuntimeWatchdogContext) {
+      attemptRuntimeTimer(limit)
+      if (!guard.abandon()) {
+        return@launch
+      }
+      val error = AttemptRuntimeExceededException(workItemAttempt.name, limit)
+      logger.log(Level.SEVERE, error) { "Stopping work and lease renewal for abandoned attempt" }
+      // Start the stop grace period now, before failure reporting, so slow or retried reporting
+      // cannot extend how long non-cooperative work keeps running. UNDISPATCHED starts the grace
+      // timer before reporting begins.
+      val stopEnforcer =
+        launch(start = CoroutineStart.UNDISPATCHED) {
+          if (!awaitWorkStopped(guard)) {
+            logger.severe(
+              "runWork for ${workItemAttempt.name} did not stop within $attemptStopGracePeriod " +
+                "of exceeding the maximum attempt runtime; terminating the process"
+            )
+            terminateProcess(ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE)
+          }
+        }
+      try {
+        failWorkItemAttempt(workItemAttempt, error)
+        logger.info("WorkItemAttempt failure reported. Nacking message ${queueMessage.ackId}")
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item_attempt.failure_writeback",
+          lifecycleStage = "work_item_attempt_failure_writeback",
+          workItemName = workItemName,
+          workItemAttemptName = workItemAttempt.name,
+          error = e,
+        )
+        logger.log(Level.SEVERE, e) { "Failed to report work item attempt failure" }
+      }
+      queueMessage.nack()
+      stopEnforcer.join()
+    }
+  }
+
+  /** Returns whether the cancelled work stops within [attemptStopGracePeriod]. */
+  private suspend fun awaitWorkStopped(guard: AttemptGuard): Boolean {
+    // Not yet attached: attachWork will cancel the work before it starts, so it never runs.
+    val work: Job = guard.work ?: return true
+    return coroutineScope {
+      // UNDISPATCHED so the grace timer starts immediately, not when this thread is next free.
+      val stopped = async(start = CoroutineStart.UNDISPATCHED) { work.join() }
+      val expired =
+        async(start = CoroutineStart.UNDISPATCHED) { attemptRuntimeTimer(attemptStopGracePeriod) }
+      select {
+          stopped.onAwait { true }
+          expired.onAwait { false }
+        }
+        .also {
+          stopped.cancel()
+          expired.cancel()
+        }
+    }
+  }
+
   private suspend fun runWorkWithLeaseRenewal(workItemAttempt: WorkItemAttempt, message: Any) =
     coroutineScope {
       if (!workItemAttempt.hasLeaseExpirationTime()) {
         runWork(message)
         return@coroutineScope
       }
-      val renewalJob = launch {
-        while (isActive) {
-          delay(attemptLeaseRenewalInterval.toMillis())
-          renewWorkItemAttempt(workItemAttempt)
+      // Renew on a separate context so a runWork that blocks or busy-waits its thread cannot delay
+      // renewal past lease expiry.
+      val renewalJob =
+        launch(attemptLeaseRenewalContext) {
+          while (isActive) {
+            delay(attemptLeaseRenewalInterval.toMillis())
+            renewWorkItemAttempt(workItemAttempt)
+          }
         }
-      }
       try {
         runWork(message)
       } finally {
@@ -507,6 +693,38 @@ abstract class BaseTeeApplication(
     private const val ATTEMPT_UPDATE_MAX_ATTEMPTS = 3
     private const val WORK_ITEM_CONSUMPTION_ENABLED_ENV = "WORK_ITEM_CONSUMPTION_ENABLED"
     val DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL: Duration = Duration.ofMinutes(1)
+    /**
+     * Single-threaded view of [Dispatchers.IO] for lease renewal: renewals stay serialized while
+     * running independently of whatever thread [runWork] occupies.
+     */
+    private val DEFAULT_ATTEMPT_LEASE_RENEWAL_CONTEXT: CoroutineContext =
+      Dispatchers.IO.limitedParallelism(1)
+
+    /**
+     * Environment variable setting [maxAttemptRuntime] in whole seconds. Unset or blank disables
+     * the bound.
+     */
+    const val MAX_ATTEMPT_RUNTIME_ENV = "WORK_ITEM_ATTEMPT_MAX_RUNTIME_SECONDS"
+
+    /** Largest supported [MAX_ATTEMPT_RUNTIME_ENV] value: the timer works in milliseconds. */
+    const val MAX_SUPPORTED_ATTEMPT_RUNTIME_SECONDS: Long = Long.MAX_VALUE / 1000
+
+    /**
+     * Process exit code when [runWork] does not stop after the maximum attempt runtime is exceeded
+     * (`EX_TEMPFAIL`): the attempt has already been failed and its message nacked for retry.
+     */
+    const val ATTEMPT_RUNTIME_EXCEEDED_EXIT_CODE = 75
+
+    private val DEFAULT_ATTEMPT_STOP_GRACE_PERIOD: Duration = Duration.ofMinutes(1)
+
+    /** Bounds for timer durations: the default timer works in whole milliseconds. */
+    private val MIN_TIMER_DURATION: Duration = Duration.ofMillis(1)
+    private val MAX_TIMER_DURATION: Duration = Duration.ofMillis(Long.MAX_VALUE)
+
+    /** Separate single-threaded view of [Dispatchers.IO] for the attempt runtime watchdog. */
+    private val DEFAULT_ATTEMPT_RUNTIME_WATCHDOG_CONTEXT: CoroutineContext =
+      Dispatchers.IO.limitedParallelism(1)
+
     private val ACTIVE_ATTEMPT_RETRY_DELAY: Duration = Duration.ofSeconds(30)
     private val ATTEMPT_UPDATE_RETRY_BACKOFF = ExponentialBackoff()
     private val RETRYABLE_ATTEMPT_UPDATE_CODES =
@@ -531,5 +749,88 @@ abstract class BaseTeeApplication(
         "$WORK_ITEM_CONSUMPTION_ENABLED_ENV must be either true or false"
       }
     }
+
+    private fun maxAttemptRuntimeFromEnvironment(): Duration? =
+      parseMaxAttemptRuntime(System.getenv(MAX_ATTEMPT_RUNTIME_ENV))
+
+    /**
+     * Parses a [MAX_ATTEMPT_RUNTIME_ENV] value: `null` or blank disables the bound; otherwise it
+     * must be a positive whole number of seconds up to [MAX_SUPPORTED_ATTEMPT_RUNTIME_SECONDS].
+     *
+     * @throws IllegalArgumentException for any other value. The value itself is not echoed.
+     */
+    fun parseMaxAttemptRuntime(value: String?): Duration? {
+      if (value.isNullOrBlank()) {
+        return null
+      }
+      val seconds: Long? = value.trim().toLongOrNull()
+      require(seconds != null && seconds > 0 && seconds <= MAX_SUPPORTED_ATTEMPT_RUNTIME_SECONDS) {
+        "$MAX_ATTEMPT_RUNTIME_ENV must be a positive whole number of seconds no greater than " +
+          "$MAX_SUPPORTED_ATTEMPT_RUNTIME_SECONDS"
+      }
+      return Duration.ofSeconds(seconds)
+    }
+  }
+}
+
+/**
+ * Thrown, and reported as the attempt failure, when a WorkItemAttempt exceeds its maximum runtime.
+ */
+class AttemptRuntimeExceededException(workItemAttemptName: String, maxAttemptRuntime: Duration) :
+  Exception(
+    "WorkItemAttempt $workItemAttemptName exceeded its maximum runtime of $maxAttemptRuntime"
+  )
+
+/**
+ * Ownership of one WorkItemAttempt's outcome, shared by the normal processing path and the runtime
+ * watchdog. Exactly one of [finish] or [abandon] wins; the loser must not ack, nack, complete, or
+ * fail the attempt.
+ */
+private class AttemptGuard {
+  private enum class State {
+    RUNNING,
+    FINISHED,
+    ABANDONED,
+  }
+
+  private var state = State.RUNNING
+  private var workJob: Job? = null
+
+  val work: Job?
+    @Synchronized get() = workJob
+
+  val isAbandoned: Boolean
+    @Synchronized get() = state == State.ABANDONED
+
+  /** Records the work [job]; cancels it immediately if the attempt was already abandoned. */
+  @Synchronized
+  fun attachWork(job: Job) {
+    workJob = job
+    if (state == State.ABANDONED) {
+      job.cancel()
+    }
+  }
+
+  /** Claims the outcome for the normal path. Returns `false` if the watchdog already claimed it. */
+  @Synchronized
+  fun finish(): Boolean {
+    if (state == State.RUNNING) {
+      state = State.FINISHED
+    }
+    return state == State.FINISHED
+  }
+
+  /**
+   * Claims the outcome for the watchdog and cancels the work (and so its lease renewal). Returns
+   * `false` if the normal path already claimed it.
+   */
+  @Synchronized
+  fun abandon(): Boolean {
+    if (state != State.RUNNING) {
+      return false
+    }
+    state = State.ABANDONED
+    workJob?.cancel()
+    return true
   }
 }

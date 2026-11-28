@@ -128,12 +128,20 @@ the oneof can eventually be marked required.
 
 ## Enum Design
 
-Do not create enums where code has to interpret what `UNSPECIFIED` means. If
-the absence of a value is meaningful, use an optional message type instead.
+For enums other than response views, do not create enums where code has to
+interpret what `UNSPECIFIED` means. If the absence of a value is meaningful,
+use an optional message type instead.
 ([API PR #137](https://github.com/world-federation-of-advertisers/cross-media-measurement-api/pull/137#issuecomment-1562022514),
 [PR #3722](https://github.com/world-federation-of-advertisers/cross-media-measurement/pull/3722#discussion_r3116634851))
 
 `UNSPECIFIED` must always be the 0/default value.
+
+Response view enums follow
+[AIP-157](https://google.aip.dev/157#view-enumeration), which requires
+`UNSPECIFIED` to be a valid value with a documented effective default.
+For an existing API, preserve the fields returned by default when introducing
+views; changing a list's default from `FULL` to `BASIC` would break existing
+callers ([AIP-180](https://google.aip.dev/180)).
 
 ## Breaking Changes
 

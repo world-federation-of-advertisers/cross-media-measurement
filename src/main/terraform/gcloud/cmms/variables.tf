@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "log_measurement_values" {
+  description = "Enable measurement-value diagnostics in the Halo ResultsFulfiller example. Markets may set this to false."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
 variable "cluster_location" {
   description = "Location of Kubernetes clusters. Defaults to provider zone."
   type        = string
@@ -188,6 +195,12 @@ variable "requisition_fetcher_enabled" {
   default     = true
 }
 
+variable "requisition_fetcher_scheduler_job_name" {
+  description = "RequisitionFetcher scheduler job name. Uses the module's existing name when unset."
+  type        = string
+  default     = null
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string
@@ -203,28 +216,13 @@ variable "requisition_fetcher_env_var" {
   type        = string
 }
 
-variable "requisition_fetcher_secret_mapping" {
-  description = "RequisitionFetcher secret mapping"
-  type        = string
-}
-
 variable "event_group_env_var" {
   description = "EventGroupSync extra env variables"
   type        = string
 }
 
-variable "event_group_secret_mapping" {
-  description = "EventGroupSync secret mapping"
-  type        = string
-}
-
 variable "data_availability_env_var" {
   description = "DataAvailabilitySync extra env variables"
-  type        = string
-}
-
-variable "data_availability_secret_mapping" {
-  description = "DataAvailabilitySync secret mapping"
   type        = string
 }
 
@@ -335,6 +333,18 @@ variable "duchy_aggregator_computations_service_target" {
   type        = string
 }
 
+variable "duchy_aggregator_trustee_replicas" {
+  description = "Number of TrusTEE mill instances for the aggregator duchy."
+  type        = number
+  default     = 1
+  nullable    = false
+
+  validation {
+    condition     = var.duchy_aggregator_trustee_replicas >= 1 && floor(var.duchy_aggregator_trustee_replicas) == var.duchy_aggregator_trustee_replicas
+    error_message = "TrusTEE replica count must be a positive integer."
+  }
+}
+
 variable "kingdom_system_api_target" {
   description = "Target of the kingdom system api"
   type        = string
@@ -397,14 +407,22 @@ variable "reporting_operators" {
   type        = list(string)
   default     = []
   nullable    = false
-  description = "Users/groups granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
+  description = "IAM principals granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
 }
 
 variable "report_trace_operators" {
   type        = list(string)
   default     = []
   nullable    = false
-  description = "Users/groups allowed to impersonate the read-only report-trace operator service account"
+  description = "IAM principals allowed to impersonate the read-only report-trace operator service account"
+}
+
+variable "cmms_operator_members" {
+  type        = map(string)
+  default     = {}
+  nullable    = false
+  sensitive   = true
+  description = "Human IAM principals allowed to impersonate the shared CMMS operator service account"
 }
 
 variable "report_trace_observability_projects" {
@@ -414,10 +432,24 @@ variable "report_trace_observability_projects" {
   description = "Additional projects from which the report-trace operator may read logs and traces"
 }
 
+variable "vid_labeling_trace_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Users/groups allowed to impersonate the read-only VID-labeling trace operator service account"
+}
+
+variable "vid_labeling_trace_observability_projects" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Additional projects from which the VID-labeling trace operator may read logs and traces"
+}
+
 variable "dashboard_operators" {
   type        = list(string)
   nullable    = false
-  description = "Users/groups granted platform access to dashboard tables and EDP SA impersonation for testing"
+  description = "IAM principals granted platform access to dashboard tables and EDP SA impersonation for testing"
 }
 
 variable "dashboard_deletion_protection" {
@@ -502,11 +534,92 @@ variable "vid_labeling_monitor_config_file_path" {
   type        = string
 }
 
+variable "vid_labeling_healing_controller_uber_jar_path" {
+  description = "Path to the VidLabelingHealingController uber jar."
+  type        = string
+}
+
+variable "vid_labeling_healing_controller_env_var" {
+  description = "VidLabelingHealingController extra environment variables."
+  type        = string
+
+}
+
+variable "vid_labeling_healing_controller_secret_mapping" {
+  description = "VidLabelingHealingController secret mapping."
+  type        = string
+}
+
+variable "vid_labeling_healing_labeled_output_object_prefixes" {
+  description = "Object prefixes under which the healing controller may delete labeled output."
+  type        = list(string)
+  nullable    = false
+
+  validation {
+    condition = length(var.vid_labeling_healing_labeled_output_object_prefixes) > 0 && alltrue([
+      for prefix in var.vid_labeling_healing_labeled_output_object_prefixes :
+      prefix != "" && !startswith(prefix, "/") && endswith(prefix, "/")
+    ])
+    error_message = "At least one bucket-relative labeled-output directory prefix ending in '/' is required."
+  }
+}
+
+variable "vid_labeling_healing_alert_notification_channels" {
+  description = "Monitoring notification channels for VID-labeling healing alerts."
+  type        = list(string)
+  default     = []
+}
+
 variable "dashboard_compliance_uber_jar_path" {
   description = "Path to the DashboardComplianceCheck Cloud Function uber jar. When unset, the scheduled compliance check (Cloud Function + Cloud Scheduler + alert policy) is not deployed."
   type        = string
   nullable    = true
   default     = null
+}
+
+variable "data_watcher_delete_work_item_config_file_path" {
+  description = "Deletion watcher configuration for WorkItem routing."
+  type        = string
+}
+
+variable "data_availability_cleanup_work_item_dispatch_enabled" {
+  description = "Switch deletion events to WorkItems after upgrading the queue registry, cleanup worker, and deletion watcher."
+  type        = bool
+  default     = false
+}
+
+variable "data_availability_cleanup_max_instances" {
+  description = "Maximum cleanup instances, with one request per instance."
+  type        = number
+  default     = 5
+}
+
+variable "data_availability_cleanup_alert_notification_channels" {
+  description = "Monitoring notification channels for cleanup queue alerts."
+  type        = list(string)
+  default     = []
+}
+
+variable "data_availability_cleanup_max_queue_age_seconds" {
+  description = "Maximum cleanup delivery age before alerting."
+  type        = number
+  default     = 1800
+}
+
+variable "data_watcher_delete_max_instances" {
+  description = "Maximum deletion watcher instances, with one request per instance."
+  type        = number
+  default     = 10
+}
+
+variable "data_watcher_delete_control_plane_throttler_millis" {
+  description = "Minimum interval between deletion watcher's control-plane RPCs per instance."
+  type        = number
+  default     = 100
+  validation {
+    condition     = var.data_watcher_delete_control_plane_throttler_millis >= 0 && floor(var.data_watcher_delete_control_plane_throttler_millis) == var.data_watcher_delete_control_plane_throttler_millis
+    error_message = "Throttler milliseconds must be a nonnegative integer."
+  }
 }
 
 variable "dashboard_alert_notification_channels" {
@@ -515,22 +628,57 @@ variable "dashboard_alert_notification_channels" {
   default     = []
 }
 
-variable "meta_impression_query_artifact_version" {
-  description = "Maven version of edp-components' meta-impression-query function jar. terraform-cmms-v2.yml reads it to download the jar; unset means the function is not deployed."
+variable "event_group_sync_memory" {
+  description = "EventGroupSync function memory; retain the allocation required by the input size."
   type        = string
   nullable    = true
   default     = null
 }
 
+variable "vid_labeling_availability_alert_thresholds" {
+  description = "VID-labeling availability alert thresholds; ages are in seconds."
+  type = object({
+    pending_age_seconds     = optional(number, 86400)
+    failed_executions       = optional(number, 3)
+    publication_age_seconds = optional(number, 3600)
+  })
+  default = {}
+
+  validation {
+    condition = (
+      var.vid_labeling_availability_alert_thresholds.pending_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.publication_age_seconds > 0 &&
+      var.vid_labeling_availability_alert_thresholds.failed_executions >= 1 &&
+      floor(var.vid_labeling_availability_alert_thresholds.failed_executions) == var.vid_labeling_availability_alert_thresholds.failed_executions
+    )
+    error_message = "Ages must be positive and failed_executions must be a positive integer."
+  }
+}
+
+variable "data_availability_publication_status_storage_roots" {
+  description = "Additional GCS buckets mapped to source output-root prefixes for publication status access."
+  type        = map(set(string))
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for bucket, prefixes in var.data_availability_publication_status_storage_roots :
+      bucket != "" && length(prefixes) > 0 &&
+      alltrue([for prefix in prefixes : !startswith(prefix, "/")])
+    ])
+    error_message = "Each bucket needs at least one bucket-relative prefix; use an empty prefix for the bucket root."
+  }
+}
+
 variable "meta_impression_query_ad_account_id_metadata_key" {
-  description = "Key in Meta's EventGroup entity_metadata that holds the entity's ad account, read by the Meta impression-query Cloud Function. The DataProvider defines it. Required when meta_impression_query_artifact_version is set."
+  description = "Key in Meta's EventGroup entity_metadata that holds the entity's ad account, read by the Meta impression-query Cloud Function. The DataProvider defines it. Required when the function is deployed."
   type        = string
   nullable    = true
   default     = null
 }
 
 variable "meta_impression_query_uber_jar_path" {
-  description = "Path to the downloaded Meta impression-query Cloud Function uber jar. When unset, the function is not deployed."
+  description = "Path to the downloaded Meta impression-query Cloud Function uber jar. terraform-cmms-v2.yml downloads the version named by META_IMPRESSION_QUERY_ARTIFACT_VERSION in the environment's cmms.json. When unset, the function is not deployed."
   type        = string
   nullable    = true
   default     = null

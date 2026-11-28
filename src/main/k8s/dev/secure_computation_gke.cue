@@ -60,6 +60,14 @@ secureComputation: #SecureComputation & {
 
 	deployments: {
 		"secure-computation-internal-api-server": {
+			_container: {
+				// Budget for JVM native memory and instrumentation as well as the heap.
+				_javaOptions: maxDirectMemorySize: "128M"
+				resources: {
+					requests: memory: "1Gi"
+					limits: memory:   "1Gi"
+				}
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalSecureComputationServerServiceAccount
 			}
