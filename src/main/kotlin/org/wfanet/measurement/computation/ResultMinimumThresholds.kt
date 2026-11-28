@@ -32,4 +32,14 @@ data class ResultMinimumThresholds(
   val minImpressions: Int,
   val reachMaxFrequencyPerUser: Int =
     minOf(Byte.MAX_VALUE.toInt(), ComputationParams.MIN_RING_MODULUS - 1),
-)
+) {
+  /** Whether a reach of [scaledReach] users, scaled to the whole population, meets [minUsers]. */
+  fun meetsMinUsers(scaledReach: Double): Boolean = scaledReach >= minUsers
+
+  /**
+   * Whether a result of [scaledReach] users and [scaledImpressions] impressions, each scaled to the
+   * whole population, meets both [minUsers] and [minImpressions].
+   */
+  fun meets(scaledReach: Double, scaledImpressions: Double): Boolean =
+    meetsMinUsers(scaledReach) && scaledImpressions >= minImpressions
+}
