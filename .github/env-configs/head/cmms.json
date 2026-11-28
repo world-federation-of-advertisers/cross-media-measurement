@@ -18,7 +18,7 @@
   "MCP_HOST": "mcp.reporting.head.halo-cmm.org",
   "MC_NAME": "measurementConsumers/ZGbb2aYAMzg",
   "METADATA_STORAGE_PUBLIC_API_TARGET": "system.edp-aggregator.head.halo-cmm.org:8443",
-  "META_IMPRESSION_QUERY_ARTIFACT_VERSION": "0.2.0",
+  "META_IMPRESSION_QUERY_ARTIFACT_VERSION": "0.3.0",
   "MODEL_LINE_NAME": "modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/T0gzKmadWLc",
   "MP_NAME": "modelProviders/PYauXl6kcsA",
   "OPEN_ID_PROVIDER_ISSUER": "https://dev-gv2le0aixfknnqda.us.auth0.com/",

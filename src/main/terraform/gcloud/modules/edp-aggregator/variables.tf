@@ -735,3 +735,29 @@ variable "meta_impression_query_uber_jar_path" {
   nullable    = true
   default     = null
 }
+
+variable "meta_impression_query_edp_display_name" {
+  description = "Key in edps_certs of Meta's DataProvider, whose TLS certificate the Meta impression-query Cloud Function presents when it looks up EventGroups in the Kingdom."
+  type        = string
+}
+
+variable "meta_impression_query_ad_account_id_metadata_key" {
+  description = "Key in Meta's EventGroup entity_metadata that holds the entity's ad account. The DataProvider defines it; the Meta impression-query Cloud Function reads it to attribute hidden entities. Required when the function is deployed."
+  type        = string
+  nullable    = true
+  default     = null
+
+  validation {
+    condition = (
+      var.meta_impression_query_uber_jar_path == null ||
+      var.meta_impression_query_uber_jar_path == "" ||
+      var.meta_impression_query_ad_account_id_metadata_key != null
+    )
+    error_message = "meta_impression_query_ad_account_id_metadata_key must be set when the Meta impression-query Cloud Function is deployed."
+  }
+}
+
+variable "kingdom_public_api_target" {
+  description = "Target of the Kingdom public API, which the Meta impression-query Cloud Function calls to look up EventGroups."
+  type        = string
+}

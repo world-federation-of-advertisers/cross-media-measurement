@@ -116,6 +116,7 @@ jobs:
       # Calls as the Results Fulfiller, the only identity bound as invoker, so the test proves the
       # production caller can reach the function.
       - name: Run DeployedFunctionTest
+        id: deployed-test
         if: steps.target.outputs.skip == 'false'
         working-directory: edp-components
         env:
@@ -146,6 +147,12 @@ jobs:
           META_TEST_ENTITY_TYPE="$(read_field entity_type)"
           META_TEST_START_EPOCH_SECONDS="$(read_field start_epoch_seconds)"
           META_TEST_END_EPOCH_SECONDS="$(read_field end_epoch_seconds)"
+          # Optional: the EventGroup of the lookup-test campaign, which enables the EventGroup lookup
+          # test. The Kingdom assigns its ID, so it differs per environment.
+          META_TEST_EVENT_GROUP="$(jq -r '.test.event_group // empty' <<<"$CONFIG_CONTENT")"
+          if [[ -n "$META_TEST_EVENT_GROUP" ]]; then
+            echo "lookup=true" >> "$GITHUB_OUTPUT"
+          fi
 
           META_TEST_FUNCTION_URL="$(gcloud functions describe meta-impression-query \
             --gen2 --project="$GCLOUD_PROJECT" --region="$GCLOUD_REGION" \
@@ -163,9 +170,10 @@ jobs:
             | jq -r '.token // empty')"
           [[ -n "$META_TEST_ID_TOKEN" ]] || fail "Could not mint an ID token as the Results Fulfiller"
           echo "::add-mask::$META_TEST_ID_TOKEN"
+          echo "started_at=$(date +%s)" >> "$GITHUB_OUTPUT"
           export META_TEST_ENTITY_ID META_TEST_ENTITY_TYPE META_TEST_START_EPOCH_SECONDS \
             META_TEST_END_EPOCH_SECONDS META_TEST_EXPECTED_IMPRESSIONS META_TEST_FUNCTION_URL \
-            META_TEST_ID_TOKEN
+            META_TEST_ID_TOKEN META_TEST_EVENT_GROUP
 
           target=//src/test/kotlin/org/wfanet/measurement/edpcomponents/meta:DeployedFunctionTest
           bazel test "$target" \
@@ -176,6 +184,7 @@ jobs:
             --test_env=META_TEST_START_EPOCH_SECONDS \
             --test_env=META_TEST_END_EPOCH_SECONDS \
             --test_env=META_TEST_EXPECTED_IMPRESSIONS \
+            --test_env=META_TEST_EVENT_GROUP \
             --test_output=errors \
             --nocache_test_results
           # A skipped JUnit test counts as passed, so require that every test case actually ran.
@@ -184,3 +193,39 @@ jobs:
           if grep -q "<skipped" "$test_xml"; then
             fail "DeployedFunctionTest skipped test cases instead of running them"
           fi
+
+      # DeployedFunctionTest only sees the response, which is the same whether or not the EventGroup
+      # lookup succeeded. A successful lookup records the fixture's ad account as inaccessible, at
+      # the time of the query, in meta.account_access.last_observed.
+      - name: Check that the EventGroup lookup resolved the ad account
+        if: steps.target.outputs.skip == 'false' && steps.deployed-test.outputs.lookup == 'true'
+        env:
+          GCLOUD_PROJECT: ${{ fromJSON(steps.cmms-config.outputs.config).GCLOUD_PROJECT }}
+          # The ad_account_id, without its act_ prefix, of the lookup-test EventGroup in every
+          # environment.
+          LOOKUP_TEST_AD_ACCOUNT_ID: "9000000000000001"
+          TEST_STARTED_AT: ${{ steps.deployed-test.outputs.started_at }}
+        run: |
+          set -euo pipefail
+          filter="metric.type=\"workload.googleapis.com/meta.account_access.last_observed\""
+          filter+=" AND metric.labels.account_id=\"$LOOKUP_TEST_AD_ACCOUNT_ID\""
+          filter+=" AND metric.labels.result=\"inaccessible\""
+          start="$(date -u -d "@$TEST_STARTED_AT" +%Y-%m-%dT%H:%M:%SZ)"
+          # Cloud Monitoring can take a few minutes to make a point queryable.
+          for attempt in $(seq 1 20); do
+            observed="$(curl -sS --fail-with-body -G \
+              -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+              "https://monitoring.googleapis.com/v3/projects/$GCLOUD_PROJECT/timeSeries" \
+              --data-urlencode "filter=$filter" \
+              --data-urlencode "interval.startTime=$start" \
+              --data-urlencode "interval.endTime=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+              | jq '[.timeSeries[]?.points[]?.value.int64Value | tonumber] | max // 0')"
+            if (( observed >= TEST_STARTED_AT )); then
+              echo "The lookup recorded ad account $LOOKUP_TEST_AD_ACCOUNT_ID as inaccessible"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "No meta.account_access.last_observed point for the lookup-test ad account since" \
+            "the test started: the EventGroup lookup did not resolve it" >&2
+          exit 1
