@@ -81,6 +81,8 @@ class ImpressionQualificationFiltersService(
           InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
           InternalErrors.Reason.BASIC_REPORT_STATE_INVALID,
           InternalErrors.Reason.INVALID_BASIC_REPORT,
+          InternalErrors.Reason.REPORT_COMPUTATION_NOT_FOUND,
+          InternalErrors.Reason.REPORT_COMPUTATION_STATE_INVALID,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

@@ -71,7 +71,10 @@ import org.wfanet.measurement.duchy.mill.liquidlegionsv2.crypto.JniReachOnlyLiqu
 import org.wfanet.measurement.duchy.mill.shareshuffle.HonestMajorityShareShuffleMill
 import org.wfanet.measurement.duchy.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.mill.trustee.TrusTeeMill
+import org.wfanet.measurement.duchy.mill.trustee.TrusTeeRequisitionDecryptor
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImpl
+import org.wfanet.measurement.duchy.mill.trustee.v2.CellPrivacyParams
+import org.wfanet.measurement.duchy.mill.trustee.v2.TrusTeeV2Mill
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
 import org.wfanet.measurement.duchy.service.system.v1alpha.ComputationControlService
@@ -81,6 +84,8 @@ import org.wfanet.measurement.internal.duchy.AsyncComputationControlGrpcKt.Async
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ContinuationTokensGrpcKt.ContinuationTokensCoroutineStub
+import org.wfanet.measurement.internal.duchy.NoiseMechanism
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationControlGrpcKt.ComputationControlCoroutineStub as SystemComputationControlCoroutineStub
@@ -96,6 +101,8 @@ import org.wfanet.measurement.system.v1alpha.RequisitionsGrpcKt.RequisitionsCoro
  * @param kingdomSystemApiChannel a gRPC channel to the Kingdom
  * @param duchyDependenciesRule provides the data services and storage client
  * @param verboseGrpcLogging whether to do verboseGrpcLogging
+ * @param trusTeeV2FallbackEventDescriptor the event descriptor the TrusTEE v2 Mill resolves
+ *   population attributes against when a computation carries none
  */
 class InProcessDuchy(
   val externalDuchyId: String,
@@ -107,6 +114,7 @@ class InProcessDuchy(
   private val trusTeeKmsClient: KmsClient,
   val verboseGrpcLogging: Boolean = true,
   daemonContext: CoroutineContext = Dispatchers.Default,
+  private val trusTeeV2FallbackEventDescriptor: TrusTeeV2.EventDescriptor? = null,
 ) : TestRule {
   data class DuchyDependencies(
     val duchyDataServices: DuchyDataServices,
@@ -345,6 +353,13 @@ class InProcessDuchy(
             override fun getKmsClient(config: ConfidentialSpaceToAwsWifCredentials): KmsClient =
               trusTeeKmsClient
           }
+        val trusTeeRequisitionDecryptor =
+          TrusTeeRequisitionDecryptor(
+            gcloudKmsClientFactory,
+            gcloudToAwsKmsClientFactory,
+            confidentialSpaceToAwsKmsClientFactory,
+            Paths.get("/dev/null"),
+          )
         val trusTeeMill =
           TrusTeeMill(
             millId = "$externalDuchyId trusTeeMill",
@@ -359,10 +374,25 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             workLockDuration = Duration.ofMinutes(5),
             trusTeeProcessorFactory = TrusTeeProcessorImpl,
-            gcloudKmsClientFactory = gcloudKmsClientFactory,
-            gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
-            confidentialSpaceToAwsKmsClientFactory = confidentialSpaceToAwsKmsClientFactory,
-            attestationTokenPath = Paths.get("/dev/null"),
+            requisitionDecryptor = trusTeeRequisitionDecryptor,
+          )
+        val trusTeeV2Mill =
+          TrusTeeV2Mill(
+            millId = "$externalDuchyId trusTeeV2Mill",
+            duchyId = externalDuchyId,
+            signingKey = signingKey,
+            consentSignalCert =
+              Certificate(duchyCertMap.getValue(externalDuchyId), consentSignal509Cert),
+            dataClients = computationDataClients,
+            systemComputationParticipantsClient = systemComputationParticipantsClient,
+            systemComputationsClient = systemComputationsClient,
+            systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+            computationStatsClient = computationStatsClient,
+            workLockDuration = Duration.ofMinutes(5),
+            requisitionDecryptor = trusTeeRequisitionDecryptor,
+            // Exact results, so that tests can assert them.
+            privacyParams = CellPrivacyParams(NoiseMechanism.NONE, resultMinimumThresholds = null),
+            fallbackEventDescriptor = trusTeeV2FallbackEventDescriptor,
           )
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {
@@ -370,6 +400,7 @@ class InProcessDuchy(
           reachOnlyLiquidLegionsV2Mill.claimAndProcessWork()
           honestMajorityShareShuffleMill.claimAndProcessWork()
           trusTeeMill.claimAndProcessWork()
+          trusTeeV2Mill.claimAndProcessWork()
         }
       }
   }

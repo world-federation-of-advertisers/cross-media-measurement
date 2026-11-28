@@ -92,6 +92,9 @@ kt_jvm_library(
 kt_jvm_library(
     name = "result_minimum_thresholds",
     srcs = ["ResultMinimumThresholds.kt"],
+    visibility = _DEFAULT_VISIBILITY + [
+        "//src/main/kotlin/org/wfanet/measurement/duchy/deploy/common/daemon/mill/trustee:__pkg__",
+    ],
     deps = [
         ":computation_params",
     ],
@@ -125,5 +128,20 @@ kt_jvm_library(
         ":reach_and_frequency",
         ":result_minimum_thresholds",
         ":result_noiser",
+    ],
+)
+
+kt_jvm_library(
+    name = "sampled_index_ranges",
+    srcs = ["SampledIndexRanges.kt"],
+)
+
+kt_jvm_library(
+    name = "vid_hashing",
+    srcs = ["VidHashing.kt"],
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

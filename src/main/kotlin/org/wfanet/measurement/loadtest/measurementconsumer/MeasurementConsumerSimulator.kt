@@ -91,9 +91,11 @@ import org.wfanet.measurement.api.v2alpha.getModelLineRequest
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.measurement
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.api.v2alpha.query
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.testing.MeasurementResultSubject.Companion.assertThat
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.api.v2alpha.vectorSet
 import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -757,6 +759,134 @@ abstract class MeasurementConsumerSimulator(
 
     logger.info("Population result is equal to the expected result")
   }
+
+  /**
+   * Creates a TrusTEE v2 multimeasurement with one base vector per [EventGroup] that matches
+   * [eventGroupFilter], one reach query per vector and one over all of them, and checks that every
+   * query's reach is exact.
+   *
+   * The DataProviders of the vectors must fulfill without noise, and the TrusTEE v2 Mill must not
+   * noise or threshold the result.
+   */
+  suspend fun testMultimeasurement(
+    runId: String,
+    eventGroupFilter: (EventGroup) -> Boolean,
+    maxFrequency: Int = DEFAULT_MULTIMEASUREMENT_MAX_FREQUENCY,
+  ) {
+    val measurementConsumer: MeasurementConsumer =
+      getMeasurementConsumer(measurementConsumerData.name)
+    val eventGroups: List<EventGroup> =
+      listEventGroups(measurementConsumer.name)
+        .filterEventGroups()
+        .toList()
+        .filter(eventGroupFilter)
+    check(eventGroups.size >= 2) { "A multimeasurement union needs at least two EventGroups" }
+    val vectorRequisitions: List<RequisitionInfo> =
+      eventGroups.map { eventGroup ->
+        val requisitionInfo: RequisitionInfo =
+          buildRequisitionInfo(
+            getDataProvider(extractDataProviderKey(eventGroup.name).toName()),
+            listOf(eventGroup),
+            measurementConsumer,
+            Random.nextLong(),
+          )
+        // A multimeasurement vector carries a plaintext RequisitionSpec, without a nonce.
+        requisitionInfo.copy(
+          requisitionSpec = requisitionInfo.requisitionSpec.copy { clearNonce() }
+        )
+      }
+    val measurementSpec = measurementSpec {
+      measurementPublicKey = measurementConsumer.publicKey.message
+      multi = MeasurementSpecKt.multiMeasurementSpec {}
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      reportingMetadata = reportingMetadata { report = reportName }
+      modelLine = modelLineName
+    }
+    val unionQueryId = "union"
+    val request = createMeasurementRequest {
+      parent = measurementConsumer.name
+      measurement = measurement {
+        measurementConsumerCertificate = measurementConsumer.certificate
+        unsignedMeasurementSpec = measurementSpec
+        multimeasurement =
+          MeasurementKt.multimeasurement {
+            val indexedVectorsByDataProvider: Map<String, List<IndexedValue<RequisitionInfo>>> =
+              vectorRequisitions.withIndex().groupBy { it.value.dataProviderEntry.key }
+            for ((dataProviderName, indexedVectors) in indexedVectorsByDataProvider) {
+              dataProviderVectors +=
+                MeasurementKt.MultimeasurementKt.dataProviderVectors {
+                  dataProvider = dataProviderName
+                  for ((index, requisitionInfo) in indexedVectors) {
+                    vectors +=
+                      MeasurementKt.MultimeasurementKt.vector {
+                        this.index = index
+                        requisitionSpec = requisitionInfo.requisitionSpec
+                      }
+                  }
+                }
+            }
+            for (index in vectorRequisitions.indices) {
+              queries += query {
+                id = vectorQueryId(index)
+                summands = vectorSet { baseVectors += index }
+                this.maxFrequency = maxFrequency
+              }
+            }
+            queries += query {
+              id = unionQueryId
+              summands = vectorSet { baseVectors += vectorRequisitions.indices }
+              this.maxFrequency = maxFrequency
+            }
+          }
+        measurementReferenceId = runId
+      }
+    }
+    val created: Measurement =
+      try {
+        kingdomApiThrottler.onReady {
+          measurementsClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .createMeasurement(request)
+        }
+      } catch (e: StatusException) {
+        throw Exception("Error creating multimeasurement", e)
+      }
+    logger.info("Created multimeasurement ${created.name}.")
+    onMeasurementsCreated?.invoke()
+
+    val succeeded: Measurement =
+      pollForResult({ checkNotFailed(getMeasurement(created.name)) }) {
+        it.state == Measurement.State.SUCCEEDED
+      }
+    assertThat(succeeded.protocolConfig.protocolsList.map { it.protocolCase })
+      .containsExactly(ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE_V2)
+    val reachByQueryId: Map<String, Long> =
+      succeeded.resultsList.single().result.multimeasurementResult.queryResultsList.associate {
+        it.queryId to it.cellsList.single().reach
+      }
+
+    fun expectedReach(requisitions: List<RequisitionInfo>): Long =
+      MeasurementResults.computeReach(
+          getFilteredVids(MeasurementInfo(succeeded, measurementSpec, requisitions))
+        )
+        .toLong()
+
+    val expectedVectorReaches: List<Long> = vectorRequisitions.map { expectedReach(listOf(it)) }
+    for ((index, expectedVectorReach) in expectedVectorReaches.withIndex()) {
+      assertThat(reachByQueryId.getValue(vectorQueryId(index))).isEqualTo(expectedVectorReach)
+    }
+    val expectedUnionReach: Long = expectedReach(vectorRequisitions)
+    // A union greater than every vector shows the Mill combined the vectors rather than reading
+    // one.
+    assertThat(expectedUnionReach).isGreaterThan(expectedVectorReaches.max())
+    assertThat(reachByQueryId.getValue(unionQueryId)).isEqualTo(expectedUnionReach)
+    logger.info("Multimeasurement results match the expected reach. Correctness Test passes.")
+  }
+
+  private fun vectorQueryId(index: Int): String = "vector-$index"
 
   /** Computes the tolerance values of an impression [Result] for testing. */
   private fun computeImpressionVariance(
@@ -1521,6 +1651,7 @@ abstract class MeasurementConsumerSimulator(
     // For a 99.9999% Confidence Interval.
     private const val CONFIDENCE_INTERVAL_MULTIPLIER = 5.0
     private val FINAL_RESULT_READ_TIMEOUT = Duration.ofSeconds(10)
+    private const val DEFAULT_MULTIMEASUREMENT_MAX_FREQUENCY = 10
     private val DEFAULT_VID_SAMPLING_INTERVAL = vidSamplingInterval {
       start = 0.2f
       width = 0.5f

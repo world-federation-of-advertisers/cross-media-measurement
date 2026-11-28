@@ -102,6 +102,8 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       trusTeeKmsClient = sharedKmsClient,
       hmssEnabled = hmssEnabled,
       trusTeeEnabled = trusTeeEnabled,
+      // The EDP Aggregator writes impressions against this PopulationSpec.
+      modelLinePopulationSpec = populationSpec,
     )
 
   @JvmField
@@ -204,6 +206,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       }
       .toMap()
 
+  // Filled in once the Kingdom has created the model line, which has a random ID.
+  private val modelLineInfoMap: MutableMap<String, ModelLineInfo> = mutableMapOf()
+
+  internal val modelLineName: String
+    get() = inProcessCmmsComponents.modelLineResourceName
+
   @get:Rule
   val inProcessEdpAggregatorComponents: InProcessEdpAggregatorComponents =
     InProcessEdpAggregatorComponents(
@@ -225,6 +233,7 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
       pubSubClient.createSubscription(PROJECT_ID, SUBSCRIPTION_ID, FULFILLER_TOPIC_ID)
     }
     inProcessCmmsComponents.startDaemons()
+    modelLineInfoMap[modelLineName] = MODEL_LINE_INFO
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val edpDisplayNameToResourceMap = inProcessCmmsComponents.edpDisplayNameToResourceMap
     val kingdomChannel = inProcessCmmsComponents.kingdom.publicApiChannel
@@ -244,11 +253,13 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
           DataProviderKt.capabilities {
             honestMajorityShareShuffleSupported = true
             trusTeeSupported = true
+            trusTeeV2Supported = true
           },
         "edp3" to
           DataProviderKt.capabilities {
             honestMajorityShareShuffleSupported = false
             trusTeeSupported = true
+            trusTeeV2Supported = true
           },
         "edp4" to
           DataProviderKt.capabilities {
@@ -370,6 +381,10 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     private const val MULTI_CREATIVE_B_ID = "creative-b"
     private const val CREATIVE_ID_ENTITY_TYPE = "creative-id"
 
+    /** EventGroup of edp2, a TrusTEE v2 DataProvider, generated from `syntheticEventGroupSpec2`. */
+    internal const val TRUSTEE_V2_SPEC_2_EVENT_GROUP_REF_ID =
+      "$CREATIVE_ID_ENTITY_TYPE/$MULTI_CREATIVE_B_ID"
+
     /** EventGroups whose EDPs cannot satisfy a single-party HMSS measurement's noise contract. */
     internal val HMSS_NO_NOISE_EVENT_GROUP_REF_IDS =
       setOf(HMSS_NO_NOISE_EDP_EVENT_GROUP_REF_ID, MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID)
@@ -380,8 +395,6 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
     internal val TRUSTEE_NO_NOISE_EVENT_GROUP_REF_IDS =
       setOf(TRUSTEE_NO_NOISE_EDP_EVENT_GROUP_REF_ID, MULTIPARTY_NO_NOISE_EDP_EVENT_GROUP_REF_ID)
 
-    private val modelLineName =
-      "modelProviders/AAAAAAAAAHs/modelSuites/AAAAAAAAAHs/modelLines/AAAAAAAAAHs"
     // Epsilon can vary from 0.0001 to 1.0, delta = 1e-15 is a realistic value.
     // Set epsilon higher without exceeding privacy budget so the noise is smaller in the
     // integration test. Check sample values in CompositionTest.kt.
@@ -438,15 +451,12 @@ abstract class InProcessEdpAggregatorLifeOfAMeasurementIntegrationTest(
         TEST_DATA_RUNTIME_PATH.resolve("small_data_spec_2.textproto").toFile(),
         SyntheticEventGroupSpec.getDefaultInstance(),
       )
-    val modelLineInfoMap =
-      mapOf(
-        modelLineName to
-          ModelLineInfo(
-            populationSpec = populationSpec,
-            vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
-            eventDescriptor = TestEvent.getDescriptor(),
-            localAlias = null,
-          )
+    private val MODEL_LINE_INFO =
+      ModelLineInfo(
+        populationSpec = populationSpec,
+        vidIndexMap = InMemoryVidIndexMap.build(populationSpec),
+        eventDescriptor = TestEvent.getDescriptor(),
+        localAlias = null,
       )
 
     @BeforeClass

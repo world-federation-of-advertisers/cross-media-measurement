@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.annotations.VisibleForTesting
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.computation.VidHashing
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntry
 import org.wfanet.measurement.eventdataprovider.shareshuffle.VidIndexMapEntryKt.value
 import org.wfanet.measurement.eventdataprovider.shareshuffle.vidIndexMapEntry
@@ -80,7 +81,7 @@ private constructor(
       populationSpec: PopulationSpec,
       partitionCount: Int = DEFAULT_PARTITION_COUNT,
     ): ParallelInMemoryVidIndexMap {
-      return buildInternal(populationSpec, VidIndexMap::hashVidToLongWithFarmHash, partitionCount)
+      return buildInternal(populationSpec, VidHashing::hash, partitionCount)
     }
 
     /**
@@ -148,7 +149,7 @@ private constructor(
       applyPartitioned(vids.size, boundedPartitionCount) { partition ->
         for (i in partition.startIndex until partition.endIndexExclusive) {
           val vidInt = vids[i]
-          val hash = hashFunction(vidInt.toLong(), VidIndexMap.HASH_SALT)
+          val hash = hashFunction(vidInt.toLong(), VidHashing.SALT)
           results[i] = VidAndHash(vidInt, hash)
         }
       }

@@ -39,6 +39,12 @@ package k8s
 	_maxCreatedBasicReportAge:           string | *"15m"
 	_kingdomMeasurementBatchConcurrency: string | *"8"
 
+	// Whether every BasicReport is computed by TrusTEE v2 multimeasurements.
+	_multimeasurementBasicReportsEnabled: bool | *false
+	// Resource names of the MeasurementConsumers whose BasicReports are computed by TrusTEE v2
+	// multimeasurements when they are not enabled for every BasicReport.
+	_multimeasurementBasicReportsMeasurementConsumers: [...string] | *[]
+
 	_postgresConfig:         #PostgresConfig
 	_reportingSpannerConfig: #SpannerConfig & {
 		database: "reporting"
@@ -84,6 +90,7 @@ package k8s
 		"reporting-v2alpha-public-api-server": string | *"reporting/v2/v2alpha-public-api"
 		"report-scheduling":                   string | *"reporting/v2/report-scheduling"
 		"basic-reports-reports":               string | *"reporting/v2/basic-reports-reports"
+		"basic-reports-multimeasurement":      string | *"reporting/v2/basic-reports-multimeasurement"
 		"report-result-post-processor":        string | *"reporting/v2/report-result-post-processor"
 		"reporting-grpc-gateway":              string | *"reporting/grpc-gateway"
 		"reporting-mcp-server":                string | *"reporting/mcp/server"
@@ -230,7 +237,10 @@ package k8s
 						"--default-report-start-hour=6",
 						"--enable-reporting-set-reporting-unit-components=\(_reportingSetReportingUnitComponentsEnabled)",
 						"--kingdom-measurement-batch-concurrency=\(Reporting._kingdomMeasurementBatchConcurrency)",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
+						"--multimeasurement-basic-reports-enabled=\(Reporting._multimeasurementBasicReportsEnabled)",
+			] + [ for measurementConsumer in Reporting._multimeasurementBasicReportsMeasurementConsumers {
+				"--multimeasurement-basic-reports-measurement-consumer=\(measurementConsumer)"
+			}] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args + _eventDescriptorArgs
 
 			spec: template: spec: {
 				_mounts: {
@@ -389,6 +399,27 @@ package k8s
 				schedule: _reportSchedulingCronSchedule
 			}
 		}
+		// Creates the CMMS Measurements of multimeasurement BasicReports and writes the results of those
+		// whose Measurements have completed, for the post-processor to process. A CronJob of its own, so
+		// that the BasicReports that create a Report never depend on it. It uses the job's default
+		// --max-created-multimeasurement-basic-report-age.
+		"basic-reports-multimeasurement": {
+			_container: args: [
+						_debugVerboseGrpcClientLoggingFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						_reportingCertCollectionFileFlag,
+						_measurementConsumerConfigFileFlag,
+						"--port=8443",
+						"--health-port=8080",
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
+			spec: {
+				jobTemplate: spec: template: spec: _mounts: "mc-config": {
+					volume: secret: secretName: Reporting._mcConfigSecretName
+					volumeMount: mountPath: "/var/run/secrets/files/config/mc/"
+				}
+				schedule: _reportResultProcessorCronSchedule
+			}
+		}
 		"report-result-post-processor": {
 			_container: {
 				args: [
@@ -447,6 +478,7 @@ package k8s
 				"reporting-v2alpha-public-api-server-app",
 				"report-scheduling-app",
 				"report-result-post-processor-app",
+				"basic-reports-multimeasurement-app",
 			]
 			_egresses: {
 				// Needs to call out to Postgres and Spanner.
@@ -500,6 +532,13 @@ package k8s
 			}
 		}
 		"report-result-post-processor": {
+			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
+			_egresses: {
+				// Needs to call out to Kingdom.
+				any: {}
+			}
+		}
+		"basic-reports-multimeasurement": {
 			_destinationMatchLabels: ["postgres-internal-reporting-server-app"]
 			_egresses: {
 				// Needs to call out to Kingdom.

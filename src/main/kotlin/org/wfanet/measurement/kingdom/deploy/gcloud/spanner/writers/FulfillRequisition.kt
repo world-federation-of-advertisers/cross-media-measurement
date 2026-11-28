@@ -33,8 +33,10 @@ import org.wfanet.measurement.internal.kingdom.measurementLogEntryDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionEtagMismatchException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByComputationException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequisitionNotFoundByDataProviderException
@@ -58,12 +60,25 @@ private object Params {
  * @throws [RequisitionNotFoundByComputationException] Requisition not found
  * @throws [RequisitionNotFoundByDataProviderException] Requisition not found
  * @throws [DuchyNotFoundException] Duchy not found
+ * @throws [RequiredFieldNotSetException] nonce not set for a Requisition that has one
+ * @throws [InvalidFieldValueException] nonce set for a multimeasurement Requisition
  */
 class FulfillRequisition(private val request: FulfillRequisitionRequest) :
   SpannerWriter<Requisition, Requisition>() {
   override suspend fun TransactionScope.runTransaction(): Requisition {
     val readResult: RequisitionReader.Result = readRequisition()
     val (measurementConsumerId, measurementId, requisitionId, requisition) = readResult
+
+    // A multimeasurement Requisition's RequisitionSpec is plaintext and has no nonce.
+    if (requisition.hasVectorIndex()) {
+      if (request.nonce != 0L) {
+        throw InvalidFieldValueException("nonce") {
+          "nonce specified for a multimeasurement Requisition"
+        }
+      }
+    } else if (request.nonce == 0L) {
+      throw RequiredFieldNotSetException("nonce")
+    }
 
     if (request.etag.isNotEmpty()) {
       val currentEtag = ETags.computeETag(requisition.updateTime.toGcloudTimestamp())
@@ -113,7 +128,8 @@ class FulfillRequisition(private val request: FulfillRequisitionRequest) :
               ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
                 Measurement.State.PENDING_PARTICIPANT_CONFIRMATION
               ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-              ProtocolConfig.ProtocolCase.TRUS_TEE -> Measurement.State.PENDING_COMPUTATION
+              ProtocolConfig.ProtocolCase.TRUS_TEE,
+              ProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> Measurement.State.PENDING_COMPUTATION
               ProtocolConfig.ProtocolCase.DIRECT,
               ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid multi-party protocol.")
             }

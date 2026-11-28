@@ -15,7 +15,9 @@
 package org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee
 
 import com.google.protobuf.ByteString
+import com.google.protobuf.DescriptorProtos
 import io.grpc.Channel
+import java.util.logging.Logger
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -36,9 +38,14 @@ import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
 import org.wfanet.measurement.duchy.mill.MillWorkLoop
 import org.wfanet.measurement.duchy.mill.trustee.TrusTeeMill
+import org.wfanet.measurement.duchy.mill.trustee.TrusTeeRequisitionDecryptor
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImpl
+import org.wfanet.measurement.duchy.mill.trustee.v2.TrusTeeV2Mill
+import org.wfanet.measurement.duchy.mill.trustee.v2.TrusTeeV2PrivacyParams
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2Kt
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineStub as SystemComputationLogEntriesCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as SystemComputationParticipantsCoroutineStub
@@ -113,6 +120,14 @@ abstract class TrusTeeMillDaemon : Runnable {
     // included in mill logs to help debugging.
     val millId = flags.millId
 
+    // One decryptor, and so one KMS client cache, serves both Mills.
+    val requisitionDecryptor =
+      TrusTeeRequisitionDecryptor(
+        gcloudKmsClientFactory,
+        gcloudToAwsKmsClientFactory,
+        confidentialSpaceToAwsKmsClientFactory,
+        flags.attestationTokenFile.toPath(),
+      )
     val mill =
       TrusTeeMill(
         millId = millId,
@@ -126,15 +141,61 @@ abstract class TrusTeeMillDaemon : Runnable {
         computationStatsClient = computationStatsClient,
         workLockDuration = flags.workLockDuration,
         trusTeeProcessorFactory = TrusTeeProcessorImpl.Factory,
-        gcloudKmsClientFactory = gcloudKmsClientFactory,
-        gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
-        confidentialSpaceToAwsKmsClientFactory = confidentialSpaceToAwsKmsClientFactory,
-        attestationTokenPath = flags.attestationTokenFile.toPath(),
+        requisitionDecryptor = requisitionDecryptor,
       )
+
+    val trusTeeV2Flags: TrusTeeV2MillFlags = flags.trusTeeV2
+    val trusTeeV2Mill: TrusTeeV2Mill? =
+      if (!flags.trusTeeV2Enabled) {
+        // The Herald still creates TrusTEE v2 computations, which wait until a Mill runs with
+        // TrusTEE v2 enabled.
+        logger.warning {
+          "TrusTEE v2 Mill disabled: --trus-tee-v2-enabled is not set, so TrusTEE v2 " +
+            "computations will not be processed"
+        }
+        null
+      } else {
+        TrusTeeV2Mill(
+          millId = millId,
+          duchyId = flags.duchy.duchyName,
+          signingKey = csSigningKey,
+          consentSignalCert = csCertificate,
+          dataClients = dataClients,
+          systemComputationParticipantsClient = systemComputationParticipantsClient,
+          systemComputationsClient = systemComputationsClient,
+          systemComputationLogEntriesClient = systemComputationLogEntriesClient,
+          computationStatsClient = computationStatsClient,
+          workLockDuration = flags.workLockDuration,
+          requisitionDecryptor = requisitionDecryptor,
+          privacyParams = TrusTeeV2PrivacyParams.CELL_PRIVACY_PARAMS,
+          fallbackEventDescriptor = trusTeeV2Flags.fallbackEventDescriptor?.toEventDescriptor(),
+          hashRankOrderCacheSize = trusTeeV2Flags.hashRankOrderCacheSize,
+        )
+      }
 
     runBlocking {
       withContext(CoroutineName("Mill $millId")) {
-        MillWorkLoop.run(flags.pollingInterval) { mill.claimAndProcessWork() }
+        MillWorkLoop.run(flags.pollingInterval) {
+          val claimedTrusTee: Boolean = mill.claimAndProcessWork()
+          val claimedTrusTeeV2: Boolean = trusTeeV2Mill?.claimAndProcessWork() ?: false
+          claimedTrusTee || claimedTrusTeeV2
+        }
+      }
+    }
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(TrusTeeMillDaemon::class.java.name)
+
+    private fun TrusTeeV2MillFlags.EventDescriptorFlags.toEventDescriptor():
+      TrusTeeV2.EventDescriptor {
+      val source = this
+      return TrusTeeV2Kt.eventDescriptor {
+        descriptorSet =
+          source.descriptorSetFile.inputStream().use {
+            DescriptorProtos.FileDescriptorSet.parseFrom(it)
+          }
+        eventMessageType = source.eventMessageType
       }
     }
   }

@@ -40,11 +40,13 @@ message FulfillRequisitionRequest {
     (google.api.field_behavior) = REQUIRED
   ];
 
-  // `nonce` value received from the DataProvider.
+  // `nonce` value received from the DataProvider. Required unless the
+  // [Requisition][] has a `vector_index`, as its `RequisitionSpec` is
+  // plaintext and has no nonce.
   //
   // (-- api-linter: core::0141::forbidden-types=disabled
   //     aip.dev/not-precedent: This is a random 64-bit value. --)
-  fixed64 nonce = 2 [(google.api.field_behavior) = REQUIRED];
+  fixed64 nonce = 2;
 
   // Context information related to the fulfillment of the [Requisition][].
   Requisition.FulfillmentContext fulfillment_context = 3;

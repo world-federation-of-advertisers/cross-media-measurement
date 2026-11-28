@@ -23,11 +23,13 @@ import org.wfanet.measurement.internal.duchy.protocol.HonestMajorityShareShuffle
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.ReachOnlyLiquidLegionsSketchAggregationV2
 import org.wfanet.measurement.internal.duchy.protocol.TrusTee
+import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
 
 enum class MillType {
   LIQUID_LEGIONS_V2,
   HONEST_MAJORITY_SHARE_SHUFFLE,
   TRUS_TEE,
+  TRUS_TEE_V2,
 }
 
 val ComputationType.millType: MillType
@@ -37,6 +39,7 @@ val ComputationType.millType: MillType
       ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2 -> MillType.LIQUID_LEGIONS_V2
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE -> MillType.HONEST_MAJORITY_SHARE_SHUFFLE
       ComputationType.TRUS_TEE -> MillType.TRUS_TEE
+      ComputationType.TRUS_TEE_V2 -> MillType.TRUS_TEE_V2
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("Not a real computation type")
     }
@@ -50,6 +53,7 @@ val ComputationType.prioritizedStages: List<ComputationStage>
       ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE ->
         HONEST_MAJORITY_SHARE_SHUFFLE_PRIORITIZED_STAGES
       ComputationType.TRUS_TEE -> TRUS_TEE_PRIORITIZED_STAGES
+      ComputationType.TRUS_TEE_V2 -> TRUS_TEE_V2_PRIORITIZED_STAGES
       ComputationType.UNSPECIFIED,
       ComputationType.UNRECOGNIZED -> error("Not a real computation type")
     }
@@ -61,3 +65,4 @@ private val REACH_ONLY_LIQUID_LEGIONS_V2_PRIORITIZED_STAGES =
 private val HONEST_MAJORITY_SHARE_SHUFFLE_PRIORITIZED_STAGES =
   listOf(HonestMajorityShareShuffle.Stage.INITIALIZED.toProtocolStage())
 private val TRUS_TEE_PRIORITIZED_STAGES = listOf(TrusTee.Stage.INITIALIZED.toProtocolStage())
+private val TRUS_TEE_V2_PRIORITIZED_STAGES = listOf(TrusTeeV2.Stage.INITIALIZED.toProtocolStage())
