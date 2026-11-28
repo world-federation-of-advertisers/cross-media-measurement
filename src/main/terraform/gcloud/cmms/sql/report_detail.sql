@@ -28,17 +28,24 @@
 -- ExternalReportingSetId and ExternalReportId are unique only within a
 -- MeasurementConsumer, and ExternalEventGroupId only within a DataProvider, so
 -- every cross-database join and the final grouping are scoped by those keys.
+-- ReportCreateTime is the BasicReport creation time. EdpFulfilledTime is when
+-- the DataProvider fulfilled its last Requisition for the report; it is NULL
+-- until every one of them is FULFILLED, and is not the report completion time.
 
 MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
 %{ if include_platform_columns }
 SELECT
-  * EXCEPT (ReportState, CmmsMeasurementConsumer),
+  * EXCEPT (
+    ReportState, CmmsMeasurementConsumer, ReportCreateTime, EdpFulfilledTime
+  ),
   COUNT(DISTINCT CmmsDataProvider) OVER (
     PARTITION BY CmmsMeasurementConsumer, ExternalReportId
   ) AS EdpCount,
   ReportState,
-  CmmsMeasurementConsumer
+  CmmsMeasurementConsumer,
+  ReportCreateTime,
+  EdpFulfilledTime
 FROM (
 %{ endif }
 SELECT
@@ -63,22 +70,31 @@ SELECT
     WHEN 6 THEN 'INVALID'
     ELSE 'UNSPECIFIED'
   END AS ReportState,
-  -- Last on purpose. BigQuery can only append when altering an existing table,
-  -- so a column declared earlier lands here on already-deployed tables while
-  -- landing first on a fresh one. MERGE ... INSERT ROW is positional, so the
+  -- Columns added after the initial schema go last, in the order they were
+  -- added. BigQuery can only append when altering an existing table, so a
+  -- column declared earlier lands at the end on already-deployed tables while
+  -- landing in place on a fresh one. MERGE ... INSERT ROW is positional, so the
   -- two must agree.
-  base.CmmsMeasurementConsumer
+  base.CmmsMeasurementConsumer,
+  -- NULL for the row that groups BasicReports with no ExternalReportId, since
+  -- it spans many reports.
+  IF(
+    base.ExternalReportId IS NULL, NULL, ANY_VALUE(base.CreateTime)
+  ) AS ReportCreateTime,
+  ANY_VALUE(base.EdpFulfilledTime) AS EdpFulfilledTime
 FROM (
   SELECT
     br.CmmsMeasurementConsumerId AS CmmsMeasurementConsumer,
     br.ExternalReportId,
     br.State,
+    br.CreateTime,
     cg.CmmsDataProvider,
     cg.CmmsEventGroupId,
     keg.CampaignName,
     keg.BrandName,
     keg.EntityType,
-    keg.EntityId
+    keg.EntityId,
+    rq.EdpFulfilledTime
   FROM (
     -- Reporting Spanner: report -> campaign group
     SELECT * FROM EXTERNAL_QUERY(
@@ -87,7 +103,8 @@ FROM (
         mc.CmmsMeasurementConsumerId,
         br.ExternalReportId,
         br.ExternalCampaignGroupId,
-        br.State
+        br.State,
+        br.CreateTime
       FROM BasicReports br
       JOIN MeasurementConsumers mc
         ON br.MeasurementConsumerId = mc.MeasurementConsumerId
@@ -222,6 +239,32 @@ FROM (
   ) keg
     ON cg.CmmsDataProvider = keg.CmmsDataProvider
     AND cg.CmmsEventGroupId = keg.CmmsEventGroupId
+  LEFT JOIN (
+    -- EDP Aggregator Spanner: per DataProvider and report, the latest fulfilled
+    -- time, only once every Requisition is FULFILLED (4).
+    SELECT
+      DataProviderResourceId,
+      CmmsMeasurementConsumer,
+      ExternalReportId,
+      IF(COUNTIF(State != 4) = 0, MAX(FulfilledTime), NULL) AS EdpFulfilledTime
+    FROM EXTERNAL_QUERY(
+      'projects/${project_id}/locations/${region}/connections/edp-aggregator-conn',
+      '''SELECT
+        rm.DataProviderResourceId,
+        REGEXP_EXTRACT(rm.Report, 'measurementConsumers/([^/]+)/') AS CmmsMeasurementConsumer,
+        REGEXP_EXTRACT(rm.Report, 'reports/([^/]+)$') AS ExternalReportId,
+        CAST(rm.State AS INT64) AS State,
+        rma_fulfilled.CreateTime AS FulfilledTime
+      FROM RequisitionMetadata rm
+      LEFT JOIN RequisitionMetadataActions rma_fulfilled
+        ON rm.DataProviderResourceId = rma_fulfilled.DataProviderResourceId
+        AND rm.RequisitionMetadataId = rma_fulfilled.RequisitionMetadataId
+        AND CAST(rma_fulfilled.CurrentState AS INT64) = 4''')
+    GROUP BY DataProviderResourceId, CmmsMeasurementConsumer, ExternalReportId
+  ) rq
+    ON cg.CmmsDataProvider = rq.DataProviderResourceId
+    AND br.CmmsMeasurementConsumerId = rq.CmmsMeasurementConsumer
+    AND br.ExternalReportId = rq.ExternalReportId
 ) base
 GROUP BY base.CmmsMeasurementConsumer, base.ExternalReportId, base.CmmsDataProvider
 %{ if include_platform_columns }
