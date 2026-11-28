@@ -411,8 +411,7 @@ package k8s
 						_measurementConsumerConfigFileFlag,
 						"--port=8443",
 						"--health-port=8080",
-						"--pdp-name=\(_populationDataProviderName)",
-			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args + _accessApiTarget.args
+			] + _tlsArgs + _internalApiTarget.args + _kingdomApiTarget.args
 			spec: {
 				jobTemplate: spec: template: spec: _mounts: "mc-config": {
 					volume: secret: secretName: Reporting._mcConfigSecretName

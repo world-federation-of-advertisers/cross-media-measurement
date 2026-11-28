@@ -103,8 +103,8 @@ kt_jvm_library(
     srcs = ["BasicReportsMultimeasurementJobExecutor.kt"],
     runtime_deps = ["@wfa_common_jvm//imports/java/io/grpc/netty"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:kingdom_flags",
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:reporting_api_server_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_measurements_job",
         "//src/main/kotlin/org/wfanet/measurement/reporting/job:basic_reports_multimeasurement_results_job",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_consumers_service_kt_jvm_grpc_proto",

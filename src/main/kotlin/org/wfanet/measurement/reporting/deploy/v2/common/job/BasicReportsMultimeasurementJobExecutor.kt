@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.common.job
 import io.grpc.Channel
 import java.io.File
 import java.time.Duration
+import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineStub as CmmsMeasurementConsumersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as CmmsMeasurementsCoroutineStub
@@ -32,13 +33,25 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.ReportResultsGrpcKt.ReportResultsCoroutineStub
+import org.wfanet.measurement.reporting.deploy.v2.common.InternalApiFlags
 import org.wfanet.measurement.reporting.deploy.v2.common.KingdomApiFlags
-import org.wfanet.measurement.reporting.deploy.v2.common.ReportingApiServerFlags
 import org.wfanet.measurement.reporting.job.BasicReportsMeasurementsJob
 import org.wfanet.measurement.reporting.job.BasicReportsMultimeasurementResultsJob
 import picocli.CommandLine
 
 class BasicReportsMultimeasurementJobFlags {
+  @CommandLine.Mixin
+  lateinit var internalApiFlags: InternalApiFlags
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--debug-verbose-grpc-client-logging"],
+    description = ["Enables full gRPC request and response logging for outgoing gRPCs"],
+    defaultValue = "false",
+  )
+  var debugVerboseGrpcClientLogging by Delegates.notNull<Boolean>()
+    private set
+
   @CommandLine.Option(
     names = ["--measurement-consumer-config-file"],
     description = ["MeasurementConsumerConfigs proto message in text format."],
@@ -72,7 +85,6 @@ class BasicReportsMultimeasurementJobFlags {
   showDefaultValues = true,
 )
 private fun run(
-  @CommandLine.Mixin reportingApiServerFlags: ReportingApiServerFlags,
   @CommandLine.Mixin kingdomApiFlags: KingdomApiFlags,
   @CommandLine.Mixin commonServerFlags: CommonServer.Flags,
   @CommandLine.Mixin jobFlags: BasicReportsMultimeasurementJobFlags,
@@ -85,12 +97,12 @@ private fun run(
     )
   val channel: Channel =
     buildMutualTlsChannel(
-        reportingApiServerFlags.internalApiFlags.target,
+        jobFlags.internalApiFlags.target,
         clientCerts,
-        reportingApiServerFlags.internalApiFlags.certHost,
+        jobFlags.internalApiFlags.certHost,
       )
       .withShutdownTimeout(Duration.ofSeconds(5))
-      .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
+      .withVerboseLogging(jobFlags.debugVerboseGrpcClientLogging)
   val kingdomChannel: Channel =
     buildMutualTlsChannel(
         target = kingdomApiFlags.target,
@@ -98,7 +110,7 @@ private fun run(
         hostName = kingdomApiFlags.certHost,
       )
       .withShutdownTimeout(Duration.ofSeconds(5))
-      .withVerboseLogging(reportingApiServerFlags.debugVerboseGrpcClientLogging)
+      .withVerboseLogging(jobFlags.debugVerboseGrpcClientLogging)
 
   val measurementConsumerConfigs =
     parseTextProto(
