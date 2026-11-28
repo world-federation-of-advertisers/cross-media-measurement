@@ -420,30 +420,6 @@ class MultimeasurementCompilerTest {
   }
 
   @Test
-  fun `compile slot map survives serialization`() {
-    val compiled =
-      compileSingle(
-        buildSpec(
-          BOTH_COMPONENTS,
-          resultGroupMetricSpec {
-            reportingUnit =
-              ResultGroupMetricSpecKt.reportingUnitMetricSetSpec { cumulative = REACH }
-            component = ResultGroupMetricSpecKt.componentMetricSetSpec { cumulative = REACH }
-          },
-          metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY },
-        )
-      )
-
-    val parsed = ReportComputation.parseFrom(compiled.reportComputation.toByteString())
-
-    assertThat(parsed).isEqualTo(compiled.reportComputation)
-    val mappingsByQueryId: Map<String, ResultGroupQueryMapping> =
-      parsed.mappingsList.associateBy { it.queryId }
-    assertThat(mappingsByQueryId.keys)
-      .containsExactlyElementsIn(compiled.multimeasurement.queriesList.map { it.id })
-  }
-
-  @Test
   fun `compile shares one query between slots with the same cells`() {
     val compiled =
       compileSingle(

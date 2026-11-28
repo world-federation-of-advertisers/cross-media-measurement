@@ -760,7 +760,6 @@ abstract class MeasurementConsumerSimulator(
     logger.info("Population result is equal to the expected result")
   }
 
-  /** Computes the tolerance values of an impression [Result] for testing. */
   /**
    * Creates a TrusTEE v2 multimeasurement with one base vector per [EventGroup] that matches
    * [eventGroupFilter], one reach query per vector and one over all of them, and checks that every
@@ -889,6 +888,7 @@ abstract class MeasurementConsumerSimulator(
 
   private fun vectorQueryId(index: Int): String = "vector-$index"
 
+  /** Computes the tolerance values of an impression [Result] for testing. */
   private fun computeImpressionVariance(
     result: Result,
     measurementSpec: MeasurementSpec,
