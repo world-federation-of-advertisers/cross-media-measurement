@@ -71,6 +71,7 @@ import org.wfanet.measurement.duchy.mill.liquidlegionsv2.crypto.JniReachOnlyLiqu
 import org.wfanet.measurement.duchy.mill.shareshuffle.HonestMajorityShareShuffleMill
 import org.wfanet.measurement.duchy.mill.shareshuffle.crypto.JniHonestMajorityShareShuffleCryptor
 import org.wfanet.measurement.duchy.mill.trustee.TrusTeeMill
+import org.wfanet.measurement.duchy.mill.trustee.TrusTeeRequisitionDecryptor
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImpl
 import org.wfanet.measurement.duchy.service.api.v2alpha.RequisitionFulfillmentService
 import org.wfanet.measurement.duchy.service.internal.computationcontrol.AsyncComputationControlService
@@ -345,6 +346,13 @@ class InProcessDuchy(
             override fun getKmsClient(config: ConfidentialSpaceToAwsWifCredentials): KmsClient =
               trusTeeKmsClient
           }
+        val trusTeeRequisitionDecryptor =
+          TrusTeeRequisitionDecryptor(
+            gcloudKmsClientFactory,
+            gcloudToAwsKmsClientFactory,
+            confidentialSpaceToAwsKmsClientFactory,
+            Paths.get("/dev/null"),
+          )
         val trusTeeMill =
           TrusTeeMill(
             millId = "$externalDuchyId trusTeeMill",
@@ -359,10 +367,7 @@ class InProcessDuchy(
             computationStatsClient = computationStatsClient,
             workLockDuration = Duration.ofMinutes(5),
             trusTeeProcessorFactory = TrusTeeProcessorImpl,
-            gcloudKmsClientFactory = gcloudKmsClientFactory,
-            gcloudToAwsKmsClientFactory = gcloudToAwsKmsClientFactory,
-            confidentialSpaceToAwsKmsClientFactory = confidentialSpaceToAwsKmsClientFactory,
-            attestationTokenPath = Paths.get("/dev/null"),
+            requisitionDecryptor = trusTeeRequisitionDecryptor,
           )
         val throttler = MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofSeconds(1))
         throttler.loopOnReady {

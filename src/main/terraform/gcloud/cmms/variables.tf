@@ -355,6 +355,12 @@ variable "duchy_aggregator_cert_id" {
   type        = string
 }
 
+variable "trustee_v2_mill_flags" {
+  description = "Flags of the TrusTEE v2 Mill, such as --trus-tee-v2-enabled and its fallback event descriptor. Its privacy params are compiled into the image."
+  type        = list(string)
+  default     = []
+}
+
 variable "edp_simulator_names" {
   description = "A list of names for the EDP simulators to create."
   type        = list(string)
