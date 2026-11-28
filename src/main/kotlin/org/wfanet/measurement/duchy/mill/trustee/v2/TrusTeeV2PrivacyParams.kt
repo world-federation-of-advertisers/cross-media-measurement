@@ -25,6 +25,9 @@ import org.wfanet.measurement.internal.duchy.NoiseMechanism
  * These are compiled into the attested image so that no operator or caller can weaken them.
  */
 object TrusTeeV2PrivacyParams {
+  // DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement#4532): Replace these
+  // placeholder thresholds with the agreed production values.
+
   /** Minimum noised reach of a released cell and of each `DataProvider`'s slice. */
   const val MIN_USERS = 10
 
