@@ -108,6 +108,7 @@ import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.AddProcessedResultValuesRequestKt
+import org.wfanet.measurement.internal.reporting.v2.BasicReport as InternalBasicReport
 import org.wfanet.measurement.internal.reporting.v2.BasicReportsGrpcKt.BasicReportsCoroutineStub as InternalBasicReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.DimensionSpecKt as InternalDimensionSpecKt
 import org.wfanet.measurement.internal.reporting.v2.EventTemplateFieldKt as InternalEventTemplateFieldKt
@@ -193,6 +194,7 @@ import org.wfanet.measurement.reporting.v2alpha.DimensionSpecKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListBasicReportsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
@@ -234,8 +236,12 @@ class BasicReportsServiceTest {
   }
 
   private val reportsServiceMock: ReportsCoroutineImplBase = mockService {
-    onBlocking { createReport(any()) }
-      .thenReturn(report { name = ReportKey("a1234", "a1234").toName() })
+    onBlocking { createReport(any()) } doAnswer
+      { invocation ->
+        val request: CreateReportRequest = invocation.getArgument(0)
+        val parentKey = checkNotNull(MeasurementConsumerKey.fromName(request.parent))
+        report { name = ReportKey(parentKey, request.reportId).toName() }
+      }
   }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
@@ -1195,6 +1201,81 @@ class BasicReportsServiceTest {
       assertThat(repeatedBasicReport.name).isEqualTo(createdBasicReport.name)
       // The repeated request does not create a second Report.
       verify(reportsServiceMock, times(1)).createReport(any())
+    }
+
+  @Test
+  fun `createBasicReport links the original Report when retrying a lost create response`(): Unit =
+    runBlocking {
+      val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+      val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "1234")
+      measurementConsumersService.createMeasurementConsumer(
+        measurementConsumer {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        }
+      )
+      internalReportingSetsService.createReportingSet(
+        createReportingSetRequest {
+          reportingSet =
+            INTERNAL_CAMPAIGN_GROUP.copy {
+              cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+              externalCampaignGroupId = campaignGroupKey.reportingSetId
+            }
+          externalReportingSetId = campaignGroupKey.reportingSetId
+        }
+      )
+      val request = createBasicReportRequest {
+        parent = measurementConsumerKey.toName()
+        basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
+        basicReportId = "retry-report"
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val reportsByRequestId = mutableMapOf<String, Report>()
+      val createReportRequests = mutableListOf<CreateReportRequest>()
+      wheneverBlocking { reportsServiceMock.createReport(any()) } doAnswer
+        { invocation ->
+          val createRequest: CreateReportRequest = invocation.getArgument(0)
+          createReportRequests += createRequest
+          val savedReport =
+            reportsByRequestId.getOrPut(createRequest.requestId) {
+              createRequest.report.copy {
+                name = ReportKey(measurementConsumerKey, createRequest.reportId).toName()
+              }
+            }
+          if (createReportRequests.size == 1) {
+            throw Status.UNAVAILABLE.withDescription("Response lost after Report creation")
+              .asRuntimeException()
+          }
+          savedReport
+        }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+        }
+      assertThat(exception).status().code().isEqualTo(Status.Code.INTERNAL)
+      val getInternalRequest = internalGetBasicReportRequest {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+        externalBasicReportId = request.basicReportId
+      }
+      val interruptedBasicReport = internalBasicReportsService.getBasicReport(getInternalRequest)
+      assertThat(interruptedBasicReport.state).isEqualTo(InternalBasicReport.State.CREATED)
+      assertThat(interruptedBasicReport.externalReportId).isEmpty()
+      assertThat(reportsByRequestId).hasSize(1)
+
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createBasicReport(request) }
+      val persistedBasicReport = internalBasicReportsService.getBasicReport(getInternalRequest)
+      assertThat(createReportRequests).hasSize(2)
+      assertThat(createReportRequests[1].requestId).isEqualTo(createReportRequests[0].requestId)
+      assertThat(createReportRequests[1].reportId).isNotEqualTo(createReportRequests[0].reportId)
+      assertThat(reportsByRequestId).hasSize(1)
+      assertThat(response.state).isEqualTo(BasicReport.State.RUNNING)
+      assertThat(persistedBasicReport.state).isEqualTo(InternalBasicReport.State.REPORT_CREATED)
+      assertThat(persistedBasicReport.externalReportId).isEqualTo(createReportRequests[0].reportId)
+      val span = spanExporter.finishedSpanItems.last { it.name == "reporting.basic_report.create" }
+      assertThat(span.attributes.get(ReportTraceAttributes.REPORT_NAME))
+        .isEqualTo(reportsByRequestId.values.single().name)
     }
 
   @Test

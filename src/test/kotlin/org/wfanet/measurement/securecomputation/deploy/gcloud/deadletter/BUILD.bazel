@@ -11,6 +11,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/io/grpc:api",
         "@wfa_common_jvm//imports/java/io/grpc/testing",
