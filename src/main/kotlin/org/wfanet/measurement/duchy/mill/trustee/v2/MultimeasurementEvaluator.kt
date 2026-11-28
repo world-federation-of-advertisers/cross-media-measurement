@@ -85,6 +85,10 @@ class MultimeasurementEvaluator(
    * @throws IllegalArgumentException if a chunk does not hold one aligned array per base vector
    */
   fun evaluate(vectors: VectorSource): MultimeasurementResult {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4532): Before the first pass,
+    //  remove the slices of a DataProvider whose reported impression count is below min_users, as
+    //  docs/trustee/v2-mill-evaluation.md describes. The slice test reaches the same verdicts, so
+    //  this only saves work.
     val firstPass =
       QueryEvaluator(queries, dataProviders, subpopulations, privacyParams.impressionCap)
     addAll(firstPass, vectors)
