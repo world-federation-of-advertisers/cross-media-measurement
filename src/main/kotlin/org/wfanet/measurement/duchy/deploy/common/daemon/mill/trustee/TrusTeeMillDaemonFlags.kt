@@ -16,6 +16,7 @@ package org.wfanet.measurement.duchy.deploy.common.daemon.mill.trustee
 
 import java.io.File
 import java.time.Duration
+import kotlin.properties.Delegates
 import org.wfanet.measurement.duchy.deploy.common.CommonDuchyFlags
 import org.wfanet.measurement.duchy.deploy.common.ComputationsServiceFlags
 import org.wfanet.measurement.duchy.deploy.common.SystemApiFlags
@@ -51,4 +52,52 @@ class TrusTeeMillFlags : MillFlags() {
   )
   lateinit var pollingInterval: Duration
     private set
+
+  @set:CommandLine.Option(
+    names = ["--trus-tee-v2-enabled"],
+    description = ["Whether to also run the TrusTEE multimeasurement (v2) Mill."],
+    defaultValue = "false",
+  )
+  var trusTeeV2Enabled: Boolean by Delegates.notNull()
+    private set
+
+  @CommandLine.Mixin
+  lateinit var trusTeeV2: TrusTeeV2MillFlags
+    private set
+}
+
+class TrusTeeV2MillFlags {
+  @CommandLine.ArgGroup(exclusive = false, multiplicity = "0..1")
+  var fallbackEventDescriptor: EventDescriptorFlags? = null
+    private set
+
+  @set:CommandLine.Option(
+    names = ["--trus-tee-v2-hash-rank-order-cache-size"],
+    description = ["How many PopulationSpecs' VID hash rank orders are kept between computations."],
+    defaultValue = "1",
+  )
+  var hashRankOrderCacheSize: Int by Delegates.notNull()
+    private set
+
+  class EventDescriptorFlags {
+    @CommandLine.Option(
+      names = ["--trus-tee-v2-event-descriptor-set"],
+      description =
+        [
+          "Serialized FileDescriptorSet of the event message type, for computations that carry no " +
+            "event descriptor."
+        ],
+      required = true,
+    )
+    lateinit var descriptorSetFile: File
+      private set
+
+    @CommandLine.Option(
+      names = ["--trus-tee-v2-event-message-type"],
+      description = ["Full name of the event message type within the descriptor set."],
+      required = true,
+    )
+    lateinit var eventMessageType: String
+      private set
+  }
 }

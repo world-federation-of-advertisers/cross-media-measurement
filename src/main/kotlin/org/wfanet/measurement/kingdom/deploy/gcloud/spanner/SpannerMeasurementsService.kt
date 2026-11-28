@@ -47,6 +47,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DataProviderN
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotActiveException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.DuchyNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.InvalidFieldValueException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementEtagMismatchException
@@ -54,6 +55,9 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundByMeasurementConsumerException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementStateIllegalException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamMeasurements
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCancelMeasurements
@@ -87,6 +91,10 @@ class SpannerMeasurementsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate not found.")
     } catch (e: DuchyNotActiveException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Inactive required duchy.")
+    } catch (e: ModelRolloutNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: ModelReleaseNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }
@@ -99,6 +107,15 @@ class SpannerMeasurementsService(
     grpcRequire(request.measurement.details.apiVersion.isNotEmpty()) { "api_version unspecified" }
     grpcRequire(!request.measurement.details.measurementSpec.isEmpty) {
       "measurement_spec unspecified"
+    }
+    if (request.measurement.details.protocolConfig.hasTrusTeeV2()) {
+      // A multimeasurement's MeasurementSpec is unsigned and its RequisitionSpecs are plaintext, so
+      // the signature and per-DataProvider checks below do not apply.
+      validateMultimeasurement(request.measurement)
+      return
+    }
+    grpcRequire(request.measurement.multimeasurementVectorsList.isEmpty()) {
+      "multimeasurement_vectors set for a measurement that is not a multimeasurement"
     }
     grpcRequire(!request.measurement.details.measurementSpecSignature.isEmpty) {
       "measurement_spec_signature unspecified"
@@ -114,6 +131,29 @@ class SpannerMeasurementsService(
         "nonce_hash unspecified for ${ExternalId(externalDataProviderId)}"
       }
     }
+  }
+
+  private fun validateMultimeasurement(measurement: Measurement) {
+    grpcRequire(measurement.dataProvidersMap.isEmpty()) {
+      "data_providers set for a multimeasurement"
+    }
+    grpcRequire(measurement.details.queriesList.isNotEmpty()) { "queries unspecified" }
+    grpcRequire(measurement.multimeasurementVectorsList.isNotEmpty()) {
+      "multimeasurement_vectors unspecified"
+    }
+    val indexes: List<Int> = measurement.multimeasurementVectorsList.map { it.index }.sorted()
+    grpcRequire(indexes == indexes.indices.toList()) {
+      "multimeasurement_vectors indexes must cover 0 to ${indexes.size - 1} exactly once"
+    }
+    for (vector in measurement.multimeasurementVectorsList) {
+      grpcRequire(vector.externalDataProviderId != 0L) {
+        "external_data_provider_id unspecified for vector ${vector.index}"
+      }
+      grpcRequire(!vector.requisitionSpec.isEmpty) {
+        "requisition_spec unspecified for vector ${vector.index}"
+      }
+    }
+    grpcRequire(measurement.details.hasModelLine()) { "model_line unspecified" }
   }
 
   override suspend fun getMeasurement(request: GetMeasurementRequest): Measurement {
@@ -159,6 +199,15 @@ class SpannerMeasurementsService(
       throw e.asStatusRuntimeException(
         Status.Code.FAILED_PRECONDITION,
         "Aggregator's Certificate not found.",
+      )
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: RequiredFieldNotSetException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    } catch (e: MeasurementStateIllegalException) {
+      throw e.asStatusRuntimeException(
+        Status.Code.FAILED_PRECONDITION,
+        "Measurement state illegal.",
       )
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
@@ -276,6 +325,10 @@ class SpannerMeasurementsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Certificate not found.")
     } catch (e: DuchyNotActiveException) {
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION, "Inactive required duchy.")
+    } catch (e: ModelRolloutNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    } catch (e: ModelReleaseNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: KingdomInternalException) {
       throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
     }

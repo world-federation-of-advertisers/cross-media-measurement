@@ -56,6 +56,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.refusal
 import org.wfanet.measurement.api.v2alpha.RequisitionParentKey
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.SignedMessage
 import org.wfanet.measurement.api.v2alpha.encryptedMessage
@@ -438,10 +439,41 @@ private fun InternalRequisition.toRequisition(): Requisition {
           externalIdToApiId(parentMeasurement.externalMeasurementConsumerCertificateId),
         )
         .toName()
-    this.measurementSpec = signedMessage {
-      setMessage(packedMeasurementSpec)
-      signature = parentMeasurement.measurementSpecSignature
-      signatureAlgorithmOid = parentMeasurement.measurementSpecSignatureAlgorithmOid
+    if (parentMeasurement.protocolConfig.hasTrusTeeV2()) {
+      // A multimeasurement Requisition signs nothing and encrypts nothing to the DataProvider.
+      unsignedMeasurementSpec = measurementSpec
+      requisitionSpec =
+        when (measurementApiVersion) {
+          Version.V2_ALPHA -> RequisitionSpec.parseFrom(details.requisitionSpec)
+        }
+    } else {
+      this.measurementSpec = signedMessage {
+        setMessage(packedMeasurementSpec)
+        signature = parentMeasurement.measurementSpecSignature
+        signatureAlgorithmOid = parentMeasurement.measurementSpecSignatureAlgorithmOid
+      }
+
+      encryptedRequisitionSpec = encryptedMessage {
+        ciphertext = details.encryptedRequisitionSpec
+        typeUrl =
+          when (measurementApiVersion) {
+            Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+          }
+      }
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+      //   field.
+      encryptedRequisitionSpecCiphertext = details.encryptedRequisitionSpec
+
+      this.dataProviderPublicKey = dataProviderPublicKey
+      nonce = details.nonce
+
+      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this
+      //   field.
+      signedDataProviderPublicKey = signedMessage {
+        setMessage(dataProviderPublicKey)
+        signature = details.dataProviderPublicKeySignature
+        signatureAlgorithmOid = details.dataProviderPublicKeySignatureAlgorithmOid
+      }
     }
 
     protocolConfig =
@@ -450,31 +482,12 @@ private fun InternalRequisition.toRequisition(): Requisition {
         parentMeasurement.dataProvidersCount,
       )
 
-    encryptedRequisitionSpec = encryptedMessage {
-      ciphertext = details.encryptedRequisitionSpec
-      typeUrl =
-        when (measurementApiVersion) {
-          Version.V2_ALPHA -> ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-        }
-    }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
-    encryptedRequisitionSpecCiphertext = details.encryptedRequisitionSpec
-
     dataProviderCertificate =
       DataProviderCertificateKey(
           externalIdToApiId(externalDataProviderId),
           externalIdToApiId(this@toRequisition.dataProviderCertificate.externalCertificateId),
         )
         .toName()
-    this.dataProviderPublicKey = dataProviderPublicKey
-    nonce = details.nonce
-
-    // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting this field.
-    signedDataProviderPublicKey = signedMessage {
-      setMessage(dataProviderPublicKey)
-      signature = details.dataProviderPublicKeySignature
-      signatureAlgorithmOid = details.dataProviderPublicKeySignatureAlgorithmOid
-    }
 
     duchies +=
       duchiesMap.entries

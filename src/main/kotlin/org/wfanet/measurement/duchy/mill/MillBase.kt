@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.yield
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
@@ -78,6 +79,7 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.CreateComputationStatRequest
 import org.wfanet.measurement.internal.duchy.FinishComputationResponse
 import org.wfanet.measurement.internal.duchy.GetComputationTokenResponse
+import org.wfanet.measurement.internal.duchy.RequisitionMetadata
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsRequest
 import org.wfanet.measurement.internal.duchy.UpdateComputationDetailsResponse
 import org.wfanet.measurement.internal.duchy.claimWorkRequest
@@ -96,6 +98,7 @@ import org.wfanet.measurement.system.v1alpha.ComputationParticipantKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub
 import org.wfanet.measurement.system.v1alpha.ComputationsGrpcKt
+import org.wfanet.measurement.system.v1alpha.SetComputationResultRequest
 import org.wfanet.measurement.system.v1alpha.StageKey
 import org.wfanet.measurement.system.v1alpha.computationLogEntry
 import org.wfanet.measurement.system.v1alpha.createComputationLogEntryRequest
@@ -577,6 +580,31 @@ abstract class MillBase(
   }
 
   /**
+   * Sends this Duchy's TrusTEE requisition params to the Kingdom. They carry only its consent
+   * signal certificate, for TrusTEE and TrusTEE v2 alike.
+   */
+  protected suspend fun sendTrusTeeRequisitionParamsToKingdom(token: ComputationToken) {
+    sendRequisitionParamsToKingdom(
+      token,
+      ComputationParticipantKt.requisitionParams {
+        duchyCertificate = consentSignalCert.name
+        trusTee = ComputationParticipant.RequisitionParams.TrusTee.getDefaultInstance()
+      },
+    )
+  }
+
+  /**
+   * Returns the data [requisition] was fulfilled with.
+   *
+   * @throws ComputationDataClients.PermanentErrorException if no data is stored for it
+   */
+  protected suspend fun readRequisitionData(requisition: RequisitionMetadata): ByteString =
+    dataClients.readSingleRequisitionBlob(requisition)
+      ?: throw ComputationDataClients.PermanentErrorException(
+        "Requisition data not found for ${requisition.externalKey}"
+      )
+
+  /**
    * Sends request to the kingdom's system ComputationParticipantsService to fail the computation.
    */
   private suspend fun failComputationAtKingdom(token: ComputationToken, errorMessage: String) {
@@ -688,6 +716,26 @@ abstract class MillBase(
     )
   }
 
+  /**
+   * Sends the result of a multimeasurement Computation to the Kingdom, neither signed nor
+   * encrypted.
+   *
+   * @param measurementResult a public API `Result` holding a `MultimeasurementResult`
+   */
+  protected suspend fun sendUnencryptedResultToKingdom(
+    token: ComputationToken,
+    measurementResult: Measurement.Result,
+  ) {
+    val publicApiVersion =
+      Version.fromString(token.computationDetails.kingdomComputation.publicApiVersion)
+    val request = setComputationResultRequest {
+      name = ComputationKey(token.globalComputationId).toName()
+      result = measurementResult.toByteString()
+      this.publicApiVersion = publicApiVersion.string
+    }
+    setComputationResult(request)
+  }
+
   /** Sends measurement result to the kingdom's system computationsService. */
   private suspend fun sendResultToKingdom(
     globalId: String,
@@ -703,6 +751,11 @@ abstract class MillBase(
       this.encryptedResult = encryptedResult
       this.publicApiVersion = publicApiVersion.string
     }
+    setComputationResult(request)
+  }
+
+  /** Calls the Kingdom's SetComputationResult, classifying a failure as transient or permanent. */
+  private suspend fun setComputationResult(request: SetComputationResultRequest) {
     try {
       systemComputationsClient.setComputationResult(request)
     } catch (e: StatusException) {

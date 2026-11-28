@@ -108,6 +108,22 @@ message Measurement {
   // Only set for DEFAULT view.
   map<fixed64, DataProviderValue> data_providers = 9;
 
+  // A base vector of a multimeasurement, fulfilled by one `Requisition`.
+  message MultimeasurementVector {
+    fixed64 external_data_provider_id = 1;
+
+    // Index of the vector, from the public API
+    // `Measurement.Multimeasurement.Vector.index`.
+    int32 index = 2;
+
+    // Serialized plaintext `RequisitionSpec` from the public API.
+    bytes requisition_spec = 3;
+  }
+  // Base vectors of a multimeasurement, in place of [data_providers][].
+  //
+  // Only set for DEFAULT view.
+  repeated MultimeasurementVector multimeasurement_vectors = 16;
+
   MeasurementDetails details = 10;
 
   message ResultInfo {
@@ -115,8 +131,14 @@ message Measurement {
       string external_aggregator_duchy_id = 1;
       fixed64 external_data_provider_id = 2;
     }
+    // Not set when `result` is set.
     fixed64 external_certificate_id = 3;
     bytes encrypted_result = 4;
+
+    // Serialized `Result` message from the public API, neither signed nor
+    // encrypted. Set in place of `encrypted_result` for a TrusTEE v2
+    // multimeasurement.
+    bytes result = 6;
 
     // Version of the public API for serialized message definitions.
     string api_version = 5;
@@ -220,4 +242,9 @@ message Requisition {
 
   // Current etag. Output only.
   string etag = 13;
+
+  // Index of the base vector this `Requisition` fulfills, from the public API
+  // `Measurement.Multimeasurement.Vector.index`. Set only for a
+  // multimeasurement.
+  optional int32 vector_index = 14;
 }

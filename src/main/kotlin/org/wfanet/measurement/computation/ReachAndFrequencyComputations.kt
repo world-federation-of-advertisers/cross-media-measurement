@@ -57,12 +57,14 @@ object ReachAndFrequencyComputations {
     val impressionCount = noiser.noiseImpressionsFromFrequencyHistogram(sampled.frequencyHistogram)
     val scaledImpressionCount = (impressionCount / vidSamplingIntervalWidth).toLong()
     return if (
-      scaledImpressionCount < resultMinimumThresholds.minImpressions ||
-        minScaledNoisedReach < resultMinimumThresholds.minUsers
+      resultMinimumThresholds.meets(
+        scaledReach = minScaledNoisedReach.toDouble(),
+        scaledImpressions = scaledImpressionCount.toDouble(),
+      )
     ) {
-      0
-    } else {
       minScaledNoisedReach
+    } else {
+      0
     }
   }
 
@@ -134,25 +136,45 @@ object ReachAndFrequencyComputations {
       "vidSamplingIntervalWidth must be set if resultMinimumThresholds are set"
     }
     val thresholdedHistogram = noisedHistogram.copyOf()
-    // Fold down from highest frequency to lowest. When a bucket fails the threshold,
-    // its user count is added to the next lower bucket, which is then re-evaluated.
-    for (index in thresholdedHistogram.indices.reversed()) {
-      val frequency = index + 1L
-      val count = thresholdedHistogram[index]
-      if (
-        count / vidSamplingIntervalWidth < resultMinimumThresholds.minUsers ||
-          frequency * count / vidSamplingIntervalWidth < resultMinimumThresholds.minImpressions
-      ) {
-        thresholdedHistogram[index] = 0
-        if (index > 0) {
-          thresholdedHistogram[index - 1] += count
-        }
-      }
-    }
+    foldDownBelowThresholds(thresholdedHistogram, resultMinimumThresholds, vidSamplingIntervalWidth)
     // Keep the pre-threshold denominator so suppressing 1+ does not redistribute its users.
     return thresholdedHistogram.withIndex().associate { (index, count) ->
       val frequency = index + 1L
       frequency to count.toDouble() / numNoisedActiveRegisters
+    }
+  }
+
+  /**
+   * Folds [histogram], a histogram of in-sample counts for frequencies 1 to its size, down from its
+   * highest frequency in place.
+   *
+   * A bucket whose count, scaled by [vidSamplingIntervalWidth], is below `min_users`, or whose
+   * scaled impressions are below `min_impressions`, is zeroed and its count added to the next lower
+   * bucket, which is then tested in turn.
+   *
+   * @param onFold called with the index of each zeroed bucket, before the next lower one is tested
+   */
+  fun foldDownBelowThresholds(
+    histogram: LongArray,
+    resultMinimumThresholds: ResultMinimumThresholds,
+    vidSamplingIntervalWidth: Double,
+    onFold: (index: Int) -> Unit = {},
+  ) {
+    for (index in histogram.indices.reversed()) {
+      val frequency = index + 1L
+      val count = histogram[index]
+      if (
+        !resultMinimumThresholds.meets(
+          scaledReach = count / vidSamplingIntervalWidth,
+          scaledImpressions = frequency * count / vidSamplingIntervalWidth,
+        )
+      ) {
+        histogram[index] = 0
+        if (index > 0) {
+          histogram[index - 1] += count
+        }
+        onFold(index)
+      }
     }
   }
 }
