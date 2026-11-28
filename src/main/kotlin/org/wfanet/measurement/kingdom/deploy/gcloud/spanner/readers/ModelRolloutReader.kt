@@ -119,4 +119,33 @@ class ModelRolloutReader : SpannerReader<ModelRolloutReader.Result>() {
       .execute(readContext)
       .singleOrNull()
   }
+
+  /**
+   * Reads the ModelRollout of the specified ModelLine with the latest `RolloutPeriodStartTime`,
+   * breaking ties by the latest `CreateTime`, or `null` if the ModelLine has none.
+   */
+  suspend fun readLatest(
+    readContext: AsyncDatabaseClient.ReadContext,
+    externalModelProviderId: ExternalId,
+    externalModelSuiteId: ExternalId,
+    externalModelLineId: ExternalId,
+  ): Result? {
+    return fillStatementBuilder {
+        appendClause(
+          """
+          WHERE ExternalModelProviderId = @externalModelProviderId
+            AND ExternalModelSuiteId = @externalModelSuiteId
+            AND ExternalModelLineId = @externalModelLineId
+          ORDER BY ModelRollouts.RolloutPeriodStartTime DESC, ModelRollouts.CreateTime DESC
+          LIMIT 1
+          """
+            .trimIndent()
+        )
+        bind("externalModelProviderId").to(externalModelProviderId.value)
+        bind("externalModelSuiteId").to(externalModelSuiteId.value)
+        bind("externalModelLineId").to(externalModelLineId.value)
+      }
+      .execute(readContext)
+      .singleOrNull()
+  }
 }

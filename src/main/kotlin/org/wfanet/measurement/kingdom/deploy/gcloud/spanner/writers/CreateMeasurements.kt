@@ -29,10 +29,14 @@ import org.wfanet.measurement.internal.kingdom.ComputationParticipantDetails
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement
+import org.wfanet.measurement.internal.kingdom.ModelLineKey
+import org.wfanet.measurement.internal.kingdom.ModelRelease
+import org.wfanet.measurement.internal.kingdom.ModelRollout
 import org.wfanet.measurement.internal.kingdom.ProtocolConfig
 import org.wfanet.measurement.internal.kingdom.Requisition
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
 import org.wfanet.measurement.internal.kingdom.copy
+import org.wfanet.measurement.internal.kingdom.populationKey
 import org.wfanet.measurement.internal.kingdom.requisitionDetails
 import org.wfanet.measurement.kingdom.deploy.common.DuchyIds
 import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
@@ -46,9 +50,13 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ETags
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.KingdomInternalException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerCertificateNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelReleaseNotFoundException
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.ModelRolloutNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.CertificateReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelReleaseReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.ModelRolloutReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.SpannerWriter.TransactionScope
 
 /**
@@ -94,6 +102,11 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       requests.map { request ->
         if (existingMeasurementsMap[request.requestId] == null) {
           addAll(request.measurement.dataProvidersMap.keys.map { ExternalId(it) })
+          addAll(
+            request.measurement.multimeasurementVectorsList.map {
+              ExternalId(it.externalDataProviderId)
+            }
+          )
         }
       }
     }
@@ -132,9 +145,15 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           ProtocolConfig.ProtocolCase.LIQUID_LEGIONS_V2,
           ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2,
           ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
-          ProtocolConfig.ProtocolCase.TRUS_TEE -> {
+          ProtocolConfig.ProtocolCase.TRUS_TEE,
+          ProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> {
             createComputedMeasurement(
-              createMeasurementRequest = it,
+              createMeasurementRequest =
+                if (it.measurement.details.protocolConfig.hasTrusTeeV2()) {
+                  withPinnedPopulation(it)
+                } else {
+                  it
+                },
               measurementConsumerId = measurementConsumerId,
               measurementConsumerCertificateId = certificateId,
               dataProvideReaderResultsMap = dataProvideReaderResultsMap,
@@ -181,7 +200,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
             HmssProtocolConfig.secondNonAggregatorDuchyId,
             HmssProtocolConfig.aggregatorDuchyId,
           )
-        ProtocolConfig.ProtocolCase.TRUS_TEE -> setOf(TrusTeeProtocolConfig.duchyId)
+        ProtocolConfig.ProtocolCase.TRUS_TEE,
+        ProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> setOf(TrusTeeProtocolConfig.duchyId)
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -200,7 +220,8 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         ProtocolConfig.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 ->
           RoLlv2ProtocolConfig.minimumNumberOfRequiredDuchies
         ProtocolConfig.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE -> HmssProtocolConfig.DUCHY_COUNT
-        ProtocolConfig.ProtocolCase.TRUS_TEE -> 1
+        ProtocolConfig.ProtocolCase.TRUS_TEE,
+        ProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> 1
         ProtocolConfig.ProtocolCase.DIRECT,
         ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol.")
       }
@@ -278,6 +299,18 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
           fulfillingDuchies = listOf(fulfillingDuchy),
         )
       }
+      ProtocolConfig.ProtocolCase.TRUS_TEE_V2 -> {
+        val fulfillingDuchy =
+          includedDuchyEntries.first { it.externalDuchyId == TrusTeeProtocolConfig.duchyId }
+        // For each base vector, insert a Requisition.
+        insertMultimeasurementRequisitions(
+          measurementConsumerId = measurementConsumerId,
+          measurementId = measurementId,
+          vectors = createMeasurementRequest.measurement.multimeasurementVectorsList,
+          dataProvideReaderResultsMap = dataProvideReaderResultsMap,
+          fulfillingDuchy = fulfillingDuchy,
+        )
+      }
       ProtocolConfig.ProtocolCase.DIRECT,
       ProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET -> error("Invalid protocol,")
     }
@@ -321,6 +354,62 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     return createMeasurementRequest.measurement.copy {
       this.externalMeasurementId = externalMeasurementId.value
       state = initialMeasurementState
+    }
+  }
+
+  /**
+   * Returns [request] with `MeasurementDetails.population` set to the Population of the latest
+   * ModelRollout of its `model_line`, so that a computation's PopulationSpec cannot change under
+   * it.
+   *
+   * @throws ModelRolloutNotFoundException if the model line has no ModelRollout
+   * @throws ModelReleaseNotFoundException if the ModelRollout's ModelRelease is not found
+   */
+  private suspend fun TransactionScope.withPinnedPopulation(
+    request: CreateMeasurementRequest
+  ): CreateMeasurementRequest {
+    val modelLine: ModelLineKey = request.measurement.details.modelLine
+    val latestModelRollout: ModelRollout =
+      ModelRolloutReader()
+        .readLatest(
+          transactionContext,
+          ExternalId(modelLine.externalModelProviderId),
+          ExternalId(modelLine.externalModelSuiteId),
+          ExternalId(modelLine.externalModelLineId),
+        )
+        ?.modelRollout
+        ?: throw ModelRolloutNotFoundException(
+          ExternalId(modelLine.externalModelProviderId),
+          ExternalId(modelLine.externalModelSuiteId),
+          ExternalId(modelLine.externalModelLineId),
+        ) {
+          "ModelLine has no ModelRollout"
+        }
+    val modelRelease: ModelRelease =
+      ModelReleaseReader()
+        .readByExternalIds(
+          transactionContext,
+          ExternalId(latestModelRollout.externalModelReleaseId),
+          ExternalId(latestModelRollout.externalModelSuiteId),
+          ExternalId(latestModelRollout.externalModelProviderId),
+        )
+        ?.modelRelease
+        ?: throw ModelReleaseNotFoundException(
+          ExternalId(latestModelRollout.externalModelProviderId),
+          ExternalId(latestModelRollout.externalModelSuiteId),
+          ExternalId(latestModelRollout.externalModelReleaseId),
+        )
+    return request.copy {
+      measurement =
+        measurement.copy {
+          this.details =
+            this.details.copy {
+              population = populationKey {
+                externalDataProviderId = modelRelease.externalDataProviderId
+                externalPopulationId = modelRelease.externalPopulationId
+              }
+            }
+        }
     }
   }
 
@@ -384,10 +473,36 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
         measurementConsumerId = measurementConsumerId,
         measurementId = measurementId,
         dataProviderId = InternalId(dataProviderReaderResult.dataProviderId),
-        dataProviderValue = dataProviderValue,
+        details = dataProviderValue.toRequisitionDetails(),
         dataProviderCertificateId = InternalId(dataProviderReaderResult.certificateId),
         initialRequisitionState = initialRequisitionState,
         fulfillingDuchies = fulfillingDuchies,
+      )
+    }
+  }
+
+  private fun TransactionScope.insertMultimeasurementRequisitions(
+    measurementConsumerId: InternalId,
+    measurementId: InternalId,
+    vectors: List<Measurement.MultimeasurementVector>,
+    dataProvideReaderResultsMap: Map<Long, DataProviderReader.Result>,
+    fulfillingDuchy: DuchyIds.Entry,
+  ) {
+    for (vector in vectors) {
+      val dataProviderReaderResult =
+        dataProvideReaderResultsMap.getValue(vector.externalDataProviderId)
+      val details = requisitionDetails { requisitionSpec = vector.requisitionSpec }
+      insertRequisition(
+        measurementConsumerId = measurementConsumerId,
+        measurementId = measurementId,
+        dataProviderId = InternalId(dataProviderReaderResult.dataProviderId),
+        details = details,
+        // Nothing in a multimeasurement Requisition is signed or encrypted for the DataProvider, so
+        // this only records the DataProvider's current Certificate.
+        dataProviderCertificateId = InternalId(dataProviderReaderResult.certificateId),
+        initialRequisitionState = Requisition.State.PENDING_PARAMS,
+        fulfillingDuchies = listOf(fulfillingDuchy),
+        vectorIndex = vector.index,
       )
     }
   }
@@ -396,24 +511,14 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
     measurementConsumerId: InternalId,
     measurementId: InternalId,
     dataProviderId: InternalId,
-    dataProviderValue: Measurement.DataProviderValue,
+    details: RequisitionDetails,
     dataProviderCertificateId: InternalId,
     initialRequisitionState: Requisition.State,
     fulfillingDuchies: List<DuchyIds.Entry> = emptyList(),
+    vectorIndex: Int? = null,
   ) {
     val requisitionId = idGenerator.generateInternalId()
     val externalRequisitionId = idGenerator.generateExternalId()
-    val details: RequisitionDetails = requisitionDetails {
-      dataProviderPublicKey = dataProviderValue.dataProviderPublicKey
-      encryptedRequisitionSpec = dataProviderValue.encryptedRequisitionSpec
-      nonceHash = dataProviderValue.nonceHash
-
-      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
-      // fields.
-      dataProviderPublicKeySignature = dataProviderValue.dataProviderPublicKeySignature
-      dataProviderPublicKeySignatureAlgorithmOid =
-        dataProviderValue.dataProviderPublicKeySignatureAlgorithmOid
-    }
     val fulfillingDuchyId =
       if (fulfillingDuchies.isNotEmpty()) {
         // Requisitions for the same measurement might go to different duchies.
@@ -433,6 +538,9 @@ class CreateMeasurements(private val requests: List<CreateMeasurementRequest>) :
       set("DataProviderCertificateId" to dataProviderCertificateId)
       set("State").toInt64(initialRequisitionState)
       fulfillingDuchyId?.let { set("FulfillingDuchyId" to it) }
+      if (vectorIndex != null) {
+        set("VectorIndex" to vectorIndex.toLong())
+      }
       set("RequisitionDetails").to(details)
     }
   }
@@ -519,4 +627,18 @@ private fun validateCertificate(certificateResult: CertificateReader.Result): In
   }
 
   return certificateResult.certificateId
+}
+
+private fun Measurement.DataProviderValue.toRequisitionDetails(): RequisitionDetails {
+  val source = this
+  return requisitionDetails {
+    dataProviderPublicKey = source.dataProviderPublicKey
+    encryptedRequisitionSpec = source.encryptedRequisitionSpec
+    nonceHash = source.nonceHash
+
+    // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+    // fields.
+    dataProviderPublicKeySignature = source.dataProviderPublicKeySignature
+    dataProviderPublicKeySignatureAlgorithmOid = source.dataProviderPublicKeySignatureAlgorithmOid
+  }
 }

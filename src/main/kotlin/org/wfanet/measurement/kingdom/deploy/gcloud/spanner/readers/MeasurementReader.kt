@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementDetails
 import org.wfanet.measurement.internal.kingdom.MeasurementKt
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.dataProviderValue
+import org.wfanet.measurement.internal.kingdom.MeasurementKt.multimeasurementVector
 import org.wfanet.measurement.internal.kingdom.MeasurementKt.resultInfo
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntryDetails
 import org.wfanet.measurement.internal.kingdom.RequisitionDetails
@@ -274,6 +275,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         Measurements.ProvidedMeasurementId,
         Measurements.CreateRequestId,
         Measurements.MeasurementDetails,
+        Measurements.PlaintextResult,
         Measurements.CreateTime,
         Measurements.UpdateTime,
         Measurements.State AS MeasurementState,
@@ -283,7 +285,8 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
           SELECT AS STRUCT
             ExternalDataProviderId,
             ExternalDataProviderCertificateId,
-            RequisitionDetails
+            RequisitionDetails,
+            VectorIndex
           FROM
             Requisitions
             JOIN DataProviders USING (DataProviderId)
@@ -326,6 +329,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         Measurements.ProvidedMeasurementId,
         Measurements.CreateRequestId,
         Measurements.MeasurementDetails,
+        Measurements.PlaintextResult,
         Measurements.CreateTime,
         Measurements.UpdateTime,
         Measurements.State AS MeasurementState,
@@ -337,6 +341,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
             Requisitions.State AS RequisitionState,
             Requisitions.FulfillingDuchyId,
             Requisitions.RequisitionDetails,
+            Requisitions.VectorIndex,
             ExternalDataProviderCertificateId,
             SubjectKeyIdentifier,
             NotValidBefore,
@@ -422,6 +427,7 @@ class MeasurementReader(private val view: Measurement.View, measurementsIndex: I
         Measurements.ProvidedMeasurementId,
         Measurements.CreateRequestId,
         Measurements.MeasurementDetails,
+        Measurements.PlaintextResult,
         Measurements.CreateTime,
         Measurements.UpdateTime,
         Measurements.State AS MeasurementState,
@@ -509,6 +515,9 @@ private fun MeasurementKt.Dsl.fillMeasurementCommon(struct: Struct) {
         apiVersion = duchyResultStruct.getString("PublicApiVersion")
       }
     }
+    if (!struct.isNull("PlaintextResult")) {
+      results += Measurement.ResultInfo.parseFrom(struct.getBytes("PlaintextResult").toByteArray())
+    }
   }
   etag = ETags.computeETag(struct.getTimestamp("UpdateTime"))
 }
@@ -517,6 +526,7 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
   fillMeasurementCommon(struct)
 
   val measurementSucceeded = state == Measurement.State.SUCCEEDED
+  val vectors = mutableListOf<Measurement.MultimeasurementVector>()
   for (requisitionStruct in struct.getStructList("Requisitions")) {
     val requisitionDetails =
       requisitionStruct.getProtoMessage(
@@ -526,17 +536,25 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
     val externalDataProviderId = requisitionStruct.getLong("ExternalDataProviderId")
     val externalDataProviderCertificateId =
       requisitionStruct.getLong("ExternalDataProviderCertificateId")
-    dataProviders[externalDataProviderId] = dataProviderValue {
-      this.externalDataProviderCertificateId = externalDataProviderCertificateId
-      dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
-      encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
-      nonceHash = requisitionDetails.nonceHash
+    if (details.protocolConfig.hasTrusTeeV2()) {
+      vectors += multimeasurementVector {
+        this.externalDataProviderId = externalDataProviderId
+        index = requisitionStruct.getLong("VectorIndex").toInt()
+        requisitionSpec = requisitionDetails.requisitionSpec
+      }
+    } else {
+      dataProviders[externalDataProviderId] = dataProviderValue {
+        this.externalDataProviderCertificateId = externalDataProviderCertificateId
+        dataProviderPublicKey = requisitionDetails.dataProviderPublicKey
+        encryptedRequisitionSpec = requisitionDetails.encryptedRequisitionSpec
+        nonceHash = requisitionDetails.nonceHash
 
-      // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
-      // fields.
-      dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
-      dataProviderPublicKeySignatureAlgorithmOid =
-        requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
+        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop setting these
+        // fields.
+        dataProviderPublicKeySignature = requisitionDetails.dataProviderPublicKeySignature
+        dataProviderPublicKeySignatureAlgorithmOid =
+          requisitionDetails.dataProviderPublicKeySignatureAlgorithmOid
+      }
     }
 
     if (measurementSucceeded && !requisitionDetails.encryptedData.isEmpty) {
@@ -553,12 +571,14 @@ private fun MeasurementKt.Dsl.fillDefaultView(struct: Struct) {
       }
     }
   }
+  multimeasurementVectors += vectors.sortedBy { it.index }
 }
 
 private fun MeasurementKt.Dsl.fillComputationView(struct: Struct) {
   fillMeasurementCommon(struct)
   val requisitionsStructs = struct.getStructList("Requisitions")
-  val dataProvidersCount = requisitionsStructs.size
+  val dataProvidersCount =
+    requisitionsStructs.map { it.getLong("ExternalDataProviderId") }.distinct().size
 
   val externalMeasurementId = ExternalId(struct.getLong("ExternalMeasurementId"))
   val externalMeasurementConsumerId = ExternalId(struct.getLong("ExternalMeasurementConsumerId"))
