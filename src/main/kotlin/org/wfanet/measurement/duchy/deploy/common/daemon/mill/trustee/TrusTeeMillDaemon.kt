@@ -33,7 +33,6 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.identity.withDuchyId
-import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.duchy.db.computation.ComputationDataClients
 import org.wfanet.measurement.duchy.mill.Certificate
 import org.wfanet.measurement.duchy.mill.MillBase
@@ -41,8 +40,8 @@ import org.wfanet.measurement.duchy.mill.MillWorkLoop
 import org.wfanet.measurement.duchy.mill.trustee.TrusTeeMill
 import org.wfanet.measurement.duchy.mill.trustee.TrusTeeRequisitionDecryptor
 import org.wfanet.measurement.duchy.mill.trustee.processor.TrusTeeProcessorImpl
-import org.wfanet.measurement.duchy.mill.trustee.v2.CellPrivacyParams
 import org.wfanet.measurement.duchy.mill.trustee.v2.TrusTeeV2Mill
+import org.wfanet.measurement.duchy.mill.trustee.v2.TrusTeeV2PrivacyParams
 import org.wfanet.measurement.internal.duchy.ComputationStatsGrpcKt.ComputationStatsCoroutineStub
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt.ComputationsCoroutineStub
 import org.wfanet.measurement.internal.duchy.protocol.TrusTeeV2
@@ -145,13 +144,13 @@ abstract class TrusTeeMillDaemon : Runnable {
         requisitionDecryptor = requisitionDecryptor,
       )
 
-    val trusTeeV2Flags: TrusTeeV2MillFlags? = flags.trusTeeV2
+    val trusTeeV2Flags: TrusTeeV2MillFlags = flags.trusTeeV2
     val trusTeeV2Mill: TrusTeeV2Mill? =
-      if (trusTeeV2Flags == null) {
+      if (!flags.trusTeeV2Enabled) {
         // The Herald still creates TrusTEE v2 computations, which wait until a Mill runs with
-        // these flags.
+        // TrusTEE v2 enabled.
         logger.warning {
-          "TrusTEE v2 Mill disabled: no --trus-tee-v2-noise-mechanism flag, so TrusTEE v2 " +
+          "TrusTEE v2 Mill disabled: --trus-tee-v2-enabled is not set, so TrusTEE v2 " +
             "computations will not be processed"
         }
         null
@@ -168,7 +167,7 @@ abstract class TrusTeeMillDaemon : Runnable {
           computationStatsClient = computationStatsClient,
           workLockDuration = flags.workLockDuration,
           requisitionDecryptor = requisitionDecryptor,
-          privacyParams = trusTeeV2Flags.toCellPrivacyParams(),
+          privacyParams = TrusTeeV2PrivacyParams.CELL_PRIVACY_PARAMS,
           fallbackEventDescriptor = trusTeeV2Flags.fallbackEventDescriptor?.toEventDescriptor(),
           hashRankOrderCacheSize = trusTeeV2Flags.hashRankOrderCacheSize,
         )
@@ -187,22 +186,6 @@ abstract class TrusTeeMillDaemon : Runnable {
 
   companion object {
     private val logger: Logger = Logger.getLogger(TrusTeeMillDaemon::class.java.name)
-
-    private fun TrusTeeV2MillFlags.toCellPrivacyParams(): CellPrivacyParams {
-      val thresholds: TrusTeeV2MillFlags.ResultMinimumThresholdsFlags? = resultMinimumThresholds
-      return CellPrivacyParams(
-        noiseMechanism,
-        if (thresholds == null) {
-          null
-        } else {
-          ResultMinimumThresholds(
-            minUsers = thresholds.minUsers,
-            minImpressions = thresholds.minImpressions,
-            reachMaxFrequencyPerUser = thresholds.reachMaxFrequencyPerUser,
-          )
-        },
-      )
-    }
 
     private fun TrusTeeV2MillFlags.EventDescriptorFlags.toEventDescriptor():
       TrusTeeV2.EventDescriptor {
