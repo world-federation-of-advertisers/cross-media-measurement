@@ -309,6 +309,11 @@ REPORTING_V2_COMMON_IMAGES = [
         repository = _PREFIX + "/reporting/v2/basic-reports-reports",
     ),
     struct(
+        name = "basic_reports_multimeasurement_image",
+        image = "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common/job:basic_reports_multimeasurement_job_executor_image",
+        repository = _PREFIX + "/reporting/v2/basic-reports-multimeasurement",
+    ),
+    struct(
         name = "report_result_post_processor_image",
         image = "//src/main/python/wfa/measurement/reporting/deploy/v2/common/job:post_process_report_result_job_executor_image",
         repository = _PREFIX + "/reporting/v2/report-result-post-processor",
