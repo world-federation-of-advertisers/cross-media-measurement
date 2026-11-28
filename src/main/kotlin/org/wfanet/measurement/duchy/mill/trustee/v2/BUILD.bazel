@@ -56,6 +56,7 @@ kt_jvm_library(
         "CellReleaser.kt",
         "MultimeasurementEvaluator.kt",
         "SliceSuppression.kt",
+        "TrusTeeV2PrivacyParams.kt",
     ],
     visibility = [
         test_target(":__pkg__"),
